@@ -1,3 +1,15 @@
+CREATE TABLE foreign_product (
+    foreign_product_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    ticker              VARCHAR(20)  NOT NULL,
+    name                VARCHAR(100) NOT NULL,
+    market              VARCHAR(20),
+    currency            VARCHAR(10),
+    type                VARCHAR(20)
+);
+
+INSERT INTO foreign_product (foreign_product_id, ticker, name, market, currency, type)
+VALUES (1, 'AAPL', 'Apple Inc.', 'NASDAQ', 'USD', 'FOREIGN_STOCK');
+
 CREATE TABLE tax_rule (
     rule_id    BIGINT PRIMARY KEY AUTO_INCREMENT,
     rule_type  VARCHAR(20)   NOT NULL,
@@ -85,6 +97,7 @@ CREATE TABLE target_product_judgement (
     ci_hash             VARCHAR(64)   NOT NULL,
     fund_code           VARCHAR(12),
     fund_name           VARCHAR(100),
+    ticker              VARCHAR(20),
     is_target           BOOLEAN       NOT NULL,
     foreign_stock_ratio DECIMAL(5,2),
     inception_date      DATE,

@@ -76,14 +76,24 @@ public class TaxTestFixture {
     }
 
     public void insertKrwExchange(
-            Long accountId, Long orderId, String settlementStatus, String finalAmount) {
+            Long accountId,
+            Long orderId,
+            String settlementStatus,
+            String finalAmount,
+            LocalDateTime finalAt) {
         execute(
                 """
                 INSERT INTO krw_exchange
-                    (account_id, order_id, provisional_amount, provisional_at, final_amount, settlement_status)
-                VALUES (%d, %d, %s, '2026-03-10 10:00:00', %s, '%s')
+                    (account_id, order_id, provisional_amount, provisional_at, final_amount, final_at, settlement_status)
+                VALUES (%d, %d, %s, '2026-03-10 10:00:00', %s, %s, '%s')
                 """
-                        .formatted(accountId, orderId, finalAmount, finalAmount, settlementStatus));
+                        .formatted(
+                                accountId,
+                                orderId,
+                                finalAmount,
+                                finalAmount,
+                                finalAt == null ? "NULL" : "'" + finalAt + "'",
+                                settlementStatus));
     }
 
     public Long insertCustomerWithAccount(String ciHash) {

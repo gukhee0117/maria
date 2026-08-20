@@ -147,7 +147,12 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                orderId,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
 
         List<SellLotDTO> lots =
                 taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -174,7 +179,7 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "PROVISIONAL", "23760000.00");
+        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "PROVISIONAL", "23760000.00", null);
 
         assertThat(
                         taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -189,7 +194,12 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "RECEIVED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                orderId,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
 
         assertThat(
                         taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -204,7 +214,12 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(OTHER_ACCOUNT_ID, orderId, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                OTHER_ACCOUNT_ID,
+                orderId,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
 
         assertThat(
                         taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -219,7 +234,12 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2025, 12, 31, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                orderId,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2025, 12, 31, 10, 0));
 
         assertThat(
                         taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -234,7 +254,12 @@ class TaxMapperTest {
         Long orderId =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 9, 20, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderId, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                orderId,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 9, 20, 10, 0));
 
         LocalDateTime before = LocalDateTime.of(2026, 6, 30, 0, 0);
 
@@ -258,8 +283,14 @@ class TaxMapperTest {
         Long second =
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 9, 20, 10, 0), "60.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, first, "FINALIZED", "10000000.00");
-        fixture.insertKrwExchange(ACCOUNT_ID, second, "FINALIZED", "15000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID, first, "FINALIZED", "10000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                second,
+                "FINALIZED",
+                "15000000.00",
+                LocalDateTime.of(2026, 9, 20, 10, 0));
 
         List<SellLotDTO> lots =
                 taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -289,13 +320,19 @@ class TaxMapperTest {
         Long orderA =
                 fixture.insertSellOrder(
                         lotA, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderA, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID, orderA, "FINALIZED", "24000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
 
         Long lotB = fixture.insertLot(OTHER_ACCOUNT_ID, "200.0000", "1300.0000", "50.0000");
         Long orderB =
                 fixture.insertSellOrder(
                         lotB, "EXECUTED", LocalDateTime.of(2026, 6, 15, 10, 0), "50.0000");
-        fixture.insertKrwExchange(OTHER_ACCOUNT_ID, orderB, "FINALIZED", "13000000.00");
+        fixture.insertKrwExchange(
+                OTHER_ACCOUNT_ID,
+                orderB,
+                "FINALIZED",
+                "13000000.00",
+                LocalDateTime.of(2026, 6, 15, 10, 0));
 
         List<SellLotDTO> lots =
                 taxMapper.findFinalizedLotsByAccountIdsAndYear(
@@ -319,13 +356,19 @@ class TaxMapperTest {
         Long orderA =
                 fixture.insertSellOrder(
                         lotA, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
-        fixture.insertKrwExchange(ACCOUNT_ID, orderA, "FINALIZED", "24000000.00");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID, orderA, "FINALIZED", "24000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
 
         Long lotB = fixture.insertLot(OTHER_ACCOUNT_ID, "200.0000", "1300.0000", "50.0000");
         Long orderB =
                 fixture.insertSellOrder(
                         lotB, "EXECUTED", LocalDateTime.of(2026, 6, 15, 10, 0), "50.0000");
-        fixture.insertKrwExchange(OTHER_ACCOUNT_ID, orderB, "FINALIZED", "13000000.00");
+        fixture.insertKrwExchange(
+                OTHER_ACCOUNT_ID,
+                orderB,
+                "FINALIZED",
+                "13000000.00",
+                LocalDateTime.of(2026, 6, 15, 10, 0));
 
         List<SellLotDTO> lots =
                 taxMapper.findFinalizedLotsByAccountIdsAndYear(

@@ -7,6 +7,19 @@ DROP TABLE IF EXISTS inbound_detail;
 DROP TABLE IF EXISTS account_benefit_log;
 DROP TABLE IF EXISTS account;
 DROP TABLE IF EXISTS customer;
+DROP TABLE IF EXISTS foreign_product;
+
+CREATE TABLE foreign_product (
+    foreign_product_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    ticker              VARCHAR(20)  NOT NULL,
+    name                VARCHAR(100) NOT NULL,
+    market              VARCHAR(20),
+    currency            VARCHAR(10),
+    type                VARCHAR(20)
+);
+
+INSERT INTO foreign_product (foreign_product_id, ticker, name, market, currency, type)
+VALUES (1, 'AAPL', 'Apple Inc.', 'NASDAQ', 'USD', 'FOREIGN_STOCK');
 
 CREATE TABLE customer (
     customer_id   BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -36,9 +49,10 @@ CREATE TABLE account_benefit_log (
 );
 
 CREATE TABLE inbound_detail (
-    inbound_detail_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    purchase_price    DECIMAL(15, 4) NOT NULL,
-    purchase_fx_rate  DECIMAL(15, 4) NOT NULL
+    inbound_detail_id  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    foreign_product_id BIGINT        NOT NULL DEFAULT 1,
+    purchase_price     DECIMAL(15, 4) NOT NULL,
+    purchase_fx_rate   DECIMAL(15, 4) NOT NULL
 );
 
 CREATE TABLE sell_order (
@@ -55,6 +69,7 @@ CREATE TABLE krw_exchange (
     account_id        BIGINT        NOT NULL,
     order_id          BIGINT        NOT NULL,
     final_amount      DECIMAL(15, 0),
+    final_at          DATETIME,
     settlement_status VARCHAR(12)   NOT NULL
 );
 
@@ -62,6 +77,8 @@ CREATE TABLE target_product_judgement (
     judgement_id    BIGINT PRIMARY KEY AUTO_INCREMENT,
     mydata_trade_id BIGINT        NOT NULL UNIQUE,
     ci_hash         VARCHAR(64)   NOT NULL,
+    fund_name       VARCHAR(100),
+    ticker          VARCHAR(20),
     is_target       BOOLEAN       NOT NULL,
     judged_at       DATETIME      NOT NULL,
     trade_date      DATE          NOT NULL,

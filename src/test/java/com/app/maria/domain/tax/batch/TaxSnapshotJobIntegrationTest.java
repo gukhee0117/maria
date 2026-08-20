@@ -121,10 +121,10 @@ class TaxSnapshotJobIntegrationTest {
 
             statement.executeUpdate(
                     """
-                    INSERT INTO krw_exchange (account_id, order_id, final_amount, settlement_status)
-                    VALUES (%d, %d, %s, 'FINALIZED')
+                    INSERT INTO krw_exchange (account_id, order_id, final_amount, final_at, settlement_status)
+                    VALUES (%d, %d, %s, '%s', 'FINALIZED')
                     """
-                            .formatted(accountId, orderId, finalAmount));
+                            .formatted(accountId, orderId, finalAmount, sellAt));
         } catch (SQLException e) {
             throw new IllegalStateException(e);
         }

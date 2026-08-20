@@ -8,7 +8,7 @@
             so.order_id,
             so.inbound_detail_id,
             ke.final_amount,
-            so.processed_at as sell_at,
+            ke.final_at as sell_at,
             so.sell_qty,
             id.purchase_fx_rate,
             id.purchase_price,
@@ -23,8 +23,8 @@
         </foreach>
             and ke.settlement_status = 'FINALIZED'
             and so.status = 'EXECUTED'
-            and YEAR(so.processed_at) = #{year}
-            and #{calcBaseTime} >= so.processed_at
+            and YEAR(ke.final_at) = #{year}
+            and #{calcBaseTime} >= ke.final_at
     </select>
 
     <select id="findTaxRules" resultType="TaxRuleDTO">

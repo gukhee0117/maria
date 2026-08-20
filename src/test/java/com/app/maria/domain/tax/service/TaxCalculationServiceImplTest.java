@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.exception.AccountNotFoundException;
+import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
@@ -66,6 +68,8 @@ class TaxCalculationServiceImplTest {
     @Mock TaxMapper taxMapper;
 
     @Mock AccountMapper accountMapper;
+
+    @Mock AccountBenefitLogMapper accountBenefitLogMapper;
 
     @Mock BusinessClockService clockService;
 
@@ -204,6 +208,9 @@ class TaxCalculationServiceImplTest {
 
     private void stubAccount(BenefitType benefit) {
         when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.of(account(benefit)));
+        lenient()
+                .when(accountBenefitLogMapper.selectLatestByAccountId(ACCOUNT_ID))
+                .thenReturn(Optional.empty());
     }
 
     private static AccountDTO account(BenefitType benefit) {

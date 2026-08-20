@@ -1,0 +1,455 @@
+### ============================================================================
+### MARIA 라이브 시연 스크립트 (IntelliJ HTTP Client)
+### ============================================================================
+### 실행법: 각 ### 블록 왼쪽의 ▷ 아이콘을 순서대로 클릭. 응답 스크립트가
+### accessToken/accountId/orderId/batchId 등을 client.global 변수에 자동 저장해서
+### 다음 요청에 그대로 흘려보냄 — 값을 눈으로 보고 복붙할 필요 없음.
+###
+### 선행 조건: demo-seed.sql의 0-1~0-3을 먼저 실행해서 registrable_stock을 심어둘 것.
+### admin 비밀번호는 팀 내부 공유값 사용 (customer_seed.sql엔 해시만 있고 평문 없음).
+### 인출 POST 엔드포인트는 upstream PR #205 반영 후 사용 가능 — 반영했으면 앱을
+### 완전히 재시작할 것(devtools 핫리로드가 새 컨트롤러 메서드를 못 잡음).
+###
+### 매도/확정산은 시스템 시각을 실제 오늘보다 미래로 못 옮김(KIS 시세·환율 API가
+### 진짜 외부 호출이라 미래 데이터가 없음). 확정산 배치는 영업일 단위 idempotency
+### 가드가 있어서, 시연 전 아래로 이미 소비된 영업일인지 확인할 것:
+###   SELECT business_date FROM settlement_batch_guard;
+### 배치 3종(정산/세액스냅샷/외부순매수동기화)은 전부 비동기라 트리거 직후 바로
+### 조회하면 옛날 값이 나올 수 있음 — 3~5초 텀을 두고 재조회할 것.
+###
+### 구성:
+###   Part 0. 로그인
+###   Part A. 골든 패스 — 계좌 신청부터 세액계산까지, §10 데모 시나리오1~3 그대로
+###   Part B. 확장 시나리오 — 한도초과 차단, 3-way MIN 캡핑, 매도한도 초과 거부,
+###           배치 재실행 idempotency, 실시간 vs 배치 값 차이, 인출 3종
+###           (정상/조기인출거부/조기인출승인+세제혜택취소), 확정신고 중복저장 차단
+### ============================================================================
+
+@baseUrl = http://localhost:10000
+@demoCustomerId = 18001
+@demoForeignProductId = 1
+@demoGeneralAccountId = 36122
+
+### ----------------------------------------------------------------------------
+### Part 0-1. 로그인 (ADMIN — 승인/배치실행 등 전 권한 필요)
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/auth/admin/login
+Content-Type: application/json
+
+{
+  "loginId": "admin",
+  "password": "{{adminPassword}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.data.accessToken);
+%}
+
+### ============================================================================
+### Part A. 골든 패스 — §10 데모 시나리오 1~3
+### ============================================================================
+
+### A1. 신청 전 설정 가능 한도 조회 — 5,000만원 그대로 나와야 정상(타사 한도 없음)
+GET {{baseUrl}}/api/account/available-limit?customerId={{demoCustomerId}}
+Authorization: Bearer {{accessToken}}
+
+### A2. 계좌 개설 신청
+POST {{baseUrl}}/api/account/applications
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "customerId": {{demoCustomerId}},
+  "limitAmount": 50000000
+}
+
+> {%
+    client.global.set("accountId", response.body.data.accountId);
+    client.test("APPLIED 상태로 생성", function() {
+        client.assert(response.body.data.status === "APPLIED" || response.body.data.status === "OPENED");
+    });
+%}
+
+### A3. 계좌 승인 (A2 응답이 이미 autoApprove로 OPENED였다면 이 요청은 생략 가능)
+POST {{baseUrl}}/api/account/{{accountId}}/approve
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.test("OPENED 상태로 전환", function() {
+        client.assert(response.body.data.status === "OPENED");
+    });
+%}
+
+### A4. 입고 신청 — demo-seed.sql에서 심은 held_qty=300 중 100주 요청
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "requestedQty": 100
+}
+
+> {%
+    client.global.set("inboundId", response.body.data.inboundId);
+    client.log("approvedQty(3-way MIN 결과) = " + response.body.data.approvedQty);
+%}
+
+### A5. 입고관리 화면 확인용 — 계좌별 입고 이력
+GET {{baseUrl}}/api/inbounds/by-account/{{accountId}}?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------------------
+### A6. 시각 이동 — 2026-03-10 (1~5월 구간, 가중치 100%)
+### ----------------------------------------------------------------------------
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-03-10T09:00:00",
+  "reasonCode": "DEMO_SELL_WINDOW_100"
+}
+
+### A7. 1차 매도 (100% 구간) — 40주
+POST {{baseUrl}}/api/sell-orders
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "sellQty": 40
+}
+
+> {%
+    client.global.set("orderId1", response.body.data[0].orderId);
+    client.log("1차 매도 status = " + response.body.data[0].status);
+%}
+
+### A8. 1차 매도 상세 — 가환전(PROVISIONAL) 상태와 provisional_amount 확인
+GET {{baseUrl}}/api/sell-orders/{{orderId1}}/detail
+Authorization: Bearer {{accessToken}}
+
+### A9. 확정산 배치 수동 실행 — 가환전 → 확정산(FINALIZED) 전환
+POST {{baseUrl}}/api/settlement/jobs
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.global.set("settlementBatchId", response.body.data.batchId);
+%}
+
+### A10. 확정산 배치 결과 확인
+GET {{baseUrl}}/api/settlement/batches/{{settlementBatchId}}
+Authorization: Bearer {{accessToken}}
+
+### A11. 세액 미리보기 — 세액 스냅샷 배치를 아직 안 돌린 상태
+### (주의: /preview는 실시간 계산이라 0이 아니라 이미 값이 나올 수 있음.
+###  "배치 전엔 0"을 보여주고 싶으면 A11 대신 A11'을 써서 스냅샷 목록이
+###  비어있는 것으로 시연할 것 — README의 "실시간 vs 배치" 설명 참고)
+GET {{baseUrl}}/api/tax/preview/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### A11'. 세액 스냅샷 목록 — 배치 전이라 비어 있어야 함
+GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### A12. 세액 스냅샷 배치 수동 실행
+POST {{baseUrl}}/api/tax/snapshots/jobs
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.global.set("taxBatchRunId", response.body.data.runId);
+%}
+
+### A13. 세액 스냅샷 재조회 — 값 채워짐, 100% 구간 가중치 반영 확인
+GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------------------
+### A14. 시각 이동 — 2026-06-15 (6~7월 구간, 가중치 80%)
+### ----------------------------------------------------------------------------
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-06-15T09:00:00",
+  "reasonCode": "DEMO_SELL_WINDOW_80"
+}
+
+### A15. 2차 매도 (80% 구간) — 40주
+POST {{baseUrl}}/api/sell-orders
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "sellQty": 40
+}
+
+> {%
+    client.global.set("orderId2", response.body.data[0].orderId);
+%}
+
+### A16. 확정산 배치 재실행 — 이번엔 1차(이미 FINALIZED) + 2차(신규 PROVISIONAL) 섞여 있음
+POST {{baseUrl}}/api/settlement/jobs
+Authorization: Bearer {{accessToken}}
+
+### A17. 세액 스냅샷 배치 재실행
+POST {{baseUrl}}/api/tax/snapshots/jobs
+Authorization: Bearer {{accessToken}}
+
+### A18. 세액 스냅샷 재조회 — 1차(100%)+2차(80%) 합산, 가중치 다르게 반영된 것 비교
+GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
+Authorization: Bearer {{accessToken}}
+
+
+### ============================================================================
+### Part B. 확장 시나리오 — "완성도"를 보여주는 엣지케이스
+### ============================================================================
+
+### ----------------------------------------------------------------------------
+### B1. 합산 한도 초과 차단 (§2 핵심규칙1, 의사결정로그#11)
+### 선행조건: demo-seed.sql "확장 시나리오 B1용"을 다른 고객(예: 18002)으로 실행해서
+###          그 ci_hash에 타사 설정한도 4,500만원을 미리 넣어둘 것.
+### ----------------------------------------------------------------------------
+GET {{baseUrl}}/api/account/available-limit?customerId=18002
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.log("가용한도(5000만 - 타사4500만) = " + response.body.data + " — 500만원이어야 정상");
+%}
+
+### B1-2. 가용한도(500만원)를 넘는 1,000만원으로 신청 → 즉시 거부되는지 확인
+POST {{baseUrl}}/api/account/applications
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "customerId": 18002,
+  "limitAmount": 10000000
+}
+
+> {%
+    client.test("한도 초과로 400", function() {
+        client.assert(response.status === 400);
+    });
+%}
+
+### ----------------------------------------------------------------------------
+### B2. 입고 3-way MIN 캡핑 — 보유수량(300)보다 많은 400주를 신청해서 잘리는지 확인
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "requestedQty": 400
+}
+
+> {%
+    client.log("신청 400 → approvedQty = " + response.body.data.approvedQty + " (보유 300 - 이미 입고분 만큼으로 캡핑되어야 함)");
+%}
+
+### ----------------------------------------------------------------------------
+### B3. 매도 한도 초과 시 REJECTED 응답 (C3 동시성 가드가 실제로 막는지)
+### 계좌 한도(5,000만원)를 초과하는 수량을 매도 시도
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/sell-orders
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "sellQty": 9999
+}
+
+> {%
+    client.log("status = " + response.body.data[0].status + " (REJECTED 기대)");
+%}
+
+### ----------------------------------------------------------------------------
+### B4. 확정산 배치 idempotency (I1) — 방금 A16에서 이미 처리한 배치를 또 실행
+### 재실행해도 이미 FINALIZED된 건이 중복 처리되지 않고 skip되는지 배치 이력으로 확인
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/settlement/jobs
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.global.set("settlementBatchId2", response.body.data.batchId);
+%}
+
+### B4-2. 두 배치 아이템 목록 비교 — 두 번째 배치엔 이미 끝난 건이 없어야 함
+GET {{baseUrl}}/api/settlement/batches/detail/{{settlementBatchId2}}
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------------------
+### B5. 외부 순매수 동기화 + 재계산 (G1) — 감면율 축소 시연
+### 선행조건: demo-seed.sql "확장 시나리오 G1용"을 미리 실행해둘 것 (myData에 매수 이력 주입)
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/external-trade-sync/jobs
+Authorization: Bearer {{accessToken}}
+
+### B5-2. 세액 스냅샷 배치 재실행 — 외부 순매수 반영된 조정비율로 갱신
+POST {{baseUrl}}/api/tax/snapshots/jobs
+Authorization: Bearer {{accessToken}}
+
+### B5-3. 갱신된 스냅샷 확인 — B5 이전(A18)보다 조정비율이 낮아졌는지 비교
+GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------------------
+### B6. 실시간(preview) vs 배치(snapshot) 값 차이 시연
+### ----------------------------------------------------------------------------
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-09-20T09:00:00",
+  "reasonCode": "DEMO_SELL_WINDOW_50"
+}
+
+### B6-2. 3차 매도 (50% 구간) — 아직 배치를 안 돌린 "오늘자" 매도
+POST {{baseUrl}}/api/sell-orders
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": {{demoForeignProductId}},
+  "sellQty": 40
+}
+
+### B6-3. 실시간 미리보기 — 3차 매도가 아직 확정산 전이라 lot으로 안 잡혀서 A18과 같은 값
+GET {{baseUrl}}/api/tax/preview/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### B6-4. 확정산 배치 실행 (3차 매도 확정)
+POST {{baseUrl}}/api/settlement/jobs
+Authorization: Bearer {{accessToken}}
+
+### B6-5. 이제 실시간 미리보기 — 3차 매도 반영되어 값이 바뀜
+GET {{baseUrl}}/api/tax/preview/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+### B6-6. 배치 스냅샷은 아직 그대로(B5-3 값) — 세액 스냅샷 배치를 다시 안 돌렸으므로
+GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.log("preview(실시간)와 snapshot(배치)이 달라야 정상 — '배치는 스냅샷, 실시간은 항상 최신'이라는 §8-6 원칙 시연");
+%}
+
+
+### ----------------------------------------------------------------------------
+### B7. 인출 — 정상 인출 (수익금 범위 내, 조기인출 아님)
+### 2026-08-20 확인: withdraw() 응답이 WithdrawalResultDTO라 withdrawalId가
+### 바로 나옴(PR #205로 수정됨). allocations는 FIFO로 left_amount를 순서대로
+### 소진하며 여러 행으로 쪼개질 수 있음 — 실제로 B9에서 2개 행으로 쪼개지는 것 확인.
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/withdrawals
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "requestedAmount": 100000,
+  "earlyWithdrawalAgreed": false,
+  "destinationGeneralAccountId": {{demoGeneralAccountId}}
+}
+
+> {%
+    client.log("수익금 범위 내 인출 — earlyWithdrawalAgreed=false로도 성공해야 정상 (원금 미경과분 안 건드림)");
+%}
+
+### ----------------------------------------------------------------------------
+### B8. 인출 — 원금(미경과분)까지 건드리는 금액을, 조기인출 동의 없이 요청 → 거부
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/withdrawals
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "requestedAmount": 30000000,
+  "earlyWithdrawalAgreed": false,
+  "destinationGeneralAccountId": {{demoGeneralAccountId}}
+}
+
+> {%
+    client.test("동의 없이 원금 인출 시도 → 400 (EarlyWithdrawalConsentRequiredException)", function() {
+        client.assert(response.status === 400);
+    });
+%}
+
+### B8-2. 확정신고 먼저 저장 — B11에서 "정정 저장"을 보여주려면 FINAL_REPORT가 먼저 있어야 함
+POST {{baseUrl}}/api/tax/calculations/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.log("basisType = " + response.body.data.basisType + " (FINAL_REPORT 기대)");
+%}
+
+### ----------------------------------------------------------------------------
+### B9. 인출 — 동의 후 재요청 → 성공, 계좌 세제혜택이 IMPOSSIBLE로 전환됨
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/withdrawals
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "requestedAmount": 30000000,
+  "earlyWithdrawalAgreed": true,
+  "destinationGeneralAccountId": {{demoGeneralAccountId}}
+}
+
+### B9-2. 계좌 상세 조회 — benefit이 IMPOSSIBLE로 바뀌었는지 확인
+GET {{baseUrl}}/api/account/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.test("조기인출로 세제혜택 취소됨", function() {
+        client.assert(response.body.data.benefit === "IMPOSSIBLE");
+    });
+%}
+
+### B9-3. 계좌 상태 이력(account_benefit_log)에 취소 사유가 남았는지 확인
+GET {{baseUrl}}/api/account/{{accountId}}/status-logs
+Authorization: Bearer {{accessToken}}
+
+### ----------------------------------------------------------------------------
+### B10. 확정신고 중복 저장 차단 — B8-2에서 이미 FINAL_REPORT를 저장했는데,
+### 세제혜택이 아직 살아있는 계좌 기준으로 또 저장 시도하면 409가 나야 정상.
+### (B9에서 이미 IMPOSSIBLE로 바뀐 뒤라 이 요청은 오히려 "정정 저장"으로 통과됨 —
+###  진짜 중복 케이스를 보고 싶으면 B9 이전, 즉 B8-2 직후에 이 요청을 한 번 더 넣어볼 것)
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/tax/calculations/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.log("basisType = " + response.body.data.basisType + " (IMPOSSIBLE 상태라 EARLY_WITHDRAWAL_CLAWBACK 기대)");
+%}
+
+### B10-2. 같은 요청을 한 번 더 — 이번엔 진짜 중복(EARLY_WITHDRAWAL_CLAWBACK도 이미 있음) → 409
+POST {{baseUrl}}/api/tax/calculations/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.test("정정까지 이미 끝난 상태에서 재저장 시도 → 409", function() {
+        client.assert(response.status === 409);
+    });
+%}
+
+### ----------------------------------------------------------------------------
+### B11. 세액 스냅샷 배치 이력 조회 — I1 idempotency 증거 (run_id별 상태)
+### ----------------------------------------------------------------------------
+GET {{baseUrl}}/api/tax/snapshots/jobs
+Authorization: Bearer {{accessToken}}
