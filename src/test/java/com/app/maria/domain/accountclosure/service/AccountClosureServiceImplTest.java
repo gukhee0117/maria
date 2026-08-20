@@ -669,7 +669,8 @@ class AccountClosureServiceImplTest {
                             assertThat(auditLog.getBeforeValue()).isEqualTo(beforeValue);
                             assertThat(auditLog.getAfterValue()).isEqualTo(afterValue);
                             assertThat(auditLog.getReasonCode()).isEqualTo(reasonCode);
-                            assertThat(auditLog.getProcessedAt()).isEqualTo(NOW);
+                            // 감사로그 processed_at은 업무시각이 아니라 DB CURRENT_TIMESTAMP로 기록된다.
+                            assertThat(auditLog.getProcessedAt()).isNull();
                         });
     }
 
