@@ -14,7 +14,6 @@ public class TaxSnapshotSchedule {
     private final TaxSnapshotJobLauncher taxSnapshotJobLauncher;
     private final BusinessClockService clockService;
 
-    /** 확정산(00:00)·myData 동기화(01:00)가 끝난 뒤에 돌아야 그날 데이터가 반영된다. */
     @Scheduled(
             cron = "${custom.tax.snapshot-cron:0 0 2 * * *}",
             zone = "${custom.tax.zone:Asia/Seoul}")

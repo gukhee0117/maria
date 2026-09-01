@@ -54,7 +54,6 @@ public class TaxSnapshotTargetReader implements ItemStreamReader<TaxSnapshotTarg
             return null;
         }
 
-        // 커서는 "읽은" 시점이 아니라 "소비한" 시점에 전진해야 재시작이 정확하다.
         lastAccountId = target.getAccount().getAccountId();
         return target;
     }

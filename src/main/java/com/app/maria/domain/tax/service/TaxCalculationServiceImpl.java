@@ -103,9 +103,9 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(auditActorProvider.getCurrentAdminId())
-                        .targetTable("TAX_SNAPSHOT_BATCH")
+                        .targetTable("세액 계산 배치")
                         .targetPk(runId)
-                        .afterValue("REQUESTED")
+                        .afterValue("Running")
                         .reasonCode(TaxAuditLogReasonCode.TAX_SNAPSHOT_BATCH_REQUESTED.name())
                         .build());
 
