@@ -26,7 +26,7 @@ class AccountAmountUpdateCallerTest {
             Map.of(
                     "updateProvisionalAmount", Set.of("AccountTransactionalServiceImpl"),
                     "replaceAccountAmount", Set.of("SettlementTransactionExecutor"),
-                    "deductAccountAmount", Set.of("WithdrawalServiceImpl"));
+                    "deductAccountAmount", Set.of("WithdrawalProcessor"));
 
     @Test
     @DisplayName("account.amount를 바꾸는 매퍼 메서드는 정해진 클래스에서만 호출된다")
