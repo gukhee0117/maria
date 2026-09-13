@@ -26,6 +26,7 @@ public class WithdrawalApi {
     private final WithdrawalService withdrawalService;
 
     @PostMapping
+    @PreAuthorize("denyAll()")
     public ResponseEntity<ApiResponseDTO<WithdrawalResultDTO>> withdraw(
             @Valid @RequestBody WithdrawalRequestDTO requestDTO) {
         return ResponseEntity.status(HttpStatus.CREATED)
