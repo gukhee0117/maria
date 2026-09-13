@@ -49,7 +49,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class WithdrawalServiceImplTest {
+class WithdrawalProcessorTest {
 
     private static final Long ACCOUNT_ID = 1L;
     private static final Long CUSTOMER_ID = 10L;
@@ -62,7 +62,7 @@ class WithdrawalServiceImplTest {
     @Mock WithdrawalMapper withdrawalMapper;
     @Mock AccountBenefitLogMapper accountBenefitLogMapper;
     @Mock GeneralAccountClient generalAccountClient;
-    @InjectMocks WithdrawalServiceImpl withdrawalService;
+    @InjectMocks WithdrawalProcessor withdrawalService;
 
     @Test
     void accountNotFound_stopsBeforeLoadingWithdrawalSources() {
