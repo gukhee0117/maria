@@ -82,7 +82,7 @@ class AccountClosureApiTest {
                 .thenReturn(30L);
 
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isCreated())
@@ -99,7 +99,7 @@ class AccountClosureApiTest {
     @Test
     void missingCustomerIdReturnsBadRequestWithoutCallingService() throws Exception {
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         """
@@ -116,7 +116,7 @@ class AccountClosureApiTest {
     @Test
     void nonPositiveDestinationAccountIdReturnsBadRequestWithoutCallingService() throws Exception {
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
                                         """
@@ -137,7 +137,7 @@ class AccountClosureApiTest {
                 .thenThrow(new AccountClosureNotAllowedException("해지를 신청할 수 없습니다."));
 
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isBadRequest())
@@ -150,7 +150,7 @@ class AccountClosureApiTest {
                 .thenThrow(new AccountClosureProcessingException("계좌 해지 신청 저장에 실패했습니다."));
 
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isInternalServerError())
@@ -163,7 +163,7 @@ class AccountClosureApiTest {
                 .thenThrow(new AccountClosureStateConflictException("계좌 상태가 변경되어 해지를 신청할 수 없습니다."));
 
         mockMvc.perform(
-                        post("/api/account-closures")
+                        post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isConflict())
@@ -176,7 +176,7 @@ class AccountClosureApiTest {
     @Test
     void reviewerCanRejectRequestedClosure() throws Exception {
         mockMvc.perform(
-                        post("/api/account-closures/30/reject")
+                        post("/api/admin/account-closures/30/reject")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"고객 요청 정보가 일치하지 않습니다.\"}"))
                 .andExpect(status().isOk())
@@ -188,7 +188,7 @@ class AccountClosureApiTest {
     @Test
     void blankRejectionReasonReturnsBadRequestWithoutCallingService() throws Exception {
         mockMvc.perform(
-                        post("/api/account-closures/30/reject")
+                        post("/api/admin/account-closures/30/reject")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\" \"}"))
                 .andExpect(status().isBadRequest());
@@ -199,7 +199,7 @@ class AccountClosureApiTest {
     @Test
     void nonPositiveClosureRequestIdReturnsBadRequestWithoutCallingService() throws Exception {
         mockMvc.perform(
-                        post("/api/account-closures/0/reject")
+                        post("/api/admin/account-closures/0/reject")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"반려 사유\"}"))
                 .andExpect(status().isBadRequest());
@@ -214,7 +214,7 @@ class AccountClosureApiTest {
                 .rejectClosure(7L, 999L, "반려 사유");
 
         mockMvc.perform(
-                        post("/api/account-closures/999/reject")
+                        post("/api/admin/account-closures/999/reject")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"reason\":\"반려 사유\"}"))
                 .andExpect(status().isNotFound())
@@ -223,7 +223,7 @@ class AccountClosureApiTest {
 
     @Test
     void reviewerCanApproveRequestedClosure() throws Exception {
-        mockMvc.perform(post("/api/account-closures/30/approve"))
+        mockMvc.perform(post("/api/admin/account-closures/30/approve"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청 승인 완료"));
 
@@ -232,7 +232,7 @@ class AccountClosureApiTest {
 
     @Test
     void nonPositiveApprovalRequestIdReturnsBadRequestWithoutCallingService() throws Exception {
-        mockMvc.perform(post("/api/account-closures/0/approve")).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/admin/account-closures/0/approve")).andExpect(status().isBadRequest());
 
         verifyNoInteractions(accountClosureService);
     }
@@ -243,7 +243,7 @@ class AccountClosureApiTest {
                 .when(accountClosureService)
                 .approveClosure(7L, 999L);
 
-        mockMvc.perform(post("/api/account-closures/999/approve"))
+        mockMvc.perform(post("/api/admin/account-closures/999/approve"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청을 찾을 수 없습니다."));
 
@@ -256,7 +256,7 @@ class AccountClosureApiTest {
                 .when(accountClosureService)
                 .approveClosure(7L, 30L);
 
-        mockMvc.perform(post("/api/account-closures/30/approve"))
+        mockMvc.perform(post("/api/admin/account-closures/30/approve"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("이미 처리된 계좌 해지 신청입니다."));
     }
@@ -267,7 +267,7 @@ class AccountClosureApiTest {
                 .when(accountClosureService)
                 .approveClosure(7L, 30L);
 
-        mockMvc.perform(post("/api/account-closures/30/approve"))
+        mockMvc.perform(post("/api/admin/account-closures/30/approve"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청 완료 처리에 실패했습니다."));
     }
@@ -278,7 +278,7 @@ class AccountClosureApiTest {
         when(accountClosureService.getClosures(AccountClosureStatus.REQUESTED))
                 .thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/account-closures"))
+        mockMvc.perform(get("/api/admin/account-closures"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청 목록 조회 완료"))
                 .andExpect(jsonPath("$.data.length()").value(1))
@@ -295,7 +295,7 @@ class AccountClosureApiTest {
         when(accountClosureService.getClosures(AccountClosureStatus.REJECTED))
                 .thenReturn(List.of());
 
-        mockMvc.perform(get("/api/account-closures").param("status", "REJECTED"))
+        mockMvc.perform(get("/api/admin/account-closures").param("status", "REJECTED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
 
@@ -307,7 +307,7 @@ class AccountClosureApiTest {
         when(accountClosureService.getClosure(30L))
                 .thenReturn(detailResponse(AccountClosureStatus.REQUESTED));
 
-        mockMvc.perform(get("/api/account-closures/30"))
+        mockMvc.perform(get("/api/admin/account-closures/30"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청 상세 조회 완료"))
                 .andExpect(jsonPath("$.data.closureRequestId").value(30))
@@ -328,7 +328,7 @@ class AccountClosureApiTest {
 
     @Test
     void nonPositiveClosureDetailIdReturnsBadRequestWithoutCallingService() throws Exception {
-        mockMvc.perform(get("/api/account-closures/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/account-closures/0")).andExpect(status().isBadRequest());
 
         verifyNoInteractions(accountClosureService);
     }
@@ -338,7 +338,7 @@ class AccountClosureApiTest {
         when(accountClosureService.getClosure(999L))
                 .thenThrow(new AccountClosureNotFoundException("계좌 해지 신청을 찾을 수 없습니다."));
 
-        mockMvc.perform(get("/api/account-closures/999"))
+        mockMvc.perform(get("/api/admin/account-closures/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청을 찾을 수 없습니다."));
     }

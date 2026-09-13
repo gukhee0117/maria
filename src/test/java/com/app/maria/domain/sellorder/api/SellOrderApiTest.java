@@ -71,7 +71,7 @@ class SellOrderApiTest {
         when(sellOrderService.placeSellOrder(any(), any())).thenReturn(List.of(response));
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -109,7 +109,7 @@ class SellOrderApiTest {
                 .thenReturn(List.of(firstLot, secondLot));
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -138,7 +138,7 @@ class SellOrderApiTest {
         when(sellOrderService.placeSellOrder(any(), any())).thenReturn(List.of(response));
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -159,7 +159,7 @@ class SellOrderApiTest {
                 .thenThrow(new SellOrderException("한도를 초과했습니다."));
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -177,7 +177,7 @@ class SellOrderApiTest {
                 .thenThrow(new UnsupportedExchangeException("지원하지 않는 거래소입니다."));
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadGateway())
@@ -191,7 +191,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().sellQty(BigDecimal.ZERO).build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -207,7 +207,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().sellQty(null).build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -223,7 +223,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().sellQty(new BigDecimal("-5")).build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -239,7 +239,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().accountId(null).build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -255,7 +255,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().foreignProductId(null).build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -270,7 +270,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
@@ -285,7 +285,7 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().build();
 
         mockMvc.perform(
-                        post("/api/sell-orders")
+                        post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
@@ -305,7 +305,7 @@ class SellOrderApiTest {
 
         when(sellOrderService.getSellOrder(100L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/sell-orders/{orderId}", 100L))
+        mockMvc.perform(get("/api/admin/sell-orders/{orderId}", 100L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderId").value(100));
     }
@@ -317,7 +317,7 @@ class SellOrderApiTest {
         when(sellOrderService.getSellOrder(999L))
                 .thenThrow(new SellOrderNotFoundException("매도 주문 조회 실패"));
 
-        mockMvc.perform(get("/api/sell-orders/{orderId}", 999L))
+        mockMvc.perform(get("/api/admin/sell-orders/{orderId}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("매도 주문 조회 실패"));
     }
@@ -335,7 +335,7 @@ class SellOrderApiTest {
 
         when(sellOrderService.getSellOrderByAccount(1L)).thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/sell-orders").param("accountId", "1"))
+        mockMvc.perform(get("/api/admin/sell-orders").param("accountId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].orderId").value(100))
                 .andExpect(jsonPath("$.data[0].status").value("EXECUTED"));
@@ -347,7 +347,7 @@ class SellOrderApiTest {
     void getAllSellOrdersReturns200WithEmptyListWhenNoOrders() throws Exception {
         when(sellOrderService.getSellOrderByAccount(999L)).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/sell-orders").param("accountId", "999"))
+        mockMvc.perform(get("/api/admin/sell-orders").param("accountId", "999"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
     }
@@ -355,7 +355,7 @@ class SellOrderApiTest {
     @Test
     @DisplayName("계좌별 매도 주문 목록 조회 시 인증되지 않은 요청이면 401을 반환한다")
     void getAllSellOrdersReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/sell-orders").param("accountId", "1"))
+        mockMvc.perform(get("/api/admin/sell-orders").param("accountId", "1"))
                 .andExpect(status().isUnauthorized());
 
         verify(sellOrderService, never()).getSellOrderByAccount(any());
@@ -376,7 +376,7 @@ class SellOrderApiTest {
         PageResponseDTO<SellOrderHistoryDTO> page = PageResponseDTO.of(List.of(history), 1, 0, 20);
         when(sellOrderService.getSellOrderHistory(null, null, null, null, 0, 20)).thenReturn(page);
 
-        mockMvc.perform(get("/api/sell-orders/history"))
+        mockMvc.perform(get("/api/admin/sell-orders/history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("매도 · 환전 내역 조회 성공"))
                 .andExpect(jsonPath("$.data.content[0].accountNo").value("1000000001"))
@@ -398,7 +398,7 @@ class SellOrderApiTest {
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 2, 10));
 
         mockMvc.perform(
-                        get("/api/sell-orders/history")
+                        get("/api/admin/sell-orders/history")
                                 .param("keyword", "1234567890")
                                 .param("status", "EXECUTED")
                                 .param("startDate", "2026-08-01")
@@ -424,7 +424,7 @@ class SellOrderApiTest {
         when(sellOrderService.getSellOrderHistory(null, null, null, null, 0, 20))
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 0, 20));
 
-        mockMvc.perform(get("/api/sell-orders/history"))
+        mockMvc.perform(get("/api/admin/sell-orders/history"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isEmpty())
                 .andExpect(jsonPath("$.data.totalCount").value(0));
@@ -434,7 +434,7 @@ class SellOrderApiTest {
     @DisplayName("page가 음수면 검증 실패로 400을 반환하고 서비스는 호출되지 않는다")
     @WithMockUser(roles = "VIEWER")
     void getSellOrderHistoryReturns400WhenPageIsNegative() throws Exception {
-        mockMvc.perform(get("/api/sell-orders/history").param("page", "-1"))
+        mockMvc.perform(get("/api/admin/sell-orders/history").param("page", "-1"))
                 .andExpect(status().isBadRequest());
 
         verify(sellOrderService, never())
@@ -445,7 +445,7 @@ class SellOrderApiTest {
     @DisplayName("size가 0 이하면 검증 실패로 400을 반환하고 서비스는 호출되지 않는다")
     @WithMockUser(roles = "VIEWER")
     void getSellOrderHistoryReturns400WhenSizeIsNotPositive() throws Exception {
-        mockMvc.perform(get("/api/sell-orders/history").param("size", "0"))
+        mockMvc.perform(get("/api/admin/sell-orders/history").param("size", "0"))
                 .andExpect(status().isBadRequest());
 
         verify(sellOrderService, never())
@@ -455,7 +455,7 @@ class SellOrderApiTest {
     @Test
     @DisplayName("전체 매도·환전 내역 조회 시 인증되지 않은 요청이면 401을 반환한다")
     void getSellOrderHistoryReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/sell-orders/history")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/sell-orders/history")).andExpect(status().isUnauthorized());
 
         verify(sellOrderService, never())
                 .getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt());
@@ -476,7 +476,7 @@ class SellOrderApiTest {
                         .build();
         when(sellOrderService.getSellOrderSummary()).thenReturn(summary);
 
-        mockMvc.perform(get("/api/sell-orders/summary"))
+        mockMvc.perform(get("/api/admin/sell-orders/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.todaySellAmount").value(1100000))
                 .andExpect(jsonPath("$.data.todaySellAmountChangeRate").value(10.0))
@@ -489,6 +489,50 @@ class SellOrderApiTest {
     @Test
     @DisplayName("요약 조회 시 인증되지 않은 요청이면 401을 반환한다")
     void getSellOrderSummaryReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/sell-orders/summary")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/sell-orders/summary")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("ADMIN이 매도 주문을 하면 403을 반환한다")
+    @WithMockUser(roles = "ADMIN")
+    void placeSellOrderReturns403WhenCallerIsAdmin() throws Exception {
+        SellOrderRequestDTO request = validRequestBuilder().build();
+
+        mockMvc.perform(
+                        post("/api/admin/sell-orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+
+        verify(sellOrderService, never()).placeSellOrder(any(), any());
+    }
+
+    @Test
+    @DisplayName("SETTLEMENT이 매도 주문을 하면 성공한다")
+    @WithMockUser(username = "1", roles = "SETTLEMENT")
+    void placeSellOrderReturns201WhenCallerIsSettlement() throws Exception {
+        SellOrderResponseDTO response =
+                SellOrderResponseDTO.builder()
+                        .orderId(100L)
+                        .status(SellOrderStatus.EXECUTED)
+                        .build();
+        when(sellOrderService.placeSellOrder(any(), any())).thenReturn(List.of(response));
+
+        mockMvc.perform(
+                        post("/api/admin/sell-orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(validRequestBuilder().build())))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("VIEWER가 매도 이력을 조회하면 성공한다")
+    @WithMockUser(roles = "VIEWER")
+    void getSellOrderHistoryReturns200WhenCallerIsViewer() throws Exception {
+        when(sellOrderService.getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(PageResponseDTO.of(List.of(), 0, 0, 20));
+
+        mockMvc.perform(get("/api/admin/sell-orders/history"))
+                .andExpect(status().isOk());
     }
 }

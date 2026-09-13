@@ -136,7 +136,7 @@ $(function () {
         }
 
         $(displaySelector).text("조회 중...");
-        MARIA.auth.ajax({ url: "/api/account/available-limit", method: "GET", data: { customerId: customerId } })
+        MARIA.auth.ajax({ url: "/api/admin/account/available-limit", method: "GET", data: { customerId: customerId } })
             .done(function (res) {
                 if (requestId === availableLimitRequestIds[displaySelector]) {
                     $(displaySelector).text(formatAmount(res.data));
@@ -189,7 +189,7 @@ $(function () {
         $("#customerSearchResults").prop("hidden", false).html('<div class="customer-search-message">검색 중...</div>');
         $("#createCustomerName").attr("aria-expanded", "true");
         customerSearchRequest = MARIA.auth.ajax({
-            url: "/api/customers/search",
+            url: "/api/admin/customers/search",
             method: "GET",
             data: { name: name }
         }).done(function (res) {
@@ -439,7 +439,7 @@ $(function () {
     }
 
     function loadClosureDetail(accountId, closureRequestId, closureSummary) {
-        MARIA.auth.ajax({ url: "/api/account-closures/" + closureRequestId, method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account-closures/" + closureRequestId, method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== accountId) return;
                 renderClosureDetail($.extend({}, closureSummary, res.data || {}));
@@ -451,7 +451,7 @@ $(function () {
         $("#closureReviewActions").prop("hidden", true);
         $("#closureRejectionReason").val("");
         $("#detailHoldings, #detailInbounds, #detailClosure, #detailWithdrawals").html('<div class="account-related-empty">불러오는 중...</div>');
-        MARIA.auth.ajax({ url: "/api/account/" + accountId + "/management-detail", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account/" + accountId + "/management-detail", method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== accountId) return;
                 var detail = res.data || {};
@@ -513,7 +513,7 @@ $(function () {
 
     function loadStatusLogs(accountId) {
         var $list = $("#accountHistoryList").empty().append('<li class="account-loading">불러오는 중...</li>');
-        MARIA.auth.ajax({ url: "/api/account/" + accountId + "/status-logs", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account/" + accountId + "/status-logs", method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== accountId) {
                     return;
@@ -543,7 +543,7 @@ $(function () {
         var requestedAccountId = Number(accountId);
         selectedAccountId = requestedAccountId;
         renderAccounts();
-        MARIA.auth.ajax({ url: "/api/account/" + requestedAccountId, method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account/" + requestedAccountId, method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== requestedAccountId) {
                     return;
@@ -563,7 +563,7 @@ $(function () {
 
     function loadAccounts(afterLoad) {
         $("#accountListBody").html('<tr><td colspan="7" class="account-loading">불러오는 중...</td></tr>');
-        MARIA.auth.ajax({ url: "/api/account/list", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account/list", method: "GET" })
             .done(function (res) {
                 accounts = res.data || [];
                 renderSummary();
@@ -588,7 +588,7 @@ $(function () {
             return;
         }
 
-        var options = { url: "/api/account/" + selectedAccountId + "/" + action, method: "POST" };
+        var options = { url: "/api/admin/account/" + selectedAccountId + "/" + action, method: "POST" };
         if (action === "reject") {
             options.contentType = "application/json";
             options.data = JSON.stringify({ reason: reason });
@@ -608,7 +608,7 @@ $(function () {
             return;
         }
         MARIA.auth.ajax({
-            url: "/api/account/" + selectedAccountId + "/" + action,
+            url: "/api/admin/account/" + selectedAccountId + "/" + action,
             method: "POST",
             contentType: "application/json",
             data: JSON.stringify(payload)
@@ -632,7 +632,7 @@ $(function () {
         }
 
         var options = {
-            url: "/api/account-closures/" + selectedClosureRequestId + "/" + action,
+            url: "/api/admin/account-closures/" + selectedClosureRequestId + "/" + action,
             method: "POST"
         };
         if (action === "reject") {
@@ -774,7 +774,7 @@ $(function () {
             return;
         }
         MARIA.auth.ajax({
-            url: "/api/account/update/limit",
+            url: "/api/admin/account/update/limit",
             method: "PUT",
             contentType: "application/json",
             data: JSON.stringify({ customerId: account.customerId, expectedCurrentLimit: Number(account.limitAmount), limitAmount: limitAmount })
@@ -799,7 +799,7 @@ $(function () {
             return;
         }
         submitForm($form, {
-            url: "/api/account/applications",
+            url: "/api/admin/account/applications",
             method: "POST",
             contentType: "application/json",
             data: JSON.stringify({

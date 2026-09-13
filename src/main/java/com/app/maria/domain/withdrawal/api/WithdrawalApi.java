@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/withdrawals")
+@RequestMapping("/api/admin/withdrawals")
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class WithdrawalApi {
     private final WithdrawalQueryService withdrawalQueryService;

@@ -49,7 +49,7 @@ class StatisticsApiTest {
                         .build();
         when(statisticsService.getAgeInvestmentStats(any())).thenReturn(List.of(stat));
 
-        mockMvc.perform(get("/api/statistics/age-investment"))
+        mockMvc.perform(get("/api/admin/statistics/age-investment"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("나이대별 투자 현황 조회 성공"))
                 .andExpect(jsonPath("$.data[0].ageGroup").value("30대"))
@@ -63,7 +63,7 @@ class StatisticsApiTest {
         when(statisticsService.getProductPurchaseStats(any())).thenReturn(List.of());
 
         mockMvc.perform(
-                        get("/api/statistics/product-purchase")
+                        get("/api/admin/statistics/product-purchase")
                                 .param("keyword", "홍길동")
                                 .param("productName", "삼성전자")
                                 .param("startDate", "2026-08-01")
@@ -93,7 +93,7 @@ class StatisticsApiTest {
                         .build();
         when(statisticsService.getFxExchangeStats(any())).thenReturn(List.of(stat));
 
-        mockMvc.perform(get("/api/statistics/fx-exchange"))
+        mockMvc.perform(get("/api/admin/statistics/fx-exchange"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].statDate").value("2026-08-01"))
                 .andExpect(jsonPath("$.data[0].finalAmount").value(495000));
@@ -107,7 +107,7 @@ class StatisticsApiTest {
                 AccountBenefitStatDTO.builder().benefit("POSSIBLE").accountCount(10).build();
         when(statisticsService.getAccountBenefitStats(any())).thenReturn(List.of(stat));
 
-        mockMvc.perform(get("/api/statistics/account-benefit"))
+        mockMvc.perform(get("/api/admin/statistics/account-benefit"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].benefit").value("POSSIBLE"))
                 .andExpect(jsonPath("$.data[0].accountCount").value(10));
@@ -124,7 +124,7 @@ class StatisticsApiTest {
                         .build();
         when(statisticsService.getReliefRateStats(any())).thenReturn(List.of(stat));
 
-        mockMvc.perform(get("/api/statistics/relief-rate"))
+        mockMvc.perform(get("/api/admin/statistics/relief-rate"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].periodLabel").value("1~5월 (100%)"));
     }
@@ -135,7 +135,7 @@ class StatisticsApiTest {
     void getAgeInvestmentStatsReturns200WithEmptyListWhenNoData() throws Exception {
         when(statisticsService.getAgeInvestmentStats(any())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/statistics/age-investment"))
+        mockMvc.perform(get("/api/admin/statistics/age-investment"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty());
     }
@@ -143,7 +143,7 @@ class StatisticsApiTest {
     @Test
     @DisplayName("인증되지 않은 요청이면 401을 반환하고 서비스는 호출되지 않는다")
     void getAgeInvestmentStatsReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/statistics/age-investment")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/statistics/age-investment")).andExpect(status().isUnauthorized());
 
         verify(statisticsService, org.mockito.Mockito.never()).getAgeInvestmentStats(any());
     }

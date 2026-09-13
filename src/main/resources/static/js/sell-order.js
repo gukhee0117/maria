@@ -98,7 +98,7 @@ $(function () {
 
     function loadSellOrderSummary() {
         MARIA.auth.ajax({
-            url: "/api/sell-orders/summary",
+            url: "/api/admin/sell-orders/summary",
             method: "GET"
         })
             .done(function (res) {
@@ -251,7 +251,7 @@ $(function () {
 
     function openDrawer(orderId) {
         MARIA.auth.ajax({
-            url: "/api/sell-orders/" + orderId + "/detail",
+            url: "/api/admin/sell-orders/" + orderId + "/detail",
             method: "GET"
         })
             .done(function (res) {
@@ -287,7 +287,7 @@ $(function () {
         hideError();
 
         MARIA.auth.ajax({
-            url: "/api/sell-orders/history",
+            url: "/api/admin/sell-orders/history",
             method: "GET",
             data: buildFilterParams()
         })

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/account-closures")
+@RequestMapping("/api/admin/account-closures")
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class AccountClosureApi {
     private final AccountClosureService accountClosureService;

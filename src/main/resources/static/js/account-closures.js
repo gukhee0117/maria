@@ -158,7 +158,7 @@ $(function () {
 
     function loadDetail(closureRequestId) {
         MARIA.auth.ajax({
-            url: "/api/account-closures/" + closureRequestId,
+            url: "/api/admin/account-closures/" + closureRequestId,
             method: "GET"
         })
             .done(function (response) {
@@ -177,7 +177,7 @@ $(function () {
         $("#search-button").prop("disabled", true);
 
         MARIA.auth.ajax({
-            url: "/api/account-closures",
+            url: "/api/admin/account-closures",
             method: "GET",
             data: { status: status }
         })
@@ -212,7 +212,7 @@ $(function () {
         }
 
         var options = {
-            url: "/api/account-closures/" + selectedClosureId + "/" + action,
+            url: "/api/admin/account-closures/" + selectedClosureId + "/" + action,
             method: "POST"
         };
 

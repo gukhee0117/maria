@@ -43,7 +43,7 @@ class ExternalTradeSyncApiTest {
                                 .skippedJudgementCount(7)
                                 .build());
 
-        mockMvc.perform(post("/api/external-trade-sync/jobs"))
+        mockMvc.perform(post("/api/admin/external-trade-sync/jobs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("동기화 완료 · 신규 3건"))
                 .andExpect(jsonPath("$.data.newJudgementCount").value(3))
@@ -59,7 +59,7 @@ class ExternalTradeSyncApiTest {
         when(externalTradeSyncService.syncAll())
                 .thenReturn(ExternalTradeSyncResultDTO.builder().build());
 
-        mockMvc.perform(post("/api/external-trade-sync/jobs")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/external-trade-sync/jobs")).andExpect(status().isOk());
 
         verify(externalTradeSyncService).syncAll();
     }
@@ -68,7 +68,7 @@ class ExternalTradeSyncApiTest {
     @DisplayName("VIEWER 권한이면 403을 반환하고 동기화는 실행되지 않는다")
     @WithMockUser(roles = "VIEWER")
     void executeSyncReturns403ForViewerRole() throws Exception {
-        mockMvc.perform(post("/api/external-trade-sync/jobs")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/admin/external-trade-sync/jobs")).andExpect(status().isForbidden());
 
         verify(externalTradeSyncService, never()).syncAll();
     }

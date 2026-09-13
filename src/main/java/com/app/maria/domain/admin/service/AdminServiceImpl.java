@@ -3,6 +3,7 @@ package com.app.maria.domain.admin.service;
 import com.app.maria.domain.admin.dto.AdminUserDTO;
 import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
+import com.app.maria.domain.admin.dto.response.AdminMeResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminSummaryResponseDTO;
 import com.app.maria.domain.admin.exception.AdminException;
 import com.app.maria.domain.admin.exception.AdminNotFoundException;
@@ -82,6 +83,13 @@ public class AdminServiceImpl implements AdminService {
             throw new AdminException("유효하지 않은 토큰입니다.");
         }
 
+        // type claim이 없는 구 토큰은 허용(자연 만료 후 자동 소멸),
+        // type이 명시됐는데 refresh가 아니면 거부
+        String tokenType = claims.get("type", String.class);
+        if (tokenType != null && !"refresh".equals(tokenType)) {
+            throw new AdminException("유효하지 않은 토큰입니다.");
+        }
+
         Long adminId;
         try {
             adminId = Long.parseLong(claims.getSubject());
@@ -109,5 +117,13 @@ public class AdminServiceImpl implements AdminService {
     public List<AdminSummaryResponseDTO> getAllAdmins() {
         List<AdminUserDTO> admins = adminMapper.selectAllAdmins();
         return admins.stream().map(AdminSummaryResponseDTO::new).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminMeResponseDTO getMe(Long adminId) {
+        AdminUserDTO admin = adminMapper.selectAdminByAdminId(adminId)
+                .orElseThrow(() -> new AdminNotFoundException("관리자를 찾을 수 없습니다."));
+        return new AdminMeResponseDTO(admin.getAdminId(), admin.getName(), admin.getRole());
     }
 }

@@ -218,7 +218,7 @@ $(function () {
     function loadDetail(accountId) {
         $("#diDetail").empty().append('<div class="dash-loading">불러오는 중...</div>');
         MARIA.auth.ajax({
-            url: "/api/domestic-investments/" + accountId,
+            url: "/api/admin/domestic-investments/" + accountId,
             method: "GET"
         })
             .done(function (res) {
@@ -264,7 +264,7 @@ $(function () {
         var targetPage = page || 0;
         var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams());
         MARIA.auth.ajax({
-            url: "/api/domestic-investments",
+            url: "/api/admin/domestic-investments",
             method: "GET",
             data: requestData
         })
@@ -320,7 +320,7 @@ $(function () {
 
     function loadSummary() {
         MARIA.auth.ajax({
-            url: "/api/domestic-investments/summary",
+            url: "/api/admin/domestic-investments/summary",
             method: "GET",
             data: { days: recentDays }
         })
@@ -340,7 +340,7 @@ $(function () {
             columns: ["고객명", "계좌번호", "예탁금", "투자금액", "예탁금 비중"],
             load: function (page) {
                 return MARIA.auth.ajax({
-                    url: "/api/domestic-investments/cash-heavy-accounts",
+                    url: "/api/admin/domestic-investments/cash-heavy-accounts",
                     method: "GET",
                     data: { page: page, size: 20 }
                 });

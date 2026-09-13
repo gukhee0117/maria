@@ -77,7 +77,7 @@ class DomesticInvestmentApiTest {
                         any(DomesticInvestmentSearchRequestDTO.class)))
                 .thenReturn(page);
 
-        mockMvc.perform(get("/api/domestic-investments"))
+        mockMvc.perform(get("/api/admin/domestic-investments"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("국내투자 현황 목록 조회 성공"))
                 .andExpect(jsonPath("$.data.content[0].customerName").value("홍길동"))
@@ -101,7 +101,7 @@ class DomesticInvestmentApiTest {
                                 .build());
 
         mockMvc.perform(
-                        get("/api/domestic-investments")
+                        get("/api/admin/domestic-investments")
                                 .param("hasRestrictedHolding", "true")
                                 .param("hasUnpurchasableHolding", "false")
                                 .param("hasRecentBuy", "true")
@@ -130,7 +130,7 @@ class DomesticInvestmentApiTest {
                                 .totalPages(0)
                                 .build());
 
-        mockMvc.perform(get("/api/domestic-investments").with(user("tester").roles(role)))
+        mockMvc.perform(get("/api/admin/domestic-investments").with(user("tester").roles(role)))
                 .andExpect(status().isOk());
     }
 
@@ -138,7 +138,7 @@ class DomesticInvestmentApiTest {
     @DisplayName("인증되지 않은 요청은 목록 조회를 거부한다")
     @WithAnonymousUser
     void getInvestmentsRejectsUnauthenticated() throws Exception {
-        mockMvc.perform(get("/api/domestic-investments")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/domestic-investments")).andExpect(status().isUnauthorized());
 
         verify(domesticInvestmentService, never())
                 .getInvestments(any(DomesticInvestmentSearchRequestDTO.class));
@@ -165,7 +165,7 @@ class DomesticInvestmentApiTest {
                         .build();
         when(domesticInvestmentService.getAccountDetail(1L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/domestic-investments/1"))
+        mockMvc.perform(get("/api/admin/domestic-investments/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("국내투자 현황 상세 조회 성공"))
                 .andExpect(jsonPath("$.data.customerName").value("홍길동"))
@@ -179,7 +179,7 @@ class DomesticInvestmentApiTest {
         when(domesticInvestmentService.getAccountDetail(999L))
                 .thenThrow(new DomesticInvestmentNotFoundException("계좌를 찾을 수 없습니다."));
 
-        mockMvc.perform(get("/api/domestic-investments/999"))
+        mockMvc.perform(get("/api/admin/domestic-investments/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("계좌를 찾을 수 없습니다."));
     }
@@ -187,7 +187,7 @@ class DomesticInvestmentApiTest {
     @Test
     @DisplayName("accountId가 0 이하면 400을 반환하고 서비스는 호출하지 않는다")
     void getAccountDetailRejectsNonPositiveAccountId() throws Exception {
-        mockMvc.perform(get("/api/domestic-investments/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/domestic-investments/0")).andExpect(status().isBadRequest());
 
         verify(domesticInvestmentService, never()).getAccountDetail(anyLong());
     }
@@ -210,7 +210,7 @@ class DomesticInvestmentApiTest {
                         .build();
         when(domesticInvestmentService.getSummary(7)).thenReturn(summary);
 
-        mockMvc.perform(get("/api/domestic-investments/summary"))
+        mockMvc.perform(get("/api/admin/domestic-investments/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("국내투자 현황 요약 조회 성공"))
                 .andExpect(jsonPath("$.data.totalAccountCount").value(20))
@@ -225,7 +225,7 @@ class DomesticInvestmentApiTest {
         when(domesticInvestmentService.getSummary(30))
                 .thenReturn(DomesticInvestmentSummaryResponseDTO.builder().build());
 
-        mockMvc.perform(get("/api/domestic-investments/summary").param("days", "30"))
+        mockMvc.perform(get("/api/admin/domestic-investments/summary").param("days", "30"))
                 .andExpect(status().isOk());
 
         verify(domesticInvestmentService).getSummary(30);
@@ -244,7 +244,7 @@ class DomesticInvestmentApiTest {
                         .build();
         when(domesticInvestmentService.getRestrictedHoldings()).thenReturn(List.of(holding));
 
-        mockMvc.perform(get("/api/domestic-investments/restricted-holdings"))
+        mockMvc.perform(get("/api/admin/domestic-investments/restricted-holdings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("거래제한·정지 종목 목록 조회 성공"))
                 .andExpect(jsonPath("$.data[0].customerName").value("홍길동"))
@@ -273,7 +273,7 @@ class DomesticInvestmentApiTest {
                                 .build());
         when(domesticInvestmentService.getCashHeavyAccounts(0, 20)).thenReturn(page);
 
-        mockMvc.perform(get("/api/domestic-investments/cash-heavy-accounts"))
+        mockMvc.perform(get("/api/admin/domestic-investments/cash-heavy-accounts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("예탁금 비중 높은 계좌 목록 조회 성공"))
                 .andExpect(jsonPath("$.data.content[0].customerName").value("홍길동"))
@@ -294,7 +294,7 @@ class DomesticInvestmentApiTest {
                         .build();
         when(domesticInvestmentService.getUnpurchasableHoldings()).thenReturn(List.of(holding));
 
-        mockMvc.perform(get("/api/domestic-investments/unpurchasable-holdings"))
+        mockMvc.perform(get("/api/admin/domestic-investments/unpurchasable-holdings"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("매수불가 종목 목록 조회 성공"))
                 .andExpect(jsonPath("$.data[0].customerName").value("김철수"));
@@ -312,7 +312,7 @@ class DomesticInvestmentApiTest {
         when(domesticInvestmentService.getRecentBuyAccounts(14, true)).thenReturn(List.of(account));
 
         mockMvc.perform(
-                        get("/api/domestic-investments/recent-buy-accounts")
+                        get("/api/admin/domestic-investments/recent-buy-accounts")
                                 .param("days", "14")
                                 .param("hasRecentBuy", "true"))
                 .andExpect(status().isOk())

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/foreign-products")
+@RequestMapping("/api/admin/foreign-products")
 public class ForeignProductApi {
 
     private final ForeignProductService foreignProductService;

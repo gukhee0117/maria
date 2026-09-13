@@ -65,7 +65,7 @@ class WithdrawalApiTest {
                                 .build());
 
         mockMvc.perform(
-                        post("/api/withdrawals")
+                        post("/api/admin/withdrawals")
                                 .contentType(APPLICATION_JSON)
                                 .content(
                                         """
@@ -85,7 +85,7 @@ class WithdrawalApiTest {
     @Test
     void postWithdrawalRejectsNonPositiveAmount() throws Exception {
         mockMvc.perform(
-                        post("/api/withdrawals")
+                        post("/api/admin/withdrawals")
                                 .contentType(APPLICATION_JSON)
                                 .content(
                                         """
@@ -119,7 +119,7 @@ class WithdrawalApiTest {
         when(withdrawalQueryService.getWithdrawals(WithdrawalStatus.COMPLETED))
                 .thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/withdrawals").param("status", "COMPLETED"))
+        mockMvc.perform(get("/api/admin/withdrawals").param("status", "COMPLETED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].withdrawalId").value(10))
                 .andExpect(jsonPath("$.data[0].customerName").value("인출 고객"))
@@ -152,7 +152,7 @@ class WithdrawalApiTest {
                         .build();
         when(withdrawalQueryService.getWithdrawal(10L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/withdrawals/10"))
+        mockMvc.perform(get("/api/admin/withdrawals/10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.withdrawalId").value(10))
                 .andExpect(jsonPath("$.data.earlyWithdrawal").value(true))
@@ -184,7 +184,7 @@ class WithdrawalApiTest {
         when(withdrawalQueryService.getWithdrawalsByAccountId(1L))
                 .thenReturn(List.of(completed, failed));
 
-        mockMvc.perform(get("/api/withdrawals/accounts/1"))
+        mockMvc.perform(get("/api/admin/withdrawals/accounts/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("COMPLETED"))
                 .andExpect(jsonPath("$.data[1].status").value("FAILED"));
@@ -194,7 +194,7 @@ class WithdrawalApiTest {
 
     @Test
     void nonPositiveAccountIdReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/withdrawals/accounts/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/withdrawals/accounts/0")).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -202,13 +202,13 @@ class WithdrawalApiTest {
         when(withdrawalQueryService.getWithdrawal(99L))
                 .thenThrow(new WithdrawalNotFoundException("인출 내역을 찾을 수 없습니다."));
 
-        mockMvc.perform(get("/api/withdrawals/99"))
+        mockMvc.perform(get("/api/admin/withdrawals/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("인출 내역을 찾을 수 없습니다."));
     }
 
     @Test
     void nonPositiveWithdrawalIdReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/withdrawals/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/withdrawals/0")).andExpect(status().isBadRequest());
     }
 }

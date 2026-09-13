@@ -43,7 +43,7 @@ class SettlementApiTest {
         SettlementBatchDTO batch = batch();
         when(settlementService.executeSettlementBatchByAdmin()).thenReturn(batch);
 
-        mockMvc.perform(post("/api/settlement/jobs"))
+        mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value("확정산 배치 실행 요청 완료"))
                 .andExpect(jsonPath("$.data.batchId").value(1L))
@@ -58,7 +58,7 @@ class SettlementApiTest {
         completedBatch.setStatus(BatchStatus.COMPLETED);
         when(settlementService.executeSettlementBatchByAdmin()).thenReturn(completedBatch);
 
-        mockMvc.perform(post("/api/settlement/jobs"))
+        mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
     }
@@ -66,7 +66,7 @@ class SettlementApiTest {
     @Test
     @WithMockUser(roles = "VIEWER")
     void viewerCannotExecuteSettlementBatch() throws Exception {
-        mockMvc.perform(post("/api/settlement/jobs")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/admin/settlement/jobs")).andExpect(status().isForbidden());
 
         verify(settlementService, never()).executeSettlementBatchByAdmin();
     }
@@ -79,10 +79,10 @@ class SettlementApiTest {
         when(settlementService.retryFailedSettlementItem(1L, 10L)).thenReturn(item);
         when(settlementService.retryFailedSettlementBatch(1L)).thenReturn(batch);
 
-        mockMvc.perform(post("/api/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
+        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.itemId").value(10L));
-        mockMvc.perform(post("/api/settlement/batches/{batchId}/retry", 1L))
+        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/retry", 1L))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.batchId").value(1L));
 
@@ -93,7 +93,7 @@ class SettlementApiTest {
     @Test
     @WithMockUser(roles = "VIEWER")
     void viewerCannotRetrySettlementItem() throws Exception {
-        mockMvc.perform(post("/api/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
+        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
                 .andExpect(status().isForbidden());
 
         verify(settlementService, never()).retryFailedSettlementItem(1L, 10L);
@@ -102,7 +102,7 @@ class SettlementApiTest {
     @Test
     @WithMockUser(roles = "REVIEWER")
     void reviewerCannotRetrySettlementBatch() throws Exception {
-        mockMvc.perform(post("/api/settlement/batches/{batchId}/retry", 1L))
+        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/retry", 1L))
                 .andExpect(status().isForbidden());
 
         verify(settlementService, never()).retryFailedSettlementBatch(1L);
@@ -115,13 +115,13 @@ class SettlementApiTest {
         when(settlementService.getSettlementBatch(1L)).thenReturn(batch);
         when(settlementService.getSettlementBatchByRunId("run-1")).thenReturn(batch);
 
-        mockMvc.perform(get("/api/settlement/batches"))
+        mockMvc.perform(get("/api/admin/settlement/batches"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].batchId").value(1L));
-        mockMvc.perform(get("/api/settlement/batches/{batchId}", 1L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runId").value("run-1"));
-        mockMvc.perform(get("/api/settlement/batches/run/{runId}", "run-1"))
+        mockMvc.perform(get("/api/admin/settlement/batches/run/{runId}", "run-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.batchId").value(1L));
     }
@@ -133,10 +133,10 @@ class SettlementApiTest {
         when(settlementService.getSettlementBatchDetail(1L)).thenReturn(List.of(detail));
         when(settlementService.getSettlementBatchFailDetail(1L)).thenReturn(List.of(detail));
 
-        mockMvc.perform(get("/api/settlement/batches/detail/{batchId}", 1L))
+        mockMvc.perform(get("/api/admin/settlement/batches/detail/{batchId}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].itemId").value(10L));
-        mockMvc.perform(get("/api/settlement/batches/detail/fail/{batchId}", 1L))
+        mockMvc.perform(get("/api/admin/settlement/batches/detail/fail/{batchId}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].itemId").value(10L));
 
@@ -146,7 +146,7 @@ class SettlementApiTest {
 
     @Test
     void getSettlementBatchByRunIdRejectsBlankRunId() throws Exception {
-        mockMvc.perform(get("/api/settlement/batches/run/{runId}", " "))
+        mockMvc.perform(get("/api/admin/settlement/batches/run/{runId}", " "))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("runId는 필수입니다."));
 
@@ -162,10 +162,10 @@ class SettlementApiTest {
         when(settlementService.getPendingSettlementItems(1L, 0L)).thenReturn(List.of(item));
         when(settlementService.getSettlementItem(1L, 10L)).thenReturn(detail);
 
-        mockMvc.perform(get("/api/settlement/batches/{batchId}/items/pending", 1L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}/items/pending", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].itemId").value(10L));
-        mockMvc.perform(get("/api/settlement/batches/{batchId}/items/{itemId}", 1L, 10L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}/items/{itemId}", 1L, 10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.exchangeId").value(100L));
 
@@ -183,7 +183,7 @@ class SettlementApiTest {
                         .build();
         when(settlementService.getKrwExchange(100L)).thenReturn(exchange);
 
-        mockMvc.perform(get("/api/settlement/exchanges/{exchangeId}", 100L))
+        mockMvc.perform(get("/api/admin/settlement/exchanges/{exchangeId}", 100L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.exchangeId").value(100L))
                 .andExpect(jsonPath("$.data.settlementStatus").value("PROVISIONAL"));
@@ -194,7 +194,7 @@ class SettlementApiTest {
     @ParameterizedTest
     @ValueSource(longs = {0L, -1L})
     void getSettlementBatchRejectsNonPositiveBatchId(long batchId) throws Exception {
-        mockMvc.perform(get("/api/settlement/batches/{batchId}", batchId))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", batchId))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.status").doesNotExist());
@@ -205,7 +205,7 @@ class SettlementApiTest {
     @Test
     void getPendingSettlementItemsRejectsNegativeCursor() throws Exception {
         mockMvc.perform(
-                        get("/api/settlement/batches/{batchId}/items/pending", 1L)
+                        get("/api/admin/settlement/batches/{batchId}/items/pending", 1L)
                                 .queryParam("lastItemId", "-1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").isNotEmpty())
@@ -219,7 +219,7 @@ class SettlementApiTest {
         when(settlementService.getSettlementBatch(1L))
                 .thenThrow(new InvalidSettlementException("batchId - 요청 값 오류"));
 
-        mockMvc.perform(get("/api/settlement/batches/{batchId}", 1L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", 1L))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("batchId - 요청 값 오류"));
     }
@@ -229,7 +229,7 @@ class SettlementApiTest {
         when(settlementService.getSettlementBatch(999L))
                 .thenThrow(new SettlementBatchNotFoundException("batch id로 배치 조회 실패"));
 
-        mockMvc.perform(get("/api/settlement/batches/{batchId}", 999L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("batch id로 배치 조회 실패"));
     }
@@ -239,7 +239,7 @@ class SettlementApiTest {
         when(settlementService.getSettlementItem(1L, 999L))
                 .thenThrow(new SettlementItemNotFoundException("item detail 조회 실패"));
 
-        mockMvc.perform(get("/api/settlement/batches/{batchId}/items/{itemId}", 1L, 999L))
+        mockMvc.perform(get("/api/admin/settlement/batches/{batchId}/items/{itemId}", 1L, 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("item detail 조회 실패"));
     }
@@ -249,7 +249,7 @@ class SettlementApiTest {
         when(settlementService.getKrwExchange(999L))
                 .thenThrow(new KrwExchangeNotFoundException("환전 조회 실패"));
 
-        mockMvc.perform(get("/api/settlement/exchanges/{exchangeId}", 999L))
+        mockMvc.perform(get("/api/admin/settlement/exchanges/{exchangeId}", 999L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("환전 조회 실패"));
     }
@@ -259,7 +259,7 @@ class SettlementApiTest {
         when(settlementService.executeSettlementBatchByAdmin())
                 .thenThrow(new SettlementCalculationException("확정산 금액 계산 실패"));
 
-        mockMvc.perform(post("/api/settlement/jobs"))
+        mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("확정산 금액 계산 실패"));
     }
@@ -269,7 +269,7 @@ class SettlementApiTest {
         when(settlementService.executeSettlementBatchByAdmin())
                 .thenThrow(new SettlementStateConflictException("확정산 Batch가 이미 실행 중입니다."));
 
-        mockMvc.perform(post("/api/settlement/jobs"))
+        mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("확정산 Batch가 이미 실행 중입니다."));
     }

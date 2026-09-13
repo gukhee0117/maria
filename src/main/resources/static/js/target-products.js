@@ -144,7 +144,7 @@ $(function () {
 
     function loadSummary() {
         MARIA.auth.ajax({
-            url: "/api/target-products/summary",
+            url: "/api/admin/target-products/summary",
             method: "GET"
         })
             .done(function (res) {
@@ -200,7 +200,7 @@ $(function () {
         var targetPage = page || 0;
         var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams(), getCardFilterParams());
         MARIA.auth.ajax({
-            url: "/api/target-products",
+            url: "/api/admin/target-products",
             method: "GET",
             data: requestData
         })
@@ -265,7 +265,7 @@ $(function () {
     $("#tpTriggerBatch").on("click", function () {
         if (!canTriggerBatch()) return;
         $("#tpBatchTriggerResult").text("실행 중...");
-        MARIA.auth.ajax({ url: "/api/external-trade-sync/jobs", method: "POST" })
+        MARIA.auth.ajax({ url: "/api/admin/external-trade-sync/jobs", method: "POST" })
             .done(function (res) {
                 var r = res.data;
                 newJudgementIds = r.newJudgementIds || [];
