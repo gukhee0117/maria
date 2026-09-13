@@ -35,7 +35,7 @@ public class AccountClosureApi {
     }
 
     @PostMapping("/{closureRequestId}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<Void>> rejectClosure(
             @AuthenticationPrincipal Long adminId,
             @PathVariable @Positive(message = "해지 신청 ID는 0보다 커야합니다.") Long closureRequestId,
@@ -46,7 +46,7 @@ public class AccountClosureApi {
     }
 
     @PostMapping("/{closureRequestId}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<Void>> approveClosure(
             @AuthenticationPrincipal Long adminId,
             @PathVariable @Positive(message = "해지 신청 ID는 0보다 커야합니다.") Long closureRequestId) {
