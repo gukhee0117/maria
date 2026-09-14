@@ -259,9 +259,10 @@ class SettlementServiceImplTest {
                                         .exchangeId(EXCHANGE_ID)
                                         .accountId(1L)
                                         .purchaseCurrency("USD")
+                                        .finalAt(LocalDateTime.of(2026, 8, 7, 0, 0))
                                         .build()));
         when(settlementBatchMapper.selectBatchById(BATCH_ID)).thenReturn(Optional.of(failedBatch));
-        when(exchangeRateProvider.getFinalRate("USD", failedBatch.getExecutedAt().toLocalDate()))
+        when(exchangeRateProvider.getFinalRate("USD", LocalDate.of(2026, 8, 7)))
                 .thenReturn(new BigDecimal("1400"));
         when(settlementItemMapper.selectItemById(11L))
                 .thenReturn(
