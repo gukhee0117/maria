@@ -143,7 +143,8 @@ class StatisticsApiTest {
     @Test
     @DisplayName("인증되지 않은 요청이면 401을 반환하고 서비스는 호출되지 않는다")
     void getAgeInvestmentStatsReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/admin/statistics/age-investment")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/statistics/age-investment"))
+                .andExpect(status().isUnauthorized());
 
         verify(statisticsService, org.mockito.Mockito.never()).getAgeInvestmentStats(any());
     }

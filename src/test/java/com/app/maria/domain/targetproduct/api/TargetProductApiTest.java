@@ -209,6 +209,7 @@ class TargetProductApiTest {
     @Test
     @WithAnonymousUser
     void getSummaryRejectsUnauthenticatedRequest() throws Exception {
-        mockMvc.perform(get("/api/admin/target-products/summary")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/target-products/summary"))
+                .andExpect(status().isUnauthorized());
     }
 }

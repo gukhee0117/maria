@@ -521,7 +521,9 @@ class SellOrderApiTest {
         mockMvc.perform(
                         post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(validRequestBuilder().build())))
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                validRequestBuilder().build())))
                 .andExpect(status().isCreated());
     }
 
@@ -532,7 +534,6 @@ class SellOrderApiTest {
         when(sellOrderService.getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 0, 20));
 
-        mockMvc.perform(get("/api/admin/sell-orders/history"))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/admin/sell-orders/history")).andExpect(status().isOk());
     }
 }
