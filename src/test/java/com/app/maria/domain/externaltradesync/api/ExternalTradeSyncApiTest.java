@@ -53,15 +53,13 @@ class ExternalTradeSyncApiTest {
     }
 
     @Test
-    @DisplayName("ADMIN 권한이면 200과 함께 동기화 결과를 반환한다")
+    @DisplayName("ADMIN 권한이면 403을 반환하고 동기화는 실행되지 않는다")
     @WithMockUser(roles = "ADMIN")
-    void executeSyncRunsSyncAndReturnsResultForAdminRole() throws Exception {
-        when(externalTradeSyncService.syncAll())
-                .thenReturn(ExternalTradeSyncResultDTO.builder().build());
+    void executeSyncReturns403ForAdminRole() throws Exception {
+        mockMvc.perform(post("/api/admin/external-trade-sync/jobs"))
+                .andExpect(status().isForbidden());
 
-        mockMvc.perform(post("/api/admin/external-trade-sync/jobs")).andExpect(status().isOk());
-
-        verify(externalTradeSyncService).syncAll();
+        verify(externalTradeSyncService, never()).syncAll();
     }
 
     @Test
