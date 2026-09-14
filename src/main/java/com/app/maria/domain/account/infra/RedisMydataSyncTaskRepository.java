@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -75,13 +76,20 @@ public class RedisMydataSyncTaskRepository {
                                     System.currentTimeMillis(),
                                     0,
                                     batchSize);
+
             if (accountIds == null || accountIds.isEmpty()) {
                 return List.of();
             }
+
             return accountIds.stream()
                     .map(this::claim)
                     .flatMap(java.util.Optional::stream)
                     .toList();
+
+        } catch (RedisConnectionFailureException exception) {
+            log.warn("Redis 연결 불가 - MyData 재시도 작업을 건너뜁니다.");
+            return List.of();
+
         } catch (RuntimeException exception) {
             log.error("MyData 재시도 큐 조회 실패", exception);
             return List.of();

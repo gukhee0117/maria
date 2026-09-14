@@ -232,7 +232,8 @@ class AccountClosureApiTest {
 
     @Test
     void nonPositiveApprovalRequestIdReturnsBadRequestWithoutCallingService() throws Exception {
-        mockMvc.perform(post("/api/admin/account-closures/0/approve")).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/admin/account-closures/0/approve"))
+                .andExpect(status().isBadRequest());
 
         verifyNoInteractions(accountClosureService);
     }

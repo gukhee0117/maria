@@ -79,7 +79,11 @@ class SettlementApiTest {
         when(settlementService.retryFailedSettlementItem(1L, 10L)).thenReturn(item);
         when(settlementService.retryFailedSettlementBatch(1L)).thenReturn(batch);
 
-        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
+        mockMvc.perform(
+                        post(
+                                "/api/admin/settlement/batches/{batchId}/items/{itemId}/retry",
+                                1L,
+                                10L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.itemId").value(10L));
         mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/retry", 1L))
@@ -93,7 +97,11 @@ class SettlementApiTest {
     @Test
     @WithMockUser(roles = "VIEWER")
     void viewerCannotRetrySettlementItem() throws Exception {
-        mockMvc.perform(post("/api/admin/settlement/batches/{batchId}/items/{itemId}/retry", 1L, 10L))
+        mockMvc.perform(
+                        post(
+                                "/api/admin/settlement/batches/{batchId}/items/{itemId}/retry",
+                                1L,
+                                10L))
                 .andExpect(status().isForbidden());
 
         verify(settlementService, never()).retryFailedSettlementItem(1L, 10L);

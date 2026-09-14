@@ -194,7 +194,8 @@ class WithdrawalApiTest {
 
     @Test
     void nonPositiveAccountIdReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/admin/withdrawals/accounts/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/withdrawals/accounts/0"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -68,7 +68,8 @@ class ExternalTradeSyncApiTest {
     @DisplayName("VIEWER 권한이면 403을 반환하고 동기화는 실행되지 않는다")
     @WithMockUser(roles = "VIEWER")
     void executeSyncReturns403ForViewerRole() throws Exception {
-        mockMvc.perform(post("/api/admin/external-trade-sync/jobs")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/admin/external-trade-sync/jobs"))
+                .andExpect(status().isForbidden());
 
         verify(externalTradeSyncService, never()).syncAll();
     }

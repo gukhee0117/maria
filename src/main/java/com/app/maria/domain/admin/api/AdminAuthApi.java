@@ -50,10 +50,16 @@ public class AdminAuthApi {
 
     private ResponseEntity<ApiResponseDTO<Void>> tokenCookieResponse(
             String message, AdminLoginResponseDTO tokens) {
-        ResponseCookie accessCookie = buildCookie("access_token", tokens.getAccessToken(),
-                (int) (jwtProperties.getExpirationMinute() * 60));
-        ResponseCookie refreshCookie = buildCookie("refresh_token", tokens.getRefreshToken(),
-                (int) (jwtProperties.getRefreshExpirationDay() * 24 * 60 * 60));
+        ResponseCookie accessCookie =
+                buildCookie(
+                        "access_token",
+                        tokens.getAccessToken(),
+                        (int) (jwtProperties.getExpirationMinute() * 60));
+        ResponseCookie refreshCookie =
+                buildCookie(
+                        "refresh_token",
+                        tokens.getRefreshToken(),
+                        (int) (jwtProperties.getRefreshExpirationDay() * 24 * 60 * 60));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
