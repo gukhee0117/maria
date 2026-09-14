@@ -23,6 +23,7 @@ $(function () {
     function escapeHtml(value) { return $("<div>").text(value == null ? "-" : value).html(); }
     function toCount(value) { return Number(value || 0); }
     function formatDateTime(value) { return value ? DATE_TIME_FORMATTER.format(new Date(value)) : "-"; }
+    function formatDateOnly(value) { return value ? String(value).slice(0, 10) : "-"; }
     function formatAmount(value) { return value == null ? "-" : "₩" + KRW_FORMATTER.format(value); }
     function formatRate(value) { return value == null ? "-" : RATE_FORMATTER.format(value); }
     function showError(message) { MARIA.ui.showError(message); }
@@ -313,7 +314,7 @@ $(function () {
                     "#detailItemProvisionalAt": formatDateTime(item.provisionalAt),
                     "#detailItemProvisionalRate": formatRate(item.settlementFxRate),
                     "#detailItemFinalAmount": formatAmount(item.finalAmount),
-                    "#detailItemFinalAt": formatDateTime(item.finalAt),
+                    "#detailItemFinalAt": formatDateOnly(item.finalAt),
                     "#detailItemFinalRate": formatRate(item.finalRate),
                     "#detailItemDifference": difference == null ? "-" : (difference > 0 ? "+" : "") + formatAmount(difference)
                 });
