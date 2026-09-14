@@ -25,7 +25,8 @@
         INNER JOIN sell_order so
             ON so.order_id = ke.order_id
         WHERE ke.settlement_status = 'PROVISIONAL'
-          AND ke.provisional_at &lt; CAST(#{executedAt} AS DATE)
+          AND ke.final_at IS NOT NULL
+          AND CAST(ke.final_at AS DATE) &lt;= CAST(#{executedAt} AS DATE)
           AND so.status = 'EXECUTED'
           AND NOT EXISTS (
               SELECT 1

@@ -138,7 +138,8 @@ class DomesticInvestmentApiTest {
     @DisplayName("인증되지 않은 요청은 목록 조회를 거부한다")
     @WithAnonymousUser
     void getInvestmentsRejectsUnauthenticated() throws Exception {
-        mockMvc.perform(get("/api/admin/domestic-investments")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/domestic-investments"))
+                .andExpect(status().isUnauthorized());
 
         verify(domesticInvestmentService, never())
                 .getInvestments(any(DomesticInvestmentSearchRequestDTO.class));
@@ -187,7 +188,8 @@ class DomesticInvestmentApiTest {
     @Test
     @DisplayName("accountId가 0 이하면 400을 반환하고 서비스는 호출하지 않는다")
     void getAccountDetailRejectsNonPositiveAccountId() throws Exception {
-        mockMvc.perform(get("/api/admin/domestic-investments/0")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/domestic-investments/0"))
+                .andExpect(status().isBadRequest());
 
         verify(domesticInvestmentService, never()).getAccountDetail(anyLong());
     }

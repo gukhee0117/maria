@@ -32,18 +32,17 @@ class AdminMeApiTest {
     @WithMockUser(username = "5", roles = "REVIEWER")
     void getMeReturns200WithAdminInfo() throws Exception {
         when(adminService.getMe(any()))
-            .thenReturn(new AdminMeResponseDTO(5L, "천유진", AdminRole.REVIEWER));
+                .thenReturn(new AdminMeResponseDTO(5L, "천유진", AdminRole.REVIEWER));
 
         mockMvc.perform(get("/api/admin/me"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.name").value("천유진"))
-            .andExpect(jsonPath("$.data.role").value("REVIEWER"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("천유진"))
+                .andExpect(jsonPath("$.data.role").value("REVIEWER"));
     }
 
     @Test
     @DisplayName("인증되지 않은 요청이면 401을 반환한다")
     void getMeReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/admin/me"))
-            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/me")).andExpect(status().isUnauthorized());
     }
 }

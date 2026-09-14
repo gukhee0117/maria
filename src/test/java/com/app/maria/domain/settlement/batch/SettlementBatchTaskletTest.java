@@ -30,6 +30,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.core.JobExecution;
@@ -81,7 +82,12 @@ class SettlementBatchTaskletTest {
         SettlementBatchDTO batch = batch();
         SettlementItemDTO item = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
         SettlementJoinDTO target =
-                SettlementJoinDTO.builder().itemId(10L).batchId(1L).purchaseCurrency("USD").build();
+                SettlementJoinDTO.builder()
+                        .itemId(10L)
+                        .batchId(1L)
+                        .purchaseCurrency("USD")
+                        .finalAt(LocalDateTime.of(2026, 8, 4, 0, 0))
+                        .build();
         when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch));
         when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
         when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target));
@@ -110,6 +116,121 @@ class SettlementBatchTaskletTest {
 
         assertThat(status).isEqualTo(RepeatStatus.FINISHED);
         verify(settlementBatchStatusUpdater).completeFromLatestItems(1L);
+    }
+
+    @Test
+    void resetsCorruptedLastItemIdAndRestartsFromInitialCursor() {
+        stepExecution.getExecutionContext().putString("settlement.lastItemId", "corrupted");
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of());
+        when(settlementItemMapper.countPendingItems(1L)).thenReturn(0);
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        ArgumentCaptor<SettlementItemDTO> cursor = ArgumentCaptor.forClass(SettlementItemDTO.class);
+        verify(settlementItemMapper).selectPendingItems(cursor.capture());
+        assertThat(cursor.getValue().getItemId()).isZero();
+        assertThat(stepExecution.getExecutionContext().containsKey("settlement.lastItemId"))
+                .isFalse();
+    }
+
+    @Test
+    void resetsValidButStaleCursorWhenPendingItemsWereSkipped() {
+        stepExecution.getExecutionContext().putLong("settlement.lastItemId", 999L);
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of());
+        when(settlementItemMapper.countPendingItems(1L)).thenReturn(1);
+
+        RepeatStatus status =
+                tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        assertThat(status).isEqualTo(RepeatStatus.CONTINUABLE);
+        assertThat(stepExecution.getExecutionContext().containsKey("settlement.lastItemId"))
+                .isFalse();
+        verify(settlementBatchStatusUpdater, never()).completeFromLatestItems(any());
+    }
+
+    @Test
+    void removesMalformedRateCacheAndFetchesRateAgain() {
+        String valueKey = "settlement.rate.USD:2026-08-04.value";
+        stepExecution.getExecutionContext().putString(valueKey, "not-a-number");
+        SettlementItemDTO item = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
+        SettlementJoinDTO target = target(10L);
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
+        when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target));
+        when(exchangeRateProvider.getFinalRate("USD", target.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1400"));
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        verify(exchangeRateProvider).getFinalRate("USD", target.getFinalAt().toLocalDate());
+        verify(settlementTransactionExecutor).execute(target, new BigDecimal("1400"));
+        assertThat(stepExecution.getExecutionContext().getString(valueKey)).isEqualTo("1400");
+    }
+
+    @Test
+    void removesBlankRateCacheAndFetchesRateAgain() {
+        String valueKey = "settlement.rate.USD:2026-08-04.value";
+        stepExecution.getExecutionContext().putString(valueKey, "   ");
+        SettlementItemDTO item = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
+        SettlementJoinDTO target = target(10L);
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
+        when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target));
+        when(exchangeRateProvider.getFinalRate("USD", target.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1400"));
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        verify(exchangeRateProvider).getFinalRate("USD", target.getFinalAt().toLocalDate());
+        verify(settlementTransactionExecutor).execute(target, new BigDecimal("1400"));
+        assertThat(stepExecution.getExecutionContext().getString(valueKey)).isEqualTo("1400");
+    }
+
+    @Test
+    void removesIncompleteFailureCacheAndFetchesRateAgain() {
+        String cacheKey = "settlement.rate.USD:2026-08-04";
+        stepExecution.getExecutionContext().putString(cacheKey + ".failureType", "NOT_FOUND");
+        SettlementItemDTO item = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
+        SettlementJoinDTO target = target(10L);
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
+        when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target));
+        when(exchangeRateProvider.getFinalRate("USD", target.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1400"));
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        verify(exchangeRateProvider).getFinalRate("USD", target.getFinalAt().toLocalDate());
+        verify(settlementTransactionExecutor).execute(target, new BigDecimal("1400"));
+        assertThat(stepExecution.getExecutionContext().containsKey(cacheKey + ".failureType"))
+                .isFalse();
+        assertThat(stepExecution.getExecutionContext().containsKey(cacheKey + ".failureMessage"))
+                .isFalse();
+    }
+
+    @Test
+    void removesUnknownFailureTypeAndFetchesRateAgain() {
+        String cacheKey = "settlement.rate.USD:2026-08-04";
+        stepExecution.getExecutionContext().putString(cacheKey + ".failureType", "UNKNOWN");
+        stepExecution.getExecutionContext().putString(cacheKey + ".failureMessage", "손상된 실패 타입");
+        SettlementItemDTO item = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
+        SettlementJoinDTO target = target(10L);
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
+        when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target));
+        when(exchangeRateProvider.getFinalRate("USD", target.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1400"));
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        verify(exchangeRateProvider).getFinalRate("USD", target.getFinalAt().toLocalDate());
+        verify(settlementTransactionExecutor).execute(target, new BigDecimal("1400"));
+        assertThat(stepExecution.getExecutionContext().containsKey(cacheKey + ".failureType"))
+                .isFalse();
+        assertThat(stepExecution.getExecutionContext().containsKey(cacheKey + ".failureMessage"))
+                .isFalse();
     }
 
     @Test
@@ -183,6 +304,30 @@ class SettlementBatchTaskletTest {
                 .getFinalRate("JPY", batch.getExecutedAt().toLocalDate());
         verify(settlementTransactionExecutor).execute(usdTarget, new BigDecimal("1400"));
         verify(settlementTransactionExecutor).execute(jpyTarget, new BigDecimal("9.5"));
+    }
+
+    @Test
+    void queriesSameCurrencyRateForEachSettlementDate() {
+        SettlementItemDTO first = SettlementItemDTO.builder().itemId(10L).batchId(1L).build();
+        SettlementItemDTO second = SettlementItemDTO.builder().itemId(11L).batchId(1L).build();
+        SettlementJoinDTO firstTarget = target(10L);
+        SettlementJoinDTO secondTarget = target(11L);
+        secondTarget.setFinalAt(LocalDateTime.of(2026, 8, 5, 0, 0));
+        when(settlementBatchMapper.selectBatchById(1L)).thenReturn(Optional.of(batch()));
+        when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(first, second));
+        when(settlementJoinMapper.selectTargetByItemId(any()))
+                .thenReturn(Optional.of(firstTarget), Optional.of(secondTarget));
+        when(exchangeRateProvider.getFinalRate("USD", firstTarget.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1400"));
+        when(exchangeRateProvider.getFinalRate("USD", secondTarget.getFinalAt().toLocalDate()))
+                .thenReturn(new BigDecimal("1410"));
+
+        tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
+
+        verify(exchangeRateProvider).getFinalRate("USD", firstTarget.getFinalAt().toLocalDate());
+        verify(exchangeRateProvider).getFinalRate("USD", secondTarget.getFinalAt().toLocalDate());
+        verify(settlementTransactionExecutor).execute(firstTarget, new BigDecimal("1400"));
+        verify(settlementTransactionExecutor).execute(secondTarget, new BigDecimal("1410"));
     }
 
     @Test
@@ -336,6 +481,7 @@ class SettlementBatchTaskletTest {
                 .itemId(itemId)
                 .batchId(1L)
                 .purchaseCurrency(currency)
+                .finalAt(LocalDateTime.of(2026, 8, 4, 0, 0))
                 .build();
     }
 }

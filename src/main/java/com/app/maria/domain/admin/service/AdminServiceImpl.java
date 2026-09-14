@@ -122,8 +122,10 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public AdminMeResponseDTO getMe(Long adminId) {
-        AdminUserDTO admin = adminMapper.selectAdminByAdminId(adminId)
-                .orElseThrow(() -> new AdminNotFoundException("관리자를 찾을 수 없습니다."));
+        AdminUserDTO admin =
+                adminMapper
+                        .selectAdminByAdminId(adminId)
+                        .orElseThrow(() -> new AdminNotFoundException("관리자를 찾을 수 없습니다."));
         return new AdminMeResponseDTO(admin.getAdminId(), admin.getName(), admin.getRole());
     }
 }

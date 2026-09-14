@@ -56,6 +56,7 @@ class SettlementTransactionExecutorTest {
     void executesSettlementInExchangeAccountAndItemOrder() {
         SettlementJoinDTO target = target();
         KrwExchangeDTO exchange = exchange(SettlementStatus.PROVISIONAL);
+        LocalDateTime originalFinalAt = exchange.getFinalAt();
         when(krwExchangeMapper.selectExchangeByIdForUpdate(10L)).thenReturn(Optional.of(exchange));
         when(settlementCalculator.calculateFinalAmount(
                         new BigDecimal("2700000"), new BigDecimal("1350"), new BigDecimal("1400")))
@@ -84,6 +85,8 @@ class SettlementTransactionExecutorTest {
                 .isEqualByComparingTo("2700000");
         org.assertj.core.api.Assertions.assertThat(exchangeCaptor.getValue().getFinalAmount())
                 .isEqualByComparingTo("2800000.00");
+        org.assertj.core.api.Assertions.assertThat(exchangeCaptor.getValue().getFinalAt())
+                .isEqualTo(originalFinalAt);
     }
 
     @Test
@@ -158,6 +161,7 @@ class SettlementTransactionExecutorTest {
                 .exchangeId(10L)
                 .accountId(20L)
                 .provisionalAmount(new BigDecimal("2700000"))
+                .finalAt(LocalDateTime.of(2026, 8, 11, 0, 0))
                 .settlementStatus(status)
                 .build();
     }

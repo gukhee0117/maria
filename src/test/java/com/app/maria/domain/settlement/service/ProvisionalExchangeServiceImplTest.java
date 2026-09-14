@@ -11,6 +11,7 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.service.AccountTransactionalService;
 import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.settlement.component.ProvisionalExchangeCalculator;
+import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.exception.ProvisionalException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
@@ -29,9 +30,11 @@ class ProvisionalExchangeServiceImplTest {
     private static final Long ACCOUNT_ID = 1L;
     private static final Long ORDER_ID = 10L;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 10, 10, 0);
+    private static final LocalDateTime FINAL_AT = LocalDateTime.of(2026, 8, 12, 0, 0);
     private static final BigDecimal PROVISIONAL_AMOUNT = BigDecimal.valueOf(267_300L);
 
     @Mock private ProvisionalExchangeCalculator provisionalExchangeCalculator;
+    @Mock private SettlementBusinessDayCalculator settlementBusinessDayCalculator;
     @Mock private KrwExchangeMapper krwExchangeMapper;
     @Mock private BusinessClockService businessClockService;
     @Mock private AccountTransactionalService accountTransactionalService;
@@ -43,6 +46,7 @@ class ProvisionalExchangeServiceImplTest {
         when(provisionalExchangeCalculator.calculate(order.getSellQty(), order.getBasePrice()))
                 .thenReturn(PROVISIONAL_AMOUNT);
         when(businessClockService.now()).thenReturn(NOW);
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW)).thenReturn(FINAL_AT);
         when(krwExchangeMapper.insertProvisional(any(KrwExchangeDTO.class))).thenReturn(1);
 
         service.createProvisionalExchange(order);
@@ -55,8 +59,9 @@ class ProvisionalExchangeServiceImplTest {
                         KrwExchangeDTO::getAccountId,
                         KrwExchangeDTO::getOrderId,
                         KrwExchangeDTO::getProvisionalAmount,
-                        KrwExchangeDTO::getProvisionalAt)
-                .containsExactly(ACCOUNT_ID, ORDER_ID, PROVISIONAL_AMOUNT, NOW);
+                        KrwExchangeDTO::getProvisionalAt,
+                        KrwExchangeDTO::getFinalAt)
+                .containsExactly(ACCOUNT_ID, ORDER_ID, PROVISIONAL_AMOUNT, NOW, FINAL_AT);
 
         ArgumentCaptor<AccountDTO> accountCaptor = ArgumentCaptor.forClass(AccountDTO.class);
         verify(accountTransactionalService).updateAmount(accountCaptor.capture());
@@ -70,6 +75,7 @@ class ProvisionalExchangeServiceImplTest {
         when(provisionalExchangeCalculator.calculate(order.getSellQty(), order.getBasePrice()))
                 .thenReturn(PROVISIONAL_AMOUNT);
         when(businessClockService.now()).thenReturn(NOW);
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW)).thenReturn(FINAL_AT);
         when(krwExchangeMapper.insertProvisional(any(KrwExchangeDTO.class))).thenReturn(0);
 
         assertThatThrownBy(() -> service.createProvisionalExchange(order))

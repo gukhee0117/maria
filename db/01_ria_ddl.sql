@@ -308,7 +308,7 @@ CREATE TABLE krw_exchange (
     provisional_at     DATETIME      NOT NULL COMMENT '가환전일시',
     final_rate         DECIMAL(15,6) NULL     COMMENT '확정환율',
     final_amount       DECIMAL(15,0) NULL     COMMENT '확정환전액(=납입일 기준금액)',
-    final_at           DATETIME      NULL     COMMENT '확정일시 - 1년 인출 시계 기준점',
+    final_at           DATETIME      NULL     COMMENT 'T+2 결제일 - 1년 인출 시계 기준점',
     settlement_status  VARCHAR(12)   NOT NULL COMMENT 'PROVISIONAL/FINALIZED',
     PRIMARY KEY (exchange_id),
     UNIQUE KEY uk_krw_exchange_order_id (order_id),
