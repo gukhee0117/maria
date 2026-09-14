@@ -8,6 +8,7 @@ import com.app.maria.domain.sellorder.dto.response.SellOrderDetailResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderHistoryResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderSummaryResponseDTO;
+import com.app.maria.domain.sellorder.exception.SellOrderException;
 import com.app.maria.domain.sellorder.service.SellOrderService;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -40,11 +41,11 @@ public class SellOrderApi {
     public ResponseEntity<ApiResponseDTO<List<SellOrderResponseDTO>>> placeSellOrder(
             @AuthenticationPrincipal Long actorAdminId,
             @Valid @RequestBody SellOrderRequestDTO request) {
-        // placeSellOrder는 항상 최소 1건을 반환하며 리스트 내 상태는 REJECTED 단독 또는 EXECUTED로 균일하다는 Service 계층의 암묵적
-        // 불변식에 의존함.
-        // 이 전제가 깨지면(빈 리스트/상태 혼재) 여기서 조용히 500이 날 수 있음.
         List<SellOrderResponseDTO> responseDTOs =
                 sellOrderService.placeSellOrder(actorAdminId, request);
+        if (responseDTOs.isEmpty()) {
+            throw new SellOrderException("매도 주문 결과가 없습니다.");
+        }
         String message =
                 switch (responseDTOs.get(0).getStatus()) {
                     case EXECUTED -> "매도 주문이 체결되었습니다.";
