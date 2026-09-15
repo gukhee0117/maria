@@ -5,6 +5,7 @@ import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.exception.DuplicateAccountException;
 import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.accountclosure.exception.AccountClosureException;
+import com.app.maria.domain.accountclosure.exception.AccountClosureNotAllowedException;
 import com.app.maria.domain.accountclosure.exception.AccountClosureNotFoundException;
 import com.app.maria.domain.accountclosure.exception.AccountClosureProcessingException;
 import com.app.maria.domain.accountclosure.exception.AccountClosureStateConflictException;
@@ -26,6 +27,7 @@ import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
 import com.app.maria.domain.tax.exception.TaxCalculationException;
 import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
+import com.app.maria.domain.withdrawal.exception.EarlyWithdrawalConsentRequiredException;
 import com.app.maria.domain.withdrawal.exception.WithdrawalException;
 import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
 import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
@@ -35,6 +37,7 @@ import com.app.maria.global.audit.exception.AuditLogNotFoundException;
 import com.app.maria.global.clock.exception.SystemClockNotInitializedException;
 import com.app.maria.global.clock.exception.SystemClockUpdateException;
 import com.app.maria.global.response.ApiResponseDTO;
+import com.app.maria.global.response.ErrorResponseDTO;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.context.MessageSourceResolvable;
@@ -279,6 +282,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
+    @ExceptionHandler(EarlyWithdrawalConsentRequiredException.class)
+    public ResponseEntity<ErrorResponseDTO> handleEarlyWithdrawalConsentRequiredException(
+            EarlyWithdrawalConsentRequiredException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponseDTO("EARLY_WITHDRAWAL_CONSENT_REQUIRED", e.getMessage()));
+    }
+
     @ExceptionHandler(WithdrawalException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleWithdrawalException(WithdrawalException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -379,6 +389,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponseDTO<Void>> handleAccountClosureNotFoundException(
             AccountClosureNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(AccountClosureNotAllowedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleAccountClosureNotAllowedException(
+            AccountClosureNotAllowedException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponseDTO("ACCOUNT_CLOSURE_NOT_ALLOWED", e.getMessage()));
     }
 
     @ExceptionHandler(AccountClosureException.class)
