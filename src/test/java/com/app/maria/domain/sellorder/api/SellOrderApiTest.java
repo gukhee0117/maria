@@ -536,4 +536,17 @@ class SellOrderApiTest {
 
         mockMvc.perform(get("/api/admin/sell-orders/history")).andExpect(status().isOk());
     }
+
+    @Test
+    @DisplayName("서비스가 빈 리스트를 반환하면 500이 아니라 400을 반환한다")
+    @WithMockUser(username = "1", roles = "SETTLEMENT")
+    void placeSellOrderReturns400NotCrashWhenServiceReturnsEmptyList() throws Exception {
+        when(sellOrderService.placeSellOrder(any(), any())).thenReturn(List.of());
+
+        mockMvc.perform(
+                        post("/api/admin/sell-orders")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(validRequestBuilder().build())))
+                .andExpect(status().isBadRequest());
+    }
 }
