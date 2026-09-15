@@ -1,9 +1,11 @@
 package com.app.maria.domain.withdrawal.api;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,60 +14,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalAllocationResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
-import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
 import com.app.maria.domain.withdrawal.service.WithdrawalQueryService;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
-import com.app.maria.global.exception.GlobalExceptionHandler;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(WithdrawalApi.class)
+@Import(SecurityConfig.class)
+@WithMockUser(roles = "VIEWER")
 class WithdrawalApiTest {
-    @Mock private WithdrawalQueryService withdrawalQueryService;
-    @Mock private WithdrawalService withdrawalService;
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @BeforeEach
-    void setUp() {
-        mockMvc =
-                MockMvcBuilders.standaloneSetup(
-                                new WithdrawalApi(withdrawalQueryService, withdrawalService))
-                        .setControllerAdvice(new GlobalExceptionHandler())
-                        .setMessageConverters(
-                                new MappingJackson2HttpMessageConverter(
-                                        Jackson2ObjectMapperBuilder.json()
-                                                .featuresToDisable(
-                                                        SerializationFeature
-                                                                .WRITE_DATES_AS_TIMESTAMPS)
-                                                .build()))
-                        .build();
-    }
+    @MockitoBean private WithdrawalQueryService withdrawalQueryService;
+    @MockitoBean private WithdrawalService withdrawalService;
+    @MockitoBean private JwtTokenProvider jwtTokenProvider;
 
-    @Test
-    void postWithdrawalReturnsCreatedResult() throws Exception {
-        when(withdrawalService.withdraw(any()))
-                .thenReturn(
-                        WithdrawalResultDTO.builder()
-                                .withdrawalId(10L)
-                                .allocations(List.of())
-                                .build());
-
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "SETTLEMENT", "VIEWER"})
+    void adminRolesCannotExecuteWithdrawal(String role) throws Exception {
         mockMvc.perform(
                         post("/api/withdrawals")
+                                .with(user("admin").roles(role))
                                 .contentType(APPLICATION_JSON)
                                 .content(
                                         """
@@ -76,29 +60,9 @@ class WithdrawalApiTest {
                                           "destinationGeneralAccountId": 20
                                         }
                                         """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.withdrawalId").value(10));
+                .andExpect(status().isForbidden());
 
-        verify(withdrawalService).withdraw(any());
-    }
-
-    @Test
-    void postWithdrawalRejectsNonPositiveAmount() throws Exception {
-        mockMvc.perform(
-                        post("/api/withdrawals")
-                                .contentType(APPLICATION_JSON)
-                                .content(
-                                        """
-                                        {
-                                          "accountId": 1,
-                                          "requestedAmount": 0,
-                                          "earlyWithdrawalAgreed": false,
-                                          "destinationGeneralAccountId": 20
-                                        }
-                                        """))
-                .andExpect(status().isBadRequest());
-
-        verify(withdrawalService, org.mockito.Mockito.never()).withdraw(any());
+        verify(withdrawalService, never()).withdraw(any());
     }
 
     @Test

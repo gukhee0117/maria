@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationDeniedException;
@@ -40,9 +42,10 @@ class BusinessApiAuthorizationTest {
         SecurityContextHolder.clearContext();
     }
 
-    @Test
-    void viewerCannotExecuteWithdrawal() {
-        authenticateAs("VIEWER");
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "SETTLEMENT", "VIEWER"})
+    void adminRolesCannotExecuteWithdrawal(String role) {
+        authenticateAs(role);
         WithdrawalRequestDTO request =
                 WithdrawalRequestDTO.builder()
                         .accountId(1L)
