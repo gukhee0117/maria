@@ -76,7 +76,7 @@ $(function () {
 
     function loadAdmins() {
         $("#adminUserListBody").html('<tr><td colspan="4" class="admin-users-loading">불러오는 중...</td></tr>');
-        MARIA.auth.ajax({ url: "/api/auth/admin", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/admins", method: "GET" })
             .done(function (res) {
                 admins = res.data || [];
                 renderAdmins();
@@ -94,7 +94,7 @@ $(function () {
         var adminId = $(this).data("admin-id");
         var role = $(this).find(".admin-users-role-select").val();
         MARIA.auth.ajax({
-            url: "/api/auth/admin/" + adminId + "/role",
+            url: "/api/admin/admins/" + adminId + "/role",
             method: "PATCH",
             contentType: "application/json",
             data: JSON.stringify({ role: role })
@@ -107,7 +107,8 @@ $(function () {
             });
     });
 
-    var currentAdmin = MARIA.auth.currentAdmin();
-    isAdmin = !!currentAdmin && currentAdmin.role === "ADMIN";
-    loadAdmins();
+    MARIA.auth.requireAuth().done(function (admin) {
+        isAdmin = !!(admin && admin.role === "ADMIN");
+        loadAdmins();
+    });
 });

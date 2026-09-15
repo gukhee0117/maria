@@ -68,19 +68,23 @@ public class SettlementBatchTasklet implements Tasklet {
 
         var executionContext =
                 chunkContext.getStepContext().getStepExecution().getExecutionContext();
-        long lastItemId = executionContext.getLong(LAST_ITEM_ID, INITIAL_ITEM_ID);
+        long lastItemId = restoreLastItemId(executionContext);
         SettlementItemDTO cursor =
                 SettlementItemDTO.builder().batchId(batchId).itemId(lastItemId).build();
         List<SettlementItemDTO> items = settlementItemMapper.selectPendingItems(cursor);
 
         if (items.isEmpty()) {
-            finalizeBatch(batchId);
+            int pendingCount = settlementItemMapper.countPendingItems(batchId);
+            if (pendingCount > 0 && lastItemId > INITIAL_ITEM_ID) {
+                executionContext.remove(LAST_ITEM_ID);
+                return RepeatStatus.CONTINUABLE;
+            }
+            finalizeBatch(batchId, pendingCount);
             return RepeatStatus.FINISHED;
         }
 
-        LocalDate rateDate = batch.getExecutedAt().toLocalDate();
         for (SettlementItemDTO item : items) {
-            processItem(batchId, item, rateDate, executionContext);
+            processItem(batchId, item, executionContext);
             executionContext.putLong(LAST_ITEM_ID, item.getItemId());
         }
 
@@ -88,10 +92,7 @@ public class SettlementBatchTasklet implements Tasklet {
     }
 
     private void processItem(
-            Long batchId,
-            SettlementItemDTO item,
-            LocalDate rateDate,
-            ExecutionContext executionContext) {
+            Long batchId, SettlementItemDTO item, ExecutionContext executionContext) {
         try {
             SettlementJoinDTO query =
                     SettlementJoinDTO.builder().batchId(batchId).itemId(item.getItemId()).build();
@@ -102,12 +103,21 @@ public class SettlementBatchTasklet implements Tasklet {
             }
 
             SettlementJoinDTO value = target.get();
+            LocalDate rateDate = requireFinalDate(value);
             BigDecimal finalRate =
                     resolveFinalRate(value.getPurchaseCurrency(), rateDate, executionContext);
             settlementTransactionExecutor.execute(value, finalRate);
         } catch (Exception e) {
             settlementFailureRecorder.markFailed(item.getItemId(), e);
         }
+    }
+
+    private LocalDate requireFinalDate(SettlementJoinDTO target) {
+        if (target.getFinalAt() == null) {
+            throw new SettlementStateConflictException(
+                    "확정산 기준일이 없습니다. exchangeId=" + target.getExchangeId());
+        }
+        return target.getFinalAt().toLocalDate();
     }
 
     private BigDecimal resolveFinalRate(
@@ -117,49 +127,119 @@ public class SettlementBatchTasklet implements Tasklet {
         String failureTypeKey = cacheKey + ".failureType";
         String failureMessageKey = cacheKey + ".failureMessage";
 
-        if (executionContext.containsKey(valueKey)) {
-            return new BigDecimal(executionContext.getString(valueKey));
+        BigDecimal cachedRate = restoreCachedRate(executionContext, valueKey);
+        if (cachedRate != null) {
+            clearFailureCache(executionContext, failureTypeKey, failureMessageKey);
+            return cachedRate;
         }
-        if (executionContext.containsKey(failureTypeKey)) {
-            throw cachedFailure(
-                    executionContext.getString(failureTypeKey),
-                    executionContext.getString(failureMessageKey));
+        RuntimeException cachedFailure =
+                restoreCachedFailure(executionContext, failureTypeKey, failureMessageKey);
+        if (cachedFailure != null) {
+            throw cachedFailure;
         }
 
         try {
             BigDecimal rate = exchangeRateProvider.getFinalRate(currency, rateDate);
+            clearFailureCache(executionContext, failureTypeKey, failureMessageKey);
             executionContext.putString(valueKey, rate.toPlainString());
             return rate;
         } catch (ExchangeRateNotFoundException e) {
-            cacheFailure(executionContext, failureTypeKey, failureMessageKey, "NOT_FOUND", e);
+            cacheFailure(
+                    executionContext, valueKey, failureTypeKey, failureMessageKey, "NOT_FOUND", e);
             throw e;
         } catch (ExchangeRateExternalApiException e) {
-            cacheFailure(executionContext, failureTypeKey, failureMessageKey, "EXTERNAL_API", e);
+            cacheFailure(
+                    executionContext,
+                    valueKey,
+                    failureTypeKey,
+                    failureMessageKey,
+                    "EXTERNAL_API",
+                    e);
             throw e;
         }
     }
 
+    private long restoreLastItemId(ExecutionContext executionContext) {
+        if (!executionContext.containsKey(LAST_ITEM_ID)) {
+            return INITIAL_ITEM_ID;
+        }
+
+        Object value = executionContext.get(LAST_ITEM_ID);
+        if (value instanceof Long itemId && itemId >= INITIAL_ITEM_ID) {
+            return itemId;
+        }
+
+        executionContext.remove(LAST_ITEM_ID);
+        return INITIAL_ITEM_ID;
+    }
+
+    private BigDecimal restoreCachedRate(ExecutionContext executionContext, String valueKey) {
+        if (!executionContext.containsKey(valueKey)) {
+            return null;
+        }
+
+        Object value = executionContext.get(valueKey);
+        if (value instanceof String rateValue) {
+            try {
+                BigDecimal rate = new BigDecimal(rateValue);
+                if (rate.signum() > 0) {
+                    return rate;
+                }
+            } catch (NumberFormatException ignored) {
+                // 손상된 캐시는 제거한 뒤 외부 환율을 다시 조회한다.
+            }
+        }
+
+        executionContext.remove(valueKey);
+        return null;
+    }
+
+    private RuntimeException restoreCachedFailure(
+            ExecutionContext executionContext, String failureTypeKey, String failureMessageKey) {
+        boolean hasFailureType = executionContext.containsKey(failureTypeKey);
+        boolean hasFailureMessage = executionContext.containsKey(failureMessageKey);
+        if (!hasFailureType && !hasFailureMessage) {
+            return null;
+        }
+
+        Object failureType = executionContext.get(failureTypeKey);
+        Object failureMessage = executionContext.get(failureMessageKey);
+        if (failureType instanceof String type
+                && failureMessage instanceof String message
+                && !message.isBlank()) {
+            if ("NOT_FOUND".equals(type)) {
+                return new ExchangeRateNotFoundException(message);
+            }
+            if ("EXTERNAL_API".equals(type)) {
+                return new ExchangeRateExternalApiException(message, null);
+            }
+        }
+
+        clearFailureCache(executionContext, failureTypeKey, failureMessageKey);
+        return null;
+    }
+
     private void cacheFailure(
             ExecutionContext executionContext,
+            String valueKey,
             String failureTypeKey,
             String failureMessageKey,
             String failureType,
             Exception exception) {
+        executionContext.remove(valueKey);
         executionContext.putString(failureTypeKey, failureType);
         executionContext.putString(
                 failureMessageKey,
                 exception.getMessage() == null ? "환율 조회 실패" : exception.getMessage());
     }
 
-    private RuntimeException cachedFailure(String failureType, String failureMessage) {
-        if ("NOT_FOUND".equals(failureType)) {
-            return new ExchangeRateNotFoundException(failureMessage);
-        }
-        return new ExchangeRateExternalApiException(failureMessage, null);
+    private void clearFailureCache(
+            ExecutionContext executionContext, String failureTypeKey, String failureMessageKey) {
+        executionContext.remove(failureTypeKey);
+        executionContext.remove(failureMessageKey);
     }
 
-    private void finalizeBatch(Long batchId) {
-        int pendingCount = settlementItemMapper.countPendingItems(batchId);
+    private void finalizeBatch(Long batchId, int pendingCount) {
         if (pendingCount > 0) {
             throw new SettlementStateConflictException(
                     "미처리 Item이 남아 있어 Batch를 종료할 수 없습니다. batchId="

@@ -43,7 +43,7 @@ $(function () {
     }
 
     function loadSummary() {
-        MARIA.auth.ajax({ url: "/api/inbounds/summary", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/inbounds/summary", method: "GET" })
             .done(function (res) {
                 var s = res.data;
                 $("#kpiTodayProcessed").text(s.todayProcessedCount + " 건");
@@ -162,7 +162,7 @@ $(function () {
             requestData.keyword = accountKeyword;
         }
         MARIA.auth.ajax({
-            url: "/api/inbounds/accounts",
+            url: "/api/admin/inbounds/accounts",
             method: "GET",
             data: requestData
         })
@@ -263,7 +263,7 @@ $(function () {
         }
         var targetPage = page || 0;
         MARIA.auth.ajax({
-            url: "/api/inbounds/by-account/" + selectedAccountId,
+            url: "/api/admin/inbounds/by-account/" + selectedAccountId,
             method: "GET",
             data: { page: targetPage, size: INBOUND_PAGE_SIZE }
         })
@@ -337,7 +337,7 @@ $(function () {
 
     function loadPriorApprovals(inboundId, $container) {
         $container.append('<div class="section-header"><span>이 계좌·종목 기존 승인 내역</span></div>');
-        MARIA.auth.ajax({ url: "/api/inbounds/" + inboundId + "/prior-approvals", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/inbounds/" + inboundId + "/prior-approvals", method: "GET" })
             .done(function (res) {
                 var rows = res.data || [];
                 if (rows.length === 0) {

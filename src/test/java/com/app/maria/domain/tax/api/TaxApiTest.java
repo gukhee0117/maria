@@ -90,7 +90,7 @@ class TaxApiTest {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID)).thenReturn(preview());
 
         mockMvc.perform(
-                        get("/api/tax/preview/{accountId}", ACCOUNT_ID)
+                        get("/api/admin/tax/preview/{accountId}", ACCOUNT_ID)
                                 .with(user("tester").roles(role)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("세금계산 성공"))
@@ -102,7 +102,7 @@ class TaxApiTest {
     @WithAnonymousUser
     @DisplayName("미인증이면 미리보기도 막힌다")
     void 미리보기_미인증() throws Exception {
-        mockMvc.perform(get("/api/tax/preview/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(get("/api/admin/tax/preview/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isUnauthorized());
 
         verify(taxCalculationService, never()).taxCalculate(anyLong());
@@ -113,7 +113,7 @@ class TaxApiTest {
     void 확정저장_정상() throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
-        mockMvc.perform(post("/api/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("세액 확정 저장 성공"))
                 .andExpect(jsonPath("$.data.calcId").value(10L))
@@ -130,7 +130,7 @@ class TaxApiTest {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
         mockMvc.perform(
-                        post("/api/tax/calculations/{accountId}", ACCOUNT_ID)
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
                                 .with(user("tester").roles(role)))
                 .andExpect(status().isOk());
     }
@@ -140,7 +140,7 @@ class TaxApiTest {
     @DisplayName("심사·조회 역할은 확정 저장이 막힌다")
     void 확정저장_차단역할(String role) throws Exception {
         mockMvc.perform(
-                        post("/api/tax/calculations/{accountId}", ACCOUNT_ID)
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
                                 .with(user("tester").roles(role)))
                 .andExpect(status().isForbidden());
 
@@ -151,7 +151,7 @@ class TaxApiTest {
     @WithAnonymousUser
     @DisplayName("미인증이면 확정 저장이 막힌다")
     void 확정저장_미인증() throws Exception {
-        mockMvc.perform(post("/api/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isUnauthorized());
 
         verify(taxCalculationService, never()).calculateAndSave(anyLong());
@@ -163,7 +163,7 @@ class TaxApiTest {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID))
                 .thenThrow(new TaxCalculationAlreadyExistsException("이미 확정신고된 계좌입니다."));
 
-        mockMvc.perform(post("/api/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."));
     }
@@ -174,7 +174,7 @@ class TaxApiTest {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenThrow(new TaxRuleNotFoundException("TAX_RATE 규칙을 찾지 못했습니다."));
 
-        mockMvc.perform(get("/api/tax/preview/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(get("/api/admin/tax/preview/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isNotFound());
     }
 
@@ -182,7 +182,7 @@ class TaxApiTest {
     @ValueSource(longs = {0L, -1L})
     @DisplayName("accountId가 양수가 아니면 요청 단계에서 거절한다")
     void accountId_양수검증(long accountId) throws Exception {
-        mockMvc.perform(get("/api/tax/preview/{accountId}", accountId))
+        mockMvc.perform(get("/api/admin/tax/preview/{accountId}", accountId))
                 .andExpect(status().isBadRequest());
 
         verify(taxCalculationService, never()).taxCalculate(anyLong());
@@ -203,7 +203,7 @@ class TaxApiTest {
                                         .finalTax(new BigDecimal("0"))
                                         .build()));
 
-        mockMvc.perform(get("/api/tax/snapshots").param("accountIds", "1,2"))
+        mockMvc.perform(get("/api/admin/tax/snapshots").param("accountIds", "1,2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("세액 스냅샷 조회 성공"))
                 .andExpect(jsonPath("$.data[0].accountId").value(1))
@@ -218,7 +218,7 @@ class TaxApiTest {
     void 스냅샷_결과없음() throws Exception {
         when(taxCalculationService.findSnapshots(List.of(999L))).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/tax/snapshots").param("accountIds", "999"))
+        mockMvc.perform(get("/api/admin/tax/snapshots").param("accountIds", "999"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
@@ -228,7 +228,7 @@ class TaxApiTest {
     @WithAnonymousUser
     @DisplayName("미인증이면 스냅샷 조회도 막힌다")
     void 스냅샷_미인증() throws Exception {
-        mockMvc.perform(get("/api/tax/snapshots").param("accountIds", "1"))
+        mockMvc.perform(get("/api/admin/tax/snapshots").param("accountIds", "1"))
                 .andExpect(status().isUnauthorized());
 
         verify(taxCalculationService, never()).findSnapshots(anyList());
@@ -245,7 +245,7 @@ class TaxApiTest {
                                 .status("REQUESTED")
                                 .build());
 
-        mockMvc.perform(post("/api/tax/snapshots/jobs").with(user("tester").roles(role)))
+        mockMvc.perform(post("/api/admin/tax/snapshots/jobs").with(user("tester").roles(role)))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value("세액 스냅샷 배치 실행 요청 완료"))
                 .andExpect(jsonPath("$.data.runId").value("run-1"))
@@ -256,7 +256,7 @@ class TaxApiTest {
     @ValueSource(strings = {"REVIEWER", "VIEWER"})
     @DisplayName("심사·조회 역할은 배치 수동 실행이 막힌다")
     void 배치_수동실행_차단역할(String role) throws Exception {
-        mockMvc.perform(post("/api/tax/snapshots/jobs").with(user("tester").roles(role)))
+        mockMvc.perform(post("/api/admin/tax/snapshots/jobs").with(user("tester").roles(role)))
                 .andExpect(status().isForbidden());
 
         verify(taxCalculationService, never()).triggerSnapshotBatch();
@@ -266,7 +266,7 @@ class TaxApiTest {
     @WithAnonymousUser
     @DisplayName("미인증이면 배치 수동 실행도 막힌다")
     void 배치_수동실행_미인증() throws Exception {
-        mockMvc.perform(post("/api/tax/snapshots/jobs")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/admin/tax/snapshots/jobs")).andExpect(status().isUnauthorized());
 
         verify(taxCalculationService, never()).triggerSnapshotBatch();
     }

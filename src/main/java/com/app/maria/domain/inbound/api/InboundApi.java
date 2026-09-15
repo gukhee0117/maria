@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @Validated
-@RequestMapping("/api/inbounds")
+@RequestMapping("/api/admin/inbounds")
 public class InboundApi {
 
     private final InboundService inboundService;

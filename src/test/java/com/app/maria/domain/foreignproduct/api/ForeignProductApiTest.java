@@ -44,7 +44,7 @@ class ForeignProductApiTest {
                         .build();
         when(foreignProductService.getAllForeignProducts()).thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/foreign-products"))
+        mockMvc.perform(get("/api/admin/foreign-products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("종목 전체 조회 성공"))
                 .andExpect(jsonPath("$.data[0].ticker").value("AAPL"));
@@ -54,7 +54,7 @@ class ForeignProductApiTest {
     void getAllForeignProductsReturnsEmptyListWhenNoProductsExist() throws Exception {
         when(foreignProductService.getAllForeignProducts()).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/foreign-products"))
+        mockMvc.perform(get("/api/admin/foreign-products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
@@ -73,7 +73,7 @@ class ForeignProductApiTest {
                         .build();
         when(foreignProductService.getForeignProduct(1L)).thenReturn(response);
 
-        mockMvc.perform(get("/api/foreign-products/1"))
+        mockMvc.perform(get("/api/admin/foreign-products/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("종목 단건 조회 성공"))
                 .andExpect(jsonPath("$.data.ticker").value("AAPL"));
@@ -85,7 +85,7 @@ class ForeignProductApiTest {
                 .thenThrow(
                         new ForeignProductNotFoundException("존재하지 않는 종목입니다. foreignProductId=999"));
 
-        mockMvc.perform(get("/api/foreign-products/999"))
+        mockMvc.perform(get("/api/admin/foreign-products/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("존재하지 않는 종목입니다. foreignProductId=999"));
     }

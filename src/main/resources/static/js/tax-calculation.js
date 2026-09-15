@@ -333,7 +333,7 @@ $(function () {
         openDetailPanel();
 
         MARIA.auth.ajax({
-            url: "/api/tax/preview/" + accountId,
+            url: "/api/admin/tax/preview/" + accountId,
             method: "GET"
         }).done(function (res) {
             var data = res.data;
@@ -433,7 +433,7 @@ $(function () {
     }
 
     function loadBatchHistory() {
-        MARIA.auth.ajax({ url: "/api/tax/snapshots/jobs", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/tax/snapshots/jobs", method: "GET" })
             .done(function (res) {
                 renderBatchHistory(res.data);
             })
@@ -455,7 +455,7 @@ $(function () {
 
     function loadTax() {
         loadBusinessToday();
-        MARIA.auth.ajax({ url: "/api/account/list", method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/account/list", method: "GET" })
             .done(function (accountRes) {
                 var accounts = accountRes.data || [];
                 var accountIds = [];
@@ -481,7 +481,7 @@ $(function () {
 
                 $.when.apply($, chunks.map(function (chunk) {
                     return MARIA.auth.ajax({
-                        url: "/api/tax/snapshots",
+                        url: "/api/admin/tax/snapshots",
                         method: "GET",
                         data: { accountIds: chunk },
                         traditional: true
@@ -557,7 +557,7 @@ $(function () {
     $("#batchTriggerGroup").toggle(canTriggerBatch());
     $("#triggerBatch").on("click", function () {
         if (!canTriggerBatch()) return;
-        MARIA.auth.ajax({ url: "/api/tax/snapshots/jobs", method: "POST" })
+        MARIA.auth.ajax({ url: "/api/admin/tax/snapshots/jobs", method: "POST" })
             .done(function (res) {
                 $("#batchTriggerResult").text("요청됨 · runId " + res.data.runId + " · " + res.data.status);
                 setTimeout(loadBatchHistory, 1500);

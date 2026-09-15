@@ -284,7 +284,11 @@ class TaxMapperTest {
                 fixture.insertSellOrder(
                         lotId, "EXECUTED", LocalDateTime.of(2026, 9, 20, 10, 0), "60.0000");
         fixture.insertKrwExchange(
-                ACCOUNT_ID, first, "FINALIZED", "10000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
+                ACCOUNT_ID,
+                first,
+                "FINALIZED",
+                "10000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
         fixture.insertKrwExchange(
                 ACCOUNT_ID,
                 second,
@@ -321,7 +325,11 @@ class TaxMapperTest {
                 fixture.insertSellOrder(
                         lotA, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
         fixture.insertKrwExchange(
-                ACCOUNT_ID, orderA, "FINALIZED", "24000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
+                ACCOUNT_ID,
+                orderA,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
 
         Long lotB = fixture.insertLot(OTHER_ACCOUNT_ID, "200.0000", "1300.0000", "50.0000");
         Long orderB =
@@ -357,7 +365,11 @@ class TaxMapperTest {
                 fixture.insertSellOrder(
                         lotA, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
         fixture.insertKrwExchange(
-                ACCOUNT_ID, orderA, "FINALIZED", "24000000.00", LocalDateTime.of(2026, 3, 10, 10, 0));
+                ACCOUNT_ID,
+                orderA,
+                "FINALIZED",
+                "24000000.00",
+                LocalDateTime.of(2026, 3, 10, 10, 0));
 
         Long lotB = fixture.insertLot(OTHER_ACCOUNT_ID, "200.0000", "1300.0000", "50.0000");
         Long orderB =

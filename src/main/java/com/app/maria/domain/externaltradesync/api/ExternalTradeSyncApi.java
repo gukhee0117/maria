@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/external-trade-sync")
+@RequestMapping("/api/admin/external-trade-sync")
 public class ExternalTradeSyncApi {
 
     private final ExternalTradeSyncService externalTradeSyncService;

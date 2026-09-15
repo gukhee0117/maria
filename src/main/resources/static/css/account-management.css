@@ -7,6 +7,10 @@
     overflow: hidden;
 }
 
+.toast-container {
+    z-index: 1200;
+}
+
 .content:has(.account-management) {
     overflow: hidden;
 }
