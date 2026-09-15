@@ -23,7 +23,7 @@ public class InboundApi {
 
     private final InboundService inboundService;
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     @PostMapping
     public ResponseEntity<ApiResponseDTO<InboundResponseDTO>> processInbound(
             @Valid @RequestBody InboundRequestDTO request) {

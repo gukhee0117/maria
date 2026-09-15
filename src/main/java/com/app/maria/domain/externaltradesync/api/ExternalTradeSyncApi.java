@@ -17,7 +17,7 @@ public class ExternalTradeSyncApi {
 
     private final ExternalTradeSyncService externalTradeSyncService;
 
-    @PreAuthorize("hasAnyRole('SETTLEMENT', 'ADMIN')")
+    @PreAuthorize("hasRole('SETTLEMENT')")
     @PostMapping("/jobs")
     public ResponseEntity<ApiResponseDTO<ExternalTradeSyncResultDTO>> executeSync() {
         ExternalTradeSyncResultDTO result = externalTradeSyncService.syncAll();
