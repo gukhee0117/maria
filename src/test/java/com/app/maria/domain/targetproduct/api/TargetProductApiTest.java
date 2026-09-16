@@ -12,6 +12,8 @@ import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementPageDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
 import com.app.maria.domain.targetproduct.dto.request.TargetProductSearchRequestDTO;
+import com.app.maria.domain.targetproduct.exception.TargetProductException;
+import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.domain.targetproduct.type.StockType;
 import com.app.maria.domain.targetproduct.type.TradeType;
@@ -167,6 +169,26 @@ class TargetProductApiTest {
         assertThat(captor.getValue().getCustomerName()).isEqualTo("홍길동");
         assertThat(captor.getValue().getStockType()).isEqualTo(StockType.ETF);
         assertThat(captor.getValue().getIsTarget()).isTrue();
+    }
+
+    @Test
+    void getJudgementsReturnsBadRequestWhenTargetProductExceptionThrown() throws Exception {
+        when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
+                .thenThrow(new TargetProductException("대상상품 판별에 실패했습니다."));
+
+        mockMvc.perform(get("/api/admin/target-products"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("대상상품 판별에 실패했습니다."));
+    }
+
+    @Test
+    void getJudgementsReturnsNotFoundWhenTargetProductNotFoundExceptionThrown() throws Exception {
+        when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
+                .thenThrow(new TargetProductNotFoundException("펀드 정보를 찾을 수 없습니다."));
+
+        mockMvc.perform(get("/api/admin/target-products"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("펀드 정보를 찾을 수 없습니다."));
     }
 
     @Test

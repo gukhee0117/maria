@@ -24,6 +24,8 @@ import com.app.maria.domain.member.exception.MemberNotFoundException;
 import com.app.maria.domain.sellorder.exception.SellOrderException;
 import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.settlement.exception.*;
+import com.app.maria.domain.targetproduct.exception.TargetProductException;
+import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
 import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
 import com.app.maria.domain.tax.exception.TaxCalculationException;
 import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
@@ -431,6 +433,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DomesticInvestmentNotFoundException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleDomesticInvestmentNotFound(
             DomesticInvestmentNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
+    }
+
+    // 19. TargetProduct 예외
+    @ExceptionHandler(TargetProductException.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleTargetProductException(
+            TargetProductException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponseDTO.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(TargetProductNotFoundException.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleTargetProductNotFoundException(
+            TargetProductNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 }
