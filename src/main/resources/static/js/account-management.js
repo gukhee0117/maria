@@ -22,6 +22,7 @@ $(function () {
     var customerSearchTimer = null;
     var customerSearchRequest = null;
     var businessToday = null; // "YYYY-MM-DD" - system_clock 기준(실제 브라우저 시간 아님)
+    var authenticatedAdmin = null;
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
@@ -89,8 +90,7 @@ $(function () {
     }
 
     function canProcessClosure() {
-        var admin = MARIA.auth.currentAdmin();
-        return !!admin && (admin.role === "ADMIN" || admin.role === "REVIEWER");
+        return !!authenticatedAdmin && authenticatedAdmin.role === "REVIEWER";
     }
 
     function errorMessage(xhr, fallback) {
@@ -809,8 +809,11 @@ $(function () {
         });
     });
 
-    loadBusinessToday().done(function () {
-        renderSummary();
+    MARIA.auth.requireAuth().done(function (admin) {
+        authenticatedAdmin = admin;
+        loadBusinessToday().done(function () {
+            renderSummary();
+        });
+        loadAccounts();
     });
-    loadAccounts();
 });

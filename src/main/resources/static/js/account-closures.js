@@ -15,6 +15,7 @@ $(function () {
     var selectedClosureId = null;
     var currentPage = 1;
     var PAGE_SIZE = 6;
+    var authenticatedAdmin = null;
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
@@ -41,8 +42,7 @@ $(function () {
     }
 
     function canProcessClosure() {
-        var admin = MARIA.auth.currentAdmin();
-        return !!admin && (admin.role === "ADMIN" || admin.role === "REVIEWER");
+        return !!authenticatedAdmin && authenticatedAdmin.role === "REVIEWER";
     }
 
     function renderList() {
@@ -206,6 +206,10 @@ $(function () {
     }
 
     function processClosure(action) {
+        if (!canProcessClosure()) {
+            showError("계좌 해지 요청을 처리할 권한이 없습니다.");
+            return;
+        }
         if (!selectedClosureId) {
             showError("처리할 해지 신청을 선택해 주세요.");
             return;
@@ -265,7 +269,10 @@ $(function () {
         processClosure("reject");
     });
 
-    loadClosures();
+    MARIA.auth.requireAuth().done(function (admin) {
+        authenticatedAdmin = admin;
+        loadClosures();
+    });
 
     function selectFirstClosureOnCurrentPage() {
         var firstIndex = (currentPage - 1) * PAGE_SIZE;
