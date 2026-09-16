@@ -15,7 +15,6 @@ $(function () {
     var selectedClosureId = null;
     var currentPage = 1;
     var PAGE_SIZE = 6;
-    var authenticatedAdmin = null;
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
@@ -42,7 +41,7 @@ $(function () {
     }
 
     function canProcessClosure() {
-        return !!authenticatedAdmin && authenticatedAdmin.role === "REVIEWER";
+        return MARIA.auth.hasRole("REVIEWER");
     }
 
     function renderList() {
@@ -269,8 +268,8 @@ $(function () {
         processClosure("reject");
     });
 
-    MARIA.auth.requireAuth().done(function (admin) {
-        authenticatedAdmin = admin;
+    // 인증 정보가 준비된 뒤 보호 데이터를 조회하고 역할별 UI를 렌더링한다.
+    MARIA.auth.requireAuth().done(function () {
         loadClosures();
     });
 

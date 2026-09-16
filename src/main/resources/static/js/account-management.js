@@ -22,7 +22,6 @@ $(function () {
     var customerSearchTimer = null;
     var customerSearchRequest = null;
     var businessToday = null; // "YYYY-MM-DD" - system_clock 기준(실제 브라우저 시간 아님)
-    var authenticatedAdmin = null;
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
@@ -90,7 +89,7 @@ $(function () {
     }
 
     function canProcessClosure() {
-        return !!authenticatedAdmin && authenticatedAdmin.role === "REVIEWER";
+        return MARIA.auth.hasRole("REVIEWER");
     }
 
     function errorMessage(xhr, fallback) {
@@ -809,8 +808,8 @@ $(function () {
         });
     });
 
-    MARIA.auth.requireAuth().done(function (admin) {
-        authenticatedAdmin = admin;
+    // 인증 정보가 준비된 뒤 보호 데이터를 조회하고 역할별 UI를 렌더링한다.
+    MARIA.auth.requireAuth().done(function () {
         loadBusinessToday().done(function () {
             renderSummary();
         });

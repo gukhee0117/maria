@@ -82,5 +82,15 @@ MARIA.auth = (function ($) {
 
     function currentAdmin() { return _admin; }
 
-    return { requireAuth: requireAuth, currentAdmin: currentAdmin, logout: logout, ajax: ajax };
+    function hasRole(role) {
+        return !!_admin && _admin.role === role;
+    }
+
+    return {
+        requireAuth: requireAuth,
+        currentAdmin: currentAdmin,
+        hasRole: hasRole,
+        logout: logout,
+        ajax: ajax
+    };
 })(jQuery);
