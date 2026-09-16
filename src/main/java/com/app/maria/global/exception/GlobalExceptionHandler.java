@@ -286,7 +286,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDTO> handleEarlyWithdrawalConsentRequiredException(
             EarlyWithdrawalConsentRequiredException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponseDTO("EARLY_WITHDRAWAL_CONSENT_REQUIRED", e.getMessage()));
+                .body(
+                        new ErrorResponseDTO(
+                                EarlyWithdrawalConsentRequiredException.CODE, e.getMessage()));
     }
 
     @ExceptionHandler(WithdrawalException.class)
@@ -395,7 +397,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDTO> handleAccountClosureNotAllowedException(
             AccountClosureNotAllowedException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponseDTO("ACCOUNT_CLOSURE_NOT_ALLOWED", e.getMessage()));
+                .body(new ErrorResponseDTO(AccountClosureNotAllowedException.CODE, e.getMessage()));
     }
 
     @ExceptionHandler(AccountClosureException.class)
