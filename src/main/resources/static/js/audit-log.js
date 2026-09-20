@@ -135,6 +135,7 @@ $(function () {
             $body.append(
                 "<tr>" +
                 "<td>" + formatDateTime(log.processedAt) + "</td>" +
+                "<td>" + formatDateTime(log.recordedAt) + "</td>" +
                 "<td><div class=\"audit-log-admin-name\">" + escapeHtml(adminLabel) + "</div>" +
                 "<div class=\"audit-log-admin-role\">" + escapeHtml(roleLabel(log.adminRole)) + "</div></td>" +
                 "<td><span class=\"audit-log-target-badge " + targetTableBadgeClass(log.targetTable) + "\">" +

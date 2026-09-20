@@ -463,7 +463,7 @@ $(function () {
     }
 
     function loadWithdrawalDetail(withdrawalId) {
-        return loadApiData("/api/withdrawals/" + withdrawalId);
+        return loadApiData("/api/admin/withdrawals/" + withdrawalId);
     }
 
     function loadApiData(url) {
@@ -561,8 +561,8 @@ $(function () {
         $("#withdrawal-search-button").prop("disabled", true);
 
         Promise.all([
-            loadApiData("/api/withdrawals"),
-            loadApiData("/api/account/list")
+            loadApiData("/api/admin/withdrawals"),
+            loadApiData("/api/admin/account/list")
         ]).then(function (responses) {
             withdrawalHistories = (responses[0] || []).filter(function (withdrawal) {
                 return withdrawal.status !== "CANCELLED";

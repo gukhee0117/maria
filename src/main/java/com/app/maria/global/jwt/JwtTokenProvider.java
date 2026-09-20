@@ -27,6 +27,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(adminId))
+                .claim("type", "access")
                 .claim("loginId", loginId)
                 .claim("name", name)
                 .claim("role", role.name())
@@ -45,6 +46,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(adminId))
+                .claim("type", "refresh")
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(getSigningKey())

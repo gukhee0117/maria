@@ -208,7 +208,7 @@ $(function () {
 
     function loadAccountBenefit() {
         return MARIA.auth.ajax({
-            url: "/api/statistics/account-benefit",
+            url: "/api/admin/statistics/account-benefit",
             method: "GET",
             data: buildFilterParams()
         }).done(function (res) {
@@ -224,7 +224,7 @@ $(function () {
 
     function loadAgeInvestment() {
         return MARIA.auth.ajax({
-            url: "/api/statistics/age-investment",
+            url: "/api/admin/statistics/age-investment",
             method: "GET",
             data: buildFilterParams()
         }).done(function (res) {
@@ -240,7 +240,7 @@ $(function () {
 
     function loadProductPurchase() {
         return MARIA.auth.ajax({
-            url: "/api/statistics/product-purchase",
+            url: "/api/admin/statistics/product-purchase",
             method: "GET",
             data: buildFilterParams()
         }).done(function (res) {
@@ -264,7 +264,7 @@ $(function () {
 
     function loadReliefRate() {
         return MARIA.auth.ajax({
-            url: "/api/statistics/relief-rate",
+            url: "/api/admin/statistics/relief-rate",
             method: "GET",
             data: buildFilterParams()
         }).done(function (res) {
@@ -281,7 +281,7 @@ $(function () {
 
     function loadFxExchange() {
         return MARIA.auth.ajax({
-            url: "/api/statistics/fx-exchange",
+            url: "/api/admin/statistics/fx-exchange",
             method: "GET",
             data: buildFilterParams()
         }).done(function (res) {

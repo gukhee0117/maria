@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class WithdrawalServiceImpl {
+public class WithdrawalProcessor {
 
     private final BusinessClockService businessClockService;
     private final AccountMapper accountMapper;

@@ -12,6 +12,8 @@ import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementPageDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
 import com.app.maria.domain.targetproduct.dto.request.TargetProductSearchRequestDTO;
+import com.app.maria.domain.targetproduct.exception.TargetProductException;
+import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.domain.targetproduct.type.StockType;
 import com.app.maria.domain.targetproduct.type.TradeType;
@@ -70,7 +72,7 @@ class TargetProductApiTest {
         when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
                 .thenReturn(page);
 
-        mockMvc.perform(get("/api/target-products"))
+        mockMvc.perform(get("/api/admin/target-products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].customerName").value("홍길동"))
                 .andExpect(jsonPath("$.data.content[0].stockType").value("FOREIGN_STOCK"))
@@ -109,7 +111,7 @@ class TargetProductApiTest {
         when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
                 .thenReturn(page);
 
-        mockMvc.perform(get("/api/target-products"))
+        mockMvc.perform(get("/api/admin/target-products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].foreignStockRatio").value(45.00))
                 .andExpect(jsonPath("$.data.content[0].inceptionDate").value("2026-07-20"))
@@ -131,7 +133,7 @@ class TargetProductApiTest {
         when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
                 .thenReturn(page);
 
-        mockMvc.perform(get("/api/target-products").param("page", "2").param("size", "5"))
+        mockMvc.perform(get("/api/admin/target-products").param("page", "2").param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.page").value(2))
                 .andExpect(jsonPath("$.data.totalPages").value(3));
@@ -157,7 +159,7 @@ class TargetProductApiTest {
                 .thenReturn(page);
 
         mockMvc.perform(
-                        get("/api/target-products")
+                        get("/api/admin/target-products")
                                 .param("customerName", "홍길동")
                                 .param("stockType", "ETF")
                                 .param("isTarget", "true"))
@@ -170,21 +172,41 @@ class TargetProductApiTest {
     }
 
     @Test
+    void getJudgementsReturnsBadRequestWhenTargetProductExceptionThrown() throws Exception {
+        when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
+                .thenThrow(new TargetProductException("대상상품 판별에 실패했습니다."));
+
+        mockMvc.perform(get("/api/admin/target-products"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("대상상품 판별에 실패했습니다."));
+    }
+
+    @Test
+    void getJudgementsReturnsNotFoundWhenTargetProductNotFoundExceptionThrown() throws Exception {
+        when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
+                .thenThrow(new TargetProductNotFoundException("펀드 정보를 찾을 수 없습니다."));
+
+        mockMvc.perform(get("/api/admin/target-products"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("펀드 정보를 찾을 수 없습니다."));
+    }
+
+    @Test
     void getJudgementsRejectsNegativePage() throws Exception {
-        mockMvc.perform(get("/api/target-products").param("page", "-1"))
+        mockMvc.perform(get("/api/admin/target-products").param("page", "-1"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void getJudgementsRejectsNonPositiveSize() throws Exception {
-        mockMvc.perform(get("/api/target-products").param("size", "0"))
+        mockMvc.perform(get("/api/admin/target-products").param("size", "0"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @WithAnonymousUser
     void getJudgementsRejectsUnauthenticatedRequest() throws Exception {
-        mockMvc.perform(get("/api/target-products")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/target-products")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -198,7 +220,7 @@ class TargetProductApiTest {
                         .build();
         when(targetProductService.getSummary()).thenReturn(summary);
 
-        mockMvc.perform(get("/api/target-products/summary"))
+        mockMvc.perform(get("/api/admin/target-products/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.todayJudgementCount").value(3))
                 .andExpect(jsonPath("$.data.todayTargetCount").value(2))
@@ -209,6 +231,7 @@ class TargetProductApiTest {
     @Test
     @WithAnonymousUser
     void getSummaryRejectsUnauthenticatedRequest() throws Exception {
-        mockMvc.perform(get("/api/target-products/summary")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/admin/target-products/summary"))
+                .andExpect(status().isUnauthorized());
     }
 }

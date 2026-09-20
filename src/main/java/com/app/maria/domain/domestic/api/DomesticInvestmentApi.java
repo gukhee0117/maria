@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @Validated
-@RequestMapping("/api/domestic-investments")
+@RequestMapping("/api/admin/domestic-investments")
 public class DomesticInvestmentApi {
 
     private final DomesticInvestmentService domesticInvestmentService;

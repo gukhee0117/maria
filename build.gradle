@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'war'
     id 'org.springframework.boot' version '3.5.16'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
@@ -130,6 +131,8 @@ dependencies {
 
     //XML request/response 또는 외부 XML API가 있을 때 추가
 //    com.fasterxml.jackson.dataformat:jackson-dataformat-xml
+
+    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
 }
 
 tasks.named('test') {

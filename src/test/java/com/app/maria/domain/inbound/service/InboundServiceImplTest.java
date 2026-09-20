@@ -33,6 +33,7 @@ import com.app.maria.domain.inbound.dto.response.InboundResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundSummaryResponseDTO;
 import com.app.maria.domain.inbound.exception.InboundNotFoundException;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
+import com.app.maria.domain.inbound.type.InboundZeroApprovalReason;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.domain.sellorder.dto.SellOrderDTO;
@@ -187,6 +188,8 @@ class InboundServiceImplTest {
                         request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.getZeroApprovalReason())
+                .isEqualTo(InboundZeroApprovalReason.SNAPSHOT_QUANTITY_EXHAUSTED);
     }
 
     @Test
@@ -350,6 +353,36 @@ class InboundServiceImplTest {
     }
 
     @Test
+    void processInboundAppliesAlreadyUsedOnceAcrossMultipleLotsInSameGeneralAccount() {
+        RegistrableStockResponseDTO firstLot =
+                lot(10L, BigDecimal.valueOf(40), LocalDateTime.of(2026, 1, 5, 9, 0));
+        RegistrableStockResponseDTO secondLot =
+                lot(10L, BigDecimal.valueOf(30), LocalDateTime.of(2026, 2, 10, 9, 0));
+        stubRegistrableStockLots(BigDecimal.valueOf(100), List.of(firstLot, secondLot));
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
+        when(inboundMapper.sumApprovedQtyBySourceGeneralAccount(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(
+                        List.of(
+                                SourceLotApprovedQtyDTO.builder()
+                                        .generalAccountId(10L)
+                                        .approvedQty(BigDecimal.valueOf(20))
+                                        .build()));
+        ArgumentCaptor<InboundDetailDTO> captor = ArgumentCaptor.forClass(InboundDetailDTO.class);
+
+        // 같은 general_account(10L)에 lot 2개(40+30=70 보유), 이미 20 승인됨 -> 실제 잔여는 70-20=50
+        // (버그 있었을 때는 alreadyUsed 20이 각 lot에서 중복 차감돼 lot1=20, lot2=10만 잡혀 총 30만 승인됨)
+        inboundService.processInbound(request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
+
+        verify(inboundMapper, times(2)).insertInboundDetail(captor.capture());
+        List<InboundDetailDTO> details = captor.getAllValues();
+        assertThat(details.get(0).getSourceGeneralAccountId()).isEqualTo(10L);
+        assertThat(details.get(0).getQty()).isEqualByComparingTo(BigDecimal.valueOf(20));
+        assertThat(details.get(1).getSourceGeneralAccountId()).isEqualTo(10L);
+        assertThat(details.get(1).getQty()).isEqualByComparingTo(BigDecimal.valueOf(30));
+    }
+
+    @Test
     void processInboundCreatesSingleZeroQtyDetailWhenApprovedQtyIsZero() {
         RegistrableStockResponseDTO irpLot =
                 lot(10L, BigDecimal.valueOf(40), LocalDateTime.of(2026, 1, 5, 9, 0));
@@ -359,11 +392,28 @@ class InboundServiceImplTest {
         ArgumentCaptor<InboundDetailDTO> captor = ArgumentCaptor.forClass(InboundDetailDTO.class);
 
         // currentHoldingAtRequest = 0 -> approvedQty = 0 (반려)이어도 lot 1건은 기록돼야 함
-        inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.ZERO));
+        InboundResponseDTO result =
+                inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.ZERO));
 
         verify(inboundMapper, times(1)).insertInboundDetail(captor.capture());
         assertThat(captor.getValue().getQty()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(captor.getValue().getSourceGeneralAccountId()).isEqualTo(10L);
+        assertThat(result.getZeroApprovalReason())
+                .isEqualTo(InboundZeroApprovalReason.CURRENT_HOLDING_INSUFFICIENT);
+    }
+
+    @Test
+    void processInboundReturnsRequestedZeroReasonWhenRequestedQtyIsZero() {
+        stubRegistrableStock(BigDecimal.valueOf(100));
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
+
+        InboundResponseDTO result =
+                inboundService.processInbound(request(BigDecimal.ZERO, BigDecimal.valueOf(90)));
+
+        assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.getZeroApprovalReason())
+                .isEqualTo(InboundZeroApprovalReason.REQUESTED_ZERO);
     }
 
     @Test

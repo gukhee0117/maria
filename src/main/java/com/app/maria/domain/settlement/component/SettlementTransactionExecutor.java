@@ -72,7 +72,6 @@ public class SettlementTransactionExecutor {
 
         exchange.setFinalRate(finalRate);
         exchange.setFinalAmount(finalAmount);
-        exchange.setFinalAt(settledAt);
         exchange.setSettlementStatus(SettlementStatus.FINALIZED);
 
         requireOneRow(krwExchangeMapper.finalizeExchange(exchange), "환전 확정 실패");

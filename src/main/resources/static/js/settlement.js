@@ -23,6 +23,7 @@ $(function () {
     function escapeHtml(value) { return $("<div>").text(value == null ? "-" : value).html(); }
     function toCount(value) { return Number(value || 0); }
     function formatDateTime(value) { return value ? DATE_TIME_FORMATTER.format(new Date(value)) : "-"; }
+    function formatDateOnly(value) { return value ? String(value).slice(0, 10) : "-"; }
     function formatAmount(value) { return value == null ? "-" : "₩" + KRW_FORMATTER.format(value); }
     function formatRate(value) { return value == null ? "-" : RATE_FORMATTER.format(value); }
     function showError(message) { MARIA.ui.showError(message); }
@@ -203,7 +204,7 @@ $(function () {
             itemFilter = "all";
             currentItemPage = 1;
         }
-        return MARIA.auth.ajax({ url: "/api/settlement/batches/" + selectedBatchId, method: "GET" })
+        return MARIA.auth.ajax({ url: "/api/admin/settlement/batches/" + selectedBatchId, method: "GET" })
             .done(function (res) {
                 var latestBatch = res.data;
                 var batchIndex = batches.findIndex(function (item) { return item.batchId === selectedBatchId; });
@@ -283,7 +284,7 @@ $(function () {
     }
 
     function loadAllBatchItems(preserveItemPage) {
-        MARIA.auth.ajax({ url: "/api/settlement/batches/detail/" + selectedBatchId, method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/settlement/batches/detail/" + selectedBatchId, method: "GET" })
             .done(function (res) {
                 allBatchItems = res.data || [];
                 applyItems(allBatchItems, preserveItemPage);
@@ -293,7 +294,7 @@ $(function () {
 
     function selectItem(itemId) {
         selectedItemId = Number(itemId);
-        MARIA.auth.ajax({ url: "/api/settlement/batches/" + selectedBatchId + "/items/" + selectedItemId, method: "GET" })
+        MARIA.auth.ajax({ url: "/api/admin/settlement/batches/" + selectedBatchId + "/items/" + selectedItemId, method: "GET" })
             .done(function (res) {
                 var item = res.data;
                 renderItems(items);
@@ -313,7 +314,7 @@ $(function () {
                     "#detailItemProvisionalAt": formatDateTime(item.provisionalAt),
                     "#detailItemProvisionalRate": formatRate(item.settlementFxRate),
                     "#detailItemFinalAmount": formatAmount(item.finalAmount),
-                    "#detailItemFinalAt": formatDateTime(item.finalAt),
+                    "#detailItemFinalAt": formatDateOnly(item.finalAt),
                     "#detailItemFinalRate": formatRate(item.finalRate),
                     "#detailItemDifference": difference == null ? "-" : (difference > 0 ? "+" : "") + formatAmount(difference)
                 });
@@ -338,7 +339,7 @@ $(function () {
     }
 
     function loadBatches() {
-        MARIA.auth.ajax({ url: "/api/settlement/batches", method: "GET" }).done(function (res) {
+        MARIA.auth.ajax({ url: "/api/admin/settlement/batches", method: "GET" }).done(function (res) {
             batches = res.data || []; renderBatchCount(); renderBatchTrend(); renderBatches();
         }).fail(function (xhr) { if (xhr.status !== 401) $("#settlementBatchBody").empty(); handleRequestFailure(xhr, "배치 목록을 불러오지 못했습니다."); });
     }
@@ -366,12 +367,12 @@ $(function () {
         itemFilter = $(this).val();
         loadBatchItems();
     });
-    $("#executeSettlement").prop("disabled", !canExecuteSettlement()).on("click", function () { if (!canExecuteSettlement()) return; MARIA.auth.ajax({ url: "/api/settlement/jobs", method: "POST" }).done(function (res) { selectedBatchId = res.data.batchId; currentPage = 1; loadBatches(); }).fail(function (xhr) { handleRequestFailure(xhr, "정산 배치 실행에 실패했습니다."); }); });
-    $("#retrySettlementBatch").on("click", function () { if (!selectedBatchId || !canExecuteSettlement()) return; MARIA.auth.ajax({ url: "/api/settlement/batches/" + selectedBatchId + "/retry", method: "POST" }).done(function () { loadBatches(); }).fail(function (xhr) { handleRequestFailure(xhr, "정산 배치 재처리에 실패했습니다."); }); });
+    $("#executeSettlement").prop("disabled", !canExecuteSettlement()).on("click", function () { if (!canExecuteSettlement()) return; MARIA.auth.ajax({ url: "/api/admin/settlement/jobs", method: "POST" }).done(function (res) { selectedBatchId = res.data.batchId; currentPage = 1; loadBatches(); }).fail(function (xhr) { handleRequestFailure(xhr, "정산 배치 실행에 실패했습니다."); }); });
+    $("#retrySettlementBatch").on("click", function () { if (!selectedBatchId || !canExecuteSettlement()) return; MARIA.auth.ajax({ url: "/api/admin/settlement/batches/" + selectedBatchId + "/retry", method: "POST" }).done(function () { loadBatches(); }).fail(function (xhr) { handleRequestFailure(xhr, "정산 배치 재처리에 실패했습니다."); }); });
     $("#retrySettlementItem").on("click", function () {
         if (!selectedBatchId || !selectedItemId || !canExecuteSettlement()) return;
         MARIA.auth.ajax({
-            url: "/api/settlement/batches/" + selectedBatchId + "/items/" + selectedItemId + "/retry",
+            url: "/api/admin/settlement/batches/" + selectedBatchId + "/items/" + selectedItemId + "/retry",
             method: "POST"
         }).done(function (res) {
             var retryItemId = res.data && res.data.itemId;

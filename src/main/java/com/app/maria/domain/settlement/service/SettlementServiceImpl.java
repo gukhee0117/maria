@@ -272,7 +272,11 @@ public class SettlementServiceImpl implements SettlementService {
                                     () ->
                                             new SettlementBatchNotFoundException(
                                                     "batch id로 배치 조회 실패"));
-            LocalDate rateDate = batch.getExecutedAt().toLocalDate();
+            if (target.getFinalAt() == null) {
+                throw new SettlementStateConflictException(
+                        "확정산 기준일이 없습니다. exchangeId=" + target.getExchangeId());
+            }
+            LocalDate rateDate = target.getFinalAt().toLocalDate();
             BigDecimal finalRate =
                     exchangeRateProvider.getFinalRate(target.getPurchaseCurrency(), rateDate);
             settlementTransactionExecutor.execute(target, finalRate);

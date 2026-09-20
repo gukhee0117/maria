@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/account")
+@RequestMapping("/api/admin/account")
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class AccountApi {
 
@@ -46,6 +46,7 @@ public class AccountApi {
                         "RIA 설정 가능 최대 한도 조회", accountService.getAvailableLimit(customerId)));
     }
 
+    @PreAuthorize("hasRole('REVIEWER')")
     @PostMapping("/applications")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> apply(
             @Valid @RequestBody AccountRequestDTO requestDTO) {
@@ -54,7 +55,7 @@ public class AccountApi {
     }
 
     @PostMapping("/{accountId}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> approve(
             @PathVariable @Positive(message = "계좌 ID는 0보다 커야 합니다.") Long accountId) {
         return ResponseEntity.status(HttpStatus.OK)
@@ -62,7 +63,7 @@ public class AccountApi {
     }
 
     @PostMapping("/{accountId}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> reject(
             @PathVariable @Positive(message = "계좌 ID는 0보다 커야 합니다.") Long accountId,
             @Valid @RequestBody ReasonRequestDTO reasonRequestDTO) {
@@ -74,6 +75,7 @@ public class AccountApi {
                                         accountId, reasonRequestDTO.getReason())));
     }
 
+    @PreAuthorize("hasRole('REVIEWER')")
     @PostMapping("/{accountId}/reapply")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> reapply(
             @PathVariable @Positive(message = "계좌 ID는 0보다 커야 합니다.") Long accountId,
@@ -107,7 +109,7 @@ public class AccountApi {
     }
 
     @PostMapping("/{accountId}/override")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> override(
             @PathVariable @Positive(message = "계좌 ID는 0보다 커야 합니다.") Long accountId,
             @Valid @RequestBody ReasonRequestDTO reasonRequestDTO) {
@@ -118,7 +120,7 @@ public class AccountApi {
     }
 
     @PutMapping("/update/limit")
-    @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<ApiResponseDTO<AccountResponseDTO>> updateLimit(
             @Valid @RequestBody AccountLimitUpdateRequestDTO requestDTO) {
         return ResponseEntity.status(HttpStatus.OK)

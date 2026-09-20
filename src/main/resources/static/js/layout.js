@@ -37,209 +37,231 @@ MARIA.ui.showError = function (message) {
 };
 
 $(function () {
-    if (!MARIA.auth.requireAuth()) {
-        return;
-    }
+    MARIA.auth.requireAuth().done(function (admin) {
+        // admin = { adminId, name, role } — GET /api/admin/me 응답
 
-    // 브랜드명은 특정 화면으로 이동하지 않는 고정 영역으로 둔다.
-    $(".sidebar-brand")
-        .removeAttr("href role tabindex")
-        .css("cursor", "default");
+        // 브랜드명은 특정 화면으로 이동하지 않는 고정 영역으로 둔다.
+        $(".sidebar-brand")
+            .removeAttr("href role tabindex")
+            .css("cursor", "default");
 
-    // 현재 경로명은 쿼리스트링을 제거한 현재 페이지의 첫 화면으로 이동한다.
-    $(".breadcrumb").each(function () {
-        // Thymeleaf fragment가 span 대신 div를 주입하는 페이지도 있으므로
-        // 마지막 breadcrumb 항목을 현재 페이지 링크로 정규화한다.
-        $(this).children().last().addClass("breadcrumb-current");
-    });
-    $(".breadcrumb").on("click keydown", ".breadcrumb-current", function (event) {
-        if (event.type === "click" || event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            window.location.href = window.location.pathname;
-        }
-    });
-    $(".breadcrumb-current").attr({ role: "link", tabindex: "0" });
-
-    var currentAdminRole = adminRole(MARIA.auth.currentAdmin());
-    if (currentAdminRole) {
-        document.body.dataset.adminRole = currentAdminRole;
-    }
-
-    var currentBusinessTime = null;
-    var admin = MARIA.auth.currentAdmin();
-    if (admin) {
-        $("#adminBadge").text(admin.name + " · " + admin.role);
-    }
-
-    var isAdmin = admin && admin.role === "ADMIN";
-    $("#clockButton")
-        .prop("disabled", !isAdmin)
-        .toggleClass("is-editable", isAdmin)
-        .attr("title", isAdmin ? "업무시각 설정" : "업무시각 조회");
-
-    applyTheme(localStorage.getItem("maria.theme") || "light");
-    loadReferenceTime();
-
-    $("#themeToggle").on("click", function () {
-        var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-        localStorage.setItem("maria.theme", next);
-        applyTheme(next);
-    });
-
-    $("#logoutLink").on("click", function () {
-        MARIA.auth.logout();
-    });
-
-    loadAccountReviewCount();
-
-    setInterval(function () {
-        if (!currentBusinessTime) {
-            return;
-        }
-
-        currentBusinessTime = new Date(currentBusinessTime.getTime() + 1000);
-        renderBusinessTime();
-    }, 1000);
-
-    $("#clockButton").on("click", function () {
-        if (!isAdmin || !currentBusinessTime) {
-            return;
-        }
-
-        $("#clockDatetime").val(toDateTimeLocalValue(currentBusinessTime));
-        $("#clockReasonCode").val("");
-        $("#clockModal").prop("hidden", false);
-        $("#clockDatetime").trigger("focus");
-    });
-
-    $("#clockModalClose, #clockModalCancel").on("click", closeClockModal);
-
-    $("#clockModal").on("click", function (event) {
-        if (event.target === this) {
-            closeClockModal();
-        }
-    });
-
-    $(document).on("keydown", function (event) {
-        if (event.key === "Escape") {
-            if (closeActiveOverlay()) {
-                event.preventDefault();
-            }
-        }
-    });
-
-    $("#clockApplyButton").on("click", function () {
-        var newDatetime = $("#clockDatetime").val();
-        var reasonCode = $("#clockReasonCode").val().trim();
-
-        if (!newDatetime) {
-            MARIA.ui.showError("변경할 업무시각을 입력해 주세요.");
-            return;
-        }
-        if (!reasonCode) {
-            MARIA.ui.showError("업무시각 변경 사유를 입력해 주세요.");
-            return;
-        }
-
-        var $applyButton = $(this).prop("disabled", true);
-        MARIA.auth.ajax({
-            url: "/api/admin/system-clock",
-            method: "PATCH",
-            contentType: "application/json",
-            data: JSON.stringify({
-                newDatetime: newDatetime.length === 16 ? newDatetime + ":00" : newDatetime,
-                reasonCode: reasonCode
-            })
-        })
-            .done(function (res) {
-                if (res.data) {
-                    currentBusinessTime = new Date(res.data);
-                    renderBusinessTime();
-                }
-                $(document).trigger("maria:system-clock-changed");
-                closeClockModal();
-            })
-            .fail(function (xhr) {
-                var message = xhr.responseJSON && xhr.responseJSON.message;
-                MARIA.ui.showError(message || "업무시각 변경에 실패했습니다.");
-            })
-            .always(function () {
-                $applyButton.prop("disabled", false);
-            });
-    });
-    function applyTheme(theme) {
-        document.documentElement.setAttribute("data-theme", theme);
-        $("#themeToggle").text(theme === "dark" ? "🌙" : "☀");
-        $(document).trigger("maria:themeChange", [theme]);
-    }
-
-    function loadAccountReviewCount() {
-        MARIA.auth.ajax({
-            url: "/api/account/requiring-action-count",
-            method: "GET"
-        }).done(function (res) {
-            var count = res.data || 0;
-            $("#accountReviewBadge").text(count).toggle(count > 0);
+        // 현재 경로명은 쿼리스트링을 제거한 현재 페이지의 첫 화면으로 이동한다.
+        $(".breadcrumb").each(function () {
+            // Thymeleaf fragment가 span 대신 div를 주입하는 페이지도 있으므로
+            // 마지막 breadcrumb 항목을 현재 페이지 링크로 정규화한다.
+            $(this).children().last().addClass("breadcrumb-current");
         });
-    }
+        $(".breadcrumb").on("click keydown", ".breadcrumb-current", function (event) {
+            if (event.type === "click" || event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                window.location.href = window.location.pathname;
+            }
+        });
+        $(".breadcrumb-current").attr({ role: "link", tabindex: "0" });
 
-    function loadReferenceTime() {
-        MARIA.auth.ajax({
-            url: "/api/admin/system-clock",
-            method: "GET"
-        })
-            .done(function (res) {
-                if (res.data) {
-                    currentBusinessTime = new Date(res.data);
-                    renderBusinessTime();
+        var currentAdminRole = admin.role ? admin.role.toLowerCase() : "";
+        if (currentAdminRole) {
+            document.body.dataset.adminRole = currentAdminRole;
+        }
+
+        var currentBusinessTime = null;
+        if (admin.name && admin.role) {
+            $("#adminBadge").text(admin.name + " · " + admin.role);
+        }
+
+        var isAdmin = admin.role === "ADMIN";
+        $("#clockButton")
+            .prop("disabled", !isAdmin)
+            .toggleClass("is-editable", isAdmin)
+            .attr("title", isAdmin ? "업무시각 설정" : "업무시각 조회");
+
+        applyTheme(localStorage.getItem("maria.theme") || "light");
+        loadReferenceTime();
+
+        $("#themeToggle").on("click", function () {
+            var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            localStorage.setItem("maria.theme", next);
+            applyTheme(next);
+        });
+
+        $("#logoutLink").on("click", function () {
+            MARIA.auth.logout();
+        });
+
+        loadAccountReviewCount();
+
+        setInterval(function () {
+            if (!currentBusinessTime) {
+                return;
+            }
+
+            currentBusinessTime = new Date(currentBusinessTime.getTime() + 1000);
+            renderBusinessTime();
+        }, 1000);
+
+        $("#clockButton").on("click", function () {
+            if (!isAdmin || !currentBusinessTime) {
+                return;
+            }
+
+            $("#clockDatetime").val(toDateTimeLocalValue(currentBusinessTime));
+            $("#clockReasonCode").val("");
+            $("#clockModal").prop("hidden", false);
+            $("#clockDatetime").trigger("focus");
+        });
+
+        $("#clockModalClose, #clockModalCancel").on("click", closeClockModal);
+
+        $("#clockModal").on("click", function (event) {
+            if (event.target === this) {
+                closeClockModal();
+            }
+        });
+
+        $(document).on("keydown", function (event) {
+            if (event.key === "Escape") {
+                if (closeActiveOverlay()) {
+                    event.preventDefault();
                 }
+            }
+        });
+
+        $("#clockApplyButton").on("click", function () {
+            var newDatetime = $("#clockDatetime").val();
+            var reasonCode = $("#clockReasonCode").val().trim();
+
+            if (!newDatetime) {
+                MARIA.ui.showError("변경할 업무시각을 입력해 주세요.");
+                return;
+            }
+            if (!reasonCode) {
+                MARIA.ui.showError("업무시각 변경 사유를 입력해 주세요.");
+                return;
+            }
+
+            var $applyButton = $(this).prop("disabled", true);
+            MARIA.auth.ajax({
+                url: "/api/admin/system-clock",
+                method: "PATCH",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    newDatetime: newDatetime.length === 16 ? newDatetime + ":00" : newDatetime,
+                    reasonCode: reasonCode
+                })
             })
-            .fail(function (xhr) {
-                if (xhr.status !== 401) {
-                    MARIA.ui.showError("시스템 업무시각을 불러오지 못했습니다.");
-                }
+                .done(function (res) {
+                    if (res.data) {
+                        currentBusinessTime = new Date(res.data);
+                        renderBusinessTime();
+                    }
+                    $(document).trigger("maria:system-clock-changed");
+                    closeClockModal();
+                })
+                .fail(function (xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message;
+                    MARIA.ui.showError(message || "업무시각 변경에 실패했습니다.");
+                })
+                .always(function () {
+                    $applyButton.prop("disabled", false);
+                });
+        });
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute("data-theme", theme);
+            $("#themeToggle").text(theme === "dark" ? "🌙" : "☀");
+            $(document).trigger("maria:themeChange", [theme]);
+        }
+
+        function loadAccountReviewCount() {
+            MARIA.auth.ajax({
+                url: "/api/admin/account/requiring-action-count",
+                method: "GET"
+            }).done(function (res) {
+                var count = res.data || 0;
+                $("#accountReviewBadge").text(count).toggle(count > 0);
             });
-    }
-
-    function renderBusinessTime() {
-        $("#clockValue").text(formatDateTime(currentBusinessTime));
-    }
-
-    function closeClockModal() {
-        $("#clockModal").prop("hidden", true);
-    }
-
-    function adminRole(currentAdmin) {
-        return currentAdmin && currentAdmin.role ? String(currentAdmin.role).toLowerCase() : "";
-    }
-
-    function closeActiveOverlay() {
-        if (!$("#clockModal").prop("hidden")) {
-            closeClockModal();
-            return true;
         }
 
-        var $openOverlay = $("[role='dialog']:visible, .is-open, [class*='drawer'].is-open")
-            .filter(function () {
-                return $(this).is(":visible") && !$(this).is("[hidden]");
+        function loadReferenceTime() {
+            MARIA.auth.ajax({
+                url: "/api/admin/system-clock",
+                method: "GET"
             })
-            .last();
-        if (!$openOverlay.length) {
-            return false;
+                .done(function (res) {
+                    if (res.data) {
+                        currentBusinessTime = new Date(res.data);
+                        renderBusinessTime();
+                    }
+                })
+                .fail(function (xhr) {
+                    if (xhr.status !== 401) {
+                        MARIA.ui.showError("시스템 업무시각을 불러오지 못했습니다.");
+                    }
+                });
         }
 
-        var $closeButton = $openOverlay
-            .find("[data-drawer-close], [aria-label*='닫'], [id*='close'], [class*='close']")
-            .filter(":visible")
-            .first();
-        if ($closeButton.length) {
-            $closeButton.trigger("click");
+        function renderBusinessTime() {
+            $("#clockValue").text(formatDateTime(currentBusinessTime));
+        }
+
+        function closeClockModal() {
+            $("#clockModal").prop("hidden", true);
+        }
+
+        function closeActiveOverlay() {
+            if (!$("#clockModal").prop("hidden")) {
+                closeClockModal();
+                return true;
+            }
+
+            var $openOverlay = $("[role='dialog']:visible, .is-open, [class*='drawer'].is-open")
+                .filter(function () {
+                    return $(this).is(":visible") && !$(this).is("[hidden]");
+                })
+                .last();
+            if (!$openOverlay.length) {
+                return false;
+            }
+
+            var $closeButton = $openOverlay
+                .find("[data-drawer-close], [aria-label*='닫'], [id*='close'], [class*='close']")
+                .filter(":visible")
+                .first();
+            if ($closeButton.length) {
+                $closeButton.trigger("click");
+                return true;
+            }
+
+            $openOverlay.removeClass("is-open").attr("aria-hidden", "true").prop("hidden", true);
             return true;
         }
 
-        $openOverlay.removeClass("is-open").attr("aria-hidden", "true").prop("hidden", true);
-        return true;
-    }
+        function toDateTimeLocalValue(value) {
+            function pad(number) {
+                return String(number).padStart(2, "0");
+            }
+
+            return value.getFullYear()
+                + "-" + pad(value.getMonth() + 1)
+                + "-" + pad(value.getDate())
+                + "T" + pad(value.getHours())
+                + ":" + pad(value.getMinutes());
+        }
+
+        function formatDateTime(value) {
+            return new Intl.DateTimeFormat("ko-KR", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false
+            }).format(new Date(value));
+        }
+    });
+
+    // requireAuth().done() 밖: 인증과 무관한 전역 핸들러.
 
     // 검색어가 필요한 화면에서 빈 값으로 조회하는 실수를 공통으로 방지한다.
     $(document).on("click", "button, input[type='submit']", function (event) {
@@ -283,28 +305,4 @@ $(function () {
         event.stopPropagation();
         MARIA.ui.showError("검색어를 입력해 주세요.");
     }, true);
-
-    function toDateTimeLocalValue(value) {
-        function pad(number) {
-            return String(number).padStart(2, "0");
-        }
-
-        return value.getFullYear()
-            + "-" + pad(value.getMonth() + 1)
-            + "-" + pad(value.getDate())
-            + "T" + pad(value.getHours())
-            + ":" + pad(value.getMinutes());
-    }
-
-    function formatDateTime(value) {
-        return new Intl.DateTimeFormat("ko-KR", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false
-        }).format(new Date(value));
-    }
 });

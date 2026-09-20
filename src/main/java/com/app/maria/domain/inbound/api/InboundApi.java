@@ -18,12 +18,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @Validated
-@RequestMapping("/api/inbounds")
+@RequestMapping("/api/admin/inbounds")
 public class InboundApi {
 
     private final InboundService inboundService;
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
+    @PreAuthorize("hasRole('REVIEWER')")
     @PostMapping
     public ResponseEntity<ApiResponseDTO<InboundResponseDTO>> processInbound(
             @Valid @RequestBody InboundRequestDTO request) {

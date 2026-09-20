@@ -41,8 +41,7 @@ $(function () {
     }
 
     function canProcessClosure() {
-        var admin = MARIA.auth.currentAdmin();
-        return !!admin && (admin.role === "ADMIN" || admin.role === "REVIEWER");
+        return MARIA.auth.hasRole("REVIEWER");
     }
 
     function renderList() {
@@ -158,7 +157,7 @@ $(function () {
 
     function loadDetail(closureRequestId) {
         MARIA.auth.ajax({
-            url: "/api/account-closures/" + closureRequestId,
+            url: "/api/admin/account-closures/" + closureRequestId,
             method: "GET"
         })
             .done(function (response) {
@@ -177,7 +176,7 @@ $(function () {
         $("#search-button").prop("disabled", true);
 
         MARIA.auth.ajax({
-            url: "/api/account-closures",
+            url: "/api/admin/account-closures",
             method: "GET",
             data: { status: status }
         })
@@ -206,13 +205,17 @@ $(function () {
     }
 
     function processClosure(action) {
+        if (!canProcessClosure()) {
+            showError("계좌 해지 요청을 처리할 권한이 없습니다.");
+            return;
+        }
         if (!selectedClosureId) {
             showError("처리할 해지 신청을 선택해 주세요.");
             return;
         }
 
         var options = {
-            url: "/api/account-closures/" + selectedClosureId + "/" + action,
+            url: "/api/admin/account-closures/" + selectedClosureId + "/" + action,
             method: "POST"
         };
 
@@ -265,7 +268,10 @@ $(function () {
         processClosure("reject");
     });
 
-    loadClosures();
+    // 인증 정보가 준비된 뒤 보호 데이터를 조회하고 역할별 UI를 렌더링한다.
+    MARIA.auth.requireAuth().done(function () {
+        loadClosures();
+    });
 
     function selectFirstClosureOnCurrentPage() {
         var firstIndex = (currentPage - 1) * PAGE_SIZE;

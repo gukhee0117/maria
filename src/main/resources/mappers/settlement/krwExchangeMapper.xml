@@ -47,7 +47,6 @@
         UPDATE krw_exchange
         SET final_rate = #{finalRate},
             final_amount = #{finalAmount},
-            final_at = #{finalAt},
             settlement_status = 'FINALIZED'
         WHERE exchange_id = #{exchangeId}
           AND settlement_status = 'PROVISIONAL'
@@ -76,6 +75,7 @@
             order_id,
             provisional_amount,
             provisional_at,
+            final_at,
             settlement_status
         )
         VALUES (
@@ -83,6 +83,7 @@
             #{orderId},
             #{provisionalAmount},
             #{provisionalAt},
+            #{finalAt},
             'PROVISIONAL'
         )
     </insert>

@@ -149,6 +149,7 @@ class SettlementMapperTest {
         assertThat(target.getOrderId()).isEqualTo(1L);
         assertThat(target.getProvisionalAmount()).isEqualByComparingTo("2700000.00");
         assertThat(target.getProvisionalAt()).isEqualTo(LocalDateTime.of(2026, 8, 2, 15, 30));
+        assertThat(target.getFinalAt()).isEqualTo(LocalDateTime.of(2026, 8, 3, 0, 0));
         assertThat(target.getSettlementStatus()).isEqualTo(SettlementStatus.PROVISIONAL);
         assertThat(target.getSettlementFxRate()).isEqualByComparingTo("1350.0000");
         assertThat(target.getSellOrderStatus()).isEqualTo(SellOrderStatus.EXECUTED);
@@ -190,7 +191,6 @@ class SettlementMapperTest {
         BigDecimal finalAmount = new BigDecimal("2800000.00");
         exchange.setFinalRate(finalRate);
         exchange.setFinalAmount(finalAmount);
-        exchange.setFinalAt(finalizedAt);
 
         assertThat(krwExchangeMapper.finalizeExchange(exchange)).isOne();
         SettlementJoinDTO targetQuery =
@@ -201,6 +201,7 @@ class SettlementMapperTest {
         SettlementJoinDTO finalizedTarget =
                 settlementJoinMapper.selectTargetByItemId(targetQuery).orElseThrow();
         assertThat(finalizedTarget.getSettlementStatus()).isEqualTo(SettlementStatus.FINALIZED);
+        assertThat(finalizedTarget.getFinalAt()).isEqualTo(LocalDateTime.of(2026, 8, 3, 0, 0));
         assertThat(krwExchangeMapper.replaceAccountAmount(exchange)).isOne();
         assertThat(krwExchangeMapper.insertLeftAmount(exchange)).isOne();
         item.setResult(SettlementItemResult.SUCCESS);
@@ -561,9 +562,12 @@ class SettlementMapperTest {
               final_at,
               settlement_status
           ) VALUES
-              (1, 1, 1, 2700000.00, '2026-08-02 15:30:00', NULL, NULL, NULL, 'PROVISIONAL'),
-              (2, 1, 2, 100000.00, '2026-08-02 15:35:00', NULL, NULL, NULL, 'PROVISIONAL'),
-              (3, 1, 3, 100000.00, '2026-08-03 00:00:00', NULL, NULL, NULL, 'PROVISIONAL'),
+              (1, 1, 1, 2700000.00, '2026-08-02 15:30:00', NULL, NULL,
+               '2026-08-03 00:00:00', 'PROVISIONAL'),
+              (2, 1, 2, 100000.00, '2026-08-02 15:35:00', NULL, NULL,
+               '2026-08-03 00:00:00', 'PROVISIONAL'),
+              (3, 1, 3, 100000.00, '2026-08-03 00:00:00', NULL, NULL,
+               '2026-08-04 00:00:00', 'PROVISIONAL'),
               (4, 1, 4, 100000.00, '2026-08-02 15:40:00', 1400.000000, 110000.00,
                '2026-08-03 09:00:00', 'FINALIZED')
           """);

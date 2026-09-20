@@ -19,13 +19,14 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/withdrawals")
+@RequestMapping("/api/admin/withdrawals")
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class WithdrawalApi {
     private final WithdrawalQueryService withdrawalQueryService;
     private final WithdrawalService withdrawalService;
 
     @PostMapping
+    @PreAuthorize("denyAll()")
     public ResponseEntity<ApiResponseDTO<WithdrawalResultDTO>> withdraw(
             @Valid @RequestBody WithdrawalRequestDTO requestDTO) {
         return ResponseEntity.status(HttpStatus.CREATED)

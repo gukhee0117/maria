@@ -18,7 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class WithdrawalServiceFacadeTest {
 
-    @Mock private WithdrawalServiceImpl withdrawalService;
+    @Mock private WithdrawalProcessor withdrawalProcessor;
     @Mock private WithdrawalFailureService withdrawalFailureService;
 
     @InjectMocks private WithdrawalServiceFacade withdrawalServiceFacade;
@@ -28,7 +28,7 @@ class WithdrawalServiceFacadeTest {
         WithdrawalRequestDTO request = request();
         InsufficientWithdrawalAmountException exception =
                 new InsufficientWithdrawalAmountException("계좌 잔액이 부족합니다.");
-        when(withdrawalService.withdraw(request)).thenThrow(exception);
+        when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
 
@@ -40,7 +40,7 @@ class WithdrawalServiceFacadeTest {
         WithdrawalRequestDTO request = request();
         WithdrawalNotAllowedException exception =
                 new WithdrawalNotAllowedException("인출할 수 없는 계좌 상태입니다.");
-        when(withdrawalService.withdraw(request)).thenThrow(exception);
+        when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
 
@@ -53,7 +53,7 @@ class WithdrawalServiceFacadeTest {
         WithdrawalRequestDTO request = request();
         InsufficientWithdrawalAmountException exception =
                 new InsufficientWithdrawalAmountException("계좌 잔액이 부족합니다.");
-        when(withdrawalService.withdrawForClosure(request)).thenThrow(exception);
+        when(withdrawalProcessor.withdrawForClosure(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdrawForClosure(request))
                 .isSameAs(exception);
