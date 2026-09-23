@@ -62,7 +62,7 @@ class TaxSnapshotTargetReaderTest {
                                 account(10L, BenefitType.POSSIBLE),
                                 account(20L, BenefitType.POSSIBLE)));
         SellLotDTO lotForA =
-                SellLotDTO.builder().accountId(10L).sellAt(LocalDate.of(2026, 3, 10)).build();
+                SellLotDTO.builder().accountId(10L).finalAt(LocalDate.of(2026, 3, 10)).build();
         when(taxMapper.findFinalizedLotsByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of(lotForA));

@@ -12,7 +12,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public class TaxLotDetailDTO {
     private String productLabel;
-    private LocalDate sellAt;
+    private LocalDate finalAt;
     private BigDecimal sellAmount;
     private BigDecimal gainAmount;
 }

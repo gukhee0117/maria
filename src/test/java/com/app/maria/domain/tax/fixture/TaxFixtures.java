@@ -63,13 +63,13 @@ public final class TaxFixtures {
     }
 
     public static SellLotDTO lot(
-            LocalDate sellAt,
+            LocalDate finalAt,
             String finalAmount,
             String purchasePrice,
             String purchaseFxRate,
             String sellQty) {
         return SellLotDTO.builder()
-                .sellAt(sellAt)
+                .finalAt(finalAt)
                 .finalAmount(new BigDecimal(finalAmount))
                 .purchasePrice(new BigDecimal(purchasePrice))
                 .purchaseFxRate(new BigDecimal(purchaseFxRate))

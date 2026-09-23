@@ -164,7 +164,7 @@ class TaxMapperTest {
                         lot -> {
                             assertThat(lot.getOrderId()).isEqualTo(orderId);
                             assertThat(lot.getInboundDetailId()).isEqualTo(lotId);
-                            assertThat(lot.getSellAt()).isEqualTo(LocalDate.of(2026, 3, 10));
+                            assertThat(lot.getFinalAt()).isEqualTo(LocalDate.of(2026, 3, 10));
                             assertThat(lot.getFinalAmount()).isEqualByComparingTo("24000000");
                             assertThat(lot.getSellQty()).isEqualByComparingTo("100");
                             assertThat(lot.getPurchasePrice()).isEqualByComparingTo("150");

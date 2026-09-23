@@ -59,7 +59,7 @@ public class TaxCalculator {
             details.add(
                     TaxLotDetailDTO.builder()
                             .productLabel(lot.getProductLabel())
-                            .sellAt(lot.getSellAt())
+                            .finalAt(lot.getFinalAt())
                             .sellAmount(
                                     lot.getFinalAmount()
                                             .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP))
@@ -69,7 +69,7 @@ public class TaxCalculator {
                                             .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP))
                             .build());
         }
-        details.sort((a, b) -> b.getSellAt().compareTo(a.getSellAt()));
+        details.sort((a, b) -> b.getFinalAt().compareTo(a.getFinalAt()));
         return details;
     }
 
@@ -106,7 +106,7 @@ public class TaxCalculator {
             BigDecimal sellAmount = BigDecimal.ZERO;
             BigDecimal gainAmount = BigDecimal.ZERO;
             for (SellLotDTO lot : sellLots) {
-                if (!inRange(lot.getSellAt(), rule)) {
+                if (!inRange(lot.getFinalAt(), rule)) {
                     continue;
                 }
                 sellAmount = sellAmount.add(lot.getFinalAmount());
@@ -135,9 +135,7 @@ public class TaxCalculator {
         return breakdown;
     }
 
-    private boolean inRange(LocalDate date, TaxRuleDTO rule) {
-        return !date.isBefore(rule.getValidFrom()) && !date.isAfter(rule.getValidTo());
-    }
+
 
     private BigDecimal purchaseCost(SellLotDTO lot) {
         return lot.getPurchasePrice().multiply(lot.getPurchaseFxRate()).multiply(lot.getSellQty());
@@ -149,7 +147,7 @@ public class TaxCalculator {
         BigDecimal originalGain = BigDecimal.ZERO;
 
         for (SellLotDTO lot : lots) {
-            BigDecimal weight = findWeight(taxRules, lot.getSellAt());
+            BigDecimal weight = findWeight(taxRules, lot.getFinalAt());
 
             BigDecimal sellAmount = lot.getFinalAmount();
             BigDecimal gainAmount = sellAmount.subtract(purchaseCost(lot));
@@ -186,12 +184,7 @@ public class TaxCalculator {
                 .setScale(RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal findDeduction(BigDecimal weightedGain, BigDecimal adjustRatio) {
-        if (weightedGain.signum() <= 0) {
-            return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-        }
-        return weightedGain.multiply(adjustRatio).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-    }
+
 
     private BigDecimal finalTax(
             BigDecimal originalGain, BigDecimal finalDeduction, List<TaxRuleDTO> taxRules) {
@@ -206,8 +199,15 @@ public class TaxCalculator {
                 .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal findWeight(List<TaxRuleDTO> taxRules, LocalDate sellAt) {
-        return findRuleValue(taxRules, TaxRuleType.RELIEF_RATE, sellAt)
+
+    private BigDecimal findDeduction(BigDecimal weightedGain, BigDecimal adjustRatio) {
+        if (weightedGain.signum() <= 0) {
+            return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+        }
+        return weightedGain.multiply(adjustRatio).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+    }
+    private BigDecimal findWeight(List<TaxRuleDTO> taxRules, LocalDate finalAt) {
+        return findRuleValue(taxRules, TaxRuleType.RELIEF_RATE, finalAt)
                 .divide(BigDecimal.valueOf(100), RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
@@ -225,6 +225,9 @@ public class TaxCalculator {
                         () ->
                                 new TaxRuleNotFoundException(
                                         baseDate + " 에 유효한 " + ruleType + " 규칙을 찾지 못했습니다."));
+    }
+    private boolean inRange(LocalDate date, TaxRuleDTO rule) {
+        return !date.isBefore(rule.getValidFrom()) && !date.isAfter(rule.getValidTo());
     }
 
     private BigDecimal findConstantRule(List<TaxRuleDTO> taxRules, TaxRuleType ruleType) {

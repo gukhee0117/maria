@@ -18,7 +18,7 @@ public class SellLotDTO {
     private BigDecimal purchaseFxRate;
     private BigDecimal purchasePrice;
     private BigDecimal sellQty;
-    private LocalDate sellAt;
+    private LocalDate finalAt;
     private BigDecimal finalAmount;
     // 관리자가 "어느 종목을 팔아서 이 값이 나왔는지" 볼 수 있도록 표시용으로만 들고 다닌다.
     private String productLabel;

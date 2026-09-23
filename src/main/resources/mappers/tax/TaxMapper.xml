@@ -8,7 +8,7 @@
             so.order_id,
             so.inbound_detail_id,
             ke.final_amount,
-            ke.final_at as sell_at,
+            ke.final_at,
             so.sell_qty,
             id.purchase_fx_rate,
             id.purchase_price,
