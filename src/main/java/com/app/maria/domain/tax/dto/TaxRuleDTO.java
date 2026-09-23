@@ -14,6 +14,4 @@ public class TaxRuleDTO {
     private BigDecimal ruleValue;
     private LocalDate validFrom;
     private LocalDate validTo;
-
-
 }

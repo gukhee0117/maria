@@ -8,8 +8,9 @@ import com.app.maria.domain.tax.dto.TaxExternalTradeDetailDTO;
 import com.app.maria.domain.tax.dto.TaxLotDetailDTO;
 import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
-import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
 import com.app.maria.domain.tax.type.TaxRuleType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -135,8 +136,6 @@ public class TaxCalculator {
         return breakdown;
     }
 
-
-
     private BigDecimal purchaseCost(SellLotDTO lot) {
         return lot.getPurchasePrice().multiply(lot.getPurchaseFxRate()).multiply(lot.getSellQty());
     }
@@ -184,8 +183,6 @@ public class TaxCalculator {
                 .setScale(RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
-
-
     private BigDecimal finalTax(
             BigDecimal originalGain, BigDecimal finalDeduction, List<TaxRuleDTO> taxRules) {
         BigDecimal taxBase =
@@ -199,13 +196,13 @@ public class TaxCalculator {
                 .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
     }
 
-
     private BigDecimal findDeduction(BigDecimal weightedGain, BigDecimal adjustRatio) {
         if (weightedGain.signum() <= 0) {
             return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
         }
         return weightedGain.multiply(adjustRatio).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
     }
+
     private BigDecimal findWeight(List<TaxRuleDTO> taxRules, LocalDate finalAt) {
         return findRuleValue(taxRules, TaxRuleType.RELIEF_RATE, finalAt)
                 .divide(BigDecimal.valueOf(100), RATIO_SCALE, RoundingMode.HALF_UP);
@@ -223,9 +220,11 @@ public class TaxCalculator {
                 .map(TaxRuleDTO::getRuleValue)
                 .orElseThrow(
                         () ->
-                                new TaxRuleNotFoundException(
-                                        baseDate + " 에 유효한 " + ruleType + " 규칙을 찾지 못했습니다."));
+                                new AppException(
+                                        ErrorType.TAX_RULE_NOT_FOUND,
+                                        "baseDate=" + baseDate + ", ruleType=" + ruleType));
     }
+
     private boolean inRange(LocalDate date, TaxRuleDTO rule) {
         return !date.isBefore(rule.getValidFrom()) && !date.isAfter(rule.getValidTo());
     }
@@ -235,6 +234,6 @@ public class TaxCalculator {
                 .filter(rule -> ruleType == rule.getRuleType())
                 .findFirst()
                 .map(TaxRuleDTO::getRuleValue)
-                .orElseThrow(() -> new TaxRuleNotFoundException(ruleType + " 규칙을 찾지 못했습니다."));
+                .orElseThrow(() -> new AppException(ErrorType.TAX_RULE_NOT_FOUND, ruleType));
     }
 }

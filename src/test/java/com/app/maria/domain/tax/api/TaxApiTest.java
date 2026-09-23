@@ -16,11 +16,11 @@ import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
-import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
-import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.domain.tax.type.TaxBasisType;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -161,18 +161,19 @@ class TaxApiTest {
     @DisplayName("이미 저장된 계좌면 409로 응답한다")
     void 확정저장_중복() throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .thenThrow(new TaxCalculationAlreadyExistsException("이미 확정신고된 계좌입니다."));
+                .thenThrow(new AppException(ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS, ACCOUNT_ID));
 
         mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."));
+                .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."))
+                .andExpect(jsonPath("$.code").value("TAX_FINAL_REPORT_ALREADY_EXISTS"));
     }
 
     @Test
     @DisplayName("세금 규칙이 없으면 404로 응답한다")
     void 규칙없음() throws Exception {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
-                .thenThrow(new TaxRuleNotFoundException("TAX_RATE 규칙을 찾지 못했습니다."));
+                .thenThrow(new AppException(ErrorType.TAX_RULE_NOT_FOUND, "TAX_RATE"));
 
         mockMvc.perform(get("/api/admin/tax/preview/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isNotFound());
