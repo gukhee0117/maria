@@ -5,8 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-// 이슈 #161 - 세액 스냅샷 배치는 실제 Spring Batch(JobLauncher)로 돌기 때문에
-// 별도 이력 테이블 없이 Spring Batch가 이미 쌓아둔 실행 메타데이터(JobExplorer)를 그대로 읽어 보여준다.
 @Getter
 @Builder
 @AllArgsConstructor

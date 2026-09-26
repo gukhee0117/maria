@@ -37,11 +37,10 @@ public class TaxSnapshotJobConfig {
                 .processor(processor)
                 .writer(writer)
                 .faultTolerant()
-                // ponytail: 지금은 AppException이면 무조건 이 계좌 건만 건너뛰고 배치는 계속 돎.
-                // 지금은 이 배치 스텝에서 AppException을 던지는 게 세액 도메인 코드뿐이라 문제없음.
-                // 나중에 다른 도메인도 AppException을 쓰기 시작하면, 이 배치랑 상관없는 이유로 터진
-                // 예외까지 여기서 같이 건너뛰어버릴 수 있음 — 그때는 "세액 관련 ErrorType일 때만
-                // skip" 하도록 SkipPolicy를 직접 만들어서 좁혀야 함.
+                // AppException 발생 시 해당 계좌 건만 스킵하고 배치는 계속 진행.
+                // 주의: 현재는 이 배치 스텝에서 AppException을 던지는 코드가 세액 도메인뿐이라 안전하지만,
+                // 다른 도메인도 AppException을 쓰게 되면 세액과 무관한 예외까지 여기서 스킵될 수 있음.
+                // 그때는 ErrorType으로 세액 관련 예외만 걸러내는 SkipPolicy로 교체할 것.
                 .skip(AppException.class)
                 .skipLimit(SKIP_LIMIT)
                 .listener(skipListener)

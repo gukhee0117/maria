@@ -53,7 +53,6 @@ public class TaxCalculator {
                 buildExternalTradeDetails(externalTrades));
     }
 
-    // 관리자가 "어느 종목" 때문에 이 값이 나왔는지 볼 수 있도록 원본 건별 내역을 표시용으로 넘긴다.
     private List<TaxLotDetailDTO> buildLotDetails(List<SellLotDTO> sellLots) {
         List<TaxLotDetailDTO> details = new ArrayList<>();
         for (SellLotDTO lot : sellLots) {
@@ -91,7 +90,6 @@ public class TaxCalculator {
         return details;
     }
 
-    // 최종 합산 전, 관리자가 "왜 이렇게 나왔는지" 볼 수 있도록 구간별 원금액을 별도로 남긴다.
     private List<TaxPeriodBreakdownDTO> buildPeriodBreakdown(
             List<SellLotDTO> sellLots,
             List<ExternalBuyDTO> externalTrades,
@@ -218,6 +216,7 @@ public class TaxCalculator {
                                         && !baseDate.isAfter(rule.getValidTo()))
                 .findFirst()
                 .map(TaxRuleDTO::getRuleValue)
+                // 해당 날짜/타입을 커버하는 tax_rule 행이 없음 (규칙 공백 구간) → 배치에서 skip 처리됨
                 .orElseThrow(
                         () ->
                                 new AppException(
@@ -234,6 +233,7 @@ public class TaxCalculator {
                 .filter(rule -> ruleType == rule.getRuleType())
                 .findFirst()
                 .map(TaxRuleDTO::getRuleValue)
+                // BASIC_DEDUCTION/TAX_RATE처럼 valid_from~valid_to 없이 항상 존재해야 하는 상수 규칙이 누락된 경우
                 .orElseThrow(() -> new AppException(ErrorType.TAX_RULE_NOT_FOUND, ruleType));
     }
 }
