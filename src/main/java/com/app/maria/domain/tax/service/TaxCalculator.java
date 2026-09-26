@@ -8,8 +8,9 @@ import com.app.maria.domain.tax.dto.TaxExternalTradeDetailDTO;
 import com.app.maria.domain.tax.dto.TaxLotDetailDTO;
 import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
-import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
 import com.app.maria.domain.tax.type.TaxRuleType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -52,14 +53,13 @@ public class TaxCalculator {
                 buildExternalTradeDetails(externalTrades));
     }
 
-    // 관리자가 "어느 종목" 때문에 이 값이 나왔는지 볼 수 있도록 원본 건별 내역을 표시용으로 넘긴다.
     private List<TaxLotDetailDTO> buildLotDetails(List<SellLotDTO> sellLots) {
         List<TaxLotDetailDTO> details = new ArrayList<>();
         for (SellLotDTO lot : sellLots) {
             details.add(
                     TaxLotDetailDTO.builder()
                             .productLabel(lot.getProductLabel())
-                            .sellAt(lot.getSellAt())
+                            .finalAt(lot.getFinalAt())
                             .sellAmount(
                                     lot.getFinalAmount()
                                             .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP))
@@ -69,7 +69,7 @@ public class TaxCalculator {
                                             .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP))
                             .build());
         }
-        details.sort((a, b) -> b.getSellAt().compareTo(a.getSellAt()));
+        details.sort((a, b) -> b.getFinalAt().compareTo(a.getFinalAt()));
         return details;
     }
 
@@ -90,7 +90,6 @@ public class TaxCalculator {
         return details;
     }
 
-    // 최종 합산 전, 관리자가 "왜 이렇게 나왔는지" 볼 수 있도록 구간별 원금액을 별도로 남긴다.
     private List<TaxPeriodBreakdownDTO> buildPeriodBreakdown(
             List<SellLotDTO> sellLots,
             List<ExternalBuyDTO> externalTrades,
@@ -106,7 +105,7 @@ public class TaxCalculator {
             BigDecimal sellAmount = BigDecimal.ZERO;
             BigDecimal gainAmount = BigDecimal.ZERO;
             for (SellLotDTO lot : sellLots) {
-                if (!inRange(lot.getSellAt(), rule)) {
+                if (!inRange(lot.getFinalAt(), rule)) {
                     continue;
                 }
                 sellAmount = sellAmount.add(lot.getFinalAmount());
@@ -135,10 +134,6 @@ public class TaxCalculator {
         return breakdown;
     }
 
-    private boolean inRange(LocalDate date, TaxRuleDTO rule) {
-        return !date.isBefore(rule.getValidFrom()) && !date.isAfter(rule.getValidTo());
-    }
-
     private BigDecimal purchaseCost(SellLotDTO lot) {
         return lot.getPurchasePrice().multiply(lot.getPurchaseFxRate()).multiply(lot.getSellQty());
     }
@@ -149,7 +144,7 @@ public class TaxCalculator {
         BigDecimal originalGain = BigDecimal.ZERO;
 
         for (SellLotDTO lot : lots) {
-            BigDecimal weight = findWeight(taxRules, lot.getSellAt());
+            BigDecimal weight = findWeight(taxRules, lot.getFinalAt());
 
             BigDecimal sellAmount = lot.getFinalAmount();
             BigDecimal gainAmount = sellAmount.subtract(purchaseCost(lot));
@@ -186,13 +181,6 @@ public class TaxCalculator {
                 .setScale(RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal findDeduction(BigDecimal weightedGain, BigDecimal adjustRatio) {
-        if (weightedGain.signum() <= 0) {
-            return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-        }
-        return weightedGain.multiply(adjustRatio).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
-    }
-
     private BigDecimal finalTax(
             BigDecimal originalGain, BigDecimal finalDeduction, List<TaxRuleDTO> taxRules) {
         BigDecimal taxBase =
@@ -206,8 +194,15 @@ public class TaxCalculator {
                 .setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal findWeight(List<TaxRuleDTO> taxRules, LocalDate sellAt) {
-        return findRuleValue(taxRules, TaxRuleType.RELIEF_RATE, sellAt)
+    private BigDecimal findDeduction(BigDecimal weightedGain, BigDecimal adjustRatio) {
+        if (weightedGain.signum() <= 0) {
+            return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+        }
+        return weightedGain.multiply(adjustRatio).setScale(AMOUNT_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal findWeight(List<TaxRuleDTO> taxRules, LocalDate finalAt) {
+        return findRuleValue(taxRules, TaxRuleType.RELIEF_RATE, finalAt)
                 .divide(BigDecimal.valueOf(100), RATIO_SCALE, RoundingMode.HALF_UP);
     }
 
@@ -221,10 +216,16 @@ public class TaxCalculator {
                                         && !baseDate.isAfter(rule.getValidTo()))
                 .findFirst()
                 .map(TaxRuleDTO::getRuleValue)
+                // 해당 날짜/타입을 커버하는 tax_rule 행이 없음 (규칙 공백 구간) → 배치에서 skip 처리됨
                 .orElseThrow(
                         () ->
-                                new TaxRuleNotFoundException(
-                                        baseDate + " 에 유효한 " + ruleType + " 규칙을 찾지 못했습니다."));
+                                new AppException(
+                                        ErrorType.TAX_RULE_NOT_FOUND,
+                                        "baseDate=" + baseDate + ", ruleType=" + ruleType));
+    }
+
+    private boolean inRange(LocalDate date, TaxRuleDTO rule) {
+        return !date.isBefore(rule.getValidFrom()) && !date.isAfter(rule.getValidTo());
     }
 
     private BigDecimal findConstantRule(List<TaxRuleDTO> taxRules, TaxRuleType ruleType) {
@@ -232,6 +233,7 @@ public class TaxCalculator {
                 .filter(rule -> ruleType == rule.getRuleType())
                 .findFirst()
                 .map(TaxRuleDTO::getRuleValue)
-                .orElseThrow(() -> new TaxRuleNotFoundException(ruleType + " 규칙을 찾지 못했습니다."));
+                // BASIC_DEDUCTION/TAX_RATE처럼 valid_from~valid_to 없이 항상 존재해야 하는 상수 규칙이 누락된 경우
+                .orElseThrow(() -> new AppException(ErrorType.TAX_RULE_NOT_FOUND, ruleType));
     }
 }

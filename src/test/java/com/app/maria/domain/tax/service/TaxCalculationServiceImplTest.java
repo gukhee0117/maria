@@ -32,7 +32,6 @@ import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
-import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.mapper.TaxSnapshotMapper;
 import com.app.maria.domain.tax.type.TaxAuditLogReasonCode;
@@ -42,6 +41,8 @@ import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.RiaTaxProperties;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -370,11 +371,9 @@ class TaxCalculationServiceImplTest {
 
         TaxCalculationDTO saved = captureSaved();
         assertThat(saved.getBasisType()).isEqualTo(TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK);
-        // 혜택 배제라 공제 0, 세액은 감면 없는 값
         assertThat(saved.getAdjustRatio()).isEqualByComparingTo("0");
         assertThat(saved.getFinalDeduction()).isEqualByComparingTo("0");
         assertThat(saved.getFinalTax()).isEqualByComparingTo("6490000.00");
-        // 매도 사실은 그대로 남는다
         assertThat(saved.getWeightedGain()).isEqualByComparingTo("27800000");
     }
 
@@ -386,8 +385,9 @@ class TaxCalculationServiceImplTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .isInstanceOf(TaxCalculationAlreadyExistsException.class)
-                .hasMessageContaining("확정신고");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS)
+                .hasFieldOrPropertyWithValue("errorData", ACCOUNT_ID);
 
         verify(taxMapper, never()).insertCalculation(any());
     }
@@ -400,7 +400,9 @@ class TaxCalculationServiceImplTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .isInstanceOf(TaxCalculationAlreadyExistsException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorType", ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS);
 
         verify(taxMapper, never()).insertCalculation(any());
     }
@@ -415,8 +417,10 @@ class TaxCalculationServiceImplTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .isInstanceOf(TaxCalculationAlreadyExistsException.class)
-                .hasMessageContaining("정정");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorType", ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS)
+                .hasFieldOrPropertyWithValue("errorData", ACCOUNT_ID);
 
         verify(taxMapper, never()).insertCalculation(any());
     }
@@ -450,7 +454,10 @@ class TaxCalculationServiceImplTest {
     void 동시요청_중복저장() {
         stubAccount(BenefitType.POSSIBLE);
         stubGoldenCalculation();
-        // 판정 시점엔 없다고 보고 통과했지만, 그 사이 다른 요청이 먼저 저장한 상황
+        // existsByAccountAndBasis로는 중복이 없다고 판정됐지만, 그 사이 동시 요청이 먼저 INSERT해
+        // UNIQUE 제약(uk_tax_calc__account_basis) 위반이 발생한 상황을 재현한다.
+        // DuplicateKeyException을 그대로 던지지 않고 AppException(409, TAX_FINAL_REPORT_ALREADY_EXISTS)으로
+        // 변환해서 던지는지 검증하는 것이 이 테스트의 목적.
         when(taxMapper.existsByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(false);
         doThrow(new DuplicateKeyException("uk_tax_calc__account_basis"))
@@ -458,9 +465,9 @@ class TaxCalculationServiceImplTest {
                 .insertCalculation(any());
 
         assertThatThrownBy(() -> taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .isInstanceOf(TaxCalculationAlreadyExistsException.class)
-                .hasMessageContaining("FINAL_REPORT")
-                .hasMessageContaining(String.valueOf(ACCOUNT_ID));
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS)
+                .hasFieldOrPropertyWithValue("errorData", ACCOUNT_ID);
     }
 
     @Test

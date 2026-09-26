@@ -282,7 +282,7 @@ $(function () {
             var row =
                 "<tr>" +
                 "<td>" + escapeHtml(lot.productLabel || "-") + "</td>" +
-                "<td>" + formatDate(lot.sellAt) + "</td>" +
+                "<td>" + formatDate(lot.finalAt) + "</td>" +
                 "<td>" + formatAmount(lot.sellAmount) + "</td>" +
                 "<td>" + formatSignedAmount(lot.gainAmount) + "</td>" +
                 "</tr>";

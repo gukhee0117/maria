@@ -35,7 +35,6 @@ public class TaxSnapshotJobLauncher {
         return execution;
     }
 
-    /** 관리자 수동 실행용 — 응답을 기다리지 않고 백그라운드에서 실행한다. runId는 호출부가 발급해 즉시 응답에 담는다. */
     @Async("taxSnapshotBatchTaskExecutor")
     public void launchAsync(LocalDateTime calculatedAt, String runId) {
         try {

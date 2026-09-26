@@ -5,10 +5,18 @@
 ### accessToken/accountId/orderId/batchId 등을 client.global 변수에 자동 저장해서
 ### 다음 요청에 그대로 흘려보냄 — 값을 눈으로 보고 복붙할 필요 없음.
 ###
-### 선행 조건: demo-seed.sql의 0-1~0-3을 먼저 실행해서 registrable_stock을 심어둘 것.
-### admin 비밀번호는 팀 내부 공유값 사용 (customer_seed.sql엔 해시만 있고 평문 없음).
-### 인출 POST 엔드포인트는 upstream PR #205 반영 후 사용 가능 — 반영했으면 앱을
-### 완전히 재시작할 것(devtools 핫리로드가 새 컨트롤러 메서드를 못 잡음).
+### 선행 조건: 2026-08-24 기준 아래 전부 완료된 상태 — 바로 Part 0부터 순서대로
+### 클릭하면 됨.
+###   - customer_id=18001(전희우, general_account_id=36122)은 두 번째 리허설(account_id=506)까지
+###     CLOSED로 완주돼서 다시 삭제·리셋함. registrable_stock 5종목(AAPL/MSFT/NVDA/
+###     TSLA/AMZN)은 증권사 DB에 그대로 살아있어 입고 단계 그대로 재사용 가능.
+###     ※ 리허설마다 account_id가 새로 발급됨(505→506→...) — 코드에서 참조 안 하고
+###     매번 API 응답에서 받아오니 신경 안 써도 됨.
+###   - customer_id=18002에 mydata_ria_account(타사설정한도 45,000,000) 시딩 완료 — B1용.
+###   - settlement_batch_guard에 03-13/06-15/06-16/08-16/08-17/08-20/08-21/08-23 소비됨 —
+###     A6·A14는 이미 미소비 날짜(02-10, 07-05)라 안전, B6는 2026-08-24로 갱신함.
+### admin 로그인은 loginId=admin / password=1234 (아래 Part 0 요청에 이미 박혀있음).
+### 인출 POST 엔드포인트는 upstream PR #205 반영됨 — 확인됨(WithdrawalApi 존재).
 ###
 ### 매도/확정산은 시스템 시각을 실제 오늘보다 미래로 못 옮김(KIS 시세·환율 API가
 ### 진짜 외부 호출이라 미래 데이터가 없음). 확정산 배치는 영업일 단위 idempotency
@@ -29,6 +37,13 @@
 @demoCustomerId = 18001
 @demoForeignProductId = 1
 @demoGeneralAccountId = 36122
+### 2026-08-24 재준비: 18001(구 account_id=506)이 또 CLOSED까지 완주돼서, 딸린
+### RIA쪽 데이터(inbound/sell_order/krw_exchange/settlement_item/withdrawal/
+### withdrawal_allocation/left_amount/tax_snapshot/상태로그·혜택로그/
+### account_closure_request/account 본체, 총 15개 테이블 — 이번엔 account_closure_request가
+### withdrawal을 FK로 참조해서 그것부터 먼저 지워야 했음)를 전부 삭제해서 리셋함.
+### 증권사 DB의 registrable_stock 5종목(AAPL/MSFT/NVDA/TSLA/AMZN)은 그대로 살아있어
+### 입고 단계부터 다시 정상 동작함. 18002는 B1 전용으로 그대로 유지(변동 없음).
 
 ### ----------------------------------------------------------------------------
 ### Part 0-1. 로그인 (ADMIN — 승인/배치실행 등 전 권한 필요)
@@ -38,7 +53,7 @@ Content-Type: application/json
 
 {
   "loginId": "admin",
-  "password": "{{adminPassword}}"
+  "password": "1234"
 }
 
 > {%
@@ -49,7 +64,10 @@ Content-Type: application/json
 ### Part A. 골든 패스 — §10 데모 시나리오 1~3
 ### ============================================================================
 
-### A1. 신청 전 설정 가능 한도 조회 — 5,000만원 그대로 나와야 정상(타사 한도 없음)
+### A1. 신청 전 설정 가능 한도 조회 — 34,000,000원이 나와야 정상
+### (전희우 ci_hash엔 삼성증권 mydata_ria_account 16,000,000원이 원래 시드로 잡혀있어서
+### 5천만 - 1600만 = 3400만이 맞음. "타사 한도 없음"이라고 적혀있던 이전 주석은 틀렸었음 —
+### 2026-08-24 실제 API 호출로 확인, A2의 34,000,000 신청이 정확히 이 한도에 걸치는 값임)
 GET {{baseUrl}}/api/account/available-limit?customerId={{demoCustomerId}}
 Authorization: Bearer {{accessToken}}
 
@@ -60,7 +78,7 @@ Content-Type: application/json
 
 {
   "customerId": {{demoCustomerId}},
-  "limitAmount": 50000000
+  "limitAmount": 34000000
 }
 
 > {%
@@ -80,20 +98,99 @@ Authorization: Bearer {{accessToken}}
     });
 %}
 
-### A4. 입고 신청 — demo-seed.sql에서 심은 held_qty=300 중 100주 요청
+### A4. 입고 신청 — 전희우(customer_id=18001, general_account_id=36122) 보유종목
+### 2026-08-21 재정비: 5종목 전부 KIS 실시간 시세로 매도 가능 확인 완료(IWM/XLF는
+### KIS 모의투자에 시세 데이터가 없어 매도 시 NumberFormatException 나서 다른 종목으로 교체함).
+### 매수단가는 전부 현재 KIS 시세보다 낮게 잡아서 팔면 자연스럽게 이익이 나도록 재시딩:
+###   1(AAPL) 50주 @$270(현재 $316.83) / 2(MSFT) 30주 @$410(현재 $483.40)
+###   3(NVDA) 15주 @$175(현재 $217.56) / 4(TSLA) 27주 @$280(현재 $345.13)
+###   5(AMZN) 25주 @$215(현재 $260.11)
+### currentHoldingAtRequest를 안 보내면 null로 들어가서 3-way MIN의 ③번(요청시점 실보유)이
+### 화면에 0으로 뜸 — held_qty 그대로 실어서 채운다.
+
+### A4-a. AAPL — 보유 50주 중 50주 신청
 POST {{baseUrl}}/api/inbounds
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
   "accountId": {{accountId}},
-  "foreignProductId": {{demoForeignProductId}},
-  "requestedQty": 100
+  "foreignProductId": 1,
+  "requestedQty": 20,
+  "currentHoldingAtRequest": 30
 }
 
 > {%
-    client.global.set("inboundId", response.body.data.inboundId);
-    client.log("approvedQty(3-way MIN 결과) = " + response.body.data.approvedQty);
+    client.global.set("inboundIdAapl", response.body.data.inboundId);
+    client.log("AAPL approvedQty = " + response.body.data.approvedQty);
+%}
+
+### A4-b. MSFT — 보유 30주 중 30주 신청
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": 2,
+  "requestedQty": 30,
+  "currentHoldingAtRequest": 30
+}
+
+> {%
+    client.global.set("inboundIdMsft", response.body.data.inboundId);
+    client.log("MSFT approvedQty = " + response.body.data.approvedQty);
+%}
+
+### A4-c. NVDA — 보유 15주 중 15주 신청
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": 3,
+  "requestedQty": 15,
+  "currentHoldingAtRequest": 15
+}
+
+> {%
+    client.global.set("inboundIdNvda", response.body.data.inboundId);
+    client.log("NVDA approvedQty = " + response.body.data.approvedQty);
+%}
+
+### A4-d. TSLA — 보유 27주 중 27주 신청
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": 4,
+  "requestedQty": 27,
+  "currentHoldingAtRequest": 27
+}
+
+> {%
+    client.global.set("inboundIdTsla", response.body.data.inboundId);
+    client.log("TSLA approvedQty = " + response.body.data.approvedQty);
+%}
+
+### A4-e. AMZN — 보유 25주 중 25주 신청
+POST {{baseUrl}}/api/inbounds
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "accountId": {{accountId}},
+  "foreignProductId": 5,
+  "requestedQty": 25,
+  "currentHoldingAtRequest": 25
+}
+
+> {%
+    client.global.set("inboundIdAmzn", response.body.data.inboundId);
+    client.log("AMZN approvedQty = " + response.body.data.approvedQty);
 %}
 
 ### A5. 입고관리 화면 확인용 — 계좌별 입고 이력
@@ -101,14 +198,16 @@ GET {{baseUrl}}/api/inbounds/by-account/{{accountId}}?page=0&size=20
 Authorization: Bearer {{accessToken}}
 
 ### ----------------------------------------------------------------------------
-### A6. 시각 이동 — 2026-03-10 (1~5월 구간, 가중치 100%)
+### A6. 시각 이동 — 2026-02-10 (1~5월 구간, 가중치 100%)
+### settlement_batch_guard 기 소비 영업일(03-13,06-15,06-16,08-16,08-17,08-20,08-21)과
+### 겹치지 않는 날짜로 재선정.
 ### ----------------------------------------------------------------------------
 PATCH {{baseUrl}}/api/admin/system-clock
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "newDatetime": "2026-03-10T09:00:00",
+  "newDatetime": "2026-02-10T09:00:00",
   "reasonCode": "DEMO_SELL_WINDOW_100"
 }
 
@@ -120,7 +219,7 @@ Content-Type: application/json
 {
   "accountId": {{accountId}},
   "foreignProductId": {{demoForeignProductId}},
-  "sellQty": 40
+  "sellQty": 15
 }
 
 > {%
@@ -131,6 +230,18 @@ Content-Type: application/json
 ### A8. 1차 매도 상세 — 가환전(PROVISIONAL) 상태와 provisional_amount 확인
 GET {{baseUrl}}/api/sell-orders/{{orderId1}}/detail
 Authorization: Bearer {{accessToken}}
+
+### A8-2. [필수 — 이전엔 빠져있던 단계] 확정산은 "익일" 처리라 provisional_at보다
+### 하루 이상 지난 날짜여야 대상으로 잡힘(SettlementItemMapper: provisional_at < 오늘).
+### 같은 날 바로 A9을 돌리면 대상 0건으로 조용히 끝남 — 반드시 하루 이상 이동할 것.
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-02-11T09:00:00",
+  "reasonCode": "DEMO_SETTLEMENT_NEXT_DAY"
+}
 
 ### A9. 확정산 배치 수동 실행 — 가환전 → 확정산(FINALIZED) 전환
 POST {{baseUrl}}/api/settlement/jobs
@@ -168,14 +279,15 @@ GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
 Authorization: Bearer {{accessToken}}
 
 ### ----------------------------------------------------------------------------
-### A14. 시각 이동 — 2026-06-15 (6~7월 구간, 가중치 80%)
+### A14. 시각 이동 — 2026-07-05 (6~7월 구간, 가중치 80%)
+### 06-15/06-16은 기 소비 영업일이라 07-05로 재선정.
 ### ----------------------------------------------------------------------------
 PATCH {{baseUrl}}/api/admin/system-clock
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "newDatetime": "2026-06-15T09:00:00",
+  "newDatetime": "2026-07-05T09:00:00",
   "reasonCode": "DEMO_SELL_WINDOW_80"
 }
 
@@ -193,6 +305,16 @@ Content-Type: application/json
 > {%
     client.global.set("orderId2", response.body.data[0].orderId);
 %}
+
+### A15-2. [필수] 2차 매도도 익일 처리 대상이 되도록 하루 이동
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-07-06T09:00:00",
+  "reasonCode": "DEMO_SETTLEMENT_NEXT_DAY"
+}
 
 ### A16. 확정산 배치 재실행 — 이번엔 1차(이미 FINALIZED) + 2차(신규 PROVISIONAL) 섞여 있음
 POST {{baseUrl}}/api/settlement/jobs
@@ -258,20 +380,37 @@ Content-Type: application/json
 
 ### ----------------------------------------------------------------------------
 ### B3. 매도 한도 초과 시 REJECTED 응답 (C3 동시성 가드가 실제로 막는지)
-### 계좌 한도(5,000만원)를 초과하는 수량을 매도 시도
+### ※ sellQty를 9999처럼 보유수량 자체보다 크게 잡으면 SellOrderServiceImpl이
+###   금액 한도 체크(REJECTED)까지 가기도 전에 "매도 가능 수량을 초과했습니다"
+###   (보유수량 부족, 400)에서 먼저 막혀버려서 B3가 검증하려는 게 아니게 됨.
+### 그래서 반드시 "보유수량 이내인데 금액은 한도를 넘는" 조합으로 시도해야 함 —
+### A1~A18(골든패스)을 먼저 다 돌려서 계좌 한도(34,000,000)가 어느 정도
+### 소진된 뒤에 이 블록을 실행할 것. B3-0으로 남은 한도부터 먼저 확인.
 ### ----------------------------------------------------------------------------
+
+### B3-0. 현재 잔고/한도 확인 — 얼마나 남았는지 보고 아래 sellQty를 조절
+GET {{baseUrl}}/api/account/{{accountId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+    var acc = response.body.data;
+    var remaining = Number(acc.limitAmount) - Number(acc.amount);
+    client.log("잔여한도 = " + remaining + "원 — 아래 AMZN 25주(약 970만원)로 부족하면 sellQty를 줄이거나, 이미 매도한 종목을 또 시도할 것");
+%}
+
+### B3-1. AMZN 보유수량(25주) 이내로 매도 시도 — 잔여한도가 이보다 작아야 REJECTED가 뜸
 POST {{baseUrl}}/api/sell-orders
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
   "accountId": {{accountId}},
-  "foreignProductId": {{demoForeignProductId}},
-  "sellQty": 9999
+  "foreignProductId": 5,
+  "sellQty": 25
 }
 
 > {%
-    client.log("status = " + response.body.data[0].status + " (REJECTED 기대)");
+    client.log("status = " + response.body.data[0].status + " (잔여한도가 부족했다면 REJECTED 기대, 아니면 EXECUTED)");
 %}
 
 ### ----------------------------------------------------------------------------
@@ -289,10 +428,32 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/settlement/batches/detail/{{settlementBatchId2}}
 Authorization: Bearer {{accessToken}}
 
+
+### 외부순매수 확인 배치
+GET{{baseUrl}}/api/target-products
+Authorization: Bearer {{accessToken}}
 ### ----------------------------------------------------------------------------
 ### B5. 외부 순매수 동기화 + 재계산 (G1) — 감면율 축소 시연
-### 선행조건: demo-seed.sql "확장 시나리오 G1용"을 미리 실행해둘 것 (myData에 매수 이력 주입)
+### 전희우(18001) ci_hash한테 이미 실제 mydata_trade가 있고, 마침 전부 8월(50%
+### 구간)에만 있고 2월(1차 매도, 100% 구간)엔 하나도 없어서 "구간별로 외부순매수
+### 영향이 다르게 반영되는" 걸 그대로 보여주기 딱 좋음:
+###   2026-08-10 SOXX 매도 -2,739,990 / 08-14 XLF 매수 +1,396,899
+###   08-15 ARKK 매수 +3,252,954 / 08-15 IWM 매수 +3,030,175
+### → 1차(2월) 매도 구간의 조정비율은 그대로 1.0000 유지, 3차 매도(8월/B6) 구간에만
+###   외부순매수가 반영돼 조정비율이 낮아지는 걸 대비해서 보여줄 수 있음.
+### ⚠ ExternalTradeSyncServiceImpl이 tradeDate > 시스템시각(오늘)인 거래는 걸러내므로,
+### 거래일(08-10~08-15)보다 시계가 앞서 있어야 동기화 대상에 잡힘 — 먼저 이동.
 ### ----------------------------------------------------------------------------
+PATCH {{baseUrl}}/api/admin/system-clock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newDatetime": "2026-08-22T09:00:00",
+  "reasonCode": "DEMO_EXTERNAL_SYNC_WINDOW"
+}
+
+### B5-1. 외부 순매수 동기화 배치 실행
 POST {{baseUrl}}/api/external-trade-sync/jobs
 Authorization: Bearer {{accessToken}}
 
@@ -306,13 +467,16 @@ Authorization: Bearer {{accessToken}}
 
 ### ----------------------------------------------------------------------------
 ### B6. 실시간(preview) vs 배치(snapshot) 값 차이 시연
+### ⚠ 날짜를 매번 그날의 실제 달력 날짜로 맞춰야 함(KIS 시세·환율 API가 진짜 외부
+### 호출이라 미래 데이터가 없음). 2026-08-23은 이미 settlement_batch_guard에
+### 소비돼서 2026-08-24로 갱신함 — 다음 리허설 때도 그날 날짜로 또 바꿀 것.
 ### ----------------------------------------------------------------------------
 PATCH {{baseUrl}}/api/admin/system-clock
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "newDatetime": "2026-09-20T09:00:00",
+  "newDatetime": "2026-08-24T09:00:00",
   "reasonCode": "DEMO_SELL_WINDOW_50"
 }
 
@@ -327,25 +491,7 @@ Content-Type: application/json
   "sellQty": 40
 }
 
-### B6-3. 실시간 미리보기 — 3차 매도가 아직 확정산 전이라 lot으로 안 잡혀서 A18과 같은 값
-GET {{baseUrl}}/api/tax/preview/{{accountId}}
-Authorization: Bearer {{accessToken}}
 
-### B6-4. 확정산 배치 실행 (3차 매도 확정)
-POST {{baseUrl}}/api/settlement/jobs
-Authorization: Bearer {{accessToken}}
-
-### B6-5. 이제 실시간 미리보기 — 3차 매도 반영되어 값이 바뀜
-GET {{baseUrl}}/api/tax/preview/{{accountId}}
-Authorization: Bearer {{accessToken}}
-
-### B6-6. 배치 스냅샷은 아직 그대로(B5-3 값) — 세액 스냅샷 배치를 다시 안 돌렸으므로
-GET {{baseUrl}}/api/tax/snapshots?accountIds={{accountId}}
-Authorization: Bearer {{accessToken}}
-
-> {%
-    client.log("preview(실시간)와 snapshot(배치)이 달라야 정상 — '배치는 스냅샷, 실시간은 항상 최신'이라는 §8-6 원칙 시연");
-%}
 
 
 ### ----------------------------------------------------------------------------
@@ -378,7 +524,7 @@ Content-Type: application/json
 
 {
   "accountId": {{accountId}},
-  "requestedAmount": 30000000,
+  "requestedAmount": 300000,
   "earlyWithdrawalAgreed": false,
   "destinationGeneralAccountId": {{demoGeneralAccountId}}
 }
@@ -389,13 +535,6 @@ Content-Type: application/json
     });
 %}
 
-### B8-2. 확정신고 먼저 저장 — B11에서 "정정 저장"을 보여주려면 FINAL_REPORT가 먼저 있어야 함
-POST {{baseUrl}}/api/tax/calculations/{{accountId}}
-Authorization: Bearer {{accessToken}}
-
-> {%
-    client.log("basisType = " + response.body.data.basisType + " (FINAL_REPORT 기대)");
-%}
 
 ### ----------------------------------------------------------------------------
 ### B9. 인출 — 동의 후 재요청 → 성공, 계좌 세제혜택이 IMPOSSIBLE로 전환됨
@@ -406,50 +545,42 @@ Content-Type: application/json
 
 {
   "accountId": {{accountId}},
-  "requestedAmount": 30000000,
+  "requestedAmount": 6000000,
   "earlyWithdrawalAgreed": true,
   "destinationGeneralAccountId": {{demoGeneralAccountId}}
 }
 
-### B9-2. 계좌 상세 조회 — benefit이 IMPOSSIBLE로 바뀌었는지 확인
-GET {{baseUrl}}/api/account/{{accountId}}
+
+
+### ----------------------------------------------------------------------------
+### B12. 계좌 해지 신청 → 승인 (일반계좌는 B7~B9와 동일한 {{demoGeneralAccountId}} 재사용)
+### 이 시점 계좌는 B9에서 이미 benefit=IMPOSSIBLE로 전환된 상태 — 세제혜택 취소와
+### 계좌 해지는 서로 별개 상태라는 것까지 같이 보여줌. 1년 미경과 원금이 남아있으므로
+### earlyWithdrawalAgreed:false로 신청하면 EarlyWithdrawalConsentRequiredException(400).
+### ----------------------------------------------------------------------------
+POST {{baseUrl}}/api/account-closures
 Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "customerId": {{demoCustomerId}},
+  "destinationGeneralAccountId": {{demoGeneralAccountId}},
+  "earlyWithdrawalAgreed": true
+}
 
 > {%
-    client.test("조기인출로 세제혜택 취소됨", function() {
-        client.assert(response.body.data.benefit === "IMPOSSIBLE");
-    });
+    client.global.set("closureRequestId", response.body.data);
+    client.log("closureRequestId = " + response.body.data);
 %}
 
-### B9-3. 계좌 상태 이력(account_benefit_log)에 취소 사유가 남았는지 확인
-GET {{baseUrl}}/api/account/{{accountId}}/status-logs
+
+
+### B12-3. 해지 승인 — 잔액이 있으면 승인 처리 중 강제 인출이 자동으로 한 번 더 실행됨
+POST {{baseUrl}}/api/account-closures/{{closureRequestId}}/approve
 Authorization: Bearer {{accessToken}}
 
-### ----------------------------------------------------------------------------
-### B10. 확정신고 중복 저장 차단 — B8-2에서 이미 FINAL_REPORT를 저장했는데,
-### 세제혜택이 아직 살아있는 계좌 기준으로 또 저장 시도하면 409가 나야 정상.
-### (B9에서 이미 IMPOSSIBLE로 바뀐 뒤라 이 요청은 오히려 "정정 저장"으로 통과됨 —
-###  진짜 중복 케이스를 보고 싶으면 B9 이전, 즉 B8-2 직후에 이 요청을 한 번 더 넣어볼 것)
-### ----------------------------------------------------------------------------
-POST {{baseUrl}}/api/tax/calculations/{{accountId}}
-Authorization: Bearer {{accessToken}}
 
-> {%
-    client.log("basisType = " + response.body.data.basisType + " (IMPOSSIBLE 상태라 EARLY_WITHDRAWAL_CLAWBACK 기대)");
-%}
 
-### B10-2. 같은 요청을 한 번 더 — 이번엔 진짜 중복(EARLY_WITHDRAWAL_CLAWBACK도 이미 있음) → 409
-POST {{baseUrl}}/api/tax/calculations/{{accountId}}
-Authorization: Bearer {{accessToken}}
-
-> {%
-    client.test("정정까지 이미 끝난 상태에서 재저장 시도 → 409", function() {
-        client.assert(response.status === 409);
-    });
-%}
-
-### ----------------------------------------------------------------------------
-### B11. 세액 스냅샷 배치 이력 조회 — I1 idempotency 증거 (run_id별 상태)
-### ----------------------------------------------------------------------------
-GET {{baseUrl}}/api/tax/snapshots/jobs
+### B12-5. 해지 신청 상세 재조회 — status COMPLETED, withdrawalId 채워졌는지 확인
+GET {{baseUrl}}/api/account-closures/{{closureRequestId}}
 Authorization: Bearer {{accessToken}}

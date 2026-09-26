@@ -18,7 +18,6 @@ import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
-import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.mapper.TaxSnapshotMapper;
 import com.app.maria.domain.tax.type.TaxAuditLogReasonCode;
@@ -28,6 +27,8 @@ import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.RiaTaxProperties;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -80,8 +81,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         try {
             taxMapper.insertCalculation(taxCalculationDTO);
         } catch (DuplicateKeyException e) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 " + basisType + " 계산이 저장되었습니다. accountId=" + accountId);
+            throw new AppException(alreadyExistsErrorType(basisType), accountId);
         }
 
         return TaxCalculationSaveResponseDTO.of(taxCalculationDTO);
@@ -103,9 +103,9 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(auditActorProvider.getCurrentAdminId())
-                        .targetTable("TAX_SNAPSHOT_BATCH")
+                        .targetTable("세액 계산 배치")
                         .targetPk(runId)
-                        .afterValue("REQUESTED")
+                        .afterValue("Running")
                         .reasonCode(TaxAuditLogReasonCode.TAX_SNAPSHOT_BATCH_REQUESTED.name())
                         .build());
 
@@ -124,14 +124,19 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
             return TaxBasisType.FINAL_REPORT;
         }
         if (account.getBenefit() != BenefitType.IMPOSSIBLE) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 확정신고된 계좌입니다. accountId=" + accountId);
+            throw new AppException(ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS, accountId);
         }
         if (taxMapper.existsByAccountAndBasis(accountId, TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK)) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 조기인출 정정이 처리된 계좌입니다. accountId=" + accountId);
+            throw new AppException(
+                    ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS, accountId);
         }
         return TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK;
+    }
+
+    private ErrorType alreadyExistsErrorType(TaxBasisType basisType) {
+        return basisType == TaxBasisType.FINAL_REPORT
+                ? ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS
+                : ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS;
     }
 
     private AccountDTO findAccount(Long accountId) {
