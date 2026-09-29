@@ -114,7 +114,9 @@ class TaxApiTest {
     void 확정저장_정상() throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
-        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
+                                .with(user("tester").roles("SETTLEMENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("세액 확정 저장 성공"))
                 .andExpect(jsonPath("$.data.calcId").value(10L))
@@ -125,8 +127,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 확정 저장을 할 수 있다")
-    @ValueSource(strings = {"ADMIN", "SETTLEMENT"})
-    @DisplayName("정산·관리자만 확정 저장할 수 있다")
+    @ValueSource(strings = {"SETTLEMENT"})
+    @DisplayName("정산 역할만 확정 저장할 수 있다")
     void 확정저장_허용역할(String role) throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
@@ -137,8 +139,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 확정 저장을 할 수 없다")
-    @ValueSource(strings = {"REVIEWER", "VIEWER"})
-    @DisplayName("심사·조회 역할은 확정 저장이 막힌다")
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "VIEWER"})
+    @DisplayName("정산 외 역할은 확정 저장이 막힌다")
     void 확정저장_차단역할(String role) throws Exception {
         mockMvc.perform(
                         post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
@@ -164,7 +166,9 @@ class TaxApiTest {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID))
                 .thenThrow(new AppException(ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS, ACCOUNT_ID));
 
-        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
+                                .with(user("tester").roles("SETTLEMENT")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."))
                 .andExpect(jsonPath("$.code").value("TAX_FINAL_REPORT_ALREADY_EXISTS"));
@@ -237,8 +241,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 배치를 수동 실행할 수 있다")
-    @ValueSource(strings = {"ADMIN", "SETTLEMENT"})
-    @DisplayName("정산·관리자만 배치를 수동 실행할 수 있다")
+    @ValueSource(strings = {"SETTLEMENT"})
+    @DisplayName("정산 역할만 배치를 수동 실행할 수 있다")
     void 배치_수동실행_허용역할(String role) throws Exception {
         when(taxCalculationService.triggerSnapshotBatch())
                 .thenReturn(
@@ -255,8 +259,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 배치를 수동 실행할 수 없다")
-    @ValueSource(strings = {"REVIEWER", "VIEWER"})
-    @DisplayName("심사·조회 역할은 배치 수동 실행이 막힌다")
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "VIEWER"})
+    @DisplayName("정산 외 역할은 배치 수동 실행이 막힌다")
     void 배치_수동실행_차단역할(String role) throws Exception {
         mockMvc.perform(post("/api/admin/tax/snapshots/jobs").with(user("tester").roles(role)))
                 .andExpect(status().isForbidden());
