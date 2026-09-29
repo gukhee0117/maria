@@ -86,7 +86,7 @@ class TaxCalculationServiceImplTest {
 
     @Spy TaxCalculator taxCalculator = new TaxCalculator();
 
-체    @Mock TaxBreakdownAssembler taxBreakdownAssembler;
+    @Mock TaxBreakdownAssembler taxBreakdownAssembler;
 
     @InjectMocks TaxCalculationServiceImpl taxCalculationService;
 
