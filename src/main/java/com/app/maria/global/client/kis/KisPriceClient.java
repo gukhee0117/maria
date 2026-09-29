@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -22,8 +23,36 @@ public class KisPriceClient {
     private final PriceApiProperties priceApiProperties;
 
     private static final String TR_ID = "HHDFS00000300"; // 해외주식 현재가 상세/시세 조회 코드
+    private static final String RATE_LIMIT_ERROR_CODE = "EGW00201"; // 초당 거래건수 초과
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 700; // KIS 데모키 초당 호출 제한 회피용
 
     public BigDecimal getPreviousClose(String exchangeCode, String ticker) {
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                return fetchPreviousClose(exchangeCode, ticker);
+            } catch (HttpServerErrorException e) {
+                boolean isRateLimit = e.getResponseBodyAsString().contains(RATE_LIMIT_ERROR_CODE);
+                if (!isRateLimit || attempt == MAX_ATTEMPTS) {
+                    throw e;
+                }
+                sleep(RETRY_DELAY_MS);
+            }
+        }
+        throw new KisPriceNotFoundException("전일종가 조회 실패: " + ticker);
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // ponytail: 종목 여러 개를 한 요청에서 연달아 조회할 때(F7)도 이 재시도 텀만으로 버팀 —
+    // 대량 병렬 호출이 필요해지면 별도 rate limiter(예: Bucket4j)로 승급.
+    private BigDecimal fetchPreviousClose(String exchangeCode, String ticker) {
         // 거래소 코드 받아 전일 종가 반환
         String url =
                 UriComponentsBuilder.fromHttpUrl(
