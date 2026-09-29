@@ -23,9 +23,9 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
+import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
@@ -82,7 +82,7 @@ class WithdrawalProcessorTest {
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
+                .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
 
@@ -95,7 +95,7 @@ class WithdrawalProcessorTest {
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
+                .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
 
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
@@ -178,7 +178,7 @@ class WithdrawalProcessorTest {
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
+                .hasMessage(ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE.getMessage());
 
         verify(accountMapper, never()).selectByAccountIdForUpdate(ACCOUNT_ID);
         verifyNoInteractions(withdrawalMapper, businessClockService);
@@ -390,17 +390,23 @@ class WithdrawalProcessorTest {
         when(businessClockService.now()).thenReturn(NOW);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("501")))
-                .isInstanceOf(InsufficientWithdrawalAmountException.class)
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage())
                 .satisfies(
                         throwable -> {
-                            InsufficientWithdrawalAmountException exception =
-                                    (InsufficientWithdrawalAmountException) throwable;
-                            assertThat(exception.getAccountId()).isEqualTo(ACCOUNT_ID);
-                            assertThat(exception.getRequestedAmount()).isEqualByComparingTo("501");
-                            assertThat(exception.getFailedAt()).isEqualTo(NOW);
-                            assertThat(exception.getDestinationAccountNo())
+                            AppException exception = (AppException) throwable;
+                            assertThat(exception.getErrorType())
+                                    .isEqualTo(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT);
+                            assertThat(exception.getErrorData())
+                                    .isInstanceOf(WithdrawalFailureContext.class);
+                            WithdrawalFailureContext context =
+                                    (WithdrawalFailureContext) exception.getErrorData();
+                            assertThat(context.getAccountId()).isEqualTo(ACCOUNT_ID);
+                            assertThat(context.getRequestedAmount()).isEqualByComparingTo("501");
+                            assertThat(context.getFailedAt()).isEqualTo(NOW);
+                            assertThat(context.getDestinationAccountNo())
                                     .isEqualTo("110-123-456789");
-                            assertThat(exception.getDestinationGeneralAccountId())
+                            assertThat(context.getDestinationGeneralAccountId())
                                     .isEqualTo(GENERAL_ACCOUNT_ID);
                         });
         verifyNoInteractions(withdrawalMapper);
@@ -411,7 +417,7 @@ class WithdrawalProcessorTest {
     void zeroAmountRequest_isRejectedBeforeLoadingSources() {
         assertThatThrownBy(() -> withdrawalService.withdraw(request("0")))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
+                .hasMessage(ErrorType.INVALID_WITHDRAWAL_AMOUNT.getMessage());
         verifyNoInteractions(accountMapper, generalAccountClient);
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }

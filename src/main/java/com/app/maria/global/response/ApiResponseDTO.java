@@ -15,9 +15,8 @@ public class ApiResponseDTO<T> {
     private String message;
     private T data;
 
-    // 에러가 어떤 종류인지 알려주는 값 (예: "TAX_RULE_NOT_FOUND"). AppException으로 예외를 던지는 곳만
-    // 이 값이 채워짐 — 지금은 tax 도메인만. 다른 도메인 예외들은 아직 옛날 방식 그대로라 code가 항상 null이고,
-    // null이면 응답 JSON에 아예 안 찍힘(@JsonInclude 때문) — 그래서 기존 화면들은 이 필드 추가해도 안 깨짐.
+    // AppException의 ErrorType 이름을 담아 프론트가 메시지 문구가 아닌 안정적인 코드로 분기할 수 있게 한다.
+    // 기존 예외 응답은 null이며 @JsonInclude에 의해 JSON에 포함되지 않는다.
     //
     // 지금 당장 화면(JS)에서 이 code를 보고 뭘 하진 않음. 2차 React 화면 만들 때 "이 code면 이 모달 띄워라"
     // 처럼 에러 종류별로 분기하는 용도로 쓸 예정 — message(사람이 읽는 한글 문구)는 나중에 바뀔 수 있지만

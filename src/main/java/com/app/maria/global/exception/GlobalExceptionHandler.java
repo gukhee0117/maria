@@ -306,18 +306,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 15. GeneralAccount 예외
-    @ExceptionHandler(GeneralAccountApiException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleGeneralAccountApiException(
-            GeneralAccountApiException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 16. AppException — 새로 만든 예외 구조 하나가 처리함. 아래 3~19번처럼 예외 종류마다
-    // 핸들러를 따로 안 만들어도 됨 (지금은 tax 도메인만 여기로 옮김. 다른 도메인은 아직 밑에 그대로 있음.
-    // 자기 도메인 옮길 땐 밑에 있는 해당 핸들러 지우고, 예외 던지는 곳을 AppException으로 바꾸면 됨 —
-    // 자세한 건 ErrorType.java / AppException.java 주석 참고)
+    // AppException으로 통합된 도메인 예외를 공통 처리한다.
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleAppException(AppException e) {
         logAppException(e);

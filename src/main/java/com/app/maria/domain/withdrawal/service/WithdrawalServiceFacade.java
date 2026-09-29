@@ -1,8 +1,8 @@
 package com.app.maria.domain.withdrawal.service;
 
+import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
@@ -20,10 +20,9 @@ public class WithdrawalServiceFacade implements WithdrawalService {
     public WithdrawalResultDTO withdraw(WithdrawalRequestDTO requestDTO) {
         try {
             return withdrawalProcessor.withdraw(requestDTO);
-        } catch (InsufficientWithdrawalAmountException exception) {
-            withdrawalFailureService.recordInsufficientBalance(exception);
-            throw new AppException(
-                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, exception.getAccountId());
+        } catch (AppException exception) {
+            recordInsufficientBalance(exception);
+            throw exception;
         }
     }
 
@@ -31,10 +30,16 @@ public class WithdrawalServiceFacade implements WithdrawalService {
     public WithdrawalResultDTO withdrawForClosure(WithdrawalRequestDTO requestDTO) {
         try {
             return withdrawalProcessor.withdrawForClosure(requestDTO);
-        } catch (InsufficientWithdrawalAmountException exception) {
-            withdrawalFailureService.recordInsufficientBalance(exception);
-            throw new AppException(
-                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, exception.getAccountId());
+        } catch (AppException exception) {
+            recordInsufficientBalance(exception);
+            throw exception;
+        }
+    }
+
+    private void recordInsufficientBalance(AppException exception) {
+        if (exception.getErrorType() == ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT
+                && exception.getErrorData() instanceof WithdrawalFailureContext context) {
+            withdrawalFailureService.recordInsufficientBalance(context);
         }
     }
 

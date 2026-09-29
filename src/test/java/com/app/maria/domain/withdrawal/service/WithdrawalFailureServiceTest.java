@@ -6,7 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
-import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
+import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.global.error.AppException;
@@ -31,10 +31,11 @@ class WithdrawalFailureServiceTest {
 
     @Test
     void insufficientBalance_isStoredAsFailedWithdrawal() {
-        InsufficientWithdrawalAmountException exception = insufficientBalanceException();
+        WithdrawalFailureContext context = failureContext();
+        assertThat(context.toString()).doesNotContain("1234567890");
         when(withdrawalMapper.insertWithdrawal(org.mockito.ArgumentMatchers.any())).thenReturn(1);
 
-        withdrawalFailureService.recordInsufficientBalance(exception);
+        withdrawalFailureService.recordInsufficientBalance(context);
 
         ArgumentCaptor<WithdrawalDTO> captor = ArgumentCaptor.forClass(WithdrawalDTO.class);
         verify(withdrawalMapper).insertWithdrawal(captor.capture());
@@ -49,21 +50,16 @@ class WithdrawalFailureServiceTest {
 
     @Test
     void failedWithdrawalInsert_isRejected() {
-        InsufficientWithdrawalAmountException exception = insufficientBalanceException();
+        WithdrawalFailureContext context = failureContext();
         when(withdrawalMapper.insertWithdrawal(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalFailureService.recordInsufficientBalance(exception))
+        assertThatThrownBy(() -> withdrawalFailureService.recordInsufficientBalance(context))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
     }
 
-    private InsufficientWithdrawalAmountException insufficientBalanceException() {
-        return new InsufficientWithdrawalAmountException(
-                "계좌 잔액보다 많은 금액을 인출할 수 없습니다.",
-                10L,
-                new BigDecimal("700000"),
-                FAILED_AT,
-                "1234567890",
-                20L);
+    private WithdrawalFailureContext failureContext() {
+        return new WithdrawalFailureContext(
+                10L, new BigDecimal("700000"), FAILED_AT, "1234567890", 20L);
     }
 }
