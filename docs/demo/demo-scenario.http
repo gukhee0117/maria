@@ -430,7 +430,7 @@ Authorization: Bearer {{accessToken}}
 
 
 ### 외부순매수 확인 배치
-GET{{baseUrl}}/api/target-products
+GET {{baseUrl}}/api/target-products
 Authorization: Bearer {{accessToken}}
 ### ----------------------------------------------------------------------------
 ### B5. 외부 순매수 동기화 + 재계산 (G1) — 감면율 축소 시연
