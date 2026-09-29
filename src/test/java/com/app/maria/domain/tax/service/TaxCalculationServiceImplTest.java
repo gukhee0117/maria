@@ -646,4 +646,20 @@ class TaxCalculationServiceImplTest {
         assertThat(response.getTaxCalculationResultDTO().getWeightedSell())
                 .isEqualByComparingTo("0");
     }
+
+    @Test
+    @DisplayName("오늘 할 일 요약은 매퍼 집계값을 그대로 응답 DTO에 담는다")
+    void 오늘할일_요약() {
+        when(clockService.now()).thenReturn(NOW);
+        when(taxMapper.countUnconfirmedFinalReport()).thenReturn(10419);
+        when(taxMapper.countUnprocessedClawback()).thenReturn(3);
+        when(taxMapper.countBenefitChangedSince(NOW.toLocalDate().atStartOfDay(), NOW))
+                .thenReturn(7);
+
+        var response = taxCalculationService.getActionSummary();
+
+        assertThat(response.getUnconfirmedFinalReportCount()).isEqualTo(10419);
+        assertThat(response.getUnprocessedClawbackCount()).isEqualTo(3);
+        assertThat(response.getBenefitChangedTodayCount()).isEqualTo(7);
+    }
 }

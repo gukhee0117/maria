@@ -36,36 +36,47 @@
         final_deduction          = values(final_deduction),
         final_tax                = values(final_tax)
     </insert>
+    <sql id="snapshotActionFlags">
+        ts.snapshot_id,
+        ts.account_id,
+        ts.calculated_at,
+        ts.weighted_sell,
+        ts.original_gain_amount,
+        ts.weighted_gain,
+        ts.weighted_external_amount,
+        ts.adjust_ratio,
+        ts.final_deduction,
+        ts.final_tax,
+        (ts.final_tax > 0
+            and not exists (
+                select 1 from tax_calculation tc
+                where tc.account_id = ts.account_id and tc.basis_type = 'FINAL_REPORT'
+            )) as needs_final_report,
+        (a.benefit = 'IMPOSSIBLE'
+            and exists (
+                select 1 from tax_calculation tc2
+                where tc2.account_id = ts.account_id and tc2.basis_type = 'FINAL_REPORT'
+            )
+            and not exists (
+                select 1 from tax_calculation tc3
+                where tc3.account_id = ts.account_id and tc3.basis_type = 'EARLY_WITHDRAWAL_CLAWBACK'
+            )) as needs_clawback
+    </sql>
+
     <select id="selectByAccountId" resultType="TaxSnapshotDTO">
         select
-            snapshot_id,
-            account_id,
-            calculated_at,
-            weighted_sell,
-            original_gain_amount,
-            weighted_gain,
-            weighted_external_amount,
-            adjust_ratio,
-            final_deduction,
-            final_tax
-        from tax_snapshot
-        where account_id = #{accountId}
+        <include refid="snapshotActionFlags"/>
+        from tax_snapshot ts
+        left join account a on a.account_id = ts.account_id
+        where ts.account_id = #{accountId}
     </select>
 
     <select id="selectByAccountIds" resultType="TaxSnapshotDTO">
         select
-        snapshot_id,
-        account_id,
-        calculated_at,
-        weighted_sell,
-        original_gain_amount,
-        weighted_gain,
-        weighted_external_amount,
-        adjust_ratio,
-        final_deduction,
-        final_tax
-        from tax_snapshot
-        where account_id in
+        <include refid="snapshotActionFlags"/>
+        from tax_snapshot ts
+        left join account a on a.account_id = ts.account_id
+        where ts.account_id in
         <foreach collection="accountIds" item="accountId" open="(" close=")" separator=",">
             #{accountId}
         </foreach>

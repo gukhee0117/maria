@@ -1,5 +1,6 @@
 package com.app.maria.domain.tax.api;
 
+import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
@@ -29,6 +30,13 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class TaxApi {
     private final TaxCalculationService taxCalculationService;
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
+    @GetMapping("/action-summary")
+    public ResponseEntity<ApiResponseDTO<TaxActionSummaryResponseDTO>> actionSummary() {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("오늘 할 일 요약 조회 성공", taxCalculationService.getActionSummary()));
+    }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
     @GetMapping("/preview/{accountId}")

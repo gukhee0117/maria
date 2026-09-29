@@ -16,6 +16,7 @@ import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
@@ -171,6 +172,19 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                         BenefitType.isReliefExcluded(account.getBenefit()));
 
         return TaxExpectedReliefResponseDTO.of(accountId, expectedFinalAt, result);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TaxActionSummaryResponseDTO getActionSummary() {
+        LocalDateTime now = clockService.now();
+        LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
+
+        return TaxActionSummaryResponseDTO.builder()
+                .unconfirmedFinalReportCount(taxMapper.countUnconfirmedFinalReport())
+                .unprocessedClawbackCount(taxMapper.countUnprocessedClawback())
+                .benefitChangedTodayCount(taxMapper.countBenefitChangedSince(startOfToday, now))
+                .build();
     }
 
     // 아직 안 판 보유 lot을 "오늘 결제 기준(T+2)"에 판다고 가정해 SellLotDTO로 만든다.

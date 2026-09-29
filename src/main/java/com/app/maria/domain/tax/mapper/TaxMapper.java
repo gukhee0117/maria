@@ -34,4 +34,11 @@ public interface TaxMapper {
     Optional<TaxCalculationDTO> selectLatestCalculation(@Param("accountId") Long accountId);
 
     List<HeldLotDTO> selectHeldLotsByAccountId(@Param("accountId") Long accountId);
+
+    int countUnconfirmedFinalReport();
+
+    int countUnprocessedClawback();
+
+    int countBenefitChangedSince(
+            @Param("since") LocalDateTime since, @Param("until") LocalDateTime until);
 }
