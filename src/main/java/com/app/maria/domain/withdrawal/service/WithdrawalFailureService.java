@@ -2,9 +2,10 @@ package com.app.maria.domain.withdrawal.service;
 
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -30,7 +31,8 @@ public class WithdrawalFailureService {
 
         int insertedRows = withdrawalMapper.insertWithdrawal(failedWithdrawal);
         if (insertedRows != 1) {
-            throw new WithdrawalProcessingException("인출 실패 이력 저장에 실패했습니다.");
+            throw new AppException(
+                    ErrorType.WITHDRAWAL_PROCESSING_FAILED, exception.getAccountId());
         }
     }
 }

@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
+import com.app.maria.domain.tax.dto.response.TaxExpectedReliefResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
 import com.app.maria.domain.tax.service.TaxCalculationService;
@@ -23,6 +24,7 @@ import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -107,6 +109,41 @@ class TaxApiTest {
                 .andExpect(status().isUnauthorized());
 
         verify(taxCalculationService, never()).taxCalculate(anyLong());
+    }
+
+    @ParameterizedTest(name = "{0}은 예상 감면세액을 볼 수 있다")
+    @ValueSource(strings = {"ADMIN", "SETTLEMENT", "REVIEWER", "VIEWER"})
+    @DisplayName("예상 감면세액 조회는 모든 역할이 할 수 있다")
+    void 예상감면세액_전역할_허용(String role) throws Exception {
+        when(taxCalculationService.previewExpectedRelief(ACCOUNT_ID))
+                .thenReturn(
+                        TaxExpectedReliefResponseDTO.builder()
+                                .accountId(ACCOUNT_ID)
+                                .expectedFinalAt(LocalDate.of(2026, 8, 6))
+                                .taxCalculationResultDTO(
+                                        TaxCalculationResultDTO.builder()
+                                                .finalTax(new BigDecimal("92884.00"))
+                                                .build())
+                                .build());
+
+        mockMvc.perform(
+                        get("/api/admin/tax/preview/{accountId}/expected-relief", ACCOUNT_ID)
+                                .with(user("tester").roles(role)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("예상 감면세액 계산 성공"))
+                .andExpect(jsonPath("$.data.accountId").value(ACCOUNT_ID))
+                .andExpect(jsonPath("$.data.expectedFinalAt").value("2026-08-06"))
+                .andExpect(jsonPath("$.data.taxCalculationResultDTO.finalTax").value(92884.00));
+    }
+
+    @Test
+    @WithAnonymousUser
+    @DisplayName("미인증이면 예상 감면세액 조회도 막힌다")
+    void 예상감면세액_미인증() throws Exception {
+        mockMvc.perform(get("/api/admin/tax/preview/{accountId}/expected-relief", ACCOUNT_ID))
+                .andExpect(status().isUnauthorized());
+
+        verify(taxCalculationService, never()).previewExpectedRelief(anyLong());
     }
 
     @Test

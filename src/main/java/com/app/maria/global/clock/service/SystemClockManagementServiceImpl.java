@@ -4,9 +4,9 @@ import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.dto.SystemClockDTO;
 import com.app.maria.global.clock.dto.request.SystemClockChangeRequestDTO;
-import com.app.maria.global.clock.exception.SystemClockNotInitializedException;
-import com.app.maria.global.clock.exception.SystemClockUpdateException;
 import com.app.maria.global.clock.mapper.SystemClockMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,9 +29,7 @@ public class SystemClockManagementServiceImpl implements SystemClockManagementSe
                 systemClockMapper
                         .selectSystemClock()
                         .orElseThrow(
-                                () ->
-                                        new SystemClockNotInitializedException(
-                                                "SYSTEM_CLOCK 데이터가 존재하지 않습니다."));
+                                () -> new AppException(ErrorType.SYSTEM_CLOCK_NOT_INITIALIZED));
         if (currentClock.getCurrentDatetime().equals(newDatetime)) {
             return currentClock.getCurrentDatetime();
         }
@@ -41,7 +39,7 @@ public class SystemClockManagementServiceImpl implements SystemClockManagementSe
                         newDatetime, currentClock.getReferenceRealDatetime());
 
         if (updatedRows != 1) {
-            throw new SystemClockUpdateException("다른 관리자가 업무시각을 먼저 변경했습니다. 다시 조회해 주세요.");
+            throw new AppException(ErrorType.SYSTEM_CLOCK_UPDATE_CONFLICT, adminId);
         }
 
         AuditLogDTO auditLog =

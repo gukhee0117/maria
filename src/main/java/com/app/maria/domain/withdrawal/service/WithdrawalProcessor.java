@@ -15,10 +15,7 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.EarlyWithdrawalConsentRequiredException;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotAllowedException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
@@ -26,6 +23,8 @@ import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.request.GeneralAccountRequestDTO;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -55,7 +54,7 @@ public class WithdrawalProcessor {
         BigDecimal requestedAmount = requestDTO.getRequestedAmount();
 
         if (requestedAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new WithdrawalNotAllowedException("인출 요청금액은 0보다 커야 합니다.");
+            throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, requestedAmount);
         }
 
         AccountDTO accountBeforeLock =
@@ -76,7 +75,8 @@ public class WithdrawalProcessor {
         GeneralAccountResponseDTO destinationGeneralAccount =
                 generalAccountClient.verifyGeneralAccount(generalAccountRequest);
         if (destinationGeneralAccount.getStatus() != ACTIVE) {
-            throw new WithdrawalNotAllowedException("활성 상태의 일반계좌로만 인출할 수 있습니다.");
+            throw new AppException(
+                    ErrorType.WITHDRAWAL_NOT_ALLOWED, requestDTO.getDestinationGeneralAccountId());
         }
 
         AccountDTO account =
@@ -85,7 +85,7 @@ public class WithdrawalProcessor {
                         .orElseThrow(() -> new AccountNotFoundException("인출 대상 계좌가 존재하지 않습니다."));
 
         if (account.getStatus() != allowedStatus) {
-            throw new WithdrawalNotAllowedException("현재 계좌 상태에서는 인출할 수 없습니다.");
+            throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, accountId);
         }
 
         LocalDateTime currentDatetime = businessClockService.now();
@@ -162,7 +162,7 @@ public class WithdrawalProcessor {
 
         if (remainingRequest.compareTo(BigDecimal.ZERO) > 0) {
             if (!requestDTO.isEarlyWithdrawalAgreed()) {
-                throw new EarlyWithdrawalConsentRequiredException("미경과 원금을 인출하려면 조기인출 동의가 필요합니다.");
+                throw new AppException(ErrorType.EARLY_WITHDRAWAL_CONSENT_REQUIRED, accountId);
             }
             List<WithdrawalAllocationDTO> immatureAllocations =
                     allocateImmaturePrincipalFifo(
@@ -174,7 +174,7 @@ public class WithdrawalProcessor {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             if (immatureAllocatedAmount.compareTo(remainingRequest) < 0) {
-                throw new WithdrawalNotAllowedException("인출 가능한 원금이 부족합니다.");
+                throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, accountId);
             }
             allocations.addAll(immatureAllocations);
             int changedBenefit = accountMapper.updateBenefitToImpossible(accountId);
@@ -209,14 +209,15 @@ public class WithdrawalProcessor {
                         .build();
         int insertedRows = withdrawalMapper.insertWithdrawal(withdrawal);
         if (insertedRows != 1) {
-            throw new WithdrawalProcessingException("WITHDRAWAL 저장에 실패했습니다.");
+            throw new AppException(ErrorType.WITHDRAWAL_PROCESSING_FAILED, accountId);
         }
         // 배분내역 저장
         for (WithdrawalAllocationDTO allocation : allocations) {
             allocation.setWithdrawalId(withdrawal.getWithdrawalId());
             int insertedAllocationRows = withdrawalMapper.insertWithdrawalAllocation(allocation);
             if (insertedAllocationRows != 1) {
-                throw new WithdrawalProcessingException("WITHDRAWAL_ALLOCATION 저장에 실패했습니다.");
+                throw new AppException(
+                        ErrorType.WITHDRAWAL_PROCESSING_FAILED, withdrawal.getWithdrawalId());
             }
             // 원금 차감
             if (allocation.getLeftAmountId() != null) {
@@ -224,14 +225,15 @@ public class WithdrawalProcessor {
                         withdrawalMapper.deductLeftAmount(
                                 allocation.getLeftAmountId(), allocation.getAllocatedAmount());
                 if (deductedLeftAmountRows != 1) {
-                    throw new WithdrawalProcessingException("LEFT_AMOUNT 차감에 실패했습니다.");
+                    throw new AppException(
+                            ErrorType.WITHDRAWAL_PROCESSING_FAILED, allocation.getLeftAmountId());
                 }
             }
         }
         // RIA계좌의 총 잔액 차감
         int deductedAccountRows = withdrawalMapper.deductAccountAmount(accountId, requestedAmount);
         if (deductedAccountRows != 1) {
-            throw new WithdrawalProcessingException("ACCOUNT 총 잔액을 차감하지 못했습니다.");
+            throw new AppException(ErrorType.WITHDRAWAL_PROCESSING_FAILED, accountId);
         }
 
         // 인출 상태 변경
@@ -239,7 +241,8 @@ public class WithdrawalProcessor {
                 withdrawalMapper.updateWithdrawalStatus(
                         withdrawal.getWithdrawalId(), WithdrawalStatus.COMPLETED);
         if (updatedStatusRows != 1) {
-            throw new WithdrawalProcessingException("인출 상태 변경에 실패했습니다.");
+            throw new AppException(
+                    ErrorType.WITHDRAWAL_PROCESSING_FAILED, withdrawal.getWithdrawalId());
         }
 
         return WithdrawalResultDTO.builder()

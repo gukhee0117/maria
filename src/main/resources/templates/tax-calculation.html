@@ -15,6 +15,7 @@
     <div id="taxError" class="tax-error" style="display:none"></div>
 
     <div id="taxBody" style="display:none">
+        <div class="section-header"><span>전체 현황</span></div>
         <div class="kpi-grid">
             <div class="card kpi-card kpi-card-clickable" id="kpiCardAll">
                 <div class="kpi-label">세액계산 계좌수</div>
@@ -31,6 +32,26 @@
             <div class="card kpi-card">
                 <div class="kpi-label">과세대상 최종세액 합계</div>
                 <div class="kpi-value kpi-value-amount" id="kpiTaxSum">-</div>
+            </div>
+        </div>
+
+        <div class="section-header"><span>오늘 할 일</span></div>
+        <div class="kpi-grid">
+            <div class="card kpi-card kpi-card-danger" id="kpiCardBatchIssue">
+                <div class="kpi-label">오늘 배치 실패·스킵</div>
+                <div class="kpi-value kpi-value-danger" id="kpiBatchIssue">-</div>
+            </div>
+            <div class="card kpi-card kpi-card-clickable" id="kpiCardUnconfirmed">
+                <div class="kpi-label">확정신고 미처리</div>
+                <div class="kpi-value" id="kpiUnconfirmed">-</div>
+            </div>
+            <div class="card kpi-card kpi-card-clickable" id="kpiCardClawback">
+                <div class="kpi-label">조기인출 추징 미처리</div>
+                <div class="kpi-value" id="kpiClawback">-</div>
+            </div>
+            <div class="card kpi-card" id="kpiCardBenefitChanged">
+                <div class="kpi-label">오늘 세제혜택 변경</div>
+                <div class="kpi-value" id="kpiBenefitChanged">-</div>
             </div>
         </div>
 
@@ -98,11 +119,12 @@
                     <th>최종세액</th>
                     <th>산출시각</th>
                     <th>계산 상태</th>
+                    <th>처리 필요</th>
                 </tr>
                 </thead>
                 <tbody id="taxSnapshotBody">
                 <tr>
-                    <td colspan="9" class="tax-empty">불러오는 중...</td>
+                    <td colspan="10" class="tax-empty">불러오는 중...</td>
                 </tr>
                 </tbody>
             </table>
@@ -123,6 +145,19 @@
     <span id="detailStaleBadge" class="tax-stale-badge" style="display:none">배치값과 다름</span>
     <span id="detailSavedBadge" class="tax-saved-badge" style="display:none"></span>
     <div id="detailBenefitReason" class="tax-benefit-reason" style="display:none"></div>
+
+    <div class="tax-confirm-bar">
+        <button type="button" id="detailConfirmBtn" class="tax-batch-btn" style="display:none">확정신고 저장</button>
+        <span id="detailConfirmResult" class="tax-batch-result"></span>
+    </div>
+
+    <div class="tax-expected-relief">
+        <button type="button" id="detailReliefBtn" class="tax-batch-btn">F7 · 오늘 RIA로 옮겨 팔면 예상 감면세액 조회</button>
+        <div id="detailReliefResult" class="tax-detail-grid" style="display:none">
+            <div><div class="tax-detail-item-label">가정 결제일 (T+2)</div><div id="reliefFinalAt" class="tax-detail-item-value">-</div></div>
+            <div><div class="tax-detail-item-label">예상 최종세액</div><div id="reliefFinalTax" class="tax-detail-item-value tax-detail-item-value-highlight">-</div></div>
+        </div>
+    </div>
 
     <div class="tax-detail-grid">
         <div><div class="tax-detail-item-label">[1] 가중매도금액</div><div id="detailWeightedSell" class="tax-detail-item-value">-</div></div>
