@@ -29,7 +29,11 @@ public class AppException extends RuntimeException {
     }
 
     public AppException(ErrorType errorType, Object errorData) {
-        super(errorType.getMessage());
+        this(errorType, errorData, null);
+    }
+
+    public AppException(ErrorType errorType, Object errorData, Throwable cause) {
+        super(errorType.getMessage(), cause);
         this.errorType = errorType;
         this.errorData = errorData;
     }

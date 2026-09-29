@@ -14,7 +14,6 @@ import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountRes
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
-import com.app.maria.global.exception.GeneralAccountApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,8 +70,8 @@ class GeneralAccountClientTest {
     }
 
     @Test
-    @DisplayName("증권사 API가 4xx를 반환하면 인출 불가 예외로 변환한다")
-    void verifyGeneralAccountConvertsClientErrorToWithdrawalNotAllowed() {
+    @DisplayName("증권사 API가 4xx를 반환하면 목적지 계좌 확인 실패로 변환한다")
+    void verifyGeneralAccountConvertsClientErrorToDestinationNotAvailable() {
         mockServer
                 .expect(requestTo(VERIFY_URL))
                 .andRespond(
@@ -82,26 +81,32 @@ class GeneralAccountClientTest {
 
         assertThatThrownBy(() -> generalAccountClient.verifyGeneralAccount(request()))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
+                .hasMessage(ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE.getMessage())
+                .satisfies(
+                        throwable ->
+                                assertThat(((AppException) throwable).getErrorType())
+                                        .isEqualTo(
+                                                ErrorType
+                                                        .WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE));
         mockServer.verify();
     }
 
     @Test
-    @DisplayName("증권사 API가 5xx를 반환하면 외부 API 예외로 변환하고 원인을 보존한다")
-    void verifyGeneralAccountConvertsServerErrorToApiException() {
+    @DisplayName("증권사 API가 5xx를 반환하면 일반계좌 API 연결 실패로 변환하고 원인을 보존한다")
+    void verifyGeneralAccountConvertsServerErrorToUnavailable() {
         mockServer
                 .expect(requestTo(VERIFY_URL))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         assertThatThrownBy(() -> generalAccountClient.verifyGeneralAccount(request()))
-                .isInstanceOf(GeneralAccountApiException.class)
-                .hasMessage("증권사 일반계좌 검증 API 호출에 실패했습니다.")
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE.getMessage())
                 .hasCauseInstanceOf(org.springframework.web.client.HttpServerErrorException.class);
         mockServer.verify();
     }
 
     @Test
-    @DisplayName("정상 상태 응답이어도 data가 null이면 외부 API 예외를 발생시킨다")
+    @DisplayName("정상 상태 응답이어도 data가 null이면 잘못된 API 응답 예외를 발생시킨다")
     void verifyGeneralAccountRejectsEmptyData() {
         mockServer
                 .expect(requestTo(VERIFY_URL))
@@ -113,8 +118,12 @@ class GeneralAccountClientTest {
                                 MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> generalAccountClient.verifyGeneralAccount(request()))
-                .isInstanceOf(GeneralAccountApiException.class)
-                .hasMessage("인출 목적지 일반계좌를 확인할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.GENERAL_ACCOUNT_API_INVALID_RESPONSE.getMessage())
+                .satisfies(
+                        throwable ->
+                                assertThat(((AppException) throwable).getErrorType())
+                                        .isEqualTo(ErrorType.GENERAL_ACCOUNT_API_INVALID_RESPONSE));
         mockServer.verify();
     }
 
