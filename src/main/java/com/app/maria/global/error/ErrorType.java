@@ -32,8 +32,23 @@ public enum ErrorType {
     TAX_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "유효한 세액 규칙을 찾지 못했습니다.", LogLevel.WARN),
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(
-            HttpStatus.CONFLICT, "이미 조기인출 정정이 처리된 계좌입니다.", LogLevel.WARN);
-
+            HttpStatus.CONFLICT, "이미 조기인출 정정이 처리된 계좌입니다.", LogLevel.WARN),
+    WITHDRAWAL_NOT_FOUND(HttpStatus.NOT_FOUND, "인출 내역을 찾을 수 없습니다.", LogLevel.WARN),
+    WITHDRAWAL_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "인출할 수 없는 요청입니다.", LogLevel.WARN),
+    EARLY_WITHDRAWAL_CONSENT_REQUIRED(
+            HttpStatus.BAD_REQUEST, "미경과 원금을 인출하려면 조기인출 동의가 필요합니다.", LogLevel.WARN),
+    INSUFFICIENT_WITHDRAWAL_AMOUNT(
+            HttpStatus.BAD_REQUEST, "계좌 잔액보다 많은 금액을 인출할 수 없습니다.", LogLevel.WARN),
+    WITHDRAWAL_PROCESSING_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "인출 처리에 실패했습니다.", LogLevel.ERROR),
+    ACCOUNT_CLOSURE_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 해지 신청을 찾을 수 없습니다.", LogLevel.WARN),
+    ACCOUNT_CLOSURE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "계좌를 해지할 수 없는 상태입니다.", LogLevel.WARN),
+    ACCOUNT_CLOSURE_STATE_CONFLICT(HttpStatus.CONFLICT, "계좌 상태가 변경되어 처리할 수 없습니다.", LogLevel.WARN),
+    ACCOUNT_CLOSURE_PROCESSING_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "계좌 해지 처리에 실패했습니다.", LogLevel.ERROR),
+    SYSTEM_CLOCK_NOT_INITIALIZED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "업무시각이 초기화되지 않았습니다.", LogLevel.ERROR),
+    SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN);
     private final HttpStatus status;
     private final String message;
     private final LogLevel logLevel;

@@ -7,9 +7,10 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -52,8 +53,8 @@ class WithdrawalFailureServiceTest {
         when(withdrawalMapper.insertWithdrawal(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalFailureService.recordInsufficientBalance(exception))
-                .isInstanceOf(WithdrawalProcessingException.class)
-                .hasMessage("인출 실패 이력 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
     }
 
     private InsufficientWithdrawalAmountException insufficientBalanceException() {

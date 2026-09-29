@@ -3,6 +3,8 @@ package com.app.maria.domain.withdrawal.service;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,8 @@ public class WithdrawalServiceFacade implements WithdrawalService {
             return withdrawalProcessor.withdraw(requestDTO);
         } catch (InsufficientWithdrawalAmountException exception) {
             withdrawalFailureService.recordInsufficientBalance(exception);
-            throw exception;
+            throw new AppException(
+                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, exception.getAccountId());
         }
     }
 
@@ -30,7 +33,8 @@ public class WithdrawalServiceFacade implements WithdrawalService {
             return withdrawalProcessor.withdrawForClosure(requestDTO);
         } catch (InsufficientWithdrawalAmountException exception) {
             withdrawalFailureService.recordInsufficientBalance(exception);
-            throw exception;
+            throw new AppException(
+                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, exception.getAccountId());
         }
     }
 
