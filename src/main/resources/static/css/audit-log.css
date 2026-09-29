@@ -81,7 +81,7 @@
 .audit-log-table th {
     padding: 9px 14px;
     background: var(--tableHeaderBg);
-    text-align: left;
+    text-align: center;
     white-space: nowrap;
     color: var(--textMuted);
     font: 600 10.5px 'Noto Sans KR', sans-serif;
@@ -92,6 +92,7 @@
     border-top: 1px solid var(--cardBorder);
     color: var(--textSecondary);
     font: 400 12px 'Noto Sans KR', sans-serif;
+    text-align: center;
     vertical-align: top;
 }
 
@@ -138,18 +139,42 @@
     background: var(--tealBg);
 }
 
+.audit-log-target-badge.type-tax-snapshot-batch {
+    color: var(--warning);
+    background: var(--warningBg);
+}
+
 .audit-log-target-name {
     color: var(--textPrimary);
     font-weight: 500;
 }
 
-.audit-log-before {
+.audit-log-change-cell {
+    text-align: center;
+}
+
+.audit-log-change-row {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.audit-log-change-from {
     color: var(--textMuted);
 }
 
-.audit-log-after {
+.audit-log-change-arrow {
+    color: var(--textMuted);
+}
+
+.audit-log-change-to {
     color: var(--success);
     font-weight: 600;
+}
+
+.audit-log-change-to.request-only {
+    color: var(--textPrimary);
+    font-weight: 500;
 }
 
 .audit-log-empty,

@@ -5,25 +5,25 @@
         insert into tax_snapshot (
             account_id,
             calculated_at,
-                                  weighted_sell,
-                                  original_gain_amount,
-                                  weighted_gain,
-                                  weighted_external_amount,
-                                  adjust_ratio,
-                                  final_deduction,
-                                  final_tax
+            weighted_sell,
+            original_gain_amount,
+            weighted_gain,
+            weighted_external_amount,
+            adjust_ratio,
+            final_deduction,
+            final_tax
         )values
              <foreach collection="snapshots" item="snapshot" separator=",">
                  (
-                    #{snapshot.accountId},
-                  #{snapshot.calculatedAt},
-                  #{snapshot.weightedSell},
-                  #{snapshot.originalGainAmount},
-                  #{snapshot.weightedGain},
-                  #{snapshot.weightedExternalAmount},
-                  #{snapshot.adjustRatio},
-                 #{snapshot.finalDeduction},
-                  #{snapshot.finalTax}
+                #{snapshot.accountId},
+                #{snapshot.calculatedAt},
+                #{snapshot.weightedSell},
+                #{snapshot.originalGainAmount},
+                #{snapshot.weightedGain},
+                #{snapshot.weightedExternalAmount},
+                #{snapshot.adjustRatio},
+                #{snapshot.finalDeduction},
+                #{snapshot.finalTax}
                  )
              </foreach>
         on duplicate key update

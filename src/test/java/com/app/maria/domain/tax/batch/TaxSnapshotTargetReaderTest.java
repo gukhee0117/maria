@@ -62,8 +62,8 @@ class TaxSnapshotTargetReaderTest {
                                 account(10L, BenefitType.POSSIBLE),
                                 account(20L, BenefitType.POSSIBLE)));
         SellLotDTO lotForA =
-                SellLotDTO.builder().accountId(10L).sellAt(LocalDate.of(2026, 3, 10)).build();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                SellLotDTO.builder().accountId(10L).finalAt(LocalDate.of(2026, 3, 10)).build();
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of(lotForA));
         ExternalBuyDTO externalForB =
@@ -71,7 +71,7 @@ class TaxSnapshotTargetReaderTest {
                         .accountId(20L)
                         .tradeDate(LocalDate.of(2026, 6, 15))
                         .build();
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of(externalForB));
 
@@ -95,17 +95,18 @@ class TaxSnapshotTargetReaderTest {
                         List.of(
                                 account(10L, BenefitType.POSSIBLE),
                                 account(20L, BenefitType.POSSIBLE)));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
         when(accountMapper.selectOpenedAccountsAfter(20L, PAGE_SIZE))
                 .thenReturn(List.of(account(30L, BenefitType.POSSIBLE)));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(30L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
+                        List.of(30L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(30L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(30L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
         when(accountMapper.selectOpenedAccountsAfter(30L, PAGE_SIZE)).thenReturn(List.of());
 
@@ -131,7 +132,7 @@ class TaxSnapshotTargetReaderTest {
         assertThat(reader.read()).isNull();
 
         verify(taxMapper, never())
-                .findFinalizedLotsByAccountIdsAndYear(
+                .selectFinalizedLotsByAccountIdsAndYear(
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.anyInt(),
                         org.mockito.ArgumentMatchers.any());
@@ -149,9 +150,11 @@ class TaxSnapshotTargetReaderTest {
 
         when(accountMapper.selectOpenedAccountsAfter(500L, PAGE_SIZE))
                 .thenReturn(List.of(account(600L, BenefitType.POSSIBLE)));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(600L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
+                        List.of(600L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(600L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(
+                        List.of(600L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
 
         TaxSnapshotTargetDTO target = restarted.read();
@@ -168,10 +171,10 @@ class TaxSnapshotTargetReaderTest {
                         List.of(
                                 account(10L, BenefitType.POSSIBLE),
                                 account(20L, BenefitType.POSSIBLE)));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(10L, 20L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
 
@@ -189,9 +192,10 @@ class TaxSnapshotTargetReaderTest {
     void read_과세연도는_설정값을_그대로_사용() {
         when(accountMapper.selectOpenedAccountsAfter(0L, PAGE_SIZE))
                 .thenReturn(List.of(account(10L, BenefitType.POSSIBLE)));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(10L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(
+                        List.of(10L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(10L), TAX_YEAR, CALCULATED_AT))
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(10L), TAX_YEAR, CALCULATED_AT))
                 .thenReturn(List.of());
 
         reader.read();

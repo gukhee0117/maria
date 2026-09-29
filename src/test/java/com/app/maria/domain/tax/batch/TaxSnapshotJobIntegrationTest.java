@@ -25,16 +25,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-/**
- * taxSnapshotJob을 실제 Spring Batch로 끝까지 돌려본다.
- *
- * <p>컴포넌트 단위 테스트(Reader/Processor/Writer)는 이미 Mockito로 검증했다. 여기서만 확인할 수 있는 것: (1)
- * TaxSnapshotJobConfig의 @Qualifier("transactionManager")가 SettlementJobConfig의
- * ResourcelessTransactionManager와 충돌 없이 뜨는지, (2) 실제 keyset 페이징이 페이지 경계를 넘겨도 전부 처리하는지, (3) skip이
- * Spring Batch Step 안에서 실제로 동작하는지.
- *
- * <p>real MariaDB/Redis 대신 H2로 격리한다({@code application-batchtest.yml}).
- */
 @SpringBootTest
 @ActiveProfiles("batchtest")
 class TaxSnapshotJobIntegrationTest {
@@ -64,7 +54,6 @@ class TaxSnapshotJobIntegrationTest {
         }
     }
 
-    /** RELIEF_RATE가 1~5월/6~7월/8~12월로 연중 빈틈없이 커버된 정상 세율표. */
     private void insertFullYearReliefRates(Statement statement) throws SQLException {
         statement.execute(
                 """
@@ -202,11 +191,9 @@ class TaxSnapshotJobIntegrationTest {
 
         assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
         assertThat(countSnapshots()).isEqualTo(2);
-        // A: 매도 24,000,000 - 취득(150*1300*100)=19,500,000 → 양도소득 4,500,000, 1~5월 가중치 100%
         assertThat(snapshotColumn(accountA, "weighted_sell")).isEqualByComparingTo("24000000.00");
         assertThat(snapshotColumn(accountA, "original_gain_amount"))
                 .isEqualByComparingTo("4500000.00");
-        // B: 매도 13,000,000 - 취득(200*1300*100)=26,000,000 → 손실이라 양도소득 -13,000,000
         assertThat(snapshotColumn(accountB, "original_gain_amount"))
                 .isEqualByComparingTo("-13000000.00");
     }
@@ -231,8 +218,6 @@ class TaxSnapshotJobIntegrationTest {
         Long healthyAccount = insertOpenedAccount("healthy".repeat(9));
         insertFinalizedLot(healthyAccount, LocalDateTime.of(2026, 3, 10, 10, 0), "24000000", "150");
 
-        // 8월 매도(calculatedAt=8/14 이전이라 조회 대상엔 포함됨)인데, RELIEF_RATE 8~12월 규칙 자체를
-        // 지워서 findWeight가 못 찾게 만들어 TaxRuleNotFoundException을 강제로 유도한다.
         Long brokenAccount = insertOpenedAccount("broken".repeat(9));
         insertFinalizedLot(brokenAccount, LocalDateTime.of(2026, 8, 10, 10, 0), "10000000", "100");
         try (Connection connection = dataSource.getConnection();
@@ -279,17 +264,13 @@ class TaxSnapshotJobIntegrationTest {
     void job_외부순매수가_배치전체흐름에서_스냅샷에_반영된다() throws Exception {
         String ciHash = "extflow".repeat(9);
         Long accountId = insertOpenedAccount(ciHash);
-        // 매도 20,000,000 - 취득(50*1300*100)=6,500,000 → 양도소득 13,500,000, 1~5월 가중치 100%
         insertFinalizedLot(accountId, LocalDateTime.of(2026, 3, 10, 10, 0), "20000000", "50");
 
-        // 컷오프(calculatedAt=2026-08-14 02:00) 이전 판정 → 반영돼야 함. 6~7월 가중치 80%.
         insertExternalBuy(
                 ciHash,
                 LocalDateTime.of(2026, 6, 15, 0, 0),
                 "5000000",
                 LocalDateTime.of(2026, 8, 13, 0, 0));
-        // 컷오프 이후 판정 → 반영되면 안 됨. judged_at 조건이 깨지면 이 큰 금액이 섞여
-        // adjustRatio가 크게 달라지므로 회귀를 바로 잡아낸다.
         insertExternalBuy(
                 ciHash,
                 LocalDateTime.of(2026, 6, 20, 0, 0),
@@ -299,10 +280,8 @@ class TaxSnapshotJobIntegrationTest {
         JobExecution execution = jobLauncher.run(taxSnapshotJob, jobParameters());
 
         assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-        // weighted_external = 5,000,000 * 0.8 = 4,000,000 (컷오프 이후 건 제외)
         assertThat(snapshotColumn(accountId, "weighted_external_amount"))
                 .isEqualByComparingTo("4000000.00");
-        // adjustRatio = 1 - (4,000,000 / 20,000,000) = 0.8000
         assertThat(snapshotColumn(accountId, "adjust_ratio")).isEqualByComparingTo("0.8000");
     }
 
@@ -346,15 +325,15 @@ class TaxSnapshotJobIntegrationTest {
         String ciHash = "rollback".repeat(8);
         Long accountId = insertOpenedAccount(ciHash);
         insertFinalizedLot(accountId, LocalDateTime.of(2026, 3, 10, 10, 0), "20000000", "50");
-        // POSSIBLE(초기값)과 다른 상태로 바뀌어야 changeBenefit이 실제로 UPDATE+로그 기록을 시도한다.
         insertExternalBuy(
                 ciHash,
                 LocalDateTime.of(2026, 6, 15, 0, 0),
                 "5000000",
                 LocalDateTime.of(2026, 8, 13, 0, 0));
 
-        // account_benefit_log를 없애서 changeBenefit 내부 이력 기록이 실제로 실패하게 만든다.
-        // 다른 테스트에 영향을 주지 않도록 검증 후 반드시 테이블을 복구한다.
+        // account_benefit_log 테이블을 강제로 drop해 changeBenefit 내부 UPDATE+로그 기록을 실패시킨다.
+        // 청크 트랜잭션이 이 실패로 롤백되면서 같은 청크의 스냅샷 저장도 함께 되돌아가는지 검증한다.
+        // (다른 테스트에 영향 없도록 finally에서 반드시 테이블을 복구)
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE account_benefit_log");

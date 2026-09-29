@@ -11,8 +11,6 @@ import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.stereotype.Component;
 
-// 세액 스냅샷 배치는 실제 Spring Batch로 돌기 때문에, 별도 이력 테이블을 새로 만들지 않고
-// Spring Batch가 이미 관리하는 실행 메타데이터(BATCH_JOB_EXECUTION 등)를 JobExplorer로 조회한다.
 @Component
 @RequiredArgsConstructor
 public class TaxSnapshotBatchHistoryReader {

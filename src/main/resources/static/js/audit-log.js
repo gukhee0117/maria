@@ -4,7 +4,8 @@ $(function () {
         SYSTEM_CLOCK: "시스템 시각",
         ACCOUNT: "계좌",
         SETTLEMENT_BATCH: "정산배치",
-        SETTLEMENT_ITEM: "정산항목"
+        SETTLEMENT_ITEM: "정산항목",
+        TAX_SNAPSHOT_BATCH: "세액 스냅샷 배치"
     };
     var REASON_CODE_LABEL = {
         ADMIN_ROLE_UPDATE: "관리자 권한 변경",
@@ -19,7 +20,8 @@ $(function () {
         ACCOUNT_CLOSURE_REJECTED: "계좌 해지 반려",
         SETTLEMENT_BATCH_REQUESTED: "정산 배치 실행 요청",
         SETTLEMENT_BATCH_RETRIED: "정산 배치 재처리",
-        SETTLEMENT_ITEM_RETRIED: "정산 항목 재처리"
+        SETTLEMENT_ITEM_RETRIED: "정산 항목 재처리",
+        TAX_SNAPSHOT_BATCH_REQUESTED: "세액 스냅샷 배치 실행 요청"
     };
     var ROLE_LABEL = {
         VIEWER: "조회전용",
@@ -66,7 +68,8 @@ $(function () {
         SYSTEM_CLOCK: "type-system-clock",
         ACCOUNT: "type-account",
         SETTLEMENT_BATCH: "type-settlement-batch",
-        SETTLEMENT_ITEM: "type-settlement-item"
+        SETTLEMENT_ITEM: "type-settlement-item",
+        TAX_SNAPSHOT_BATCH: "type-tax-snapshot-batch"
     };
 
     function targetTableLabel(value) {
@@ -132,6 +135,19 @@ $(function () {
         logs.forEach(function (log) {
             var adminLabel = log.adminName ? log.adminName : "관리자 ID " + log.adminId;
             var targetLabel = log.targetName ? log.targetName : "#" + log.targetPk;
+            var before = formatAuditValue(log.targetTable, log.beforeValue);
+            var after = formatAuditValue(log.targetTable, log.afterValue);
+            var changeHtml;
+            if (log.beforeValue == null) {
+                changeHtml = "<span class=\"audit-log-change-to request-only\">" + escapeHtml(after) + "</span>";
+            } else {
+                changeHtml =
+                    "<span class=\"audit-log-change-row\">" +
+                    "<span class=\"audit-log-change-from\">" + escapeHtml(before) + "</span>" +
+                    "<span class=\"audit-log-change-arrow\">→</span>" +
+                    "<span class=\"audit-log-change-to\">" + escapeHtml(after) + "</span>" +
+                    "</span>";
+            }
             $body.append(
                 "<tr>" +
                 "<td>" + formatDateTime(log.processedAt) + "</td>" +
@@ -142,10 +158,7 @@ $(function () {
                 escapeHtml(targetTableLabel(log.targetTable)) + "</span></td>" +
                 "<td class=\"audit-log-target-name\">" + escapeHtml(targetLabel) + "</td>" +
                 "<td>" + escapeHtml(reasonCodeLabel(log.reasonCode)) + "</td>" +
-                "<td class=\"audit-log-before\">" +
-                escapeHtml(formatAuditValue(log.targetTable, log.beforeValue)) + "</td>" +
-                "<td class=\"audit-log-after\">" +
-                escapeHtml(formatAuditValue(log.targetTable, log.afterValue)) + "</td>" +
+                "<td class=\"audit-log-change-cell\">" + changeHtml + "</td>" +
                 "</tr>"
             );
         });
