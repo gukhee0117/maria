@@ -3,9 +3,10 @@ package com.app.maria.domain.withdrawal.service;
 import com.app.maria.domain.withdrawal.dto.WithdrawalHistoryDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,10 @@ public class WithdrawalQueryServiceImpl implements WithdrawalQueryService {
         WithdrawalHistoryDTO withdrawal =
                 withdrawalMapper
                         .selectWithdrawalHistoryById(withdrawalId)
-                        .orElseThrow(() -> new WithdrawalNotFoundException("인출 내역을 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.WITHDRAWAL_NOT_FOUND, withdrawalId));
 
         return WithdrawalDetailResponseDTO.from(
                 withdrawal, withdrawalMapper.selectAllocationHistoriesByWithdrawalId(withdrawalId));

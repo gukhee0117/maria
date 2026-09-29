@@ -15,12 +15,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.accountclosure.dto.request.AccountClosureApplyRequestDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureDetailResponseDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureResponseDTO;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotAllowedException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotFoundException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureProcessingException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureStateConflictException;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.accountclosure.type.AccountClosureStatus;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import java.math.BigDecimal;
@@ -134,40 +132,46 @@ class AccountClosureApiTest {
     @Test
     void notAllowedClosureReturnsBadRequest() throws Exception {
         when(accountClosureService.applyClosure(eq(10L), any(AccountClosureApplyRequestDTO.class)))
-                .thenThrow(new AccountClosureNotAllowedException("해지를 신청할 수 없습니다."));
+                .thenThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED));
 
         mockMvc.perform(
                         post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("해지를 신청할 수 없습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage()));
     }
 
     @Test
     void closureProcessingFailureReturnsInternalServerError() throws Exception {
         when(accountClosureService.applyClosure(eq(10L), any(AccountClosureApplyRequestDTO.class)))
-                .thenThrow(new AccountClosureProcessingException("계좌 해지 신청 저장에 실패했습니다."));
+                .thenThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED));
 
         mockMvc.perform(
                         post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value("계좌 해지 신청 저장에 실패했습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage()));
     }
 
     @Test
     void concurrentAccountStateChangeReturnsConflict() throws Exception {
         when(accountClosureService.applyClosure(eq(10L), any(AccountClosureApplyRequestDTO.class)))
-                .thenThrow(new AccountClosureStateConflictException("계좌 상태가 변경되어 해지를 신청할 수 없습니다."));
+                .thenThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_STATE_CONFLICT));
 
         mockMvc.perform(
                         post("/api/admin/account-closures")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(validRequest()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("계좌 상태가 변경되어 해지를 신청할 수 없습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.ACCOUNT_CLOSURE_STATE_CONFLICT.getMessage()));
 
         verify(accountClosureService)
                 .applyClosure(eq(10L), any(AccountClosureApplyRequestDTO.class));
@@ -209,7 +213,7 @@ class AccountClosureApiTest {
 
     @Test
     void missingClosureRequestReturnsNotFound() throws Exception {
-        doThrow(new AccountClosureNotFoundException("계좌 해지 신청을 찾을 수 없습니다."))
+        doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND))
                 .when(accountClosureService)
                 .rejectClosure(7L, 999L, "반려 사유");
 
@@ -240,7 +244,7 @@ class AccountClosureApiTest {
 
     @Test
     void missingApprovalRequestReturnsNotFound() throws Exception {
-        doThrow(new AccountClosureNotFoundException("계좌 해지 신청을 찾을 수 없습니다."))
+        doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND))
                 .when(accountClosureService)
                 .approveClosure(7L, 999L);
 
@@ -253,24 +257,28 @@ class AccountClosureApiTest {
 
     @Test
     void approvalOfAlreadyProcessedClosureReturnsBadRequest() throws Exception {
-        doThrow(new AccountClosureNotAllowedException("이미 처리된 계좌 해지 신청입니다."))
+        doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED))
                 .when(accountClosureService)
                 .approveClosure(7L, 30L);
 
         mockMvc.perform(post("/api/admin/account-closures/30/approve"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("이미 처리된 계좌 해지 신청입니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage()));
     }
 
     @Test
     void approvalProcessingFailureReturnsInternalServerError() throws Exception {
-        doThrow(new AccountClosureProcessingException("계좌 해지 신청 완료 처리에 실패했습니다."))
+        doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED))
                 .when(accountClosureService)
                 .approveClosure(7L, 30L);
 
         mockMvc.perform(post("/api/admin/account-closures/30/approve"))
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value("계좌 해지 신청 완료 처리에 실패했습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage()));
     }
 
     @Test
@@ -337,7 +345,7 @@ class AccountClosureApiTest {
     @Test
     void missingClosureDetailReturnsNotFound() throws Exception {
         when(accountClosureService.getClosure(999L))
-                .thenThrow(new AccountClosureNotFoundException("계좌 해지 신청을 찾을 수 없습니다."));
+                .thenThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND));
 
         mockMvc.perform(get("/api/admin/account-closures/999"))
                 .andExpect(status().isNotFound())

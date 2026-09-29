@@ -14,12 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalAllocationResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
 import com.app.maria.domain.withdrawal.service.WithdrawalQueryService;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -165,7 +166,7 @@ class WithdrawalApiTest {
     @Test
     void missingWithdrawalReturnsNotFound() throws Exception {
         when(withdrawalQueryService.getWithdrawal(99L))
-                .thenThrow(new WithdrawalNotFoundException("인출 내역을 찾을 수 없습니다."));
+                .thenThrow(new AppException(ErrorType.WITHDRAWAL_NOT_FOUND));
 
         mockMvc.perform(get("/api/admin/withdrawals/99"))
                 .andExpect(status().isNotFound())
