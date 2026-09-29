@@ -95,8 +95,7 @@ $(function () {
     }
 
     function canTriggerBatch() {
-        var admin = MARIA.auth.currentAdmin();
-        return !!admin && (admin.role === "ADMIN" || admin.role === "SETTLEMENT");
+        return MARIA.auth.hasRole("SETTLEMENT");
     }
 
     function totalPagesOf(list) {
@@ -554,7 +553,9 @@ $(function () {
     $("#kpiCardTaxable").on("click", function () { setKpiFilter("taxable"); });
     $("#kpiCardReduced").on("click", function () { setKpiFilter("reducedOrExcluded"); });
 
-    $("#batchTriggerGroup").toggle(canTriggerBatch());
+    MARIA.auth.requireAuth().done(function () {
+        $("#batchTriggerGroup").toggle(canTriggerBatch());
+    });
     $("#triggerBatch").on("click", function () {
         if (!canTriggerBatch()) return;
         MARIA.auth.ajax({ url: "/api/admin/tax/snapshots/jobs", method: "POST" })
