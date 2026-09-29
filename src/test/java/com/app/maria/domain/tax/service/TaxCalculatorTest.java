@@ -351,7 +351,6 @@ class TaxCalculatorTest {
                 calculator.calculate(lots, allSeedRules(), external, false);
 
         assertThat(result.getWeightedExternalAmount()).isEqualByComparingTo("0");
-        assertThat(result.getWeightedExternalAmount().signum()).isZero();
     }
 
     @Test
@@ -485,7 +484,6 @@ class TaxCalculatorTest {
                 calculator.calculate(lots, allSeedRules(), external, false);
 
         assertThat(result.getAdjustRatio()).isEqualByComparingTo("0.0000");
-        assertThat(result.getAdjustRatio().signum()).isNotNegative();
     }
 
     @Test
@@ -587,7 +585,6 @@ class TaxCalculatorTest {
 
         assertThat(result.getWeightedExternalAmount()).isEqualByComparingTo("0");
         assertThat(result.getAdjustRatio()).isEqualByComparingTo("1.0000");
-        assertThat(result.getAdjustRatio()).isLessThanOrEqualTo(new BigDecimal("1.0000"));
     }
 
     private static final List<SellLotDTO> GOLDEN_LOTS =
