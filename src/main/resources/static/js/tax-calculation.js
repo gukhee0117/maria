@@ -127,6 +127,12 @@ $(function () {
             var benefit = ((accountMap[snap.accountId] || {}).benefit || "").toLowerCase();
             return benefit === "reduced" || benefit === "impossible";
         }
+        if (kpiFilter === "needsFinalReport") {
+            return !!snap.needsFinalReport;
+        }
+        if (kpiFilter === "needsClawback") {
+            return !!snap.needsClawback;
+        }
         return true;
     }
 
@@ -163,6 +169,8 @@ $(function () {
         $("#kpiCardAll").toggleClass("is-active", kpiFilter === null);
         $("#kpiCardTaxable").toggleClass("is-active", kpiFilter === "taxable");
         $("#kpiCardReduced").toggleClass("is-active", kpiFilter === "reducedOrExcluded");
+        $("#kpiCardUnconfirmed").toggleClass("is-active", kpiFilter === "needsFinalReport");
+        $("#kpiCardClawback").toggleClass("is-active", kpiFilter === "needsClawback");
     }
 
     function renderSnapshots(snapshots) {
@@ -180,7 +188,7 @@ $(function () {
         $("#taxSnapshotCount").text(visible.length + "건" + (visible.length !== allSnapshots.length ? " (전체 " + allSnapshots.length + "건 중)" : ""));
 
         if (visible.length === 0) {
-            $body.append('<tr><td colspan="9" class="tax-empty">' + (searchKeyword || benefitFilter ? "조건에 맞는 계좌가 없습니다." : "세액 계산 결과가 없습니다.") + '</td></tr>');
+            $body.append('<tr><td colspan="10" class="tax-empty">' + (searchKeyword || benefitFilter ? "조건에 맞는 계좌가 없습니다." : "세액 계산 결과가 없습니다.") + '</td></tr>');
             $("#taxPagination").empty();
             return;
         }
@@ -194,6 +202,9 @@ $(function () {
             var benefitKey = (account.benefit || "").toLowerCase();
             var calculationStatus = snapshotStatus(snap);
             var selectedClass = Number(snap.accountId) === Number(selectedAccountId) ? " is-selected" : "";
+            var actionBadges = [];
+            if (snap.needsFinalReport) actionBadges.push('<span class="status-badge reduced">확정신고 필요</span>');
+            if (snap.needsClawback) actionBadges.push('<span class="status-badge impossible">추징 필요</span>');
             var row =
                 "<tr class=\"tax-snapshot-row" + selectedClass + "\" data-account-id=\"" + snap.accountId + "\">" +
                 "<td><div class=\"account-no\">" + MARIA.fmt.hyphenateAccountNo(account.accountNo) + "</div>" +
@@ -207,6 +218,7 @@ $(function () {
                 "<td>" + formatAmount(snap.finalTax) + "</td>" +
                 "<td>" + formatDateTime(snap.calculatedAt) + "</td>" +
                 "<td><span class=\"" + calculationStatus.className + "\">" + calculationStatus.label + "</span></td>" +
+                "<td>" + (actionBadges.length ? actionBadges.join(" ") : "-") + "</td>" +
                 "</tr>";
             $body.append(row);
         });
@@ -346,9 +358,10 @@ $(function () {
             $("#detailFinalDeduction").text(formatAmount(result.finalDeduction));
             $("#detailOriginalGain").html(formatSignedAmount(result.originalGainAmount));
             $("#detailFinalTax").text(formatAmount(result.finalTax));
-            renderBreakdown(result.periodBreakdown);
-            renderLotDetails(result.sellLotDetails);
-            renderExternalTradeDetails(result.externalTradeDetails);
+            var breakdown = data.breakdown || {};
+            renderBreakdown(breakdown.periodBreakdown);
+            renderLotDetails(breakdown.sellLotDetails);
+            renderExternalTradeDetails(breakdown.externalTradeDetails);
 
             var snapshot = snapshotByAccountId[accountId];
             var isStale = snapshot && Number(snapshot.finalTax || 0) !== Number(result.finalTax || 0);
@@ -370,6 +383,11 @@ $(function () {
             } else {
                 $("#detailSavedBadge").hide();
             }
+
+            $("#detailConfirmBtn").toggle(MARIA.auth.hasRole("SETTLEMENT"));
+            $("#detailConfirmResult").text("");
+            $("#detailReliefResult").hide();
+            $("#reliefFinalAt, #reliefFinalTax").text("-");
         }).fail(function (xhr) {
             if (xhr.status === 401) return;
             var message = (xhr.responseJSON && xhr.responseJSON.message) || "세액 미리보기를 불러오지 못했습니다.";
@@ -396,6 +414,31 @@ $(function () {
         }
 
         renderBatchHistoryPage();
+        renderTodayBatchIssueKpi();
+    }
+
+    function renderTodayBatchIssueKpi() {
+        if (!businessToday) return;
+        var count = 0;
+        allBatchHistory.forEach(function (item) {
+            if (dateOnly(item.startTime) !== businessToday) return;
+            count += Number(item.skipCount || 0);
+            if (item.status === "FAILED") count += 1;
+        });
+        $("#kpiBatchIssue").text(count);
+    }
+
+    function loadActionSummary() {
+        MARIA.auth.ajax({ url: "/api/admin/tax/action-summary", method: "GET" })
+            .done(function (res) {
+                $("#kpiUnconfirmed").text(res.data.unconfirmedFinalReportCount);
+                $("#kpiClawback").text(res.data.unprocessedClawbackCount);
+                $("#kpiBenefitChanged").text(res.data.benefitChangedTodayCount);
+            })
+            .fail(function (xhr) {
+                if (xhr.status === 401) return;
+                $("#kpiUnconfirmed, #kpiClawback, #kpiBenefitChanged").text("-");
+            });
     }
 
     function renderBatchHistoryPage() {
@@ -449,6 +492,7 @@ $(function () {
                 if (allSnapshots.length) {
                     renderPage();
                 }
+                renderTodayBatchIssueKpi();
             });
     }
 
@@ -514,6 +558,39 @@ $(function () {
 
     $("#detailCloseBtn, #detailPanelBackdrop").on("click", closeDetailPanel);
 
+    $("#detailConfirmBtn").on("click", function () {
+        if (!selectedAccountId) return;
+        var $btn = $(this).prop("disabled", true);
+        MARIA.auth.ajax({ url: "/api/admin/tax/calculations/" + selectedAccountId, method: "POST" })
+            .done(function (res) {
+                $("#detailConfirmResult").text((BASIS_LABEL[res.data.basisType] || res.data.basisType) + " 저장 완료");
+                openDetail(selectedAccountId);
+            })
+            .fail(function (xhr) {
+                if (xhr.status === 401) return;
+                $("#detailConfirmResult").text((xhr.responseJSON && xhr.responseJSON.message) || "저장 실패");
+            })
+            .always(function () { $btn.prop("disabled", false); });
+    });
+
+    $("#detailReliefBtn").on("click", function () {
+        if (!selectedAccountId) return;
+        var $btn = $(this).prop("disabled", true).text("조회 중...");
+        MARIA.auth.ajax({
+            url: "/api/admin/tax/preview/" + selectedAccountId + "/expected-relief",
+            method: "GET"
+        }).done(function (res) {
+            $("#reliefFinalAt").text(formatDate(res.data.expectedFinalAt));
+            $("#reliefFinalTax").text(formatAmount(res.data.taxCalculationResultDTO.finalTax));
+            $("#detailReliefResult").show();
+        }).fail(function (xhr) {
+            if (xhr.status === 401) return;
+            MARIA.ui.showError((xhr.responseJSON && xhr.responseJSON.message) || "예상 감면세액 조회에 실패했습니다.");
+        }).always(function () {
+            $btn.prop("disabled", false).text("F7 · 오늘 RIA로 옮겨 팔면 예상 감면세액 조회");
+        });
+    });
+
     $("#batchHistoryToggle").on("click", function () {
         var isOpen = $("#batchHistoryDetail").is(":visible");
         $("#batchHistoryDetail").toggle(!isOpen);
@@ -552,6 +629,8 @@ $(function () {
     $("#kpiCardAll").on("click", function () { setKpiFilter(null); });
     $("#kpiCardTaxable").on("click", function () { setKpiFilter("taxable"); });
     $("#kpiCardReduced").on("click", function () { setKpiFilter("reducedOrExcluded"); });
+    $("#kpiCardUnconfirmed").on("click", function () { setKpiFilter("needsFinalReport"); });
+    $("#kpiCardClawback").on("click", function () { setKpiFilter("needsClawback"); });
 
     MARIA.auth.requireAuth().done(function () {
         $("#batchTriggerGroup").toggle(canTriggerBatch());
@@ -578,4 +657,5 @@ $(function () {
 
     loadTax();
     loadBatchHistory();
+    loadActionSummary();
 });
