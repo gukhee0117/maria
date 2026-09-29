@@ -54,7 +54,6 @@ public class TaxSnapshotTargetReader implements ItemStreamReader<TaxSnapshotTarg
             return null;
         }
 
-        // 커서는 "읽은" 시점이 아니라 "소비한" 시점에 전진해야 재시작이 정확하다.
         lastAccountId = target.getAccount().getAccountId();
         return target;
     }
@@ -71,13 +70,13 @@ public class TaxSnapshotTargetReader implements ItemStreamReader<TaxSnapshotTarg
 
         Map<Long, List<SellLotDTO>> sellLotsByAccount =
                 taxMapper
-                        .findFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
+                        .selectFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
                         .stream()
                         .collect(Collectors.groupingBy(SellLotDTO::getAccountId));
 
         Map<Long, List<ExternalBuyDTO>> externalTradesByAccount =
                 taxMapper
-                        .findExternalBuysByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
+                        .selectExternalBuysByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
                         .stream()
                         .collect(Collectors.groupingBy(ExternalBuyDTO::getAccountId));
 

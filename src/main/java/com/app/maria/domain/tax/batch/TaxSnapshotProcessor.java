@@ -30,7 +30,7 @@ public class TaxSnapshotProcessor implements ItemProcessor<TaxSnapshotTargetDTO,
 
     @BeforeStep
     public void loadTaxRules(StepExecution stepExecution) {
-        taxRules = taxMapper.findTaxRules();
+        taxRules = taxMapper.selectTaxRules();
     }
 
     @Override

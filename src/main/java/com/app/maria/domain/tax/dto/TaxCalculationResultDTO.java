@@ -1,7 +1,6 @@
 package com.app.maria.domain.tax.dto;
 
 import java.math.BigDecimal;
-import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,19 +18,13 @@ public class TaxCalculationResultDTO {
     private BigDecimal adjustRatio;
     private BigDecimal finalDeduction;
     private BigDecimal finalTax;
-    private List<TaxPeriodBreakdownDTO> periodBreakdown;
-    private List<TaxLotDetailDTO> sellLotDetails;
-    private List<TaxExternalTradeDetailDTO> externalTradeDetails;
 
     public static TaxCalculationResultDTO of(
             RiaSellAggregateDTO riaSell,
             BigDecimal weightedExternalAmount,
             BigDecimal adjustRatio,
             BigDecimal finalDeduction,
-            BigDecimal finalTax,
-            List<TaxPeriodBreakdownDTO> periodBreakdown,
-            List<TaxLotDetailDTO> sellLotDetails,
-            List<TaxExternalTradeDetailDTO> externalTradeDetails) {
+            BigDecimal finalTax) {
         return TaxCalculationResultDTO.builder()
                 .originalGainAmount(riaSell.getOriginalGainAmount())
                 .weightedGain(riaSell.getWeightedGain())
@@ -40,9 +33,6 @@ public class TaxCalculationResultDTO {
                 .adjustRatio(adjustRatio)
                 .finalDeduction(finalDeduction)
                 .finalTax(finalTax)
-                .periodBreakdown(periodBreakdown)
-                .sellLotDetails(sellLotDetails)
-                .externalTradeDetails(externalTradeDetails)
                 .build();
     }
 }

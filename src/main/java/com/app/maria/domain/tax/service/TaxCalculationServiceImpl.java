@@ -10,15 +10,15 @@ import com.app.maria.domain.tax.batch.TaxSnapshotBatchHistoryReader;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
-import com.app.maria.domain.tax.dto.TaxBatchHistoryDTO;
+import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
-import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.mapper.TaxSnapshotMapper;
 import com.app.maria.domain.tax.type.TaxAuditLogReasonCode;
@@ -28,6 +28,8 @@ import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.RiaTaxProperties;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +48,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     private final BusinessClockService clockService;
     private final RiaTaxProperties riaTaxProperties;
     private final TaxCalculator taxCalculator;
+    private final TaxBreakdownAssembler taxBreakdownAssembler;
     private final TaxSnapshotMapper taxSnapshotMapper;
     private final TaxSnapshotJobLauncher taxSnapshotJobLauncher;
     private final TaxSnapshotBatchHistoryReader taxSnapshotBatchHistoryReader;
@@ -59,12 +62,24 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         Optional<AccountBenefitLogDTO> latestBenefitLog =
                 accountBenefitLogMapper.selectLatestByAccountId(accountId);
 
+        TaxCalculationInputs inputs = loadInputs(account);
+        TaxCalculationResultDTO result =
+                taxCalculator.calculate(
+                        inputs.sellLots(),
+                        inputs.taxRules(),
+                        inputs.externalTrades(),
+                        BenefitType.isReliefExcluded(account.getBenefit()));
+        TaxBreakdownDTO breakdown =
+                taxBreakdownAssembler.assemble(
+                        inputs.sellLots(), inputs.externalTrades(), inputs.taxRules());
+
         return TaxCalculationPreviewResponseDTO.of(
                 accountId,
-                calculateFor(account),
+                result,
+                breakdown,
                 latestBenefitLog.map(AccountBenefitLogDTO::getReason).orElse(null),
                 latestBenefitLog.map(AccountBenefitLogDTO::getChangedAt).orElse(null),
-                taxMapper.findLatestCalculation(accountId).orElse(null));
+                taxMapper.selectLatestCalculation(accountId).orElse(null));
     }
 
     @Override
@@ -80,8 +95,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         try {
             taxMapper.insertCalculation(taxCalculationDTO);
         } catch (DuplicateKeyException e) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 " + basisType + " 계산이 저장되었습니다. accountId=" + accountId);
+            throw new AppException(alreadyExistsErrorType(basisType), accountId);
         }
 
         return TaxCalculationSaveResponseDTO.of(taxCalculationDTO);
@@ -113,8 +127,10 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     @Override
-    public List<TaxBatchHistoryDTO> getRecentBatchHistory() {
-        return taxSnapshotBatchHistoryReader.findRecent();
+    public List<TaxBatchHistoryResponseDTO> getRecentBatchHistory() {
+        return taxSnapshotBatchHistoryReader.findRecent().stream()
+                .map(TaxBatchHistoryResponseDTO::of)
+                .toList();
     }
 
     private TaxBasisType resolveBasisType(AccountDTO account) {
@@ -124,14 +140,19 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
             return TaxBasisType.FINAL_REPORT;
         }
         if (account.getBenefit() != BenefitType.IMPOSSIBLE) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 확정신고된 계좌입니다. accountId=" + accountId);
+            throw new AppException(ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS, accountId);
         }
         if (taxMapper.existsByAccountAndBasis(accountId, TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK)) {
-            throw new TaxCalculationAlreadyExistsException(
-                    "이미 조기인출 정정이 처리된 계좌입니다. accountId=" + accountId);
+            throw new AppException(
+                    ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS, accountId);
         }
         return TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK;
+    }
+
+    private ErrorType alreadyExistsErrorType(TaxBasisType basisType) {
+        return basisType == TaxBasisType.FINAL_REPORT
+                ? ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS
+                : ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS;
     }
 
     private AccountDTO findAccount(Long accountId) {
@@ -141,20 +162,30 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     private TaxCalculationResultDTO calculateFor(AccountDTO account) {
+        TaxCalculationInputs inputs = loadInputs(account);
+        return taxCalculator.calculate(
+                inputs.sellLots(),
+                inputs.taxRules(),
+                inputs.externalTrades(),
+                BenefitType.isReliefExcluded(account.getBenefit()));
+    }
+
+    private TaxCalculationInputs loadInputs(AccountDTO account) {
         int taxYear = riaTaxProperties.getYear();
         List<Long> accountIds = List.of(account.getAccountId());
         LocalDateTime now = clockService.now();
 
         List<SellLotDTO> sellLots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, now);
-        List<TaxRuleDTO> taxRules = taxMapper.findTaxRules();
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, now);
+        List<TaxRuleDTO> taxRules = taxMapper.selectTaxRules();
         List<ExternalBuyDTO> externalTrades =
-                taxMapper.findExternalBuysByAccountIdsAndYear(accountIds, taxYear, now);
+                taxMapper.selectExternalBuysByAccountIdsAndYear(accountIds, taxYear, now);
 
-        return taxCalculator.calculate(
-                sellLots,
-                taxRules,
-                externalTrades,
-                BenefitType.isReliefExcluded(account.getBenefit()));
+        return new TaxCalculationInputs(sellLots, taxRules, externalTrades);
     }
+
+    private record TaxCalculationInputs(
+            List<SellLotDTO> sellLots,
+            List<TaxRuleDTO> taxRules,
+            List<ExternalBuyDTO> externalTrades) {}
 }

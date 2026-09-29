@@ -22,15 +22,10 @@ import com.app.maria.domain.accountclosure.dto.AccountClosureDTO;
 import com.app.maria.domain.accountclosure.dto.request.AccountClosureApplyRequestDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureDetailResponseDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureResponseDTO;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotAllowedException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotFoundException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureProcessingException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureStateConflictException;
 import com.app.maria.domain.accountclosure.mapper.AccountClosureMapper;
 import com.app.maria.domain.accountclosure.type.AccountClosureStatus;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.EarlyWithdrawalConsentRequiredException;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.exception.AuditLogInsertException;
@@ -41,6 +36,8 @@ import com.app.maria.global.client.generalaccount.dto.request.GeneralAccountRequ
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -90,7 +87,8 @@ class AccountClosureServiceImplTest {
                 .thenReturn(Optional.of(account(Status.CLOSURE_REQUESTED)));
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountClosureNotAllowedException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage());
 
         verify(accountMapper, never()).selectCiHashByCustomerId(any());
         verifyNoInteractions(generalAccountClient, accountClosureMapper, businessClockService);
@@ -116,8 +114,8 @@ class AccountClosureServiceImplTest {
                 .thenReturn(generalAccount(GeneralAccountStatus.CLOSED));
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountClosureNotAllowedException.class)
-                .hasMessage("활성 상태의 일반계좌만 해지 정산 계좌로 선택할 수 있습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage());
 
         verify(accountMapper, never()).requestClosure(ACCOUNT_ID);
         verifyNoInteractions(accountClosureMapper, businessClockService);
@@ -129,8 +127,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.requestClosure(ACCOUNT_ID)).thenReturn(0);
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountClosureStateConflictException.class)
-                .hasMessage("계좌 상태가 변경되어 해지를 신청할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_STATE_CONFLICT.getMessage());
 
         verifyNoInteractions(accountClosureMapper, businessClockService);
     }
@@ -143,8 +141,8 @@ class AccountClosureServiceImplTest {
         when(accountClosureMapper.insertClosureRequest(any())).thenReturn(0);
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("계좌 해지 신청 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
     }
 
     @Test
@@ -217,8 +215,8 @@ class AccountClosureServiceImplTest {
         when(withdrawalService.hasImmaturePrincipal(ACCOUNT_ID)).thenReturn(true);
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(false)))
-                .isInstanceOf(EarlyWithdrawalConsentRequiredException.class)
-                .hasMessage("1년 미경과 원금이 있어 계좌 해지를 위해 조기인출 동의가 필요합니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.EARLY_WITHDRAWAL_CONSENT_REQUIRED.getMessage());
 
         verify(accountMapper, never()).requestClosure(ACCOUNT_ID);
         verifyNoInteractions(accountClosureMapper, businessClockService);
@@ -260,8 +258,8 @@ class AccountClosureServiceImplTest {
 
         assertThatThrownBy(
                         () -> accountClosureService.rejectClosure(7L, CLOSURE_REQUEST_ID, "반려 사유"))
-                .isInstanceOf(AccountClosureNotFoundException.class)
-                .hasMessage("계좌 해지 신청을 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND.getMessage());
 
         verify(accountClosureMapper, never()).rejectClosureRequest(any());
         verifyNoInteractions(accountMapper, businessClockService);
@@ -274,8 +272,8 @@ class AccountClosureServiceImplTest {
 
         assertThatThrownBy(
                         () -> accountClosureService.rejectClosure(7L, CLOSURE_REQUEST_ID, "반려 사유"))
-                .isInstanceOf(AccountClosureNotAllowedException.class)
-                .hasMessage("이미 처리된 계좌 해지 신청입니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage());
 
         verify(accountClosureMapper, never()).rejectClosureRequest(any());
         verifyNoInteractions(accountMapper, businessClockService);
@@ -291,8 +289,8 @@ class AccountClosureServiceImplTest {
 
         assertThatThrownBy(
                         () -> accountClosureService.rejectClosure(7L, CLOSURE_REQUEST_ID, "반려 사유"))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("계좌 해지 신청 반려 처리에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
 
         verify(accountMapper, never()).reopenAfterClosureRejection(ACCOUNT_ID);
     }
@@ -308,8 +306,8 @@ class AccountClosureServiceImplTest {
 
         assertThatThrownBy(
                         () -> accountClosureService.rejectClosure(7L, CLOSURE_REQUEST_ID, "반려 사유"))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("해지 반려 후 계좌 상태 복구에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
     }
 
     @Test
@@ -447,8 +445,8 @@ class AccountClosureServiceImplTest {
         when(withdrawalService.withdrawForClosure(any())).thenReturn(withdrawalResult);
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("강제인출 후에도 계좌 잔액이 남아 있어 해지할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
 
         verify(accountMapper, never()).completeClosure(ACCOUNT_ID);
         verify(accountClosureMapper, never()).completeClosureRequest(any());
@@ -465,8 +463,8 @@ class AccountClosureServiceImplTest {
                         Optional.of(account(Status.OPENED, "0")));
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureNotAllowedException.class)
-                .hasMessage("해지 신청 상태가 변경되어 계좌를 해지할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage());
 
         verify(accountMapper, never()).completeClosure(ACCOUNT_ID);
         verify(accountClosureMapper, never()).completeClosureRequest(any());
@@ -482,8 +480,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.completeClosure(ACCOUNT_ID)).thenReturn(0);
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("계좌 상태가 변경되어 해지 처리에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
 
         verify(accountClosureMapper, never()).completeClosureRequest(any());
     }
@@ -499,8 +497,8 @@ class AccountClosureServiceImplTest {
                 .thenReturn(WithdrawalResultDTO.builder().allocations(List.of()).build());
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("강제 인출 식별자를 확인할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
 
         verify(accountMapper, never()).completeClosure(ACCOUNT_ID);
         verify(accountClosureMapper, never()).completeClosureRequest(any());
@@ -515,8 +513,8 @@ class AccountClosureServiceImplTest {
                 .thenReturn(Optional.of(account(Status.OPENED, "0")));
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureNotAllowedException.class)
-                .hasMessage("해지 신청 상태의 계좌만 승인할 수 있습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage());
 
         verifyNoInteractions(withdrawalService);
         verify(accountMapper, never()).completeClosure(ACCOUNT_ID);
@@ -534,8 +532,8 @@ class AccountClosureServiceImplTest {
         when(accountClosureMapper.completeClosureRequest(closure)).thenReturn(0);
 
         assertThatThrownBy(() -> accountClosureService.approveClosure(7L, CLOSURE_REQUEST_ID))
-                .isInstanceOf(AccountClosureProcessingException.class)
-                .hasMessage("계좌 해지 신청 완료 처리에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED.getMessage());
     }
 
     @Test
@@ -650,8 +648,8 @@ class AccountClosureServiceImplTest {
         when(accountClosureMapper.selectById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> accountClosureService.getClosure(999L))
-                .isInstanceOf(AccountClosureNotFoundException.class)
-                .hasMessage("계좌 해지 신청을 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND.getMessage());
     }
 
     private void assertAuditLog(

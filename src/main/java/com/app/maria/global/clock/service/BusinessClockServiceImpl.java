@@ -1,8 +1,9 @@
 package com.app.maria.global.clock.service;
 
 import com.app.maria.global.clock.dto.SystemClockDTO;
-import com.app.maria.global.clock.exception.SystemClockNotInitializedException;
 import com.app.maria.global.clock.mapper.SystemClockMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,7 @@ public class BusinessClockServiceImpl implements BusinessClockService {
                 systemClockMapper
                         .selectSystemClock()
                         .orElseThrow(
-                                () ->
-                                        new SystemClockNotInitializedException(
-                                                "SYSTEM_CLOCK 데이터가 존재하지 않습니다."));
+                                () -> new AppException(ErrorType.SYSTEM_CLOCK_NOT_INITIALIZED));
         return systemClock.getCurrentDatetime();
     }
 }

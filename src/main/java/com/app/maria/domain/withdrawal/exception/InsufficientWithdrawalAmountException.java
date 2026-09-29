@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 
 @Getter
-public class InsufficientWithdrawalAmountException extends WithdrawalException {
+public class InsufficientWithdrawalAmountException extends RuntimeException {
 
     private final Long accountId;
     private final BigDecimal requestedAmount;

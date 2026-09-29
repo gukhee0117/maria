@@ -97,6 +97,45 @@ class InboundApiTest {
     }
 
     @Test
+    void processInboundRejectsNegativeRequestedQty() throws Exception {
+        mockMvc.perform(
+                        post("/api/admin/inbounds")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                {
+                  "accountId": 1,
+                  "foreignProductId": 1,
+                  "requestedQty": -10
+                }
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("requestedQty는 0 이상이어야 합니다."));
+
+        verify(inboundService, never()).processInbound(any());
+    }
+
+    @Test
+    void processInboundRejectsNegativeCurrentHoldingAtRequest() throws Exception {
+        mockMvc.perform(
+                        post("/api/admin/inbounds")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                {
+                  "accountId": 1,
+                  "foreignProductId": 1,
+                  "requestedQty": 80,
+                  "currentHoldingAtRequest": -5
+                }
+                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("currentHoldingAtRequest는 0 이상이어야 합니다."));
+
+        verify(inboundService, never()).processInbound(any());
+    }
+
+    @Test
     void processInboundRejectsMissingForeignProductId() throws Exception {
         mockMvc.perform(
                         post("/api/admin/inbounds")

@@ -546,7 +546,9 @@ class SellOrderApiTest {
         mockMvc.perform(
                         post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(validRequestBuilder().build())))
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                validRequestBuilder().build())))
                 .andExpect(status().isBadRequest());
     }
 }

@@ -16,11 +16,11 @@ import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
-import com.app.maria.domain.tax.exception.TaxCalculationAlreadyExistsException;
-import com.app.maria.domain.tax.exception.TaxRuleNotFoundException;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.domain.tax.type.TaxBasisType;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -62,6 +62,7 @@ class TaxApiTest {
                         .finalDeduction(new BigDecimal("20688760.00"))
                         .finalTax(new BigDecimal("1938472.80"))
                         .build(),
+                null,
                 null,
                 null,
                 null);
@@ -113,7 +114,9 @@ class TaxApiTest {
     void 확정저장_정상() throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
-        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
+                                .with(user("tester").roles("SETTLEMENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("세액 확정 저장 성공"))
                 .andExpect(jsonPath("$.data.calcId").value(10L))
@@ -124,8 +127,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 확정 저장을 할 수 있다")
-    @ValueSource(strings = {"ADMIN", "SETTLEMENT"})
-    @DisplayName("정산·관리자만 확정 저장할 수 있다")
+    @ValueSource(strings = {"SETTLEMENT"})
+    @DisplayName("정산 역할만 확정 저장할 수 있다")
     void 확정저장_허용역할(String role) throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID)).thenReturn(saved());
 
@@ -136,8 +139,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 확정 저장을 할 수 없다")
-    @ValueSource(strings = {"REVIEWER", "VIEWER"})
-    @DisplayName("심사·조회 역할은 확정 저장이 막힌다")
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "VIEWER"})
+    @DisplayName("정산 외 역할은 확정 저장이 막힌다")
     void 확정저장_차단역할(String role) throws Exception {
         mockMvc.perform(
                         post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
@@ -161,18 +164,21 @@ class TaxApiTest {
     @DisplayName("이미 저장된 계좌면 409로 응답한다")
     void 확정저장_중복() throws Exception {
         when(taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .thenThrow(new TaxCalculationAlreadyExistsException("이미 확정신고된 계좌입니다."));
+                .thenThrow(new AppException(ErrorType.TAX_FINAL_REPORT_ALREADY_EXISTS, ACCOUNT_ID));
 
-        mockMvc.perform(post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID))
+        mockMvc.perform(
+                        post("/api/admin/tax/calculations/{accountId}", ACCOUNT_ID)
+                                .with(user("tester").roles("SETTLEMENT")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."));
+                .andExpect(jsonPath("$.message").value("이미 확정신고된 계좌입니다."))
+                .andExpect(jsonPath("$.code").value("TAX_FINAL_REPORT_ALREADY_EXISTS"));
     }
 
     @Test
     @DisplayName("세금 규칙이 없으면 404로 응답한다")
     void 규칙없음() throws Exception {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
-                .thenThrow(new TaxRuleNotFoundException("TAX_RATE 규칙을 찾지 못했습니다."));
+                .thenThrow(new AppException(ErrorType.TAX_RULE_NOT_FOUND, "TAX_RATE"));
 
         mockMvc.perform(get("/api/admin/tax/preview/{accountId}", ACCOUNT_ID))
                 .andExpect(status().isNotFound());
@@ -235,8 +241,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 배치를 수동 실행할 수 있다")
-    @ValueSource(strings = {"ADMIN", "SETTLEMENT"})
-    @DisplayName("정산·관리자만 배치를 수동 실행할 수 있다")
+    @ValueSource(strings = {"SETTLEMENT"})
+    @DisplayName("정산 역할만 배치를 수동 실행할 수 있다")
     void 배치_수동실행_허용역할(String role) throws Exception {
         when(taxCalculationService.triggerSnapshotBatch())
                 .thenReturn(
@@ -253,8 +259,8 @@ class TaxApiTest {
     }
 
     @ParameterizedTest(name = "{0}은 배치를 수동 실행할 수 없다")
-    @ValueSource(strings = {"REVIEWER", "VIEWER"})
-    @DisplayName("심사·조회 역할은 배치 수동 실행이 막힌다")
+    @ValueSource(strings = {"ADMIN", "REVIEWER", "VIEWER"})
+    @DisplayName("정산 외 역할은 배치 수동 실행이 막힌다")
     void 배치_수동실행_차단역할(String role) throws Exception {
         mockMvc.perform(post("/api/admin/tax/snapshots/jobs").with(user("tester").roles(role)))
                 .andExpect(status().isForbidden());

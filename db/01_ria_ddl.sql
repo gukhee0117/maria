@@ -483,7 +483,8 @@ CREATE TABLE audit_log (
     before_value TEXT        NULL     COMMENT '변경전값',
     after_value  TEXT        NULL     COMMENT '변경후값',
     reason_code  VARCHAR(30) NULL     COMMENT '사유코드',
-    processed_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '처리시각(비즈니스 시계)',
+    recorded_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '기록시각(실제 DB 시각)',
     PRIMARY KEY (audit_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='감사 로그';
 

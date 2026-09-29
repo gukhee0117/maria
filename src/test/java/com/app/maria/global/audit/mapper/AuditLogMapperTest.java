@@ -561,7 +561,8 @@ class AuditLogMapperTest {
                         before_value TEXT NULL,
                         after_value  TEXT NULL,
                         reason_code  VARCHAR(30) NULL,
-                        processed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        processed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        recorded_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
         }

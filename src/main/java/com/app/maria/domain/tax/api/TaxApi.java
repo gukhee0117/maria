@@ -1,6 +1,6 @@
 package com.app.maria.domain.tax.api;
 
-import com.app.maria.domain.tax.dto.TaxBatchHistoryDTO;
+import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
@@ -37,7 +37,7 @@ public class TaxApi {
                 ApiResponseDTO.of("세금계산 성공", taxCalculationService.taxCalculate(accountId)));
     }
 
-    @PreAuthorize("hasAnyRole('SETTLEMENT', 'ADMIN')")
+    @PreAuthorize("hasRole('SETTLEMENT')")
     @PostMapping("/calculations/{accountId}")
     public ResponseEntity<ApiResponseDTO<TaxCalculationSaveResponseDTO>> confirm(
             @PathVariable @Positive Long accountId) {
@@ -54,7 +54,7 @@ public class TaxApi {
                 ApiResponseDTO.of("세액 스냅샷 조회 성공", taxCalculationService.findSnapshots(accountIds)));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT')")
+    @PreAuthorize("hasRole('SETTLEMENT')")
     @PostMapping("/snapshots/jobs")
     public ResponseEntity<ApiResponseDTO<TaxSnapshotBatchResultResponseDTO>>
             triggerSnapshotBatch() {
@@ -67,7 +67,7 @@ public class TaxApi {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
     @GetMapping("/snapshots/jobs")
-    public ResponseEntity<ApiResponseDTO<List<TaxBatchHistoryDTO>>> snapshotBatchHistory() {
+    public ResponseEntity<ApiResponseDTO<List<TaxBatchHistoryResponseDTO>>> snapshotBatchHistory() {
         return ResponseEntity.ok(
                 ApiResponseDTO.of(
                         "세액 스냅샷 배치 이력 조회 성공", taxCalculationService.getRecentBatchHistory()));
