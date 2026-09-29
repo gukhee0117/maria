@@ -11,6 +11,7 @@ import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxBatchHistoryDTO;
+import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
@@ -47,6 +48,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     private final BusinessClockService clockService;
     private final RiaTaxProperties riaTaxProperties;
     private final TaxCalculator taxCalculator;
+    private final TaxBreakdownAssembler taxBreakdownAssembler;
     private final TaxSnapshotMapper taxSnapshotMapper;
     private final TaxSnapshotJobLauncher taxSnapshotJobLauncher;
     private final TaxSnapshotBatchHistoryReader taxSnapshotBatchHistoryReader;
@@ -60,12 +62,24 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         Optional<AccountBenefitLogDTO> latestBenefitLog =
                 accountBenefitLogMapper.selectLatestByAccountId(accountId);
 
+        TaxCalculationInputs inputs = loadInputs(account);
+        TaxCalculationResultDTO result =
+                taxCalculator.calculate(
+                        inputs.sellLots(),
+                        inputs.taxRules(),
+                        inputs.externalTrades(),
+                        BenefitType.isReliefExcluded(account.getBenefit()));
+        TaxBreakdownDTO breakdown =
+                taxBreakdownAssembler.assemble(
+                        inputs.sellLots(), inputs.externalTrades(), inputs.taxRules());
+
         return TaxCalculationPreviewResponseDTO.of(
                 accountId,
-                calculateFor(account),
+                result,
+                breakdown,
                 latestBenefitLog.map(AccountBenefitLogDTO::getReason).orElse(null),
                 latestBenefitLog.map(AccountBenefitLogDTO::getChangedAt).orElse(null),
-                taxMapper.findLatestCalculation(accountId).orElse(null));
+                taxMapper.selectLatestCalculation(accountId).orElse(null));
     }
 
     @Override
@@ -103,9 +117,9 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(auditActorProvider.getCurrentAdminId())
-                        .targetTable("세액 계산 배치")
+                        .targetTable("TAX_SNAPSHOT_BATCH")
                         .targetPk(runId)
-                        .afterValue("Running")
+                        .afterValue("REQUESTED")
                         .reasonCode(TaxAuditLogReasonCode.TAX_SNAPSHOT_BATCH_REQUESTED.name())
                         .build());
 
@@ -146,20 +160,30 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     private TaxCalculationResultDTO calculateFor(AccountDTO account) {
+        TaxCalculationInputs inputs = loadInputs(account);
+        return taxCalculator.calculate(
+                inputs.sellLots(),
+                inputs.taxRules(),
+                inputs.externalTrades(),
+                BenefitType.isReliefExcluded(account.getBenefit()));
+    }
+
+    private TaxCalculationInputs loadInputs(AccountDTO account) {
         int taxYear = riaTaxProperties.getYear();
         List<Long> accountIds = List.of(account.getAccountId());
         LocalDateTime now = clockService.now();
 
         List<SellLotDTO> sellLots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, now);
-        List<TaxRuleDTO> taxRules = taxMapper.findTaxRules();
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, now);
+        List<TaxRuleDTO> taxRules = taxMapper.selectTaxRules();
         List<ExternalBuyDTO> externalTrades =
-                taxMapper.findExternalBuysByAccountIdsAndYear(accountIds, taxYear, now);
+                taxMapper.selectExternalBuysByAccountIdsAndYear(accountIds, taxYear, now);
 
-        return taxCalculator.calculate(
-                sellLots,
-                taxRules,
-                externalTrades,
-                BenefitType.isReliefExcluded(account.getBenefit()));
+        return new TaxCalculationInputs(sellLots, taxRules, externalTrades);
     }
+
+    private record TaxCalculationInputs(
+            List<SellLotDTO> sellLots,
+            List<TaxRuleDTO> taxRules,
+            List<ExternalBuyDTO> externalTrades) {}
 }

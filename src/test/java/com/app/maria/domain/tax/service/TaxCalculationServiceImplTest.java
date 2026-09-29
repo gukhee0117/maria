@@ -86,6 +86,8 @@ class TaxCalculationServiceImplTest {
 
     @Spy TaxCalculator taxCalculator = new TaxCalculator();
 
+    @Mock TaxBreakdownAssembler taxBreakdownAssembler;
+
     @InjectMocks TaxCalculationServiceImpl taxCalculationService;
 
     @Test
@@ -93,11 +95,11 @@ class TaxCalculationServiceImplTest {
     void 정상_계산() {
         stubAccount();
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of(externalBuy(LocalDate.of(2026, 6, 15), "10000000")));
 
         TaxCalculationPreviewResponseDTO response = taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -136,16 +138,17 @@ class TaxCalculationServiceImplTest {
     void 조회조건_전달() {
         stubAccount();
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(anyList(), anyInt(), any()))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(anyList(), anyInt(), any()))
                 .thenReturn(List.of());
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(anyList(), anyInt(), any()))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(anyList(), anyInt(), any()))
                 .thenReturn(List.of());
 
         taxCalculationService.taxCalculate(ACCOUNT_ID);
 
-        verify(taxMapper).findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
-        verify(taxMapper).findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
+        verify(taxMapper)
+                .selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
+        verify(taxMapper).selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
     }
 
     @Test
@@ -157,10 +160,10 @@ class TaxCalculationServiceImplTest {
                 List.of(lot(LocalDate.of(2026, 6, 15), "10000000", "100", "1000", "40"));
         List<TaxRuleDTO> rules = allSeedRules();
         List<ExternalBuyDTO> external = List.of(externalBuy(LocalDate.of(2026, 3, 10), "5000000"));
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(lots);
-        when(taxMapper.findTaxRules()).thenReturn(rules);
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(rules);
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(external);
 
         taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -185,10 +188,10 @@ class TaxCalculationServiceImplTest {
     void 매도없음() {
         stubAccount();
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of());
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of());
 
         TaxCalculationPreviewResponseDTO response = taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -231,11 +234,11 @@ class TaxCalculationServiceImplTest {
     void 혜택배제_전달() {
         stubAccount(BenefitType.IMPOSSIBLE);
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of());
 
         TaxCalculationPreviewResponseDTO response = taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -252,11 +255,11 @@ class TaxCalculationServiceImplTest {
     void 정상계좌는_배제아님() {
         stubAccount(BenefitType.POSSIBLE);
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of());
 
         taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -269,11 +272,11 @@ class TaxCalculationServiceImplTest {
     void 혜택상태_null이면_배제아님() {
         stubAccount();
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(List.of());
 
         taxCalculationService.taxCalculate(ACCOUNT_ID);
@@ -283,14 +286,14 @@ class TaxCalculationServiceImplTest {
 
     private void stubGoldenCalculation() {
         stubTaxYearAndClock();
-        when(taxMapper.findFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(
                                 lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100"),
                                 lot(LocalDate.of(2026, 6, 15), "10000000", "100", "1000", "40"),
                                 lot(LocalDate.of(2026, 9, 20), "10000000", "100", "1000", "40")));
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.findExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(
                         List.of(
                                 externalBuy(LocalDate.of(2026, 6, 15), "20000000"),

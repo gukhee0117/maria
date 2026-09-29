@@ -40,7 +40,7 @@ class TaxSnapshotProcessorTest {
     void setUp() {
         processor = new TaxSnapshotProcessor(taxCalculator, taxMapper);
         ReflectionTestUtils.setField(processor, "calculatedAt", CALCULATED_AT);
-        when(taxMapper.findTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
         processor.loadTaxRules(null);
     }
 
@@ -93,6 +93,6 @@ class TaxSnapshotProcessorTest {
         processor.process(target(2L, BenefitType.POSSIBLE));
         processor.process(target(3L, BenefitType.POSSIBLE));
 
-        verify(taxMapper, times(1)).findTaxRules();
+        verify(taxMapper, times(1)).selectTaxRules();
     }
 }

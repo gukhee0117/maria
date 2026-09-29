@@ -78,10 +78,10 @@ class TaxMapperTest {
 
     @Test
     @DisplayName("규칙은 종류·기간 제한 없이 전량 조회된다")
-    void findTaxRules_전량조회() {
+    void selectTaxRules_전량조회() {
         fixture.insertSeedTaxRules();
 
-        List<TaxRuleDTO> rules = taxMapper.findTaxRules();
+        List<TaxRuleDTO> rules = taxMapper.selectTaxRules();
 
         assertThat(rules).hasSize(7);
         assertThat(rules)
@@ -98,10 +98,10 @@ class TaxMapperTest {
 
     @Test
     @DisplayName("valid_to가 9999-12-31인 규칙도 누락 없이 조회된다")
-    void findTaxRules_열린구간규칙도_조회된다() {
+    void selectTaxRules_열린구간규칙도_조회된다() {
         fixture.insertSeedTaxRules();
 
-        List<TaxRuleDTO> rules = taxMapper.findTaxRules();
+        List<TaxRuleDTO> rules = taxMapper.selectTaxRules();
 
         assertThat(rules)
                 .filteredOn(rule -> TaxRuleType.BASIC_DEDUCTION == rule.getRuleType())
@@ -120,11 +120,11 @@ class TaxMapperTest {
 
     @Test
     @DisplayName("규칙의 모든 컬럼이 DTO 필드로 매핑된다")
-    void findTaxRules_컬럼매핑() {
+    void selectTaxRules_컬럼매핑() {
         fixture.insertSeedTaxRules();
 
         TaxRuleDTO rule =
-                taxMapper.findTaxRules().stream()
+                taxMapper.selectTaxRules().stream()
                         .filter(
                                 r ->
                                         TaxRuleType.RELIEF_RATE == r.getRuleType()
@@ -155,7 +155,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 3, 10, 10, 0));
 
         List<SellLotDTO> lots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE);
 
         assertThat(lots)
@@ -182,7 +182,7 @@ class TaxMapperTest {
         fixture.insertKrwExchange(ACCOUNT_ID, orderId, "PROVISIONAL", "23760000.00", null);
 
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -202,7 +202,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 3, 10, 10, 0));
 
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -222,7 +222,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 3, 10, 10, 0));
 
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -242,7 +242,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2025, 12, 31, 10, 0));
 
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -264,11 +264,11 @@ class TaxMapperTest {
         LocalDateTime before = LocalDateTime.of(2026, 6, 30, 0, 0);
 
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, before))
                 .isEmpty();
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .hasSize(1);
     }
@@ -297,7 +297,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 9, 20, 10, 0));
 
         List<SellLotDTO> lots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE);
 
         assertThat(lots).hasSize(2);
@@ -312,7 +312,7 @@ class TaxMapperTest {
     @DisplayName("매도 이력이 없으면 빈 목록을 반환한다")
     void findLots_없으면_빈목록() {
         assertThat(
-                        taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                        taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                                 List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -343,7 +343,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 6, 15, 10, 0));
 
         List<SellLotDTO> lots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(ACCOUNT_ID, OTHER_ACCOUNT_ID), TAX_YEAR, CALC_BASE);
 
         assertThat(lots).hasSize(2);
@@ -383,7 +383,7 @@ class TaxMapperTest {
                 LocalDateTime.of(2026, 6, 15, 10, 0));
 
         List<SellLotDTO> lots =
-                taxMapper.findFinalizedLotsByAccountIdsAndYear(
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE);
 
         assertThat(lots)
@@ -401,7 +401,7 @@ class TaxMapperTest {
         fixture.insertJudgement(1L, CI_HASH, true, "2026-06-15", "20000000.00");
 
         List<ExternalBuyDTO> result =
-                taxMapper.findExternalBuysByAccountIdsAndYear(
+                taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(accountId), TAX_YEAR, CALC_BASE);
 
         assertThat(result)
@@ -421,7 +421,7 @@ class TaxMapperTest {
         fixture.insertJudgement(1L, CI_HASH, true, "2026-09-20", "-10000000.00");
 
         List<ExternalBuyDTO> result =
-                taxMapper.findExternalBuysByAccountIdsAndYear(
+                taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(accountId), TAX_YEAR, CALC_BASE);
 
         assertThat(result)
@@ -441,14 +441,14 @@ class TaxMapperTest {
         fixture.insertJudgement(2L, OTHER_CI_HASH, true, "2026-06-15", "70000000.00");
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(accountId), TAX_YEAR, CALC_BASE))
                 .extracting(ExternalBuyDTO::getNetBuyAmount)
                 .usingElementComparator(BigDecimal::compareTo)
                 .containsExactly(new BigDecimal("20000000"));
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(otherAccountId), TAX_YEAR, CALC_BASE))
                 .extracting(ExternalBuyDTO::getNetBuyAmount)
                 .usingElementComparator(BigDecimal::compareTo)
@@ -462,7 +462,7 @@ class TaxMapperTest {
         fixture.insertJudgement(1L, CI_HASH, true, "2026-06-15", "20000000.00");
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(999L), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -475,7 +475,7 @@ class TaxMapperTest {
         fixture.insertJudgement(1L, OTHER_CI_HASH, true, "2026-06-15", "70000000.00");
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(accountId), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -487,7 +487,7 @@ class TaxMapperTest {
         fixture.insertJudgement(1L, CI_HASH, false, "2026-06-15", "20000000.00");
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(accountId), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
@@ -501,7 +501,7 @@ class TaxMapperTest {
         fixture.insertJudgement(3L, CI_HASH, true, "2026-01-01", "10000000.00");
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(accountId), TAX_YEAR, CALC_BASE))
                 .extracting(ExternalBuyDTO::getNetBuyAmount)
                 .usingElementComparator(BigDecimal::compareTo)
@@ -517,7 +517,7 @@ class TaxMapperTest {
         fixture.insertJudgement(3L, CI_HASH, true, "2026-09-20", "-10000000.00");
 
         List<ExternalBuyDTO> result =
-                taxMapper.findExternalBuysByAccountIdsAndYear(
+                taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(accountId), TAX_YEAR, CALC_BASE);
 
         assertThat(result).hasSize(3);
@@ -538,7 +538,7 @@ class TaxMapperTest {
         fixture.insertJudgement(2L, OTHER_CI_HASH, true, "2026-09-20", "-10000000.00");
 
         List<ExternalBuyDTO> result =
-                taxMapper.findExternalBuysByAccountIdsAndYear(
+                taxMapper.selectExternalBuysByAccountIdsAndYear(
                         List.of(accountA, accountB), TAX_YEAR, CALC_BASE);
 
         assertThat(result).hasSize(2);
@@ -564,7 +564,7 @@ class TaxMapperTest {
         Long accountId = fixture.insertCustomerWithAccount(CI_HASH);
 
         assertThat(
-                        taxMapper.findExternalBuysByAccountIdsAndYear(
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
                                 List.of(accountId), TAX_YEAR, CALC_BASE))
                 .isEmpty();
     }
