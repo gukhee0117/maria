@@ -70,13 +70,13 @@ public class TaxSnapshotTargetReader implements ItemStreamReader<TaxSnapshotTarg
 
         Map<Long, List<SellLotDTO>> sellLotsByAccount =
                 taxMapper
-                        .findFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
+                        .selectFinalizedLotsByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
                         .stream()
                         .collect(Collectors.groupingBy(SellLotDTO::getAccountId));
 
         Map<Long, List<ExternalBuyDTO>> externalTradesByAccount =
                 taxMapper
-                        .findExternalBuysByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
+                        .selectExternalBuysByAccountIdsAndYear(accountIds, taxYear, calculatedAt)
                         .stream()
                         .collect(Collectors.groupingBy(ExternalBuyDTO::getAccountId));
 

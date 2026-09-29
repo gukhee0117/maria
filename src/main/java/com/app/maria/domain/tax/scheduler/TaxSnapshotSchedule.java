@@ -17,7 +17,7 @@ public class TaxSnapshotSchedule {
     @Scheduled(
             cron = "${custom.tax.snapshot-cron:0 0 2 * * *}",
             zone = "${custom.tax.zone:Asia/Seoul}")
-    public void executeDailyTaxSnapshotSchedule() {
+    public void triggerDailySnapshot() {
         try {
             taxSnapshotJobLauncher.launch(clockService.now());
         } catch (Exception e) {

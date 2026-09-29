@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.app.maria.domain.tax.mapper.TaxMapper">
 
-    <select id="findFinalizedLotsByAccountIdsAndYear" resultType="SellLotDTO">
+    <select id="selectFinalizedLotsByAccountIdsAndYear" resultType="SellLotDTO">
         select
             ke.account_id,
             so.order_id,
@@ -27,7 +27,7 @@
             and #{calcBaseTime} >= ke.final_at
     </select>
 
-    <select id="findTaxRules" resultType="TaxRuleDTO">
+    <select id="selectTaxRules" resultType="TaxRuleDTO">
         select
             rule_id,
             rule_type,
@@ -37,7 +37,7 @@
         from tax_rule
     </select>
 
-    <select id="findExternalBuysByAccountIdsAndYear" resultType="ExternalBuyDTO">
+    <select id="selectExternalBuysByAccountIdsAndYear" resultType="ExternalBuyDTO">
         select
             a.account_id,
             tpj.trade_date,
@@ -73,7 +73,7 @@
         )
     </select>
 
-    <select id="findLatestCalculation" resultType="TaxCalculationDTO">
+    <select id="selectLatestCalculation" resultType="TaxCalculationDTO">
         select
             calc_id,
             account_id,
