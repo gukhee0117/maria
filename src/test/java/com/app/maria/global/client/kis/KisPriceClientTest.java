@@ -183,7 +183,8 @@ class KisPriceClientTest {
                         HttpStatus.INTERNAL_SERVER_ERROR,
                         "Internal Server Error",
                         new HttpHeaders(),
-                        "{\"rt_cd\":\"1\",\"msg_cd\":\"EGW00002\"}".getBytes(StandardCharsets.UTF_8),
+                        "{\"rt_cd\":\"1\",\"msg_cd\":\"EGW00002\"}"
+                                .getBytes(StandardCharsets.UTF_8),
                         StandardCharsets.UTF_8);
         when(restTemplate.exchange(
                         anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(JsonNode.class)))
