@@ -1,6 +1,7 @@
 package com.app.maria.domain.tax.mapper;
 
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
+import com.app.maria.domain.tax.dto.HeldLotDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
@@ -31,4 +32,6 @@ public interface TaxMapper {
             @Param("accountId") Long accountId, @Param("basisType") TaxBasisType basisType);
 
     Optional<TaxCalculationDTO> selectLatestCalculation(@Param("accountId") Long accountId);
+
+    List<HeldLotDTO> selectHeldLotsByAccountId(@Param("accountId") Long accountId);
 }

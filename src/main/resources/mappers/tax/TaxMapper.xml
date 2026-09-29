@@ -92,4 +92,22 @@
         limit 1
     </select>
 
+    <select id="selectHeldLotsByAccountId" resultType="HeldLotDTO">
+        select
+            id.inbound_detail_id,
+            id.foreign_product_id,
+            fp.ticker,
+            fp.market,
+            fp.currency,
+            id.purchase_fx_rate,
+            id.purchase_price,
+            id.current_qty,
+            concat(fp.ticker, ' ', fp.name) as product_label
+        from inbound_detail id
+        join inbound i on i.inbound_id = id.inbound_id
+        join foreign_product fp on fp.foreign_product_id = id.foreign_product_id
+        where i.account_id = #{accountId}
+            and id.current_qty > 0
+    </select>
+
 </mapper>
