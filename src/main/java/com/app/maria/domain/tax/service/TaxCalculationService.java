@@ -1,6 +1,6 @@
 package com.app.maria.domain.tax.service;
 
-import com.app.maria.domain.tax.dto.TaxBatchHistoryDTO;
+import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
@@ -16,5 +16,5 @@ public interface TaxCalculationService {
 
     TaxSnapshotBatchResultResponseDTO triggerSnapshotBatch();
 
-    List<TaxBatchHistoryDTO> getRecentBatchHistory();
+    List<TaxBatchHistoryResponseDTO> getRecentBatchHistory();
 }

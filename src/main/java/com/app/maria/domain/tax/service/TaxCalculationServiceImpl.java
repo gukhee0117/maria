@@ -10,11 +10,11 @@ import com.app.maria.domain.tax.batch.TaxSnapshotBatchHistoryReader;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
-import com.app.maria.domain.tax.dto.TaxBatchHistoryDTO;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
@@ -127,8 +127,10 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     @Override
-    public List<TaxBatchHistoryDTO> getRecentBatchHistory() {
-        return taxSnapshotBatchHistoryReader.findRecent();
+    public List<TaxBatchHistoryResponseDTO> getRecentBatchHistory() {
+        return taxSnapshotBatchHistoryReader.findRecent().stream()
+                .map(TaxBatchHistoryResponseDTO::of)
+                .toList();
     }
 
     private TaxBasisType resolveBasisType(AccountDTO account) {
