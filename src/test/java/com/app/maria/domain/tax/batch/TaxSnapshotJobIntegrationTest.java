@@ -218,8 +218,6 @@ class TaxSnapshotJobIntegrationTest {
         Long healthyAccount = insertOpenedAccount("healthy".repeat(9));
         insertFinalizedLot(healthyAccount, LocalDateTime.of(2026, 3, 10, 10, 0), "24000000", "150");
 
-        // RELIEF_RATE 8~12월 규칙을 삭제해 이 계좌의 매도건이 TaxRuleNotFoundException(AppException)을 던지게 만든다.
-        // TaxSnapshotJobConfig의 .skip(AppException.class)이 이 건만 건너뛰고 배치가 계속 도는지 검증하는 게 이 테스트의 목적.
         Long brokenAccount = insertOpenedAccount("broken".repeat(9));
         insertFinalizedLot(brokenAccount, LocalDateTime.of(2026, 8, 10, 10, 0), "10000000", "100");
         try (Connection connection = dataSource.getConnection();
