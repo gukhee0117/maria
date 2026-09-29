@@ -4,11 +4,6 @@ import com.app.maria.domain.account.exception.AccountException;
 import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.exception.DuplicateAccountException;
 import com.app.maria.domain.account.exception.InvalidAccountRequestException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotAllowedException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureNotFoundException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureProcessingException;
-import com.app.maria.domain.accountclosure.exception.AccountClosureStateConflictException;
 import com.app.maria.domain.admin.exception.AdminException;
 import com.app.maria.domain.admin.exception.AdminNotFoundException;
 import com.app.maria.domain.domestic.exception.DomesticInvestmentException;
@@ -26,18 +21,11 @@ import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.domain.targetproduct.exception.TargetProductException;
 import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
-import com.app.maria.domain.withdrawal.exception.EarlyWithdrawalConsentRequiredException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
 import com.app.maria.global.audit.exception.AuditLogException;
 import com.app.maria.global.audit.exception.AuditLogInsertException;
 import com.app.maria.global.audit.exception.AuditLogNotFoundException;
-import com.app.maria.global.clock.exception.SystemClockNotInitializedException;
-import com.app.maria.global.clock.exception.SystemClockUpdateException;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
-import com.app.maria.global.response.ErrorResponseDTO;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -277,49 +265,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 10. Withdrawal 예외
-    @ExceptionHandler(WithdrawalNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleWithdrawalNotFoundException(
-            WithdrawalNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(EarlyWithdrawalConsentRequiredException.class)
-    public ResponseEntity<ErrorResponseDTO> handleEarlyWithdrawalConsentRequiredException(
-            EarlyWithdrawalConsentRequiredException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(
-                        new ErrorResponseDTO(
-                                EarlyWithdrawalConsentRequiredException.CODE, e.getMessage()));
-    }
-
-    @ExceptionHandler(WithdrawalException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleWithdrawalException(WithdrawalException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(WithdrawalProcessingException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleWithdrawalProcessingException(
-            WithdrawalProcessingException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 11. Clock 예외
-    @ExceptionHandler(SystemClockNotInitializedException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSystemClockNotInitializedException(
-            SystemClockNotInitializedException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SystemClockUpdateException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSystemClockUpdateException(
-            SystemClockUpdateException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     // 12. Audit 예외
     @ExceptionHandler(AuditLogException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleAuditLogException(AuditLogException e) {
@@ -391,40 +336,6 @@ public class GlobalExceptionHandler {
             case WARN -> log.warn(logMessage, e);
             default -> log.info(logMessage, e);
         }
-    }
-
-    // 17. 계좌 해지 예외
-    @ExceptionHandler(AccountClosureNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountClosureNotFoundException(
-            AccountClosureNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AccountClosureNotAllowedException.class)
-    public ResponseEntity<ErrorResponseDTO> handleAccountClosureNotAllowedException(
-            AccountClosureNotAllowedException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponseDTO(AccountClosureNotAllowedException.CODE, e.getMessage()));
-    }
-
-    @ExceptionHandler(AccountClosureException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountClosureException(
-            AccountClosureException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AccountClosureProcessingException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountClosureProcessingException(
-            AccountClosureProcessingException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AccountClosureStateConflictException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountClosureStateConflictException(
-            AccountClosureStateConflictException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
     }
 
     // 18. 국내 투자 예외

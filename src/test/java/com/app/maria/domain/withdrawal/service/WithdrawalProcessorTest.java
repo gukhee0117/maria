@@ -25,10 +25,7 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.EarlyWithdrawalConsentRequiredException;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotAllowedException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalProcessingException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
@@ -36,6 +33,8 @@ import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -82,7 +81,8 @@ class WithdrawalProcessorTest {
                 .thenReturn(Optional.of(account(Status.APPLIED)));
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(WithdrawalNotAllowedException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
 
@@ -94,8 +94,8 @@ class WithdrawalProcessorTest {
                 .thenReturn(Optional.of(account(Status.CLOSURE_REQUESTED, "300")));
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(WithdrawalNotAllowedException.class)
-                .hasMessage("현재 계좌 상태에서는 인출할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
 
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
@@ -177,8 +177,8 @@ class WithdrawalProcessorTest {
         prepareExternalValidation(account(Status.OPENED, "500"), GeneralAccountStatus.CLOSED);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(WithdrawalNotAllowedException.class)
-                .hasMessage("활성 상태의 일반계좌로만 인출할 수 있습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
 
         verify(accountMapper, never()).selectByAccountIdForUpdate(ACCOUNT_ID);
         verifyNoInteractions(withdrawalMapper, businessClockService);
@@ -207,7 +207,8 @@ class WithdrawalProcessorTest {
         prepareOpenedAccount(List.of(leftAmount(12L, "300", NOW.minusYears(1).plusSeconds(1))));
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
-                .isInstanceOf(EarlyWithdrawalConsentRequiredException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.EARLY_WITHDRAWAL_CONSENT_REQUIRED.getMessage());
 
         verify(accountMapper, never()).updateBenefitToImpossible(ACCOUNT_ID);
         verifyNoInteractions(accountBenefitLogMapper);
@@ -409,7 +410,8 @@ class WithdrawalProcessorTest {
     @Test
     void zeroAmountRequest_isRejectedBeforeLoadingSources() {
         assertThatThrownBy(() -> withdrawalService.withdraw(request("0")))
-                .isInstanceOf(WithdrawalNotAllowedException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_NOT_ALLOWED.getMessage());
         verifyNoInteractions(accountMapper, generalAccountClient);
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
@@ -420,8 +422,8 @@ class WithdrawalProcessorTest {
         when(withdrawalMapper.insertWithdrawal(any(WithdrawalDTO.class))).thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
-                .isInstanceOf(WithdrawalProcessingException.class)
-                .hasMessage("WITHDRAWAL 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
         verify(withdrawalMapper, never())
                 .insertWithdrawalAllocation(any(WithdrawalAllocationDTO.class));
@@ -438,8 +440,8 @@ class WithdrawalProcessorTest {
                 .thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
-                .isInstanceOf(WithdrawalProcessingException.class)
-                .hasMessage("WITHDRAWAL_ALLOCATION 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
         verify(withdrawalMapper, never()).deductLeftAmount(anyLong(), any());
         verify(withdrawalMapper, never()).deductAccountAmount(anyLong(), any());
@@ -453,8 +455,8 @@ class WithdrawalProcessorTest {
         when(withdrawalMapper.deductLeftAmount(93L, new BigDecimal("200"))).thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
-                .isInstanceOf(WithdrawalProcessingException.class)
-                .hasMessage("LEFT_AMOUNT 차감에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
         verify(withdrawalMapper, never()).deductAccountAmount(anyLong(), any());
         verify(withdrawalMapper, never())
@@ -467,8 +469,8 @@ class WithdrawalProcessorTest {
         when(withdrawalMapper.deductAccountAmount(ACCOUNT_ID, new BigDecimal("200"))).thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
-                .isInstanceOf(WithdrawalProcessingException.class)
-                .hasMessage("ACCOUNT 총 잔액을 차감하지 못했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
         verify(withdrawalMapper, never())
                 .updateWithdrawalStatus(anyLong(), any(WithdrawalStatus.class));

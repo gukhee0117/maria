@@ -7,7 +7,8 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotAllowedException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +31,9 @@ class WithdrawalServiceFacadeTest {
                 new InsufficientWithdrawalAmountException("계좌 잔액이 부족합니다.");
         when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
-        assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
+        assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage());
 
         verify(withdrawalFailureService).recordInsufficientBalance(exception);
     }
@@ -38,8 +41,7 @@ class WithdrawalServiceFacadeTest {
     @Test
     void nonRecordableFailure_doesNotCreateFailedWithdrawal() {
         WithdrawalRequestDTO request = request();
-        WithdrawalNotAllowedException exception =
-                new WithdrawalNotAllowedException("인출할 수 없는 계좌 상태입니다.");
+        AppException exception = new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED);
         when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
@@ -56,7 +58,8 @@ class WithdrawalServiceFacadeTest {
         when(withdrawalProcessor.withdrawForClosure(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdrawForClosure(request))
-                .isSameAs(exception);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage());
 
         verify(withdrawalFailureService).recordInsufficientBalance(exception);
     }

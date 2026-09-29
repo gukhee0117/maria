@@ -10,10 +10,11 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationHistoryDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalHistoryDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
-import com.app.maria.domain.withdrawal.exception.WithdrawalNotFoundException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -109,7 +110,8 @@ class WithdrawalQueryServiceImplTest {
         when(withdrawalMapper.selectWithdrawalHistoryById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> withdrawalQueryService.getWithdrawal(99L))
-                .isInstanceOf(WithdrawalNotFoundException.class)
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_NOT_FOUND.getMessage())
                 .hasMessage("인출 내역을 찾을 수 없습니다.");
 
         verify(withdrawalMapper, never()).selectAllocationHistoriesByWithdrawalId(99L);
