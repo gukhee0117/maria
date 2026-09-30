@@ -29,18 +29,17 @@ public class KisPriceClient {
     private static final long RETRY_DELAY_MS = 700; // KIS 데모키 초당 호출 제한 회피용
 
     public BigDecimal getPreviousClose(String exchangeCode, String ticker) {
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (int attempt = 1; ; attempt++) {
             try {
                 return fetchPreviousClose(exchangeCode, ticker);
             } catch (HttpServerErrorException e) {
                 boolean isRateLimit = e.getResponseBodyAsString().contains(RATE_LIMIT_ERROR_CODE);
                 if (!isRateLimit || attempt == MAX_ATTEMPTS) {
-                    throw new  AppException(ErrorType.KIS_PRICE_NOT_FOUND,ticker);
+                    throw new AppException(ErrorType.KIS_PRICE_NOT_FOUND, ticker);
                 }
                 sleep(RETRY_DELAY_MS);
             }
         }
-        throw new AppException(ErrorType.KIS_PRICE_NOT_FOUND, ticker);
     }
 
     private void sleep(long millis) {
