@@ -35,7 +35,7 @@ public class KisPriceClient {
             } catch (HttpServerErrorException e) {
                 boolean isRateLimit = e.getResponseBodyAsString().contains(RATE_LIMIT_ERROR_CODE);
                 if (!isRateLimit || attempt == MAX_ATTEMPTS) {
-                    throw e;
+                    throw new  AppException(ErrorType.KIS_PRICE_NOT_FOUND,ticker);
                 }
                 sleep(RETRY_DELAY_MS);
             }
@@ -51,8 +51,6 @@ public class KisPriceClient {
         }
     }
 
-    // ponytail: 종목 여러 개를 한 요청에서 연달아 조회할 때(F7)도 이 재시도 텀만으로 버팀 —
-    // 대량 병렬 호출이 필요해지면 별도 rate limiter(예: Bucket4j)로 승급.
     private BigDecimal fetchPreviousClose(String exchangeCode, String ticker) {
         // 거래소 코드 받아 전일 종가 반환
         String url =
@@ -75,7 +73,6 @@ public class KisPriceClient {
 
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
-        // get 요청
         JsonNode response =
                 restTemplate.exchange(url, HttpMethod.GET, request, JsonNode.class).getBody();
 
