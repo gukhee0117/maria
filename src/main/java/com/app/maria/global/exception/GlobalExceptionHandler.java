@@ -115,13 +115,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    @ExceptionHandler(KisPriceNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleKisPriceNotFoundException(
-            KisPriceNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     @ExceptionHandler(UnsupportedExchangeException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleUnsupportedExchangeException(
             UnsupportedExchangeException e) {

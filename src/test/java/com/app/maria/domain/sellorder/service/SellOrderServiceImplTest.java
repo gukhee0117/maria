@@ -25,7 +25,8 @@ import com.app.maria.domain.settlement.service.SettlementService;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.client.kis.KisPriceClient;
 import com.app.maria.global.clock.service.BusinessClockService;
-import com.app.maria.global.exception.KisPriceNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.PageResponseDTO;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -234,10 +235,11 @@ class SellOrderServiceImplTest {
                 .thenReturn(List.of(lot(1L, "50", LocalDateTime.of(2026, 1, 1, 0, 0))));
         when(foreignProductMapper.selectById(10L)).thenReturn(Optional.of(validProduct()));
         when(kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .thenThrow(new KisPriceNotFoundException("전일종가 조회 실패: AAPL"));
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND, "AAPL"));
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(KisPriceNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
 
         verify(exchangeRateClient, never()).getBaseRate(any());
         verifyNoInteractions(sellOrderMapper, sellLimitService);
