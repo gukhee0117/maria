@@ -5,11 +5,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,21 +28,20 @@ class WithdrawalServiceFacadeTest {
     @Test
     void insufficientBalance_isRecordedAndOriginalExceptionIsRethrown() {
         WithdrawalRequestDTO request = request();
-        InsufficientWithdrawalAmountException exception =
-                new InsufficientWithdrawalAmountException("계좌 잔액이 부족합니다.");
+        WithdrawalFailureContext context = failureContext();
+        AppException exception =
+                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, context);
         when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
-        assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request))
-                .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage());
+        assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
 
-        verify(withdrawalFailureService).recordInsufficientBalance(exception);
+        verify(withdrawalFailureService).recordInsufficientBalance(context);
     }
 
     @Test
     void nonRecordableFailure_doesNotCreateFailedWithdrawal() {
         WithdrawalRequestDTO request = request();
-        AppException exception = new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED);
+        AppException exception = new AppException(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE);
         when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdraw(request)).isSameAs(exception);
@@ -53,15 +53,15 @@ class WithdrawalServiceFacadeTest {
     @Test
     void closureInsufficientBalance_isAlsoRecorded() {
         WithdrawalRequestDTO request = request();
-        InsufficientWithdrawalAmountException exception =
-                new InsufficientWithdrawalAmountException("계좌 잔액이 부족합니다.");
+        WithdrawalFailureContext context = failureContext();
+        AppException exception =
+                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, context);
         when(withdrawalProcessor.withdrawForClosure(request)).thenThrow(exception);
 
         assertThatThrownBy(() -> withdrawalServiceFacade.withdrawForClosure(request))
-                .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage());
+                .isSameAs(exception);
 
-        verify(withdrawalFailureService).recordInsufficientBalance(exception);
+        verify(withdrawalFailureService).recordInsufficientBalance(context);
     }
 
     private WithdrawalRequestDTO request() {
@@ -70,5 +70,14 @@ class WithdrawalServiceFacadeTest {
                 .requestedAmount(new BigDecimal("700000"))
                 .destinationGeneralAccountId(20L)
                 .build();
+    }
+
+    private WithdrawalFailureContext failureContext() {
+        return new WithdrawalFailureContext(
+                10L,
+                new BigDecimal("700000"),
+                LocalDateTime.of(2026, 8, 18, 10, 30),
+                "1234567890",
+                20L);
     }
 }

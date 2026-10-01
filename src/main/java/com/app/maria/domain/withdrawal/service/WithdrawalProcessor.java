@@ -13,9 +13,9 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
+import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.exception.InsufficientWithdrawalAmountException;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
@@ -54,7 +54,7 @@ public class WithdrawalProcessor {
         BigDecimal requestedAmount = requestDTO.getRequestedAmount();
 
         if (requestedAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, requestedAmount);
+            throw new AppException(ErrorType.INVALID_WITHDRAWAL_AMOUNT, requestedAmount);
         }
 
         AccountDTO accountBeforeLock =
@@ -76,7 +76,8 @@ public class WithdrawalProcessor {
                 generalAccountClient.verifyGeneralAccount(generalAccountRequest);
         if (destinationGeneralAccount.getStatus() != ACTIVE) {
             throw new AppException(
-                    ErrorType.WITHDRAWAL_NOT_ALLOWED, requestDTO.getDestinationGeneralAccountId());
+                    ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE,
+                    requestDTO.getDestinationGeneralAccountId());
         }
 
         AccountDTO account =
@@ -85,19 +86,20 @@ public class WithdrawalProcessor {
                         .orElseThrow(() -> new AccountNotFoundException("인출 대상 계좌가 존재하지 않습니다."));
 
         if (account.getStatus() != allowedStatus) {
-            throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, accountId);
+            throw new AppException(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE, accountId);
         }
 
         LocalDateTime currentDatetime = businessClockService.now();
 
         if (account.getAmount().compareTo(requestedAmount) < 0) {
-            throw new InsufficientWithdrawalAmountException(
-                    "계좌 잔액보다 많은 금액을 인출할 수 없습니다.",
-                    accountId,
-                    requestedAmount,
-                    currentDatetime,
-                    destinationGeneralAccount.getAccountNo(),
-                    requestDTO.getDestinationGeneralAccountId());
+            throw new AppException(
+                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT,
+                    new WithdrawalFailureContext(
+                            accountId,
+                            requestedAmount,
+                            currentDatetime,
+                            destinationGeneralAccount.getAccountNo(),
+                            requestDTO.getDestinationGeneralAccountId()));
         }
 
         List<LeftAmountDTO> leftAmounts =
@@ -174,7 +176,7 @@ public class WithdrawalProcessor {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             if (immatureAllocatedAmount.compareTo(remainingRequest) < 0) {
-                throw new AppException(ErrorType.WITHDRAWAL_NOT_ALLOWED, accountId);
+                throw new AppException(ErrorType.WITHDRAWAL_SOURCE_AMOUNT_INCONSISTENT, accountId);
             }
             allocations.addAll(immatureAllocations);
             int changedBenefit = accountMapper.updateBenefitToImpossible(accountId);
