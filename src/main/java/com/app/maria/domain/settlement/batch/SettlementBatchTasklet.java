@@ -145,6 +145,9 @@ public class SettlementBatchTasklet implements Tasklet {
             executionContext.putString(valueKey, rate.toPlainString());
             return rate;
         } catch (AppException e) {
+            if (e.getErrorType() != ErrorType.EXCHANGE_RATE_NOT_FOUND) {
+                throw e;
+            }
             cacheFailure(
                     executionContext, valueKey, failureTypeKey, failureMessageKey, "NOT_FOUND", e);
             throw e;
