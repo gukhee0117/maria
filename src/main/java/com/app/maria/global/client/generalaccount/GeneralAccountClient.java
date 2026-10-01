@@ -39,9 +39,15 @@ public class GeneralAccountClient {
             }
             return apiResponse.getData();
         } catch (HttpClientErrorException e) {
+            int statusCode = e.getStatusCode().value();
+            if (statusCode == 400 || statusCode == 404) {
+                throw new AppException(
+                        ErrorType.GENERAL_ACCOUNT_NOT_AVAILABLE,
+                        requestDTO.getGeneralAccountId(),
+                        e);
+            }
             throw new AppException(
-                    ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE,
-                    requestDTO.getGeneralAccountId());
+                    ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE, requestDTO.getGeneralAccountId(), e);
 
         } catch (RestClientException e) {
             throw new AppException(
