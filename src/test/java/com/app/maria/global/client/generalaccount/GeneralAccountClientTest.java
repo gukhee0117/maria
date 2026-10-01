@@ -17,10 +17,13 @@ import com.app.maria.global.error.ErrorType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 class GeneralAccountClientTest {
@@ -69,25 +72,44 @@ class GeneralAccountClientTest {
         mockServer.verify();
     }
 
-    @Test
-    @DisplayName("증권사 API가 4xx를 반환하면 목적지 계좌 확인 실패로 변환한다")
-    void verifyGeneralAccountConvertsClientErrorToDestinationNotAvailable() {
+    @ParameterizedTest
+    @ValueSource(ints = {400, 404})
+    @DisplayName("증권사 API가 400 또는 404를 반환하면 일반계좌 확인 실패로 변환한다")
+    void verifyGeneralAccountConvertsAccountClientErrorToNotAvailable(int statusCode) {
         mockServer
                 .expect(requestTo(VERIFY_URL))
                 .andRespond(
-                        withStatus(HttpStatus.BAD_REQUEST)
+                        withStatus(HttpStatus.valueOf(statusCode))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body("{\"message\":\"해지된 일반계좌입니다.\",\"data\":null}"));
 
         assertThatThrownBy(() -> generalAccountClient.verifyGeneralAccount(request()))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE.getMessage())
+                .hasMessage(ErrorType.GENERAL_ACCOUNT_NOT_AVAILABLE.getMessage())
+                .hasCauseInstanceOf(HttpClientErrorException.class)
                 .satisfies(
                         throwable ->
                                 assertThat(((AppException) throwable).getErrorType())
-                                        .isEqualTo(
-                                                ErrorType
-                                                        .WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE));
+                                        .isEqualTo(ErrorType.GENERAL_ACCOUNT_NOT_AVAILABLE));
+        mockServer.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 429})
+    @DisplayName("증권사 API가 인증·권한·요청 제한 오류를 반환하면 API 연결 실패로 변환한다")
+    void verifyGeneralAccountConvertsOperationalClientErrorToUnavailable(int statusCode) {
+        mockServer
+                .expect(requestTo(VERIFY_URL))
+                .andRespond(withStatus(HttpStatus.valueOf(statusCode)));
+
+        assertThatThrownBy(() -> generalAccountClient.verifyGeneralAccount(request()))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE.getMessage())
+                .hasCauseInstanceOf(HttpClientErrorException.class)
+                .satisfies(
+                        throwable ->
+                                assertThat(((AppException) throwable).getErrorType())
+                                        .isEqualTo(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE));
         mockServer.verify();
     }
 

@@ -35,8 +35,7 @@ public enum ErrorType {
     INVALID_WITHDRAWAL_AMOUNT(HttpStatus.BAD_REQUEST, "인출 금액은 0원보다 커야 합니다.", LogLevel.WARN),
     WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE(
             HttpStatus.BAD_REQUEST, "활성 상태의 일반계좌로만 인출할 수 있습니다.", LogLevel.WARN),
-    WITHDRAWAL_DESTINATION_ACCOUNT_NOT_AVAILABLE(
-            HttpStatus.BAD_REQUEST, "인출할 일반계좌를 확인할 수 없습니다.", LogLevel.WARN),
+    GENERAL_ACCOUNT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "일반계좌를 확인할 수 없습니다.", LogLevel.WARN),
     ACCOUNT_STATUS_NOT_WITHDRAWABLE(HttpStatus.CONFLICT, "현재 계좌 상태에서는 인출할 수 없습니다.", LogLevel.WARN),
     EARLY_WITHDRAWAL_CONSENT_REQUIRED(
             HttpStatus.BAD_REQUEST, "미경과 원금을 인출하려면 조기인출 동의가 필요합니다.", LogLevel.WARN),
