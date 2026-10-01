@@ -8,8 +8,9 @@ import com.app.maria.domain.sellorder.dto.response.SellOrderDetailResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderHistoryResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderSummaryResponseDTO;
-import com.app.maria.domain.sellorder.exception.SellOrderException;
 import com.app.maria.domain.sellorder.service.SellOrderService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
@@ -44,7 +45,7 @@ public class SellOrderApi {
         List<SellOrderResponseDTO> responseDTOs =
                 sellOrderService.placeSellOrder(actorAdminId, request);
         if (responseDTOs.isEmpty()) {
-            throw new SellOrderException("매도 주문 결과가 없습니다.");
+            throw new AppException(ErrorType.SELL_ORDER_RESULT_EMPTY);
         }
         String message =
                 switch (responseDTOs.get(0).getStatus()) {

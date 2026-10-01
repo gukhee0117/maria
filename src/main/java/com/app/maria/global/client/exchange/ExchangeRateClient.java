@@ -2,7 +2,8 @@ package com.app.maria.global.client.exchange;
 
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExchangeApiProperties;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -49,7 +50,7 @@ public class ExchangeRateClient {
         JsonNode response = restTemplate.getForObject(url, JsonNode.class);
 
         if (response == null || !response.isArray()) {
-            throw new ExchangeRateNotFoundException("환율 API 응답 오류");
+            throw new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
         }
 
         // 찾고있는 통화와 일치하는 항목 찾기
@@ -79,6 +80,6 @@ public class ExchangeRateClient {
             return getBaseRate(currencyUnit, searchDate.minusDays(1));
         }
 
-        throw new ExchangeRateNotFoundException("해당 통화의 환율 정보를 찾을 수 없습니다: " + currencyUnit);
+        throw new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND, currencyUnit);
     }
 }

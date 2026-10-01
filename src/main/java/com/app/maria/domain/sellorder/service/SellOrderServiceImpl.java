@@ -11,9 +11,9 @@ import com.app.maria.domain.sellorder.dto.SellOrderHistoryDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
-import com.app.maria.domain.sellorder.exception.SellOrderException;
-import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.service.ProvisionalExchangeService;
 import com.app.maria.domain.settlement.service.SettlementService;
@@ -65,7 +65,7 @@ public class SellOrderServiceImpl implements SellOrderService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (sellOrderDTO.getSellQty().compareTo(totalCurrentQty) > 0) {
-            throw new SellOrderException("매도 가능 수량을 초과했습니다.");
+            throw new AppException(ErrorType.SELL_ORDER_QTY_EXCEEDED);
         }
 
         ForeignProductDTO product =
@@ -110,7 +110,7 @@ public class SellOrderServiceImpl implements SellOrderService {
             int updateRows =
                     inboundMapper.decreaseCurrentQty(lot.getInboundDetailId(), qtyFromThisLot);
             if (updateRows == 0) {
-                throw new SellOrderException("다른 요청이 먼저 처리되었습니다.");
+                throw new AppException(ErrorType.SELL_ORDER_CONCURRENT_CONFLICT);
             }
 
             SellOrderDTO executed =
@@ -137,7 +137,7 @@ public class SellOrderServiceImpl implements SellOrderService {
         SellOrderDTO dto =
                 sellOrderMapper
                         .selectSellOrderById(orderId)
-                        .orElseThrow(() -> new SellOrderNotFoundException("매도 주문 조회 실패"));
+                        .orElseThrow(() -> new AppException(ErrorType.SELL_ORDER_NOT_FOUND, orderId));
         return new SellOrderResponseDTO(dto);
     }
 
@@ -146,7 +146,7 @@ public class SellOrderServiceImpl implements SellOrderService {
     public SellOrderDetailDTO getSellOrderDetail(Long orderId) {
         return sellOrderMapper
                 .selectSellOrderDetail(orderId)
-                .orElseThrow(() -> new SellOrderNotFoundException("매도 주문 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.SELL_ORDER_NOT_FOUND, orderId));
     }
 
     @Override

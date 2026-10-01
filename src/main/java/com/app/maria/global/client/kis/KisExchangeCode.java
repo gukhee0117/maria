@@ -1,6 +1,7 @@
 package com.app.maria.global.client.kis;
 
-import com.app.maria.global.exception.UnsupportedExchangeException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +22,6 @@ public enum KisExchangeCode {
             }
         }
 
-        throw new UnsupportedExchangeException("지원하지 않는 거래소입니다.");
+        throw new AppException(ErrorType.UNSUPPORTED_EXCHANGE, market);
     }
 }

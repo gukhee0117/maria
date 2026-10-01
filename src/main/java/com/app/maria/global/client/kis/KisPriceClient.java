@@ -1,7 +1,8 @@
 package com.app.maria.global.client.kis;
 
 import com.app.maria.global.config.properties.PriceApiProperties;
-import com.app.maria.global.exception.KisPriceNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +52,7 @@ public class KisPriceClient {
 
         // rt_cd는 응답 성공 여부 코드
         if (response == null || !"0".equals(response.path("rt_cd").asText())) {
-            throw new KisPriceNotFoundException("전일종가 조회 실패: " + ticker);
+            throw new AppException(ErrorType.KIS_PRICE_NOT_FOUND, ticker);
         }
         // output.base 전일 종가
         return new BigDecimal(response.path("output").path("base").asText());

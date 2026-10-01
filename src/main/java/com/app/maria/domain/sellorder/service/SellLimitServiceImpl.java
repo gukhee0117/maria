@@ -1,7 +1,8 @@
 package com.app.maria.domain.sellorder.service;
 
-import com.app.maria.domain.sellorder.exception.SellOrderException;
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.client.mydata.MydataClient;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -23,14 +24,16 @@ public class SellLimitServiceImpl implements SellLimitService {
         BigDecimal limitAmount =
                 sellLimitMapper
                         .selectAccountLimitForUpdate(accountId)
-                        .orElseThrow(() -> new SellOrderException("계좌 한도 정보를 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND, accountId));
 
         BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);
 
         String ciHash =
                 sellLimitMapper
                         .selectCiHashByAccountId(accountId)
-                        .orElseThrow(() -> new SellOrderException("고객 정보를 확인할 수 없습니다."));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND, accountId));
 
         BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
 

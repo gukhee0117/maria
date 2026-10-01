@@ -8,8 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.app.maria.domain.sellorder.exception.SellOrderException;
+
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
+import com.app.maria.global.error.AppException;
 import com.app.maria.global.client.mydata.MydataClient;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -108,7 +109,7 @@ class SellLimitServiceImplTest {
         when(sellLimitMapper.selectAccountLimitForUpdate(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("계좌 한도 정보를 찾을 수 없습니다.");
 
         verify(sellLimitMapper, never()).sumUsedAmount(any());
@@ -124,7 +125,7 @@ class SellLimitServiceImplTest {
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("고객 정보를 확인할 수 없습니다.");
 
         verifyNoInteractions(mydataClient);
