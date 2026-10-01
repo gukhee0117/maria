@@ -10,8 +10,10 @@ import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.dto.AuditLogSearchDTO;
 import com.app.maria.global.audit.dto.request.AuditLogSearchRequestDTO;
 import com.app.maria.global.audit.dto.response.AuditLogResponseDTO;
-import com.app.maria.global.audit.exception.AuditLogInsertException;
+
 import com.app.maria.global.audit.mapper.AuditLogMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.PageResponseDTO;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -202,7 +204,7 @@ class AuditLogServiceImplTest {
         when(auditLogMapper.insertLog(auditLog)).thenReturn(0);
 
         assertThatThrownBy(() -> auditLogService.log(auditLog))
-                .isInstanceOf(AuditLogInsertException.class)
-                .hasMessage("AUDIT_LOG 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage());
     }
 }
