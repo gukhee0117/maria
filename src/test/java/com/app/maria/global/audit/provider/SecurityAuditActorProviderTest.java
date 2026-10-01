@@ -3,7 +3,9 @@ package com.app.maria.global.audit.provider;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.app.maria.global.audit.exception.AuditLogException;
+
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -30,8 +32,8 @@ class SecurityAuditActorProviderTest {
     @Test
     void throwsWhenNoAdminIsAuthenticated() {
         assertThatThrownBy(auditActorProvider::getCurrentAdminId)
-                .isInstanceOf(AuditLogException.class)
-                .hasMessage("감사 로그를 위한 관리자 정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.AUDIT_LOG_ACTOR_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -41,7 +43,7 @@ class SecurityAuditActorProviderTest {
                         new UsernamePasswordAuthenticationToken("admin", null, List.of()));
 
         assertThatThrownBy(auditActorProvider::getCurrentAdminId)
-                .isInstanceOf(AuditLogException.class)
-                .hasMessage("감사 로그를 위한 관리자 정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.AUDIT_LOG_ACTOR_NOT_FOUND.getMessage());
     }
 }

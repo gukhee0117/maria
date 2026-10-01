@@ -9,6 +9,8 @@ import com.app.maria.domain.settlement.exception.SettlementAccountNotFoundExcept
 import com.app.maria.domain.settlement.exception.SettlementCalculationException;
 import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -47,7 +49,8 @@ public class SettlementFailureRecorder {
     }
 
     private SettlementFailureCode classify(Exception exception) {
-        if (exception instanceof com.app.maria.global.exception.ExchangeRateNotFoundException) {
+        if (exception instanceof AppException appEx
+                && appEx.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
             return SettlementFailureCode.EXCHANGE_RATE_NOT_FOUND;
         }
         if (exception instanceof ExchangeRateExternalApiException) {

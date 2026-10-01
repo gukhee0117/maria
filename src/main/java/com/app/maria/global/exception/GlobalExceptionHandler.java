@@ -4,8 +4,6 @@ import com.app.maria.domain.account.exception.AccountException;
 import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.exception.DuplicateAccountException;
 import com.app.maria.domain.account.exception.InvalidAccountRequestException;
-import com.app.maria.domain.admin.exception.AdminException;
-import com.app.maria.domain.admin.exception.AdminNotFoundException;
 import com.app.maria.domain.domestic.exception.DomesticInvestmentException;
 import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundException;
 import com.app.maria.domain.domestic.exception.DomesticProductException;
@@ -16,14 +14,9 @@ import com.app.maria.domain.inbound.exception.InboundException;
 import com.app.maria.domain.inbound.exception.InboundNotFoundException;
 import com.app.maria.domain.member.exception.MemberException;
 import com.app.maria.domain.member.exception.MemberNotFoundException;
-import com.app.maria.domain.sellorder.exception.SellOrderException;
-import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.domain.targetproduct.exception.TargetProductException;
 import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
-import com.app.maria.global.audit.exception.AuditLogException;
-import com.app.maria.global.audit.exception.AuditLogInsertException;
-import com.app.maria.global.audit.exception.AuditLogNotFoundException;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
 import jakarta.validation.ConstraintViolation;
@@ -88,47 +81,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 3. SellOrder 예외
-    @ExceptionHandler(SellOrderException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSellOrderException(SellOrderException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SellOrderNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSellOrderNotFound(
-            SellOrderNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(ExchangeRateNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleExchangeRateNotFoundException(
-            ExchangeRateNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(KisTokenIssueException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleKisTokenIssueException(
-            KisTokenIssueException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(KisPriceNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleKisPriceNotFoundException(
-            KisPriceNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(UnsupportedExchangeException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleUnsupportedExchangeException(
-            UnsupportedExchangeException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     // 4. Account 예외
     @ExceptionHandler(AccountException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleAccountException(AccountException e) {
@@ -153,19 +105,6 @@ public class GlobalExceptionHandler {
             InvalidAccountRequestException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 5. Admin 예외
-    @ExceptionHandler(AdminException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAdminException(AdminException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AdminNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAdminNotFoundException(
-            AdminNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
     // 6. Inbound 예외
@@ -262,26 +201,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForeignProductNotFoundException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductNotFound(
             ForeignProductNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 12. Audit 예외
-    @ExceptionHandler(AuditLogException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAuditLogException(AuditLogException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AuditLogInsertException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAuditLogInsertException(
-            AuditLogInsertException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AuditLogNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAuditLogNotFoundException(
-            AuditLogNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 

@@ -28,8 +28,9 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.global.audit.dto.AuditLogDTO;
-import com.app.maria.global.audit.exception.AuditLogInsertException;
 import com.app.maria.global.audit.provider.AuditActorProvider;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.request.GeneralAccountRequestDTO;
@@ -350,7 +351,7 @@ class AccountClosureServiceImplTest {
         when(businessClockService.now()).thenReturn(NOW);
         when(accountClosureMapper.rejectClosureRequest(closure)).thenReturn(1);
         when(accountMapper.reopenAfterClosureRejection(ACCOUNT_ID)).thenReturn(1);
-        doThrow(new AuditLogInsertException("AUDIT_LOG 저장에 실패했습니다."))
+        doThrow(new AppException(ErrorType.AUDIT_LOG_INSERT_FAILED))
                 .when(auditLogService)
                 .log(any(AuditLogDTO.class));
 
@@ -358,8 +359,8 @@ class AccountClosureServiceImplTest {
                         () ->
                                 accountClosureService.rejectClosure(
                                         7L, CLOSURE_REQUEST_ID, "관리자 반려 사유"))
-                .isInstanceOf(AuditLogInsertException.class)
-                .hasMessage("AUDIT_LOG 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage());
 
         verify(accountClosureMapper).rejectClosureRequest(closure);
         verify(accountMapper).reopenAfterClosureRejection(ACCOUNT_ID);
