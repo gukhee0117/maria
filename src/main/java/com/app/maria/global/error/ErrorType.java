@@ -55,15 +55,15 @@ public enum ErrorType {
     SELL_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "매도 주문을 찾을 수 없습니다.", LogLevel.WARN),
     SELL_ORDER_QTY_EXCEEDED(HttpStatus.BAD_REQUEST, "매도 가능 수량을 초과했습니다.", LogLevel.WARN),
     SELL_ORDER_CONCURRENT_CONFLICT(HttpStatus.BAD_REQUEST, "다른 요청이 먼저 처리되었습니다.", LogLevel.WARN),
-    SELL_ORDER_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 한도 정보를 찾을 수 없습니다.", LogLevel.WARN),
-    SELL_ORDER_CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 확인할 수 없습니다.", LogLevel.WARN),
-    SELL_ORDER_RESULT_EMPTY(HttpStatus.BAD_REQUEST, "매도 주문 결과가 없습니다.", LogLevel.WARN),
+    SELL_ORDER_ACCOUNT_NOT_FOUND(HttpStatus.BAD_REQUEST, "계좌 한도 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SELL_ORDER_CUSTOMER_NOT_FOUND(HttpStatus.BAD_REQUEST, "고객 정보를 확인할 수 없습니다.", LogLevel.WARN),
+    SELL_ORDER_RESULT_EMPTY(HttpStatus.INTERNAL_SERVER_ERROR, "매도 주문 결과가 없습니다.", LogLevel.WARN),
 
     // KIS / 환율
     EXCHANGE_RATE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "환율 정보를 찾을 수 없습니다.", LogLevel.WARN),
     KIS_PRICE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "전일종가를 조회할 수 없습니다.", LogLevel.WARN),
     KIS_TOKEN_ISSUE(HttpStatus.BAD_GATEWAY, "KIS 토큰 발급에 실패하였습니다.", LogLevel.ERROR),
-    UNSUPPORTED_EXCHANGE(HttpStatus.BAD_GATEWAY, "지원하지 않는 거래소입니다.", LogLevel.WARN),
+    UNSUPPORTED_EXCHANGE(HttpStatus.INTERNAL_SERVER_ERROR, "지원하지 않는 거래소입니다.", LogLevel.WARN),
 
     // Admin
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다.", LogLevel.WARN),

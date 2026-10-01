@@ -4,6 +4,7 @@ import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiExceptio
 import com.app.maria.domain.settlement.exception.InvalidSettlementException;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,7 +38,10 @@ public class ExchangeRateProviderImpl implements ExchangeRateProvider {
         try {
             return getRateWithRetry(currency, searchDate);
         } catch (AppException e) {
-            throw e;
+            if (e.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
+                throw e;
+            }
+            throw new ExchangeRateExternalApiException(e.getMessage(), e);
         } catch (ExchangeRateApiException e) {
             throw new ExchangeRateExternalApiException(e.getMessage(), e.getCause());
         }
@@ -52,7 +56,10 @@ public class ExchangeRateProviderImpl implements ExchangeRateProvider {
                 }
                 return rate;
             } catch (AppException e) {
-                throw e;
+                if (e.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
+                    throw e;
+                }
+                throw new ExchangeRateApiException(e.getMessage(), e);
             } catch (ResourceAccessException e) {
                 if (attempt == maxRetries) {
                     throw new ExchangeRateApiException("환율 API 연결 또는 응답 시간 초과", e);
