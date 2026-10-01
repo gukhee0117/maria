@@ -23,8 +23,8 @@ import org.springframework.http.HttpStatus;
  * <p><b>로그 레벨은 거의 WARN이면 된다.</b> "정상적으로 있을 수 있는 상황"(사용자가 잘못 요청했다, 동시에 두 요청이 겹쳤다 등)은 WARN. 앱이 제대로
  * 응답을 못 만들 정도로 진짜 심각한 경우에만 ERROR를 쓴다 (예: DB 연결이 끊겼다, 외부 API가 통째로 죽었다). 지금 tax 도메인 3개는 전부 WARN.
  *
- * <p>Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 이 구조로 옮겨짐. 나머지 도메인은 아직 옛날 방식(exception 클래스 + 핸들러) 그대로 — 각자
- * 담당 도메인 옮길 때 여기 참고해서 값 추가하면 됨.
+ * <p>Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 이 구조로 옮겨짐. 나머지 도메인은 아직 옛날 방식(exception 클래스 + 핸들러) 그대로
+ * — 각자 담당 도메인 옮길 때 여기 참고해서 값 추가하면 됨.
  */
 @Getter
 @RequiredArgsConstructor

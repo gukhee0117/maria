@@ -16,7 +16,8 @@ public class ApiResponseDTO<T> {
     private T data;
 
     // 에러가 어떤 종류인지 알려주는 값 (예: "TAX_RULE_NOT_FOUND"). AppException으로 예외를 던지는 곳만
-    // 이 값이 채워짐 — Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 여기 해당. 나머지 도메인은 아직 옛날 방식 그대로라 code가 항상 null이고,
+    // 이 값이 채워짐 — Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 여기 해당. 나머지 도메인은 아직 옛날 방식 그대로라 code가 항상
+    // null이고,
     // null이면 응답 JSON에 아예 안 찍힘(@JsonInclude 때문) — 그래서 기존 화면들은 이 필드 추가해도 안 깨짐.
     //
     // 지금 당장 화면(JS)에서 이 code를 보고 뭘 하진 않음. 2차 React 화면 만들 때 "이 code면 이 모달 띄워라"
