@@ -10,7 +10,6 @@ import com.app.maria.domain.accountclosure.api.AccountClosureApi;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.withdrawal.api.WithdrawalApi;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
-import com.app.maria.domain.withdrawal.service.WithdrawalQueryService;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,8 +30,7 @@ class BusinessApiAuthorizationTest {
     private final WithdrawalService withdrawalService = mock(WithdrawalService.class);
     private final AccountClosureService accountClosureService = mock(AccountClosureService.class);
 
-    private final WithdrawalApi withdrawalApi =
-            securedProxy(new WithdrawalApi(mock(WithdrawalQueryService.class), withdrawalService));
+    private final WithdrawalApi withdrawalApi = securedProxy(new WithdrawalApi(withdrawalService));
 
     private final AccountClosureApi accountClosureApi =
             securedProxy(new AccountClosureApi(accountClosureService));
