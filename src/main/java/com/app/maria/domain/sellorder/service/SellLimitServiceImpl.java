@@ -1,9 +1,9 @@
 package com.app.maria.domain.sellorder.service;
 
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
-import com.app.maria.global.client.mydata.MydataClient;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,9 @@ public class SellLimitServiceImpl implements SellLimitService {
                 sellLimitMapper
                         .selectAccountLimitForUpdate(accountId)
                         .orElseThrow(
-                                () -> new AppException(ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND, accountId));
+                                () ->
+                                        new AppException(
+                                                ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND, accountId));
 
         BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);
 
@@ -33,7 +35,10 @@ public class SellLimitServiceImpl implements SellLimitService {
                 sellLimitMapper
                         .selectCiHashByAccountId(accountId)
                         .orElseThrow(
-                                () -> new AppException(ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND, accountId));
+                                () ->
+                                        new AppException(
+                                                ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND,
+                                                accountId));
 
         BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
 

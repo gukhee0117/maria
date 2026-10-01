@@ -16,16 +16,14 @@ import com.app.maria.domain.sellorder.dto.SellOrderHistoryDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
-
-
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
-import com.app.maria.global.error.AppException;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.service.ProvisionalExchangeService;
 import com.app.maria.domain.settlement.service.SettlementService;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.client.kis.KisPriceClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.PageResponseDTO;
 import java.math.BigDecimal;

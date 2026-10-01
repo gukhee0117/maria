@@ -3,7 +3,6 @@ package com.app.maria.global.audit.provider;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import java.util.List;

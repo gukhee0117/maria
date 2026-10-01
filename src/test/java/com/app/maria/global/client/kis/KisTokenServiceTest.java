@@ -85,8 +85,7 @@ class KisTokenServiceTest {
         when(valueOperations.get(TOKEN_KEY)).thenReturn(null);
         when(restTemplate.postForObject(anyString(), any(), eq(JsonNode.class))).thenReturn(null);
 
-        assertThatThrownBy(() -> kisTokenService.getAccessToken())
-                .isInstanceOf(AppException.class);
+        assertThatThrownBy(() -> kisTokenService.getAccessToken()).isInstanceOf(AppException.class);
     }
 
     @Test
@@ -97,8 +96,7 @@ class KisTokenServiceTest {
         when(restTemplate.postForObject(anyString(), any(), eq(JsonNode.class)))
                 .thenReturn(response);
 
-        assertThatThrownBy(() -> kisTokenService.getAccessToken())
-                .isInstanceOf(AppException.class);
+        assertThatThrownBy(() -> kisTokenService.getAccessToken()).isInstanceOf(AppException.class);
     }
 
     @Test

@@ -6,11 +6,11 @@ import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminMeResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminSummaryResponseDTO;
 import com.app.maria.domain.admin.mapper.AdminMapper;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.admin.type.AdminRole;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -58,7 +58,8 @@ public class AdminServiceImpl implements AdminService {
         AdminUserDTO admin =
                 adminMapper
                         .selectAdminByAdminId(targetAdminId)
-                        .orElseThrow(() -> new AppException(ErrorType.ADMIN_NOT_FOUND, targetAdminId));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ADMIN_NOT_FOUND, targetAdminId));
 
         adminMapper.updateRole(targetAdminId, newRole);
 

@@ -8,10 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.admin.dto.request.AdminRoleUpdateRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminSummaryResponseDTO;
 import com.app.maria.domain.admin.service.AdminService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.admin.type.AdminRole;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;

@@ -162,7 +162,9 @@ class SellOrderApiTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(ErrorType.SELL_ORDER_QTY_EXCEEDED.getMessage()));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.SELL_ORDER_QTY_EXCEEDED.getMessage()));
     }
 
     @Test
@@ -180,7 +182,8 @@ class SellOrderApiTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.message").value(ErrorType.UNSUPPORTED_EXCHANGE.getMessage()));
+                .andExpect(
+                        jsonPath("$.message").value(ErrorType.UNSUPPORTED_EXCHANGE.getMessage()));
     }
 
     @Test
@@ -318,7 +321,8 @@ class SellOrderApiTest {
 
         mockMvc.perform(get("/api/admin/sell-orders/{orderId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value(ErrorType.SELL_ORDER_NOT_FOUND.getMessage()));
+                .andExpect(
+                        jsonPath("$.message").value(ErrorType.SELL_ORDER_NOT_FOUND.getMessage()));
     }
 
     @Test

@@ -29,8 +29,6 @@ import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.request.GeneralAccountRequestDTO;

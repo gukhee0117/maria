@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-
 import com.app.maria.global.clock.dto.request.SystemClockChangeRequestDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.clock.service.SystemClockManagementService;
@@ -182,7 +181,9 @@ class SystemClockApiTest {
 
         mockMvc.perform(clockChangeRequest())
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage()));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage()));
 
         verify(systemClockManagementService)
                 .changeSystemTime(eq(4L), any(SystemClockChangeRequestDTO.class));

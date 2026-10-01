@@ -8,11 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
 import com.app.maria.domain.admin.service.AdminService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.config.SecurityConfig;
 import com.app.maria.global.config.properties.CookieProperties;
 import com.app.maria.global.config.properties.JwtProperties;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -143,7 +143,8 @@ class AdminAuthApiTest {
     void refreshReturns401WhenTokenInvalid() throws Exception {
         when(jwtProperties.getExpirationMinute()).thenReturn(20L);
         when(jwtProperties.getRefreshExpirationDay()).thenReturn(7L);
-        when(adminService.refresh("broken-token")).thenThrow(new AppException(ErrorType.ADMIN_TOKEN_INVALID));
+        when(adminService.refresh("broken-token"))
+                .thenThrow(new AppException(ErrorType.ADMIN_TOKEN_INVALID));
 
         mockMvc.perform(
                         post("/api/auth/admin/refresh")

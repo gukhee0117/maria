@@ -365,10 +365,8 @@ class SettlementBatchTaskletTest {
 
         verify(exchangeRateProvider, times(1))
                 .getFinalRate("USD", batch.getExecutedAt().toLocalDate());
-        verify(settlementFailureRecorder)
-                .markFailed(eq(10L), any(AppException.class));
-        verify(settlementFailureRecorder)
-                .markFailed(eq(11L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(10L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(11L), any(AppException.class));
         verify(settlementTransactionExecutor, never()).execute(any(), any());
     }
 
@@ -391,10 +389,8 @@ class SettlementBatchTaskletTest {
 
         verify(exchangeRateProvider, times(1))
                 .getFinalRate("USD", batch.getExecutedAt().toLocalDate());
-        verify(settlementFailureRecorder)
-                .markFailed(eq(10L), any(AppException.class));
-        verify(settlementFailureRecorder)
-                .markFailed(eq(11L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(10L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(11L), any(AppException.class));
     }
 
     @Test

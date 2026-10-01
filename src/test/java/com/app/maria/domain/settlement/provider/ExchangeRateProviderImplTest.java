@@ -106,8 +106,7 @@ class ExchangeRateProviderImplTest {
     @Test
     @DisplayName("외부 환율 Client의 조회 실패를 그대로 전파한다")
     void getFinalRatePropagatesClientException() {
-        AppException clientException =
-                new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
+        AppException clientException = new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
         when(exchangeRateClient.getBaseRate(eq("USD"), any(LocalDate.class)))
                 .thenThrow(clientException);
 
