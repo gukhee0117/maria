@@ -8,9 +8,9 @@ import com.app.maria.domain.admin.dto.AdminUserDTO;
 import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminSummaryResponseDTO;
-import com.app.maria.domain.admin.exception.AdminException;
-import com.app.maria.domain.admin.exception.AdminNotFoundException;
 import com.app.maria.domain.admin.mapper.AdminMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.admin.type.AdminRole;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
@@ -83,8 +83,8 @@ class AdminServiceImplTest {
         when(adminMapper.selectAdminByLoginId("nobody")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> adminService.login(request))
-                .isInstanceOf(AdminException.class)
-                .hasMessage("아이디 또는 비밀번호가 일치하지 않습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_LOGIN_FAILED.getMessage());
 
         verifyNoInteractions(passwordEncoder, jwtTokenProvider);
     }
@@ -102,8 +102,8 @@ class AdminServiceImplTest {
         when(passwordEncoder.matches("wrong-password", "encoded-password")).thenReturn(false);
 
         assertThatThrownBy(() -> adminService.login(request))
-                .isInstanceOf(AdminException.class)
-                .hasMessage("아이디 또는 비밀번호가 일치하지 않습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_LOGIN_FAILED.getMessage());
 
         verifyNoInteractions(jwtTokenProvider);
     }
@@ -121,9 +121,9 @@ class AdminServiceImplTest {
         when(passwordEncoder.matches("wrong", "encoded-password")).thenReturn(false);
 
         String messageForMissingUser =
-                catchAdminExceptionMessage(() -> adminService.login(noSuchUser));
+                catchAppExceptionMessage(() -> adminService.login(noSuchUser));
         String messageForWrongPassword =
-                catchAdminExceptionMessage(() -> adminService.login(wrongPassword));
+                catchAppExceptionMessage(() -> adminService.login(wrongPassword));
 
         assertThat(messageForMissingUser).isEqualTo(messageForWrongPassword);
     }
@@ -153,8 +153,8 @@ class AdminServiceImplTest {
         when(adminMapper.selectAdminByAdminId(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> adminService.updateRole(99L, 1L, AdminRole.ADMIN))
-                .isInstanceOf(AdminNotFoundException.class)
-                .hasMessage("대상 관리자가 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_NOT_FOUND.getMessage());
 
         verify(adminMapper, never()).updateRole(anyLong(), any());
         verifyNoInteractions(auditLogService);
@@ -218,8 +218,8 @@ class AdminServiceImplTest {
         when(jwtTokenProvider.parseClaims("broken-token")).thenThrow(new JwtException("bad token"));
 
         assertThatThrownBy(() -> adminService.refresh("broken-token"))
-                .isInstanceOf(AdminException.class)
-                .hasMessage("유효하지 않은 토큰입니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_TOKEN_INVALID.getMessage());
 
         verifyNoInteractions(adminMapper);
     }
@@ -231,8 +231,8 @@ class AdminServiceImplTest {
         when(claims.getSubject()).thenReturn("not-a-number");
 
         assertThatThrownBy(() -> adminService.refresh("weird-token"))
-                .isInstanceOf(AdminException.class)
-                .hasMessage("유효하지 않은 토큰 정보입니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_TOKEN_SUBJECT_INVALID.getMessage());
 
         verifyNoInteractions(adminMapper);
     }
@@ -245,18 +245,18 @@ class AdminServiceImplTest {
         when(adminMapper.selectAdminByAdminId(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> adminService.refresh("valid-refresh-token"))
-                .isInstanceOf(AdminNotFoundException.class)
-                .hasMessage("대상 관리자가 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ADMIN_NOT_FOUND.getMessage());
 
         verify(jwtTokenProvider, never()).createAccessToken(any(), any(), any(), any());
     }
 
-    private String catchAdminExceptionMessage(Runnable action) {
+    private String catchAppExceptionMessage(Runnable action) {
         try {
             action.run();
-        } catch (AdminException e) {
+        } catch (AppException e) {
             return e.getMessage();
         }
-        throw new AssertionError("AdminException expected but not thrown");
+        throw new AssertionError("AppException expected but not thrown");
     }
 }

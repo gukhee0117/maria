@@ -5,9 +5,9 @@ import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminMeResponseDTO;
 import com.app.maria.domain.admin.dto.response.AdminSummaryResponseDTO;
-import com.app.maria.domain.admin.exception.AdminException;
-import com.app.maria.domain.admin.exception.AdminNotFoundException;
 import com.app.maria.domain.admin.mapper.AdminMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.domain.admin.type.AdminRole;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
@@ -36,10 +36,10 @@ public class AdminServiceImpl implements AdminService {
         AdminUserDTO admin =
                 adminMapper
                         .selectAdminByLoginId(request.getLoginId())
-                        .orElseThrow(() -> new AdminException("아이디 또는 비밀번호가 일치하지 않습니다."));
+                        .orElseThrow(() -> new AppException(ErrorType.ADMIN_LOGIN_FAILED));
 
         if (!passwordEncoder.matches(request.getPassword(), admin.getPasswordHash())) {
-            throw new AdminException("아이디 또는 비밀번호가 일치하지 않습니다.");
+            throw new AppException(ErrorType.ADMIN_LOGIN_FAILED);
         }
 
         String accessToken =
@@ -58,7 +58,7 @@ public class AdminServiceImpl implements AdminService {
         AdminUserDTO admin =
                 adminMapper
                         .selectAdminByAdminId(targetAdminId)
-                        .orElseThrow(() -> new AdminNotFoundException("대상 관리자가 없습니다."));
+                        .orElseThrow(() -> new AppException(ErrorType.ADMIN_NOT_FOUND, targetAdminId));
 
         adminMapper.updateRole(targetAdminId, newRole);
 
@@ -80,27 +80,27 @@ public class AdminServiceImpl implements AdminService {
         try {
             claims = jwtTokenProvider.parseClaims(refreshToken);
         } catch (JwtException | IllegalArgumentException e) {
-            throw new AdminException("유효하지 않은 토큰입니다.");
+            throw new AppException(ErrorType.ADMIN_TOKEN_INVALID);
         }
 
         // type claim이 없는 구 토큰은 허용(자연 만료 후 자동 소멸),
         // type이 명시됐는데 refresh가 아니면 거부
         String tokenType = claims.get("type", String.class);
         if (tokenType != null && !"refresh".equals(tokenType)) {
-            throw new AdminException("유효하지 않은 토큰입니다.");
+            throw new AppException(ErrorType.ADMIN_TOKEN_INVALID);
         }
 
         Long adminId;
         try {
             adminId = Long.parseLong(claims.getSubject());
         } catch (NumberFormatException e) {
-            throw new AdminException("유효하지 않은 토큰 정보입니다.");
+            throw new AppException(ErrorType.ADMIN_TOKEN_SUBJECT_INVALID);
         }
 
         AdminUserDTO admin =
                 adminMapper
                         .selectAdminByAdminId(adminId)
-                        .orElseThrow(() -> new AdminNotFoundException("대상 관리자가 없습니다."));
+                        .orElseThrow(() -> new AppException(ErrorType.ADMIN_NOT_FOUND, adminId));
 
         String newAccessToken =
                 jwtTokenProvider.createAccessToken(
@@ -125,7 +125,7 @@ public class AdminServiceImpl implements AdminService {
         AdminUserDTO admin =
                 adminMapper
                         .selectAdminByAdminId(adminId)
-                        .orElseThrow(() -> new AdminNotFoundException("관리자를 찾을 수 없습니다."));
+                        .orElseThrow(() -> new AppException(ErrorType.ADMIN_NOT_FOUND, adminId));
         return new AdminMeResponseDTO(admin.getAdminId(), admin.getName(), admin.getRole());
     }
 }

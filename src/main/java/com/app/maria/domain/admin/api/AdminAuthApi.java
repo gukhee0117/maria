@@ -2,8 +2,9 @@ package com.app.maria.domain.admin.api;
 
 import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
-import com.app.maria.domain.admin.exception.AdminException;
 import com.app.maria.domain.admin.service.AdminService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.config.properties.CookieProperties;
 import com.app.maria.global.config.properties.JwtProperties;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -34,7 +35,7 @@ public class AdminAuthApi {
     public ResponseEntity<ApiResponseDTO<Void>> refresh(
             @CookieValue(name = "refresh_token", required = false) String refreshToken) {
         if (refreshToken == null) {
-            throw new AdminException("refresh_token 쿠키가 없습니다.");
+            throw new AppException(ErrorType.ADMIN_REFRESH_TOKEN_MISSING);
         }
         AdminLoginResponseDTO tokens = adminService.refresh(refreshToken);
         return tokenCookieResponse("토큰이 재발급되었습니다.", tokens);

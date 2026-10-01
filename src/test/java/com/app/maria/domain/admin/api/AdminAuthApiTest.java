@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.app.maria.domain.admin.dto.request.AdminLoginRequestDTO;
 import com.app.maria.domain.admin.dto.response.AdminLoginResponseDTO;
-import com.app.maria.domain.admin.exception.AdminException;
-import com.app.maria.domain.admin.exception.AdminNotFoundException;
 import com.app.maria.domain.admin.service.AdminService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.config.SecurityConfig;
 import com.app.maria.global.config.properties.CookieProperties;
 import com.app.maria.global.config.properties.JwtProperties;
@@ -67,7 +67,7 @@ class AdminAuthApiTest {
     @Test
     @DisplayName("서비스에서 인증 예외가 발생하면 401을 반환한다")
     void loginReturns401WhenServiceThrowsAdminException() throws Exception {
-        when(adminService.login(any())).thenThrow(new AdminException("아이디 또는 비밀번호가 일치하지 않습니다."));
+        when(adminService.login(any())).thenThrow(new AppException(ErrorType.ADMIN_LOGIN_FAILED));
 
         mockMvc.perform(
                         post("/api/auth/admin/login")
@@ -143,7 +143,7 @@ class AdminAuthApiTest {
     void refreshReturns401WhenTokenInvalid() throws Exception {
         when(jwtProperties.getExpirationMinute()).thenReturn(20L);
         when(jwtProperties.getRefreshExpirationDay()).thenReturn(7L);
-        when(adminService.refresh("broken-token")).thenThrow(new AdminException("유효하지 않은 토큰입니다."));
+        when(adminService.refresh("broken-token")).thenThrow(new AppException(ErrorType.ADMIN_TOKEN_INVALID));
 
         mockMvc.perform(
                         post("/api/auth/admin/refresh")
@@ -157,7 +157,7 @@ class AdminAuthApiTest {
         when(jwtProperties.getExpirationMinute()).thenReturn(20L);
         when(jwtProperties.getRefreshExpirationDay()).thenReturn(7L);
         when(adminService.refresh("valid-rt"))
-                .thenThrow(new AdminNotFoundException("대상 관리자가 없습니다."));
+                .thenThrow(new AppException(ErrorType.ADMIN_NOT_FOUND));
 
         mockMvc.perform(
                         post("/api/auth/admin/refresh")
