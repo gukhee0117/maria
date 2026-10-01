@@ -53,7 +53,7 @@ public enum ErrorType {
     // SellOrder
     SELL_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "매도 주문을 찾을 수 없습니다.", LogLevel.WARN),
     SELL_ORDER_QTY_EXCEEDED(HttpStatus.BAD_REQUEST, "매도 가능 수량을 초과했습니다.", LogLevel.WARN),
-    SELL_ORDER_CONCURRENT_CONFLICT(HttpStatus.CONFLICT, "다른 요청이 먼저 처리되었습니다.", LogLevel.WARN),
+    SELL_ORDER_CONCURRENT_CONFLICT(HttpStatus.BAD_REQUEST, "다른 요청이 먼저 처리되었습니다.", LogLevel.WARN),
     SELL_ORDER_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 한도 정보를 찾을 수 없습니다.", LogLevel.WARN),
     SELL_ORDER_CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 확인할 수 없습니다.", LogLevel.WARN),
     SELL_ORDER_RESULT_EMPTY(HttpStatus.BAD_REQUEST, "매도 주문 결과가 없습니다.", LogLevel.WARN),

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -109,7 +110,7 @@ class SellLimitServiceImplTest {
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
                 .isInstanceOf(AppException.class)
-                .hasMessage("계좌 한도 정보를 찾을 수 없습니다.");
+                .hasMessage(ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND.getMessage());
 
         verify(sellLimitMapper, never()).sumUsedAmount(any());
         verifyNoInteractions(mydataClient);
@@ -125,7 +126,7 @@ class SellLimitServiceImplTest {
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
                 .isInstanceOf(AppException.class)
-                .hasMessage("고객 정보를 확인할 수 없습니다.");
+                .hasMessage(ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND.getMessage());
 
         verifyNoInteractions(mydataClient);
     }
