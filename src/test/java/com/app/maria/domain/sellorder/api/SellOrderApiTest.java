@@ -181,7 +181,7 @@ class SellOrderApiTest {
                         post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadGateway())
+                .andExpect(status().isInternalServerError())
                 .andExpect(
                         jsonPath("$.message").value(ErrorType.UNSUPPORTED_EXCHANGE.getMessage()));
     }
