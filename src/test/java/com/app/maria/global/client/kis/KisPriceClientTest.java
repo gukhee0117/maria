@@ -9,9 +9,11 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.global.config.properties.PriceApiProperties;
 import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,7 +78,8 @@ class KisPriceClientTest {
                 .thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
 
         assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .isInstanceOf(AppException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -91,7 +95,8 @@ class KisPriceClientTest {
                 .thenReturn(new ResponseEntity<>(response, HttpStatus.OK));
 
         assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .isInstanceOf(AppException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -136,5 +141,61 @@ class KisPriceClientTest {
                 .contains("EXCD=NAS")
                 .contains("SYMB=AAPL")
                 .contains("AUTH=");
+    }
+
+    private HttpServerErrorException rateLimitError() {
+        String body = "{\"rt_cd\":\"1\",\"msg1\":\"초당 거래건수를 초과하였습니다.\",\"msg_cd\":\"EGW00201\"}";
+        return HttpServerErrorException.create(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+                new HttpHeaders(),
+                body.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void getPreviousClose_초당거래건수초과면_재시도해서_성공한다() throws Exception {
+        when(kisTokenService.getAccessToken()).thenReturn("token-value");
+        JsonNode success = json("{\"output\":{\"base\":\"100\"},\"rt_cd\":\"0\"}");
+        when(restTemplate.exchange(
+                        anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(JsonNode.class)))
+                .thenThrow(rateLimitError())
+                .thenReturn(new ResponseEntity<>(success, HttpStatus.OK));
+
+        BigDecimal base = kisPriceClient.getPreviousClose("NAS", "AAPL");
+
+        assertThat(base).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void getPreviousClose_초당거래건수초과가_계속되면_결국_예외를던진다() {
+        when(kisTokenService.getAccessToken()).thenReturn("token-value");
+        when(restTemplate.exchange(
+                        anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(JsonNode.class)))
+                .thenThrow(rateLimitError());
+
+        assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
+    }
+
+    @Test
+    void getPreviousClose_레이트리밋이_아닌_5xx는_바로던진다() {
+        when(kisTokenService.getAccessToken()).thenReturn("token-value");
+        HttpServerErrorException otherError =
+                HttpServerErrorException.create(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Internal Server Error",
+                        new HttpHeaders(),
+                        "{\"rt_cd\":\"1\",\"msg_cd\":\"EGW00002\"}"
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8);
+        when(restTemplate.exchange(
+                        anyString(), eq(HttpMethod.GET), any(HttpEntity.class), eq(JsonNode.class)))
+                .thenThrow(otherError);
+
+        assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
     }
 }

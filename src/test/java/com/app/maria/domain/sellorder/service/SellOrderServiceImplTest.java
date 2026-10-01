@@ -233,10 +233,11 @@ class SellOrderServiceImplTest {
                 .thenReturn(List.of(lot(1L, "50", LocalDateTime.of(2026, 1, 1, 0, 0))));
         when(foreignProductMapper.selectById(10L)).thenReturn(Optional.of(validProduct()));
         when(kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND));
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND, "AAPL"));
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(AppException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.KIS_PRICE_NOT_FOUND.getMessage());
 
         verify(exchangeRateClient, never()).getBaseRate(any());
         verifyNoInteractions(sellOrderMapper, sellLimitService);

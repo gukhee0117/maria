@@ -92,4 +92,49 @@
         limit 1
     </select>
 
+    <select id="selectHeldLotsByAccountId" resultType="HeldLotDTO">
+        select
+            id.inbound_detail_id,
+            id.foreign_product_id,
+            fp.ticker,
+            fp.market,
+            fp.currency,
+            id.purchase_fx_rate,
+            id.purchase_price,
+            id.current_qty,
+            concat(fp.ticker, ' ', fp.name) as product_label
+        from inbound_detail id
+        join inbound i on i.inbound_id = id.inbound_id
+        join foreign_product fp on fp.foreign_product_id = id.foreign_product_id
+        where i.account_id = #{accountId}
+            and id.current_qty > 0
+    </select>
+
+    <select id="countUnconfirmedFinalReport" resultType="int">
+        select count(*)
+        from tax_snapshot ts
+        where ts.final_tax > 0
+            and not exists (
+                select 1 from tax_calculation tc
+                where tc.account_id = ts.account_id and tc.basis_type = 'FINAL_REPORT'
+            )
+    </select>
+
+    <select id="countUnprocessedClawback" resultType="int">
+        select count(*)
+        from account a
+        join tax_calculation tc on tc.account_id = a.account_id and tc.basis_type = 'FINAL_REPORT'
+        where a.benefit = 'IMPOSSIBLE'
+            and not exists (
+                select 1 from tax_calculation tc2
+                where tc2.account_id = a.account_id and tc2.basis_type = 'EARLY_WITHDRAWAL_CLAWBACK'
+            )
+    </select>
+
+    <select id="countBenefitChangedSince" resultType="int">
+        select count(distinct account_id)
+        from account_benefit_log
+        where changed_at between #{since} and #{until}
+    </select>
+
 </mapper>

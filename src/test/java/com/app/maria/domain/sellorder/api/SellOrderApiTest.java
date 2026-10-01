@@ -169,7 +169,7 @@ class SellOrderApiTest {
 
     @Test
     @DisplayName(
-            "매도 주문 접수 시 지원하지 않는 거래소면 GlobalExceptionHandler가 전용 핸들러로 502를 반환한다 (부모 KisPriceNotFoundException 핸들러로 새는지 실제 스프링 디스패치로 검증)")
+            "매도 주문 접수 시 지원하지 않는 거래소면 GlobalExceptionHandler가 전용 핸들러로 502를 반환한다 (다른 502 핸들러로 새는지 실제 스프링 디스패치로 검증)")
     @WithMockUser(roles = "SETTLEMENT")
     void placeSellOrderReturns502WhenExchangeUnsupported() throws Exception {
         SellOrderRequestDTO request = validRequestBuilder().build();

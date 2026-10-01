@@ -29,6 +29,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    // 세금
     TAX_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "유효한 세액 규칙을 찾지 못했습니다.", LogLevel.WARN),
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(
