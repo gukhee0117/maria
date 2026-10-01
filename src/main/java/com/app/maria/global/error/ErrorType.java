@@ -29,6 +29,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    //세금
     TAX_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "유효한 세액 규칙을 찾지 못했습니다.", LogLevel.WARN),
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(
@@ -48,7 +49,10 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "계좌 해지 처리에 실패했습니다.", LogLevel.ERROR),
     SYSTEM_CLOCK_NOT_INITIALIZED(
             HttpStatus.INTERNAL_SERVER_ERROR, "업무시각이 초기화되지 않았습니다.", LogLevel.ERROR),
-    SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN);
+    SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN),
+    //전일종가
+    KIS_PRICE_NOT_FOUND(HttpStatus.BAD_GATEWAY,"전일종가 조회에 실패했습니다.",LogLevel.WARN);
+
     private final HttpStatus status;
     private final String message;
     private final LogLevel logLevel;

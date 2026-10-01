@@ -22,6 +22,8 @@ public class TaxSnapshotDTO {
     private BigDecimal adjustRatio;
     private BigDecimal finalDeduction;
     private BigDecimal finalTax;
+    private boolean needsFinalReport;
+    private boolean needsClawback;
 
     public static TaxSnapshotDTO of(
             Long accountId, LocalDateTime calculatedAt, TaxCalculationResultDTO result) {

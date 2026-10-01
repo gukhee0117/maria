@@ -20,6 +20,8 @@ public class TaxSnapshotResponseDTO {
     private BigDecimal adjustRatio;
     private BigDecimal finalDeduction;
     private BigDecimal finalTax;
+    private boolean needsFinalReport;
+    private boolean needsClawback;
 
     public static TaxSnapshotResponseDTO of(TaxSnapshotDTO dto) {
         return TaxSnapshotResponseDTO.builder()
@@ -32,6 +34,8 @@ public class TaxSnapshotResponseDTO {
                 .adjustRatio(dto.getAdjustRatio())
                 .finalDeduction(dto.getFinalDeduction())
                 .finalTax(dto.getFinalTax())
+                .needsFinalReport(dto.isNeedsFinalReport())
+                .needsClawback(dto.isNeedsClawback())
                 .build();
     }
 }

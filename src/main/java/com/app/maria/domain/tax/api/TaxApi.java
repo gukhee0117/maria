@@ -1,8 +1,10 @@
 package com.app.maria.domain.tax.api;
 
+import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
+import com.app.maria.domain.tax.dto.response.TaxExpectedReliefResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotBatchResultResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
 import com.app.maria.domain.tax.service.TaxCalculationService;
@@ -30,11 +32,27 @@ public class TaxApi {
     private final TaxCalculationService taxCalculationService;
 
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
+    @GetMapping("/action-summary")
+    public ResponseEntity<ApiResponseDTO<TaxActionSummaryResponseDTO>> actionSummary() {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("오늘 할 일 요약 조회 성공", taxCalculationService.getActionSummary()));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
     @GetMapping("/preview/{accountId}")
     public ResponseEntity<ApiResponseDTO<TaxCalculationPreviewResponseDTO>> preview(
             @PathVariable @Positive Long accountId) {
         return ResponseEntity.ok(
                 ApiResponseDTO.of("세금계산 성공", taxCalculationService.taxCalculate(accountId)));
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
+    @GetMapping("/preview/{accountId}/expected-relief")
+    public ResponseEntity<ApiResponseDTO<TaxExpectedReliefResponseDTO>> expectedRelief(
+            @PathVariable @Positive Long accountId) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "예상 감면세액 계산 성공", taxCalculationService.previewExpectedRelief(accountId)));
     }
 
     @PreAuthorize("hasRole('SETTLEMENT')")

@@ -2,6 +2,7 @@ package com.app.maria.domain.tax.service;
 
 import static com.app.maria.domain.tax.fixture.TaxFixtures.allSeedRules;
 import static com.app.maria.domain.tax.fixture.TaxFixtures.externalBuy;
+import static com.app.maria.domain.tax.fixture.TaxFixtures.heldLot;
 import static com.app.maria.domain.tax.fixture.TaxFixtures.lot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -14,6 +15,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -23,6 +25,7 @@ import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
@@ -31,6 +34,7 @@ import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
+import com.app.maria.domain.tax.dto.response.TaxExpectedReliefResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxSnapshotResponseDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.mapper.TaxSnapshotMapper;
@@ -39,6 +43,8 @@ import com.app.maria.domain.tax.type.TaxBasisType;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
+import com.app.maria.global.client.exchange.ExchangeRateClient;
+import com.app.maria.global.client.kis.KisPriceClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.RiaTaxProperties;
 import com.app.maria.global.error.AppException;
@@ -87,6 +93,12 @@ class TaxCalculationServiceImplTest {
     @Spy TaxCalculator taxCalculator = new TaxCalculator();
 
     @Mock TaxBreakdownAssembler taxBreakdownAssembler;
+
+    @Mock KisPriceClient kisPriceClient;
+
+    @Mock ExchangeRateClient exchangeRateClient;
+
+    @Mock SettlementBusinessDayCalculator settlementBusinessDayCalculator;
 
     @InjectMocks TaxCalculationServiceImpl taxCalculationService;
 
@@ -558,5 +570,96 @@ class TaxCalculationServiceImplTest {
         assertThat(auditLog.getAfterValue()).isEqualTo("REQUESTED");
         assertThat(auditLog.getReasonCode())
                 .isEqualTo(TaxAuditLogReasonCode.TAX_SNAPSHOT_BATCH_REQUESTED.name());
+    }
+
+    @Test
+    @DisplayName("보유 lot을 T+2 결제 기준 가정 매도로 변환해 계산기에 넘긴다")
+    void 예상감면세액_가정매도_변환() {
+        stubAccount(BenefitType.POSSIBLE);
+        stubTaxYearAndClock();
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "200")));
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
+        when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("1350"));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+
+        TaxExpectedReliefResponseDTO response =
+                taxCalculationService.previewExpectedRelief(ACCOUNT_ID);
+
+        assertThat(response.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(response.getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
+
+        ArgumentCaptor<List<SellLotDTO>> lotCaptor = ArgumentCaptor.forClass(List.class);
+        verify(taxCalculator).calculate(lotCaptor.capture(), any(), any(), anyBoolean());
+        SellLotDTO builtLot = lotCaptor.getValue().get(0);
+        assertThat(builtLot.getFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
+        assertThat(builtLot.getSellQty()).isEqualByComparingTo("200");
+        assertThat(builtLot.getPurchasePrice()).isEqualByComparingTo("100");
+        assertThat(builtLot.getPurchaseFxRate()).isEqualByComparingTo("1300");
+        assertThat(builtLot.getFinalAmount()).isEqualByComparingTo("40500000");
+    }
+
+    @Test
+    @DisplayName("같은 종목의 보유 lot이 여러 개여도 현재가·환율 조회는 한 번만 한다")
+    void 예상감면세액_동일종목_가격조회_1회() {
+        stubAccount(BenefitType.POSSIBLE);
+        stubTaxYearAndClock();
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID))
+                .thenReturn(
+                        List.of(
+                                heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "50"),
+                                heldLot("AAPL", "NASDAQ", "USD", "110", "1320", "30")));
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
+        when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("1350"));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+
+        taxCalculationService.previewExpectedRelief(ACCOUNT_ID);
+
+        verify(kisPriceClient, times(1)).getPreviousClose("NAS", "AAPL");
+        verify(exchangeRateClient, times(1)).getBaseRate("USD");
+    }
+
+    @Test
+    @DisplayName("보유 lot이 없으면 외부 가격 조회 없이 빈 목록으로 계산한다")
+    void 예상감면세액_보유lot없음() {
+        stubAccount(BenefitType.POSSIBLE);
+        stubTaxYearAndClock();
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID)).thenReturn(List.of());
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+
+        TaxExpectedReliefResponseDTO response =
+                taxCalculationService.previewExpectedRelief(ACCOUNT_ID);
+
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+        assertThat(response.getTaxCalculationResultDTO().getWeightedSell())
+                .isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("오늘 할 일 요약은 매퍼 집계값을 그대로 응답 DTO에 담는다")
+    void 오늘할일_요약() {
+        when(clockService.now()).thenReturn(NOW);
+        when(taxMapper.countUnconfirmedFinalReport()).thenReturn(10419);
+        when(taxMapper.countUnprocessedClawback()).thenReturn(3);
+        when(taxMapper.countBenefitChangedSince(NOW.toLocalDate().atStartOfDay(), NOW))
+                .thenReturn(7);
+
+        var response = taxCalculationService.getActionSummary();
+
+        assertThat(response.getUnconfirmedFinalReportCount()).isEqualTo(10419);
+        assertThat(response.getUnprocessedClawbackCount()).isEqualTo(3);
+        assertThat(response.getBenefitChangedTodayCount()).isEqualTo(7);
     }
 }
