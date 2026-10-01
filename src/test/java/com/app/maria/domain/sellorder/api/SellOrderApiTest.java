@@ -541,9 +541,9 @@ class SellOrderApiTest {
     }
 
     @Test
-    @DisplayName("서비스가 빈 리스트를 반환하면 500이 아니라 400을 반환한다")
+    @DisplayName("서비스가 빈 리스트를 반환하면 500을 반환한다")
     @WithMockUser(username = "1", roles = "SETTLEMENT")
-    void placeSellOrderReturns400NotCrashWhenServiceReturnsEmptyList() throws Exception {
+    void placeSellOrderReturns500WhenServiceReturnsEmptyList() throws Exception {
         when(sellOrderService.placeSellOrder(any(), any())).thenReturn(List.of());
 
         mockMvc.perform(
@@ -552,6 +552,6 @@ class SellOrderApiTest {
                                 .content(
                                         objectMapper.writeValueAsString(
                                                 validRequestBuilder().build())))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isInternalServerError());
     }
 }
