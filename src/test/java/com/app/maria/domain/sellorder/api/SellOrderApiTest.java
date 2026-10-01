@@ -11,12 +11,11 @@ import com.app.maria.domain.sellorder.dto.SellOrderHistoryDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
-import com.app.maria.domain.sellorder.exception.SellOrderException;
-import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.sellorder.service.SellOrderService;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.global.config.SecurityConfig;
-import com.app.maria.global.exception.UnsupportedExchangeException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import com.app.maria.global.response.PageResponseDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -156,14 +155,16 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().build();
 
         when(sellOrderService.placeSellOrder(any(), any()))
-                .thenThrow(new SellOrderException("한도를 초과했습니다."));
+                .thenThrow(new AppException(ErrorType.SELL_ORDER_QTY_EXCEEDED));
 
         mockMvc.perform(
                         post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("한도를 초과했습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.SELL_ORDER_QTY_EXCEEDED.getMessage()));
     }
 
     @Test
@@ -174,14 +175,15 @@ class SellOrderApiTest {
         SellOrderRequestDTO request = validRequestBuilder().build();
 
         when(sellOrderService.placeSellOrder(any(), any()))
-                .thenThrow(new UnsupportedExchangeException("지원하지 않는 거래소입니다."));
+                .thenThrow(new AppException(ErrorType.UNSUPPORTED_EXCHANGE));
 
         mockMvc.perform(
                         post("/api/admin/sell-orders")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.message").value("지원하지 않는 거래소입니다."));
+                .andExpect(
+                        jsonPath("$.message").value(ErrorType.UNSUPPORTED_EXCHANGE.getMessage()));
     }
 
     @Test
@@ -315,11 +317,12 @@ class SellOrderApiTest {
     @WithMockUser(roles = "SETTLEMENT")
     void getSellOrderReturns404WhenNotFound() throws Exception {
         when(sellOrderService.getSellOrder(999L))
-                .thenThrow(new SellOrderNotFoundException("매도 주문 조회 실패"));
+                .thenThrow(new AppException(ErrorType.SELL_ORDER_NOT_FOUND));
 
         mockMvc.perform(get("/api/admin/sell-orders/{orderId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("매도 주문 조회 실패"));
+                .andExpect(
+                        jsonPath("$.message").value(ErrorType.SELL_ORDER_NOT_FOUND.getMessage()));
     }
 
     @Test

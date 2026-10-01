@@ -3,7 +3,7 @@ package com.app.maria.domain.settlement.provider;
 import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
 import com.app.maria.domain.settlement.exception.InvalidSettlementException;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -36,7 +36,7 @@ public class ExchangeRateProviderImpl implements ExchangeRateProvider {
 
         try {
             return getRateWithRetry(currency, searchDate);
-        } catch (ExchangeRateNotFoundException e) {
+        } catch (AppException e) {
             throw e;
         } catch (ExchangeRateApiException e) {
             throw new ExchangeRateExternalApiException(e.getMessage(), e.getCause());
@@ -51,7 +51,7 @@ public class ExchangeRateProviderImpl implements ExchangeRateProvider {
                     throw new ExchangeRateApiException("유효하지 않은 환율 응답", null);
                 }
                 return rate;
-            } catch (ExchangeRateNotFoundException e) {
+            } catch (AppException e) {
                 throw e;
             } catch (ResourceAccessException e) {
                 if (attempt == maxRetries) {

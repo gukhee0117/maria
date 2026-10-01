@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.app.maria.global.audit.exception.AuditLogInsertException;
 import com.app.maria.global.clock.dto.request.SystemClockChangeRequestDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.clock.service.SystemClockManagementService;
@@ -178,11 +177,13 @@ class SystemClockApiTest {
     void 감사로그_저장에_실패하면_변경_API는_500을_반환한다() throws Exception {
         when(systemClockManagementService.changeSystemTime(
                         eq(4L), any(SystemClockChangeRequestDTO.class)))
-                .thenThrow(new AuditLogInsertException("AUDIT_LOG 저장에 실패했습니다."));
+                .thenThrow(new AppException(ErrorType.AUDIT_LOG_INSERT_FAILED));
 
         mockMvc.perform(clockChangeRequest())
                 .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.message").value("AUDIT_LOG 저장에 실패했습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage()));
 
         verify(systemClockManagementService)
                 .changeSystemTime(eq(4L), any(SystemClockChangeRequestDTO.class));

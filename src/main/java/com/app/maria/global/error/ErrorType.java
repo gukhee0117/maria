@@ -23,8 +23,8 @@ import org.springframework.http.HttpStatus;
  * <p><b>로그 레벨은 거의 WARN이면 된다.</b> "정상적으로 있을 수 있는 상황"(사용자가 잘못 요청했다, 동시에 두 요청이 겹쳤다 등)은 WARN. 앱이 제대로
  * 응답을 못 만들 정도로 진짜 심각한 경우에만 ERROR를 쓴다 (예: DB 연결이 끊겼다, 외부 API가 통째로 죽었다). 지금 tax 도메인 3개는 전부 WARN.
  *
- * <p>지금은 tax 도메인만 이 구조로 옮겨져 있다. 다른 도메인은 아직 옛날 방식(exception 클래스 + 핸들러) 그대로니까, 각자 담당 도메인 옮길 때 여기 참고해서
- * 값 추가하면 됨.
+ * <p>Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 이 구조로 옮겨짐. 나머지 도메인은 아직 옛날 방식(exception 클래스 + 핸들러) 그대로
+ * — 각자 담당 도메인 옮길 때 여기 참고해서 값 추가하면 됨.
  */
 @Getter
 @RequiredArgsConstructor
@@ -48,7 +48,34 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "계좌 해지 처리에 실패했습니다.", LogLevel.ERROR),
     SYSTEM_CLOCK_NOT_INITIALIZED(
             HttpStatus.INTERNAL_SERVER_ERROR, "업무시각이 초기화되지 않았습니다.", LogLevel.ERROR),
-    SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN);
+    SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN),
+
+    // SellOrder
+    SELL_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "매도 주문을 찾을 수 없습니다.", LogLevel.WARN),
+    SELL_ORDER_QTY_EXCEEDED(HttpStatus.BAD_REQUEST, "매도 가능 수량을 초과했습니다.", LogLevel.WARN),
+    SELL_ORDER_CONCURRENT_CONFLICT(HttpStatus.BAD_REQUEST, "다른 요청이 먼저 처리되었습니다.", LogLevel.WARN),
+    SELL_ORDER_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 한도 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SELL_ORDER_CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 확인할 수 없습니다.", LogLevel.WARN),
+    SELL_ORDER_RESULT_EMPTY(HttpStatus.BAD_REQUEST, "매도 주문 결과가 없습니다.", LogLevel.WARN),
+
+    // KIS / 환율
+    EXCHANGE_RATE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "환율 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    KIS_PRICE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "전일종가를 조회할 수 없습니다.", LogLevel.WARN),
+    KIS_TOKEN_ISSUE(HttpStatus.BAD_GATEWAY, "KIS 토큰 발급에 실패하였습니다.", LogLevel.ERROR),
+    UNSUPPORTED_EXCHANGE(HttpStatus.BAD_GATEWAY, "지원하지 않는 거래소입니다.", LogLevel.WARN),
+
+    // Admin
+    ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다.", LogLevel.WARN),
+    ADMIN_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 일치하지 않습니다.", LogLevel.WARN),
+    ADMIN_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다.", LogLevel.WARN),
+    ADMIN_TOKEN_SUBJECT_INVALID(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰 정보입니다.", LogLevel.WARN),
+    ADMIN_REFRESH_TOKEN_MISSING(HttpStatus.UNAUTHORIZED, "refresh_token 쿠키가 없습니다.", LogLevel.WARN),
+
+    // AuditLog
+    AUDIT_LOG_ACTOR_NOT_FOUND(
+            HttpStatus.BAD_REQUEST, "감사 로그를 위한 관리자 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    AUDIT_LOG_INSERT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다.", LogLevel.ERROR);
+
     private final HttpStatus status;
     private final String message;
     private final LogLevel logLevel;

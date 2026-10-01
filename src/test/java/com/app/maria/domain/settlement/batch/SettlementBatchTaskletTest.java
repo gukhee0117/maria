@@ -22,7 +22,8 @@ import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.mapper.SettlementJoinMapper;
 import com.app.maria.domain.settlement.provider.ExchangeRateProvider;
 import com.app.maria.domain.settlement.type.BatchStatus;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -338,7 +339,7 @@ class SettlementBatchTaskletTest {
         when(settlementItemMapper.selectPendingItems(any())).thenReturn(List.of(item));
         when(settlementJoinMapper.selectTargetByItemId(any())).thenReturn(Optional.of(target(10L)));
         when(exchangeRateProvider.getFinalRate(eq("USD"), any()))
-                .thenThrow(new ExchangeRateNotFoundException("환율 없음"));
+                .thenThrow(new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND));
 
         RepeatStatus status =
                 tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
@@ -358,16 +359,14 @@ class SettlementBatchTaskletTest {
         when(settlementJoinMapper.selectTargetByItemId(any()))
                 .thenReturn(Optional.of(target(10L)), Optional.of(target(11L)));
         when(exchangeRateProvider.getFinalRate("USD", batch.getExecutedAt().toLocalDate()))
-                .thenThrow(new ExchangeRateNotFoundException("환율 없음"));
+                .thenThrow(new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND));
 
         tasklet.execute(contribution, new ChunkContext(new StepContext(stepExecution)));
 
         verify(exchangeRateProvider, times(1))
                 .getFinalRate("USD", batch.getExecutedAt().toLocalDate());
-        verify(settlementFailureRecorder)
-                .markFailed(eq(10L), any(ExchangeRateNotFoundException.class));
-        verify(settlementFailureRecorder)
-                .markFailed(eq(11L), any(ExchangeRateNotFoundException.class));
+        verify(settlementFailureRecorder).markFailed(eq(10L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(11L), any(AppException.class));
         verify(settlementTransactionExecutor, never()).execute(any(), any());
     }
 
@@ -382,7 +381,7 @@ class SettlementBatchTaskletTest {
         when(settlementJoinMapper.selectTargetByItemId(any()))
                 .thenReturn(Optional.of(target(10L)), Optional.of(target(11L)));
         when(exchangeRateProvider.getFinalRate("USD", batch.getExecutedAt().toLocalDate()))
-                .thenThrow(new ExchangeRateNotFoundException("환율 없음"));
+                .thenThrow(new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND));
         ChunkContext chunkContext = new ChunkContext(new StepContext(stepExecution));
 
         tasklet.execute(contribution, chunkContext);
@@ -390,10 +389,8 @@ class SettlementBatchTaskletTest {
 
         verify(exchangeRateProvider, times(1))
                 .getFinalRate("USD", batch.getExecutedAt().toLocalDate());
-        verify(settlementFailureRecorder)
-                .markFailed(eq(10L), any(ExchangeRateNotFoundException.class));
-        verify(settlementFailureRecorder)
-                .markFailed(eq(11L), any(ExchangeRateNotFoundException.class));
+        verify(settlementFailureRecorder).markFailed(eq(10L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(11L), any(AppException.class));
     }
 
     @Test

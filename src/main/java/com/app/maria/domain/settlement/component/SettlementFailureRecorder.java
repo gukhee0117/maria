@@ -12,6 +12,8 @@ import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -47,7 +49,8 @@ public class SettlementFailureRecorder {
     }
 
     private SettlementFailureCode classify(Exception exception) {
-        if (exception instanceof com.app.maria.global.exception.ExchangeRateNotFoundException) {
+        if (exception instanceof AppException appEx
+                && appEx.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
             return SettlementFailureCode.EXCHANGE_RATE_NOT_FOUND;
         }
         if (exception instanceof ExchangeRateExternalApiException) {

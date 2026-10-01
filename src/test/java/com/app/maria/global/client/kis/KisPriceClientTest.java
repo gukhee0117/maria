@@ -8,7 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.global.config.properties.PriceApiProperties;
-import com.app.maria.global.exception.KisPriceNotFoundException;
+import com.app.maria.global.error.AppException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -75,7 +75,7 @@ class KisPriceClientTest {
                 .thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
 
         assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .isInstanceOf(KisPriceNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test
@@ -91,7 +91,7 @@ class KisPriceClientTest {
                 .thenReturn(new ResponseEntity<>(response, HttpStatus.OK));
 
         assertThatThrownBy(() -> kisPriceClient.getPreviousClose("NAS", "AAPL"))
-                .isInstanceOf(KisPriceNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test

@@ -12,7 +12,8 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
 import com.app.maria.domain.settlement.exception.InvalidSettlementException;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import org.junit.jupiter.api.DisplayName;
@@ -105,8 +106,7 @@ class ExchangeRateProviderImplTest {
     @Test
     @DisplayName("외부 환율 Client의 조회 실패를 그대로 전파한다")
     void getFinalRatePropagatesClientException() {
-        ExchangeRateNotFoundException clientException =
-                new ExchangeRateNotFoundException("환율 API 응답 오류");
+        AppException clientException = new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
         when(exchangeRateClient.getBaseRate(eq("USD"), any(LocalDate.class)))
                 .thenThrow(clientException);
 
@@ -206,7 +206,7 @@ class ExchangeRateProviderImplTest {
     @Test
     @DisplayName("Client가 환율 없음으로 반환하면 Provider에서 날짜 탐색을 중복하지 않는다")
     void getFinalRateDoesNotRepeatClientLookback() {
-        ExchangeRateNotFoundException notFound = new ExchangeRateNotFoundException("최근 7일 환율 없음");
+        AppException notFound = new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
         when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenThrow(notFound);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
