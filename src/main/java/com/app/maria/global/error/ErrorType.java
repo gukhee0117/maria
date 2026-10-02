@@ -21,10 +21,7 @@ import org.springframework.http.HttpStatus;
  * id는 로그에만 남고 사용자한테 보이는 메시지엔 안 나감 — 자세한 건 AppException 주석 참고)
  *
  * <p><b>로그 레벨은 거의 WARN이면 된다.</b> "정상적으로 있을 수 있는 상황"(사용자가 잘못 요청했다, 동시에 두 요청이 겹쳤다 등)은 WARN. 앱이 제대로
- * 응답을 못 만들 정도로 진짜 심각한 경우에만 ERROR를 쓴다 (예: DB 연결이 끊겼다, 외부 API가 통째로 죽었다). 지금 tax 도메인 3개는 전부 WARN.
- *
- * <p>Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 이 구조로 옮겨짐. 나머지 도메인은 아직 옛날 방식(exception 클래스 + 핸들러) 그대로
- * — 각자 담당 도메인 옮길 때 여기 참고해서 값 추가하면 됨.
+ * 응답을 못 만들 정도로 진짜 심각한 경우에만 ERROR를 쓴다 (예: DB 연결이 끊겼다, 외부 API가 통째로 죽었다).
  */
 @Getter
 @RequiredArgsConstructor
@@ -34,19 +31,33 @@ public enum ErrorType {
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(
             HttpStatus.CONFLICT, "이미 조기인출 정정이 처리된 계좌입니다.", LogLevel.WARN),
+    // 인출 예외 처리
     WITHDRAWAL_NOT_FOUND(HttpStatus.NOT_FOUND, "인출 내역을 찾을 수 없습니다.", LogLevel.WARN),
-    WITHDRAWAL_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "인출할 수 없는 요청입니다.", LogLevel.WARN),
+    INVALID_WITHDRAWAL_AMOUNT(HttpStatus.BAD_REQUEST, "인출 금액은 0원보다 커야 합니다.", LogLevel.WARN),
+    WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE(
+            HttpStatus.BAD_REQUEST, "활성 상태의 일반계좌로만 인출할 수 있습니다.", LogLevel.WARN),
+    GENERAL_ACCOUNT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "일반계좌를 확인할 수 없습니다.", LogLevel.WARN),
+    ACCOUNT_STATUS_NOT_WITHDRAWABLE(HttpStatus.CONFLICT, "현재 계좌 상태에서는 인출할 수 없습니다.", LogLevel.WARN),
     EARLY_WITHDRAWAL_CONSENT_REQUIRED(
             HttpStatus.BAD_REQUEST, "미경과 원금을 인출하려면 조기인출 동의가 필요합니다.", LogLevel.WARN),
     INSUFFICIENT_WITHDRAWAL_AMOUNT(
             HttpStatus.BAD_REQUEST, "계좌 잔액보다 많은 금액을 인출할 수 없습니다.", LogLevel.WARN),
+    WITHDRAWAL_SOURCE_AMOUNT_INCONSISTENT(
+            HttpStatus.INTERNAL_SERVER_ERROR, "인출 가능 금액을 계산하는 중 오류가 발생했습니다.", LogLevel.ERROR),
     WITHDRAWAL_PROCESSING_FAILED(
             HttpStatus.INTERNAL_SERVER_ERROR, "인출 처리에 실패했습니다.", LogLevel.ERROR),
+    GENERAL_ACCOUNT_API_INVALID_RESPONSE(
+            HttpStatus.BAD_GATEWAY, "일반계좌 확인 응답을 처리할 수 없습니다.", LogLevel.ERROR),
+    GENERAL_ACCOUNT_API_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "일반계좌 확인 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
+
+    // 계좌 해지 예외 처리
     ACCOUNT_CLOSURE_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 해지 신청을 찾을 수 없습니다.", LogLevel.WARN),
     ACCOUNT_CLOSURE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "계좌를 해지할 수 없는 상태입니다.", LogLevel.WARN),
     ACCOUNT_CLOSURE_STATE_CONFLICT(HttpStatus.CONFLICT, "계좌 상태가 변경되어 처리할 수 없습니다.", LogLevel.WARN),
     ACCOUNT_CLOSURE_PROCESSING_FAILED(
             HttpStatus.INTERNAL_SERVER_ERROR, "계좌 해지 처리에 실패했습니다.", LogLevel.ERROR),
+    // Clock 예외 처리
     SYSTEM_CLOCK_NOT_INITIALIZED(
             HttpStatus.INTERNAL_SERVER_ERROR, "업무시각이 초기화되지 않았습니다.", LogLevel.ERROR),
     SYSTEM_CLOCK_UPDATE_CONFLICT(HttpStatus.CONFLICT, "다른 관리자가 업무시각을 먼저 변경했습니다.", LogLevel.WARN),
