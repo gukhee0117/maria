@@ -225,14 +225,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 15. GeneralAccount 예외
-    @ExceptionHandler(GeneralAccountApiException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleGeneralAccountApiException(
-            GeneralAccountApiException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     // 16. AppException — 새로 만든 예외 구조 하나가 처리함. 아래 3~19번처럼 예외 종류마다
     // 핸들러를 따로 안 만들어도 됨 (Tax/SellOrder/KIS/환율/Admin/AuditLog 도메인이 이 구조로 옮겨짐.
     // 나머지 도메인은 아직 밑에 그대로 있음 — 자기 도메인 옮길 땐 밑에 있는 해당 핸들러 지우고,
