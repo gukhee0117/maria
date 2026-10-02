@@ -3,7 +3,7 @@ package com.app.maria.global.client.kis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.app.maria.global.exception.UnsupportedExchangeException;
+import com.app.maria.global.error.AppException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +43,7 @@ class KisExchangeCodeTest {
     @DisplayName("DB의 market 값(풀네임)이 아니라 KIS 축약코드 자체를 넣으면 매칭 실패로 예외를 던진다")
     void fromMarketThrowsWhenGivenKisCodeInsteadOfDbMarketValue() {
         assertThatThrownBy(() -> KisExchangeCode.fromMarket("NAS"))
-                .isInstanceOf(UnsupportedExchangeException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("지원하지 않는 거래소입니다.");
     }
 
@@ -51,7 +51,7 @@ class KisExchangeCodeTest {
     @DisplayName("지원하지 않는 거래소면 예외를 던진다")
     void fromMarketThrowsWhenMarketIsUnsupported() {
         assertThatThrownBy(() -> KisExchangeCode.fromMarket("LSE"))
-                .isInstanceOf(UnsupportedExchangeException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("지원하지 않는 거래소입니다.");
     }
 }

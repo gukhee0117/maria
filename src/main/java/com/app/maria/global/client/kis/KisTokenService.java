@@ -1,7 +1,8 @@
 package com.app.maria.global.client.kis;
 
 import com.app.maria.global.config.properties.PriceApiProperties;
-import com.app.maria.global.exception.KisTokenIssueException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,7 @@ public class KisTokenService {
         JsonNode response = restTemplate.postForObject(url, request, JsonNode.class);
 
         if (response == null || !response.hasNonNull("access_token")) {
-            throw new KisTokenIssueException("KIS 토큰 발급에 실패하였습니다.");
+            throw new AppException(ErrorType.KIS_TOKEN_ISSUE);
         }
 
         String accessToken = response.path("access_token").asText();

@@ -16,8 +16,6 @@ import com.app.maria.domain.sellorder.dto.SellOrderHistoryDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
-import com.app.maria.domain.sellorder.exception.SellOrderException;
-import com.app.maria.domain.sellorder.exception.SellOrderNotFoundException;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.service.ProvisionalExchangeService;
@@ -254,7 +252,7 @@ class SellOrderServiceImplTest {
         when(inboundMapper.selectFifoLots(1L, 10L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("매도 가능 수량을 초과했습니다.");
 
         verify(inboundMapper, never()).decreaseCurrentQty(any(), any());
@@ -274,7 +272,7 @@ class SellOrderServiceImplTest {
                 .thenReturn(List.of(lot(1L, "50", LocalDateTime.of(2026, 1, 1, 0, 0))));
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("매도 가능 수량을 초과했습니다.");
 
         verify(inboundMapper, never()).decreaseCurrentQty(any(), any());
@@ -316,7 +314,7 @@ class SellOrderServiceImplTest {
         when(inboundMapper.decreaseCurrentQty(1L, new BigDecimal("10"))).thenReturn(0);
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("다른 요청이 먼저 처리되었습니다.");
 
         verifyNoInteractions(sellOrderMapper);
@@ -339,7 +337,7 @@ class SellOrderServiceImplTest {
         when(businessClockService.now()).thenReturn(NOW);
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(SellOrderException.class)
+                .isInstanceOf(AppException.class)
                 .hasMessage("다른 요청이 먼저 처리되었습니다.");
 
         verify(sellOrderMapper, times(1)).insertSellOrder(any());
@@ -370,7 +368,7 @@ class SellOrderServiceImplTest {
         when(sellOrderMapper.selectSellOrderById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellOrderService.getSellOrder(999L))
-                .isInstanceOf(SellOrderNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test

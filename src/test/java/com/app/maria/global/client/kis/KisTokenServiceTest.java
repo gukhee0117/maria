@@ -8,7 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.app.maria.global.config.properties.PriceApiProperties;
-import com.app.maria.global.exception.KisTokenIssueException;
+import com.app.maria.global.error.AppException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -85,8 +85,7 @@ class KisTokenServiceTest {
         when(valueOperations.get(TOKEN_KEY)).thenReturn(null);
         when(restTemplate.postForObject(anyString(), any(), eq(JsonNode.class))).thenReturn(null);
 
-        assertThatThrownBy(() -> kisTokenService.getAccessToken())
-                .isInstanceOf(KisTokenIssueException.class);
+        assertThatThrownBy(() -> kisTokenService.getAccessToken()).isInstanceOf(AppException.class);
     }
 
     @Test
@@ -97,8 +96,7 @@ class KisTokenServiceTest {
         when(restTemplate.postForObject(anyString(), any(), eq(JsonNode.class)))
                 .thenReturn(response);
 
-        assertThatThrownBy(() -> kisTokenService.getAccessToken())
-                .isInstanceOf(KisTokenIssueException.class);
+        assertThatThrownBy(() -> kisTokenService.getAccessToken()).isInstanceOf(AppException.class);
     }
 
     @Test

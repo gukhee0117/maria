@@ -8,7 +8,7 @@ import static org.mockito.Mockito.*;
 
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExchangeApiProperties;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -93,7 +93,7 @@ class ExchangeRateClientTest {
         when(restTemplate.getForObject(anyString(), eq(JsonNode.class))).thenReturn(null);
 
         assertThatThrownBy(() -> exchangeRateClient.getBaseRate("USD", LocalDate.now()))
-                .isInstanceOf(ExchangeRateNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test
@@ -102,7 +102,7 @@ class ExchangeRateClientTest {
         when(restTemplate.getForObject(anyString(), eq(JsonNode.class))).thenReturn(response);
 
         assertThatThrownBy(() -> exchangeRateClient.getBaseRate("USD", LocalDate.now()))
-                .isInstanceOf(ExchangeRateNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test
@@ -129,7 +129,7 @@ class ExchangeRateClientTest {
         when(restTemplate.getForObject(anyString(), eq(JsonNode.class))).thenReturn(empty);
 
         assertThatThrownBy(() -> exchangeRateClient.getBaseRate("USD", LocalDate.now()))
-                .isInstanceOf(ExchangeRateNotFoundException.class);
+                .isInstanceOf(AppException.class);
 
         verify(restTemplate, times(8)).getForObject(anyString(), eq(JsonNode.class));
     }
@@ -170,7 +170,7 @@ class ExchangeRateClientTest {
         when(restTemplate.getForObject(anyString(), eq(JsonNode.class))).thenReturn(empty);
 
         assertThatThrownBy(() -> exchangeRateClient.getBaseRate("JP", LocalDate.now()))
-                .isInstanceOf(ExchangeRateNotFoundException.class);
+                .isInstanceOf(AppException.class);
     }
 
     @Test
