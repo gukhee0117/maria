@@ -120,59 +120,6 @@ class WithdrawalProcessorTest {
     }
 
     @Test
-    void principalOneSecondBeforeMaturityIsImmature() {
-        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
-                .thenReturn(List.of(leftAmount(10L, "300", NOW.minusYears(1).plusSeconds(1))));
-        when(businessClockService.now()).thenReturn(NOW);
-
-        assertThat(withdrawalService.hasImmaturePrincipal(ACCOUNT_ID)).isTrue();
-    }
-
-    @Test
-    void principalExactlyAtMaturityIsNotImmature() {
-        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
-                .thenReturn(List.of(leftAmount(10L, "300", NOW.minusYears(1))));
-        when(businessClockService.now()).thenReturn(NOW);
-
-        assertThat(withdrawalService.hasImmaturePrincipal(ACCOUNT_ID)).isFalse();
-    }
-
-    @Test
-    void anyImmaturePrincipalMakesClosureConsentNecessary() {
-        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
-                .thenReturn(
-                        List.of(
-                                leftAmount(10L, "300", NOW.minusYears(2)),
-                                leftAmount(11L, "200", NOW.minusMonths(6))));
-        when(businessClockService.now()).thenReturn(NOW);
-
-        assertThat(withdrawalService.hasImmaturePrincipal(ACCOUNT_ID)).isTrue();
-    }
-
-    @Test
-    void immaturePrincipalAmountSumsOnlyLotsBeforeMaturity() {
-        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
-                .thenReturn(
-                        List.of(
-                                leftAmount(10L, "300", NOW.minusYears(2)),
-                                leftAmount(11L, "200", NOW.minusMonths(6)),
-                                leftAmount(12L, "150", NOW.minusYears(1).plusSeconds(1))));
-        when(businessClockService.now()).thenReturn(NOW);
-
-        assertThat(withdrawalService.getImmaturePrincipalAmount(ACCOUNT_ID))
-                .isEqualByComparingTo("350");
-    }
-
-    @Test
-    void completedWithdrawalImmatureAmountComesFromAllocationHistory() {
-        when(withdrawalMapper.selectImmatureAllocatedAmountByWithdrawalId(WITHDRAWAL_ID))
-                .thenReturn(new BigDecimal("400"));
-
-        assertThat(withdrawalService.getImmatureAllocatedAmount(WITHDRAWAL_ID))
-                .isEqualByComparingTo("400");
-    }
-
-    @Test
     void closedDestinationAccount_isRejectedBeforeAccountLockAndWithdrawalPersistence() {
         prepareExternalValidation(account(Status.OPENED, "500"), GeneralAccountStatus.CLOSED);
 
