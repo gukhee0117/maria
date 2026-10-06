@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.dto.DomesticAccountDetailDTO;
 import com.app.maria.domain.domestic.dto.DomesticAccountLiteDTO;
@@ -29,6 +28,8 @@ import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.domestic.type.DomesticStockStatus;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -264,7 +265,7 @@ class DomesticInvestmentServiceImplTest {
     }
 
     @Test
-    @DisplayName("고객의 ciHash를 찾을 수 없으면 AccountNotFoundException을 던진다")
+    @DisplayName("고객의 ciHash를 찾을 수 없으면 ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND를 던진다")
     void getAccountDetailThrowsWhenCiHashMissing() {
         when(domesticStockBalanceMapper.selectAccountSummaryById(ACCOUNT_ID))
                 .thenReturn(
@@ -275,8 +276,8 @@ class DomesticInvestmentServiceImplTest {
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> domesticInvestmentService.getAccountDetail(ACCOUNT_ID))
-                .isInstanceOf(AccountNotFoundException.class)
-                .hasMessage("고객 식별정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND.getMessage());
     }
 
     @Test

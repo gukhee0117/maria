@@ -4,8 +4,6 @@ import static com.app.maria.global.client.generalaccount.type.GeneralAccountStat
 
 import com.app.maria.domain.account.dto.AccountBenefitLogDTO;
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountException;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
@@ -60,12 +58,16 @@ public class WithdrawalProcessor {
         AccountDTO accountBeforeLock =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("인출 대상 계좌가 존재하지 않습니다."));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         String ciHash =
                 accountMapper
                         .selectCiHashByCustomerId(accountBeforeLock.getCustomerId())
                         .orElseThrow(
-                                () -> new AccountNotFoundException("인출 계좌의 고객 식별정보를 찾을 수 없습니다."));
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                accountBeforeLock.getCustomerId()));
 
         GeneralAccountRequestDTO generalAccountRequest =
                 GeneralAccountRequestDTO.builder()
@@ -83,7 +85,8 @@ public class WithdrawalProcessor {
         AccountDTO account =
                 accountMapper
                         .selectByAccountIdForUpdate(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("인출 대상 계좌가 존재하지 않습니다."));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
 
         if (account.getStatus() != allowedStatus) {
             throw new AppException(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE, accountId);
@@ -194,7 +197,8 @@ public class WithdrawalProcessor {
                 int insertedLog = accountBenefitLogMapper.insertLog(benefitLog);
 
                 if (insertedLog != 1) {
-                    throw new AccountException("ACCOUNT_BENEFIT_LOG 저장에 실패했습니다.");
+                    throw new AppException(
+                            ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED, account.getAccountId());
                 }
             }
         }

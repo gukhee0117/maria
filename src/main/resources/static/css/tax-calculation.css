@@ -344,6 +344,24 @@
     padding: 8px 10px;
 }
 
+.tax-confirm-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.tax-expected-relief {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--cardBorder);
+}
+
+.tax-expected-relief .tax-detail-grid {
+    margin-top: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .tax-breakdown {
     margin-top: 20px;
 }

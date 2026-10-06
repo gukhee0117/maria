@@ -127,7 +127,7 @@ $(function () {
 
         if (!logs.length) {
             $body.append(
-                '<tr><td colspan="7" class="audit-log-empty">조회된 감사로그가 없습니다.</td></tr>'
+                '<tr><td colspan="8" class="audit-log-empty">조회된 감사로그가 없습니다.</td></tr>'
             );
             return;
         }
@@ -199,7 +199,7 @@ $(function () {
         var $content = $(".content");
         var scrollTop = $content.scrollTop();
         $("#auditLogListBody").html(
-            '<tr><td colspan="7" class="audit-log-loading">불러오는 중...</td></tr>'
+            '<tr><td colspan="8" class="audit-log-loading">불러오는 중...</td></tr>'
         );
         MARIA.auth.ajax({
             url: "/api/admin/audit-logs",
@@ -217,7 +217,7 @@ $(function () {
             .fail(function (xhr) {
                 if (xhr.status !== 401) {
                     $("#auditLogListBody").html(
-                        '<tr><td colspan="7" class="audit-log-error">감사로그를 불러오지 못했습니다.</td></tr>'
+                        '<tr><td colspan="8" class="audit-log-error">감사로그를 불러오지 못했습니다.</td></tr>'
                     );
                     showError((xhr.responseJSON && xhr.responseJSON.message) || "감사로그를 불러오지 못했습니다.");
                 }

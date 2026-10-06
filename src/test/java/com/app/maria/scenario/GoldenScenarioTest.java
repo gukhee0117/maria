@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.service.AccountService;
 import com.app.maria.domain.accountclosure.dto.request.AccountClosureApplyRequestDTO;
@@ -28,6 +27,8 @@ import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.dto.request.SystemClockChangeRequestDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.clock.service.SystemClockManagementService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
@@ -249,7 +250,10 @@ class GoldenScenarioTest {
         }
         try {
             accountService.approveAccount(accountId);
-        } catch (InvalidAccountRequestException e) {
+        } catch (AppException e) {
+            if (e.getErrorType() != ErrorType.ACCOUNT_LIMIT_EXCEEDS_AVAILABLE) {
+                throw e;
+            }
             // 타 증권사 RIA 한도 합산 5천만원 초과(§2 규칙1) — 실제 mydata_ria_account 데이터 기반으로
             // 판정되므로, 이 계좌는 실제로 개설 불가능한 계좌다.
             counters.limitExceeded++;

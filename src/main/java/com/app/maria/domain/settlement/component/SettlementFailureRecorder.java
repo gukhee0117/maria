@@ -12,6 +12,8 @@ import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -47,7 +49,8 @@ public class SettlementFailureRecorder {
     }
 
     private SettlementFailureCode classify(Exception exception) {
-        if (exception instanceof com.app.maria.global.exception.ExchangeRateNotFoundException) {
+        if (exception instanceof AppException appEx
+                && appEx.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
             return SettlementFailureCode.EXCHANGE_RATE_NOT_FOUND;
         }
         if (exception instanceof ExchangeRateExternalApiException) {
@@ -75,9 +78,12 @@ public class SettlementFailureRecorder {
     }
 
     private String message(Exception exception) {
-        String message = exception == null ? "알 수 없는 정산 오류" : exception.getMessage();
-        return message == null || message.isBlank()
+        String base = exception == null ? null : exception.getMessage();
+        if (exception instanceof AppException appEx && appEx.getErrorData() != null) {
+            base = base + ": " + appEx.getErrorData();
+        }
+        return base == null || base.isBlank()
                 ? "알 수 없는 정산 오류"
-                : message.substring(0, Math.min(message.length(), 500));
+                : base.substring(0, Math.min(base.length(), 500));
     }
 }

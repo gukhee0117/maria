@@ -2,16 +2,14 @@ package com.app.maria.domain.account.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.dto.request.AccountReapplyRequestDTO;
-import com.app.maria.domain.account.exception.AccountException;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
-import com.app.maria.domain.account.exception.DuplicateAccountException;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.AuditLogReasonCode;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
@@ -43,24 +41,26 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
             LocalDateTime changedAt) {
         AccountDTO account = findByCustomer(customerId);
         if (account.getStatus() != Status.APPLIED && account.getStatus() != Status.OPENED) {
-            throw new InvalidAccountRequestException("신청 또는 개설 상태의 계좌만 한도를 변경할 수 있습니다.");
+            throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
         }
         if (account.getLimitAmount().compareTo(newLimit) == 0) {
-            throw new InvalidAccountRequestException("기존 한도와 다른 금액을 입력해야 합니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_UNCHANGED, newLimit);
         }
         if (expectedCurrentLimit == null
                 || account.getLimitAmount().compareTo(expectedCurrentLimit) != 0) {
-            throw new InvalidAccountRequestException("계좌 한도가 변경되었습니다. 다시 조회 후 시도해주세요.");
+            throw new AppException(
+                    ErrorType.ACCOUNT_CONCURRENT_MODIFICATION, account.getAccountId());
         }
         BigDecimal ownUsedAndReservedAmount =
                 accountMapper.selectOwnUsedAndReservedAmount(account.getAccountId());
         if (newLimit.compareTo(ownUsedAndReservedAmount) < 0) {
-            throw new InvalidAccountRequestException("이미 사용한 매도한도보다 낮게 설정할 수 없습니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_BELOW_USED_AMOUNT, newLimit);
         }
         if (accountMapper.updateLimit(
                         account.getAccountId(), account.getStatus(), expectedCurrentLimit, newLimit)
                 != 1) {
-            throw new InvalidAccountRequestException("계좌 한도 변경 중 상태 또는 한도가 변경되었습니다.");
+            throw new AppException(
+                    ErrorType.ACCOUNT_CONCURRENT_MODIFICATION, account.getAccountId());
         }
         AccountDTO updatedAccount = find(account.getAccountId());
         logAudit(
@@ -82,15 +82,16 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     public AccountDTO apply(
             Long adminId, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
         if (accountMapper.existsByCustomerId(account.getCustomerId())) {
-            throw new DuplicateAccountException("사용자의 기존 계좌 정보가 있습니다.");
+            throw new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, account.getCustomerId());
         }
         account.setCreatedAt(appliedAt);
         try {
             if (accountMapper.insertApplication(account) != 1) {
-                throw new AccountException("계좌 신청 등록 실패");
+                throw new AppException(
+                        ErrorType.ACCOUNT_APPLICATION_SAVE_FAILED, account.getCustomerId());
             }
         } catch (DuplicateKeyException e) {
-            throw new DuplicateAccountException("사용자의 기존 계좌 정보가 있습니다.");
+            throw new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, account.getCustomerId());
         }
         AccountDTO appliedAccount = findByCustomer(account.getCustomerId());
         accountLogService.recordStatusChange(appliedAccount, null, appliedAt, "최초 개설 신청");
@@ -124,7 +125,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
             Long adminId, Long accountId, BigDecimal expectedLimit, LocalDateTime openedAt) {
         AccountDTO account = find(accountId);
         account.setLimitAmount(expectedLimit);
-        open(account, openedAt, "심사 도중 계좌 한도가 변경되었습니다. 다시 심사하세요.");
+        open(account, openedAt);
         AccountDTO openedAccount = find(accountId);
         assertStatus(openedAccount, Status.OPENED);
         accountLogService.recordStatusChange(
@@ -145,7 +146,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     public AccountDTO reject(Long adminId, Long accountId, String reason, LocalDateTime changedAt) {
         AccountDTO account = find(accountId);
         if (accountMapper.reject(account) != 1) {
-            throw new InvalidAccountRequestException("사용자 계좌 신청 반려 실패");
+            throw new AppException(ErrorType.ACCOUNT_CONCURRENT_MODIFICATION, accountId);
         }
         AccountDTO rejectedAccount = find(accountId);
         assertStatus(rejectedAccount, Status.REJECTED);
@@ -174,7 +175,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
             newAccount.setLimitAmount(account.getLimitAmount());
         }
         if (accountMapper.reapply(newAccount) != 1) {
-            throw new InvalidAccountRequestException("사용자 계좌 재신청 실패");
+            throw new AppException(ErrorType.ACCOUNT_CONCURRENT_MODIFICATION, accountId);
         }
         AccountDTO appliedAccount = find(accountId);
         assertStatus(appliedAccount, Status.APPLIED);
@@ -195,7 +196,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
             Long adminId, Long accountId, String reason, LocalDateTime openedAt) {
         AccountDTO account = find(accountId);
         if (account.getStatus() != Status.REJECTED) {
-            throw new InvalidAccountRequestException("반려 상태의 계좌만 오버라이드할 수 있습니다.");
+            throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
         }
         open(account, openedAt);
         AccountDTO openedAccount = find(accountId);
@@ -217,15 +218,12 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     public void updateAmount(AccountDTO provisionalAmountDelta) {
         find(provisionalAmountDelta.getAccountId());
         if (accountMapper.updateProvisionalAmount(provisionalAmountDelta) != 1) {
-            throw new AccountException("계좌 잔액 수정 실패");
+            throw new AppException(
+                    ErrorType.ACCOUNT_AMOUNT_UPDATE_FAILED, provisionalAmountDelta.getAccountId());
         }
     }
 
     private void open(AccountDTO account, LocalDateTime openedAt) {
-        open(account, openedAt, "사용자 계좌 신청 승인 실패");
-    }
-
-    private void open(AccountDTO account, LocalDateTime openedAt, String approvalFailureMessage) {
         boolean override = account.getStatus() == Status.REJECTED;
         account.setOpenedAt(openedAt);
         for (int i = 0; i < ACCOUNT_NO_RETRY_LIMIT; i++) {
@@ -241,11 +239,12 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
                         == 1) {
                     return;
                 }
-                throw new InvalidAccountRequestException(
-                        override ? "계좌 오버라이드 실패" : approvalFailureMessage);
+                throw new AppException(
+                        ErrorType.ACCOUNT_CONCURRENT_MODIFICATION, account.getAccountId());
             } catch (DuplicateKeyException e) {
                 if (i == ACCOUNT_NO_RETRY_LIMIT - 1) {
-                    throw new AccountException("고유한 계좌번호 생성에 실패했습니다.");
+                    throw new AppException(
+                            ErrorType.ACCOUNT_NUMBER_GENERATION_FAILED, account.getCustomerId());
                 }
             }
         }
@@ -275,13 +274,13 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     private AccountDTO find(Long id) {
         return accountMapper
                 .selectByAccountId(id)
-                .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, id));
     }
 
     private AccountDTO findByCustomer(Long id) {
         return accountMapper
                 .selectByCustomerId(id)
-                .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, id));
     }
 
     private void logAudit(
@@ -302,12 +301,14 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     }
 
     private void assertStatus(AccountDTO account, Status status) {
-        if (account.getStatus() != status) throw new AccountException("상태 변경 실패");
+        if (account.getStatus() != status) {
+            throw new AppException(ErrorType.ACCOUNT_STATE_UPDATE_FAILED, account.getAccountId());
+        }
     }
 
     private void assertBenefit(AccountDTO account, BenefitType benefitType) {
         if (account.getBenefit() != benefitType) {
-            throw new AccountException("혜택 설정 변경 실패");
+            throw new AppException(ErrorType.ACCOUNT_BENEFIT_UPDATE_FAILED, account.getAccountId());
         }
     }
 }

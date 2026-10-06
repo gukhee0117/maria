@@ -14,7 +14,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.service.AccountLogService;
 import com.app.maria.domain.account.type.Status;
@@ -28,7 +27,6 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.service.WithdrawalService;
 import com.app.maria.global.audit.dto.AuditLogDTO;
-import com.app.maria.global.audit.exception.AuditLogInsertException;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
@@ -74,8 +72,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountNotFoundException.class)
-                .hasMessage("해지할 계좌가 존재하지 않습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
         verifyNoInteractions(generalAccountClient, accountClosureMapper, businessClockService);
         verify(accountMapper, never()).requestClosure(any());
@@ -101,7 +99,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND.getMessage());
 
         verifyNoInteractions(generalAccountClient, accountClosureMapper, businessClockService);
         verify(accountMapper, never()).requestClosure(ACCOUNT_ID);
@@ -350,7 +349,7 @@ class AccountClosureServiceImplTest {
         when(businessClockService.now()).thenReturn(NOW);
         when(accountClosureMapper.rejectClosureRequest(closure)).thenReturn(1);
         when(accountMapper.reopenAfterClosureRejection(ACCOUNT_ID)).thenReturn(1);
-        doThrow(new AuditLogInsertException("AUDIT_LOG 저장에 실패했습니다."))
+        doThrow(new AppException(ErrorType.AUDIT_LOG_INSERT_FAILED))
                 .when(auditLogService)
                 .log(any(AuditLogDTO.class));
 
@@ -358,8 +357,8 @@ class AccountClosureServiceImplTest {
                         () ->
                                 accountClosureService.rejectClosure(
                                         7L, CLOSURE_REQUEST_ID, "관리자 반려 사유"))
-                .isInstanceOf(AuditLogInsertException.class)
-                .hasMessage("AUDIT_LOG 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.AUDIT_LOG_INSERT_FAILED.getMessage());
 
         verify(accountClosureMapper).rejectClosureRequest(closure);
         verify(accountMapper).reopenAfterClosureRejection(ACCOUNT_ID);

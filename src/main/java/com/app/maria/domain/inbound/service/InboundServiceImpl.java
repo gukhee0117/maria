@@ -1,6 +1,5 @@
 package com.app.maria.domain.inbound.service;
 
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
@@ -15,6 +14,8 @@ import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
 import java.math.BigDecimal;
@@ -65,14 +66,17 @@ public class InboundServiceImpl implements InboundService {
         Long customerId =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("입고 대상 계좌가 존재하지 않습니다."))
+                        .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId))
                         .getCustomerId();
 
         String ciHash =
                 accountMapper
                         .selectCiHashByCustomerId(customerId)
                         .orElseThrow(
-                                () -> new AccountNotFoundException("입고 계좌의 고객 식별정보를 찾을 수 없습니다."));
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                customerId));
 
         ApiResponseDTO<RegistrableStockResponseDTO> apiResponse =
                 restClient

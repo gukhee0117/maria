@@ -1,7 +1,6 @@
 package com.app.maria.domain.accountclosure.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.service.AccountLogService;
 import com.app.maria.domain.account.type.Status;
@@ -50,14 +49,19 @@ public class AccountClosureServiceImpl implements AccountClosureService {
         AccountDTO account =
                 accountMapper
                         .selectByCustomerId(customerId)
-                        .orElseThrow(() -> new AccountNotFoundException("해지할 계좌가 존재하지 않습니다."));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
         if (account.getStatus() != Status.OPENED) {
             throw new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED, account.getAccountId());
         }
         String ciHash =
                 accountMapper
                         .selectCiHashByCustomerId(account.getCustomerId())
-                        .orElseThrow(() -> new AccountNotFoundException("존재하지않는 고객입니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                customerId));
 
         GeneralAccountRequestDTO generalAccountRequest =
                 GeneralAccountRequestDTO.builder()
@@ -170,7 +174,11 @@ public class AccountClosureServiceImpl implements AccountClosureService {
         AccountDTO account =
                 accountMapper
                         .selectByAccountIdForUpdate(closure.getAccountId())
-                        .orElseThrow(() -> new AccountNotFoundException("해지할 계좌를 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_NOT_FOUND,
+                                                closure.getAccountId()));
         if (account.getStatus() != Status.CLOSURE_REQUESTED) {
             throw new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED, closure.getAccountId());
         }
@@ -196,7 +204,11 @@ public class AccountClosureServiceImpl implements AccountClosureService {
         AccountDTO accountBeforeClosure =
                 accountMapper
                         .selectByAccountIdForUpdate(account.getAccountId())
-                        .orElseThrow(() -> new AccountNotFoundException("해지 처리할 계좌를 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_NOT_FOUND,
+                                                closure.getAccountId()));
         if (accountBeforeClosure.getStatus() != Status.CLOSURE_REQUESTED) {
             throw new AppException(
                     ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED, accountBeforeClosure.getAccountId());

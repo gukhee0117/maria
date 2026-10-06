@@ -10,16 +10,18 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.dto.AccountLimitUsageDTO;
 import com.app.maria.domain.account.dto.AccountSearchDTO;
 import com.app.maria.domain.account.dto.request.AccountLimitUpdateRequestDTO;
+import com.app.maria.domain.account.dto.request.AccountReapplyRequestDTO;
 import com.app.maria.domain.account.dto.request.AccountRequestDTO;
 import com.app.maria.domain.account.dto.request.AccountSearchRequestDTO;
 import com.app.maria.domain.account.dto.response.AccountLimitUsageResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.provider.MydataProvider;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -100,10 +102,79 @@ class AccountServiceImplTest {
                         () ->
                                 accountService.updateAccountLimit(
                                         limitUpdateRequest(LIMIT, CHANGED_LIMIT)))
-                .isInstanceOf(InvalidAccountRequestException.class)
-                .hasMessageContaining("30000000");
+                .isInstanceOf(AppException.class)
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_EXCEEDS_AVAILABLE));
 
         verify(accountTransactionalService, never()).updateLimit(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void getAvailableLimitDistinguishesMissingCustomer() {
+        when(accountMapper.existsCustomerById(CUSTOMER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> accountService.getAvailableLimit(CUSTOMER_ID))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_CUSTOMER_NOT_FOUND));
+    }
+
+    @Test
+    void getAvailableLimitDistinguishesMissingCustomerIdentity() {
+        when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> accountService.getAvailableLimit(CUSTOMER_ID))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND));
+    }
+
+    @Test
+    void updateLimitRejectsMissingLimitWithDedicatedError() {
+        assertThatThrownBy(() -> accountService.updateAccountLimit(limitUpdateRequest(LIMIT, null)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_REQUIRED));
+    }
+
+    @Test
+    void updateLimitRejectsFractionalWonWithDedicatedError() {
+        assertThatThrownBy(
+                        () ->
+                                accountService.updateAccountLimit(
+                                        limitUpdateRequest(LIMIT, new BigDecimal("1000.50"))))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_NOT_WHOLE_WON));
+    }
+
+    @Test
+    void reapplyRejectsClosedApplicationPeriodWithDedicatedError() {
+        LocalDateTime outsidePeriod = LocalDateTime.of(2027, 1, 1, 10, 0);
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(Optional.of(account(Status.REJECTED, LIMIT)));
+        when(businessClockService.now()).thenReturn(outsidePeriod);
+
+        assertThatThrownBy(
+                        () ->
+                                accountService.reapplyAccountByAccountId(
+                                        ACCOUNT_ID, AccountReapplyRequestDTO.builder().build()))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_APPLICATION_PERIOD_CLOSED));
     }
 
     @Test

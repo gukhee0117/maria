@@ -14,8 +14,6 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountBenefitLogDTO;
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountException;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
@@ -68,7 +66,8 @@ class WithdrawalProcessorTest {
         when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
         verify(accountMapper, never()).selectByAccountIdForUpdate(ACCOUNT_ID);
         verifyNoInteractions(generalAccountClient);
         verifyNoInteractions(withdrawalMapper, businessClockService);
@@ -233,8 +232,8 @@ class WithdrawalProcessorTest {
         when(accountBenefitLogMapper.insertLog(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("200", true)))
-                .isInstanceOf(AccountException.class)
-                .hasMessage("ACCOUNT_BENEFIT_LOG 저장에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED.getMessage());
     }
 
     @Test

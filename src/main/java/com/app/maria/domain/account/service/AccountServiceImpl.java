@@ -10,13 +10,13 @@ import com.app.maria.domain.account.dto.response.AccountLimitUsageResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountLogResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountManagementDetailResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.provider.MydataProvider;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -105,7 +105,8 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO account =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         LocalDateTime openedAt = businessClockService.now();
         validateLimitAvailability(
                 account.getLimitAmount(), calculateAvailableLimit(account.getCustomerId()));
@@ -136,7 +137,8 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO foundAccount =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         LocalDateTime appliedAt = getApplicationTime();
         BigDecimal limitAmount =
                 requestDTO.getLimitAmount() == null
@@ -156,7 +158,8 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO account =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         return new AccountResponseDTO(account);
     }
 
@@ -164,7 +167,7 @@ public class AccountServiceImpl implements AccountService {
     public List<AccountLogResponseDTO> getStatusLogsByAccountId(Long accountId) {
         accountMapper
                 .selectByAccountId(accountId)
-                .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         return accountLogService.getStatusLogs(accountId);
     }
 
@@ -173,7 +176,7 @@ public class AccountServiceImpl implements AccountService {
     public AccountManagementDetailResponseDTO getManagementDetail(Long accountId) {
         accountMapper
                 .selectByAccountId(accountId)
-                .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         return AccountManagementDetailResponseDTO.builder()
                 .holdings(accountMapper.selectManagementHoldings(accountId))
                 .inbounds(accountMapper.selectManagementInbounds(accountId))
@@ -188,7 +191,8 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO account =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("계좌 조회 실패"));
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         LocalDateTime openedAt = businessClockService.now();
         validateLimitAvailability(
                 account.getLimitAmount(), calculateAvailableLimit(account.getCustomerId()));
@@ -206,7 +210,11 @@ public class AccountServiceImpl implements AccountService {
         String ciHash =
                 accountMapper
                         .selectCiHashByCustomerId(customerId)
-                        .orElseThrow(() -> new AccountNotFoundException("개설할 계좌의 사용자를 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                customerId));
         return MAX_LIMIT_AMOUNT
                 .subtract(mydataProvider.getExternalConfiguredLimit(ciHash))
                 .max(BigDecimal.ZERO);
@@ -214,40 +222,42 @@ public class AccountServiceImpl implements AccountService {
 
     private void validateLimitAvailability(BigDecimal requestedLimit, BigDecimal availableLimit) {
         if (availableLimit.compareTo(MIN_LIMIT_AMOUNT) < 0) {
-            throw new InvalidAccountRequestException("설정 가능한 RIA 납입한도가 없어 계좌를 개설할 수 없습니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_EXCEEDS_AVAILABLE, requestedLimit);
         }
         if (requestedLimit.compareTo(availableLimit) > 0) {
-            throw new InvalidAccountRequestException(
+            throw new AppException(
+                    ErrorType.ACCOUNT_LIMIT_EXCEEDS_AVAILABLE,
                     "계좌의 한도는 " + MIN_LIMIT_AMOUNT + "부터 " + availableLimit + "이하 입니다.");
         }
     }
 
     private void validateLimitInput(BigDecimal requestedLimit) {
         if (requestedLimit == null) {
-            throw new InvalidAccountRequestException("계좌 한도 입력이 필요합니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_REQUIRED);
         }
         if (requestedLimit.compareTo(MIN_LIMIT_AMOUNT) < 0) {
-            throw new InvalidAccountRequestException(
+            throw new AppException(
+                    ErrorType.ACCOUNT_LIMIT_OUT_OF_RANGE,
                     "계좌의 한도는 " + MIN_LIMIT_AMOUNT + "원 이상이어야 합니다.");
         }
         if (requestedLimit.stripTrailingZeros().scale() > 0) {
-            throw new InvalidAccountRequestException("계좌의 한도는 원 단위로 입력해야 합니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_NOT_WHOLE_WON, requestedLimit);
         }
         if (requestedLimit.compareTo(MAX_LIMIT_AMOUNT) > 0) {
-            throw new InvalidAccountRequestException("계좌의 한도는 " + MAX_LIMIT_AMOUNT + "원 이하여야 합니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_OUT_OF_RANGE, requestedLimit);
         }
     }
 
     private void validateCustomerExists(Long customerId) {
         if (!accountMapper.existsCustomerById(customerId)) {
-            throw new AccountNotFoundException("개설할 계좌의 사용자를 찾을 수 없습니다.");
+            throw new AppException(ErrorType.ACCOUNT_CUSTOMER_NOT_FOUND, customerId);
         }
     }
 
     private LocalDateTime getApplicationTime() {
         LocalDateTime applicationTime = businessClockService.now();
         if (!isWithinApplicationPeriod(applicationTime)) {
-            throw new InvalidAccountRequestException("RIA 계좌 신청 가능 기간이 아닙니다.");
+            throw new AppException(ErrorType.ACCOUNT_APPLICATION_PERIOD_CLOSED, applicationTime);
         }
         return applicationTime;
     }

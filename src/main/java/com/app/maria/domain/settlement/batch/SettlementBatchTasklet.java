@@ -14,7 +14,8 @@ import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.mapper.SettlementJoinMapper;
 import com.app.maria.domain.settlement.provider.ExchangeRateProvider;
 import com.app.maria.domain.settlement.type.BatchStatus;
-import com.app.maria.global.exception.ExchangeRateNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -143,7 +144,10 @@ public class SettlementBatchTasklet implements Tasklet {
             clearFailureCache(executionContext, failureTypeKey, failureMessageKey);
             executionContext.putString(valueKey, rate.toPlainString());
             return rate;
-        } catch (ExchangeRateNotFoundException e) {
+        } catch (AppException e) {
+            if (e.getErrorType() != ErrorType.EXCHANGE_RATE_NOT_FOUND) {
+                throw e;
+            }
             cacheFailure(
                     executionContext, valueKey, failureTypeKey, failureMessageKey, "NOT_FOUND", e);
             throw e;
@@ -208,7 +212,7 @@ public class SettlementBatchTasklet implements Tasklet {
                 && failureMessage instanceof String message
                 && !message.isBlank()) {
             if ("NOT_FOUND".equals(type)) {
-                return new ExchangeRateNotFoundException(message);
+                return new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND, message);
             }
             if ("EXTERNAL_API".equals(type)) {
                 return new ExchangeRateExternalApiException(message, null);

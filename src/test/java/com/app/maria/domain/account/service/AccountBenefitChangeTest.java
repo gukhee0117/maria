@@ -12,9 +12,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -165,7 +166,8 @@ class AccountBenefitChangeTest {
                         () ->
                                 accountTransactionalService.changeBenefit(
                                         ACCOUNT_ID, BenefitType.REDUCED, REASON, NOW))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
         verify(accountMapper, never()).updateBenefit(anyLong(), any(), any());
         verifyNoInteractions(accountLogService);
