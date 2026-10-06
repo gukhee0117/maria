@@ -113,6 +113,24 @@ class AccountServiceImplTest {
     }
 
     @Test
+    void updateLimitRejectsWhenNoLimitIsAvailable() {
+        when(mydataProvider.getExternalConfiguredLimit("ci-hash"))
+                .thenReturn(BigDecimal.valueOf(50_000_000L));
+
+        assertThatThrownBy(
+                        () ->
+                                accountService.updateAccountLimit(
+                                        limitUpdateRequest(LIMIT, CHANGED_LIMIT)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_NO_LIMIT_AVAILABLE));
+
+        verify(accountTransactionalService, never()).updateLimit(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void getAvailableLimitDistinguishesMissingCustomer() {
         when(accountMapper.existsCustomerById(CUSTOMER_ID)).thenReturn(false);
 
@@ -144,6 +162,34 @@ class AccountServiceImplTest {
                         exception ->
                                 assertThat(exception.getErrorType())
                                         .isEqualTo(ErrorType.ACCOUNT_LIMIT_REQUIRED));
+    }
+
+    @Test
+    void updateLimitRejectsAmountBelowMinimumWithDedicatedError() {
+        assertThatThrownBy(
+                        () ->
+                                accountService.updateAccountLimit(
+                                        limitUpdateRequest(LIMIT, BigDecimal.ZERO)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_BELOW_MINIMUM));
+    }
+
+    @Test
+    void updateLimitRejectsAmountAboveMaximumWithDedicatedError() {
+        BigDecimal aboveMaximum = BigDecimal.valueOf(50_000_001L);
+
+        assertThatThrownBy(
+                        () ->
+                                accountService.updateAccountLimit(
+                                        limitUpdateRequest(LIMIT, aboveMaximum)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_ABOVE_MAXIMUM));
     }
 
     @Test

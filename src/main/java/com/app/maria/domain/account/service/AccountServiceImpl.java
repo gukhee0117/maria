@@ -222,7 +222,7 @@ public class AccountServiceImpl implements AccountService {
 
     private void validateLimitAvailability(BigDecimal requestedLimit, BigDecimal availableLimit) {
         if (availableLimit.compareTo(MIN_LIMIT_AMOUNT) < 0) {
-            throw new AppException(ErrorType.ACCOUNT_LIMIT_EXCEEDS_AVAILABLE, requestedLimit);
+            throw new AppException(ErrorType.ACCOUNT_NO_LIMIT_AVAILABLE, availableLimit);
         }
         if (requestedLimit.compareTo(availableLimit) > 0) {
             throw new AppException(
@@ -236,15 +236,13 @@ public class AccountServiceImpl implements AccountService {
             throw new AppException(ErrorType.ACCOUNT_LIMIT_REQUIRED);
         }
         if (requestedLimit.compareTo(MIN_LIMIT_AMOUNT) < 0) {
-            throw new AppException(
-                    ErrorType.ACCOUNT_LIMIT_OUT_OF_RANGE,
-                    "계좌의 한도는 " + MIN_LIMIT_AMOUNT + "원 이상이어야 합니다.");
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_BELOW_MINIMUM, requestedLimit);
         }
         if (requestedLimit.stripTrailingZeros().scale() > 0) {
             throw new AppException(ErrorType.ACCOUNT_LIMIT_NOT_WHOLE_WON, requestedLimit);
         }
         if (requestedLimit.compareTo(MAX_LIMIT_AMOUNT) > 0) {
-            throw new AppException(ErrorType.ACCOUNT_LIMIT_OUT_OF_RANGE, requestedLimit);
+            throw new AppException(ErrorType.ACCOUNT_LIMIT_ABOVE_MAXIMUM, requestedLimit);
         }
     }
 
