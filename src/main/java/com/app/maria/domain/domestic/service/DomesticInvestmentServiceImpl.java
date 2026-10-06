@@ -1,6 +1,5 @@
 package com.app.maria.domain.domestic.service;
 
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.dto.*;
 import com.app.maria.domain.domestic.dto.request.DomesticInvestmentSearchRequestDTO;
@@ -10,6 +9,8 @@ import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundExcepti
 import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.time.LocalDate;
 import java.util.List;
@@ -113,12 +114,16 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
         Long customerId =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AccountNotFoundException("계좌를 찾을 수 없습니다."))
+                        .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId))
                         .getCustomerId();
         String ciHash =
                 accountMapper
                         .selectCiHashByCustomerId(customerId)
-                        .orElseThrow(() -> new AccountNotFoundException("고객 식별정보를 찾을 수 없습니다."));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                customerId));
 
         List<DomesticTradeHistoryDTO> tradeHistory = fetchDomesticTradeHistory(ciHash);
 

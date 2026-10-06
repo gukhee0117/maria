@@ -1,12 +1,13 @@
 package com.app.maria.domain.account.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository.ClaimedTask;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.provider.MydataProvider;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -61,7 +62,10 @@ public class AccountMydataSyncService {
                     accountMapper
                             .selectCiHashByCustomerId(account.getCustomerId())
                             .orElseThrow(
-                                    () -> new AccountNotFoundException("개설할 계좌의 사용자를 찾을 수 없습니다."));
+                                    () ->
+                                            new AppException(
+                                                    ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
+                                                    account.getCustomerId()));
             synchronize(account, ciHash, task);
         } catch (RuntimeException exception) {
             log.error("MyData RIA 계좌 재동기화 실패: accountId={}", task.accountId(), exception);

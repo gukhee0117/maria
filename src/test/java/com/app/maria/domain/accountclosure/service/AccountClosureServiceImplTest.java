@@ -14,7 +14,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.service.AccountLogService;
 import com.app.maria.domain.account.type.Status;
@@ -73,8 +72,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountNotFoundException.class)
-                .hasMessage("해지할 계좌가 존재하지 않습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
         verifyNoInteractions(generalAccountClient, accountClosureMapper, businessClockService);
         verify(accountMapper, never()).requestClosure(any());
@@ -100,7 +99,8 @@ class AccountClosureServiceImplTest {
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> accountClosureService.applyClosure(CUSTOMER_ID, request(true)))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND.getMessage());
 
         verifyNoInteractions(generalAccountClient, accountClosureMapper, businessClockService);
         verify(accountMapper, never()).requestClosure(ACCOUNT_ID);

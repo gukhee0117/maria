@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
@@ -139,7 +138,8 @@ class TaxCalculationServiceImplTest {
         when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> taxCalculationService.taxCalculate(ACCOUNT_ID))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
         verifyNoInteractions(taxMapper, taxCalculator);
         verify(clockService, never()).now();
@@ -446,7 +446,8 @@ class TaxCalculationServiceImplTest {
         when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> taxCalculationService.calculateAndSave(ACCOUNT_ID))
-                .isInstanceOf(AccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
         verify(taxMapper, never()).insertCalculation(any());
         verifyNoInteractions(taxCalculator);

@@ -2,7 +2,6 @@ package com.app.maria.domain.tax.service;
 
 import com.app.maria.domain.account.dto.AccountBenefitLogDTO;
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
@@ -248,7 +247,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     private AccountDTO findAccount(Long accountId) {
         return accountMapper
                 .selectByAccountId(accountId)
-                .orElseThrow(() -> new AccountNotFoundException("계좌가 없습니다."));
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
     }
 
     private TaxCalculationResultDTO calculateFor(AccountDTO account) {

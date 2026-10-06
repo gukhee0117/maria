@@ -11,14 +11,14 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.dto.request.AccountReapplyRequestDTO;
-import com.app.maria.domain.account.exception.AccountException;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.AuditLogReasonCode;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class AccountTransactionalServiceImplTest {
@@ -57,12 +58,63 @@ class AccountTransactionalServiceImplTest {
                                         LIMIT,
                                         BigDecimal.valueOf(10_000_000L),
                                         NOW))
-                .isInstanceOf(InvalidAccountRequestException.class)
-                .hasMessage("이미 사용한 매도한도보다 낮게 설정할 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_BELOW_USED_AMOUNT));
 
         verify(accountMapper, never())
                 .updateLimit(
                         anyLong(), any(Status.class), any(BigDecimal.class), any(BigDecimal.class));
+    }
+
+    @Test
+    void updateLimitRejectsUnsupportedAccountStateWithDedicatedError() {
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID))
+                .thenReturn(Optional.of(account(Status.REJECTED, LIMIT)));
+
+        assertThatThrownBy(
+                        () ->
+                                service.updateLimit(
+                                        ADMIN_ID,
+                                        CUSTOMER_ID,
+                                        LIMIT,
+                                        BigDecimal.valueOf(40_000_000L),
+                                        NOW))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+    }
+
+    @Test
+    void updateLimitRejectsUnchangedLimitWithDedicatedError() {
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID))
+                .thenReturn(Optional.of(account(Status.OPENED, LIMIT)));
+
+        assertThatThrownBy(() -> service.updateLimit(ADMIN_ID, CUSTOMER_ID, LIMIT, LIMIT, NOW))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_LIMIT_UNCHANGED));
+    }
+
+    @Test
+    void applyReportsApplicationSaveFailureWithDedicatedError() {
+        when(accountMapper.existsByCustomerId(CUSTOMER_ID)).thenReturn(false);
+        when(accountMapper.insertApplication(any(AccountDTO.class))).thenReturn(0);
+
+        assertThatThrownBy(
+                        () -> service.apply(ADMIN_ID, account(Status.APPLIED, LIMIT), NOW, false))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_APPLICATION_SAVE_FAILED));
     }
 
     @Test
@@ -78,8 +130,8 @@ class AccountTransactionalServiceImplTest {
                                         BigDecimal.valueOf(20_000_000L),
                                         BigDecimal.valueOf(40_000_000L),
                                         NOW))
-                .isInstanceOf(InvalidAccountRequestException.class)
-                .hasMessage("계좌 한도가 변경되었습니다. 다시 조회 후 시도해주세요.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CONCURRENT_MODIFICATION.getMessage());
 
         verify(accountMapper, never())
                 .updateLimit(
@@ -207,8 +259,59 @@ class AccountTransactionalServiceImplTest {
         when(accountMapper.approve(any(AccountDTO.class))).thenReturn(0);
 
         assertThatThrownBy(() -> service.approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW))
-                .isInstanceOf(InvalidAccountRequestException.class)
-                .hasMessage("심사 도중 계좌 한도가 변경되었습니다. 다시 심사하세요.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CONCURRENT_MODIFICATION.getMessage());
+    }
+
+    @Test
+    void approveReportsAccountNumberGenerationFailureAfterRetryLimit() {
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(Optional.of(account(Status.APPLIED, LIMIT)));
+        when(accountMapper.approve(any(AccountDTO.class)))
+                .thenThrow(new DuplicateKeyException("duplicate account number"));
+
+        assertThatThrownBy(() -> service.approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_NUMBER_GENERATION_FAILED));
+
+        verify(accountMapper, times(5)).approve(any(AccountDTO.class));
+    }
+
+    @Test
+    void approveReportsStatusPostconditionFailureWithDedicatedError() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(Optional.of(applied), Optional.of(applied));
+        when(accountMapper.approve(any(AccountDTO.class))).thenReturn(1);
+
+        assertThatThrownBy(() -> service.approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_STATE_UPDATE_FAILED));
+    }
+
+    @Test
+    void approveReportsBenefitPostconditionFailureWithDedicatedError() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        AccountDTO openedWithoutBenefit = account(Status.OPENED, LIMIT);
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(Optional.of(applied), Optional.of(openedWithoutBenefit));
+        when(accountMapper.approve(any(AccountDTO.class))).thenReturn(1);
+
+        assertThatThrownBy(() -> service.approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_BENEFIT_UPDATE_FAILED));
+
+        verify(accountLogService)
+                .recordStatusChange(openedWithoutBenefit, Status.APPLIED, NOW, "사용자 계좌 개설");
     }
 
     @Test
@@ -279,8 +382,8 @@ class AccountTransactionalServiceImplTest {
         when(accountMapper.updateProvisionalAmount(increase)).thenReturn(0);
 
         assertThatThrownBy(() -> service.updateAmount(increase))
-                .isInstanceOf(AccountException.class)
-                .hasMessage("계좌 잔액 수정 실패");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_AMOUNT_UPDATE_FAILED.getMessage());
     }
 
     private AccountDTO account(Status status, BigDecimal limit) {

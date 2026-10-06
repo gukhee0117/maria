@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
@@ -40,6 +39,8 @@ import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -229,8 +230,8 @@ class InboundServiceImplTest {
                         () ->
                                 inboundService.processInbound(
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
-                .isInstanceOf(AccountNotFoundException.class)
-                .hasMessage("입고 대상 계좌가 존재하지 않습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -241,8 +242,8 @@ class InboundServiceImplTest {
                         () ->
                                 inboundService.processInbound(
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
-                .isInstanceOf(AccountNotFoundException.class)
-                .hasMessage("입고 계좌의 고객 식별정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND.getMessage());
     }
 
     @Test

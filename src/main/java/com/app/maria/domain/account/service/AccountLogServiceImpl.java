@@ -4,12 +4,13 @@ import com.app.maria.domain.account.dto.AccountBenefitLogDTO;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.dto.AccountStatusLogDTO;
 import com.app.maria.domain.account.dto.response.AccountLogResponseDTO;
-import com.app.maria.domain.account.exception.AccountException;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountStatusLogMapper;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,7 +39,8 @@ public class AccountLogServiceImpl implements AccountLogService {
                         .reason(reason)
                         .build();
         if (accountStatusLogMapper.insertLog(log) != 1) {
-            throw new AccountException("계좌 상태 이력 저장 실패");
+            throw new AppException(
+                    ErrorType.ACCOUNT_STATUS_LOG_SAVE_FAILED, account.getAccountId());
         }
     }
 
@@ -73,7 +75,8 @@ public class AccountLogServiceImpl implements AccountLogService {
                         .reason(reason)
                         .build();
         if (accountBenefitLogMapper.insertLog(log) != 1) {
-            throw new AccountException("계좌 혜택 변경 이력 저장 실패");
+            throw new AppException(
+                    ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED, account.getAccountId());
         }
     }
 

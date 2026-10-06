@@ -1,9 +1,5 @@
 package com.app.maria.global.exception;
 
-import com.app.maria.domain.account.exception.AccountException;
-import com.app.maria.domain.account.exception.AccountNotFoundException;
-import com.app.maria.domain.account.exception.DuplicateAccountException;
-import com.app.maria.domain.account.exception.InvalidAccountRequestException;
 import com.app.maria.domain.domestic.exception.DomesticInvestmentException;
 import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundException;
 import com.app.maria.domain.domestic.exception.DomesticProductException;
@@ -79,32 +75,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MemberNotFoundException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleMemberNotFound(MemberNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 4. Account 예외
-    @ExceptionHandler(AccountException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountException(AccountException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleAccountNotFoundException(
-            AccountNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(DuplicateAccountException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleDuplicateAccountException(
-            DuplicateAccountException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(InvalidAccountRequestException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleInvalidAccountRequestException(
-            InvalidAccountRequestException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
     }
 
     // 6. Inbound 예외
