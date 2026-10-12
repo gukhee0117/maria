@@ -11,9 +11,9 @@ import com.app.maria.domain.account.dto.response.AccountLogResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountManagementDetailResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.account.provider.MydataProvider;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.provider.AuditActorProvider;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
@@ -34,7 +34,7 @@ public class AccountServiceImpl implements AccountService {
     private static final LocalDate RIA_APPLICATION_END_DATE = LocalDate.of(2026, 12, 31);
 
     private final AccountMapper accountMapper;
-    private final MydataProvider mydataProvider;
+    private final MydataClient mydataClient;
     private final AccountLogService accountLogService;
     private final BusinessClockService businessClockService;
     private final AccountTransactionalService accountTransactionalService;
@@ -216,7 +216,7 @@ public class AccountServiceImpl implements AccountService {
                                                 ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
                                                 customerId));
         return MAX_LIMIT_AMOUNT
-                .subtract(mydataProvider.getExternalConfiguredLimit(ciHash))
+                .subtract(mydataClient.getExternalConfiguredLimit(ciHash))
                 .max(BigDecimal.ZERO);
     }
 

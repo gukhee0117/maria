@@ -1,5 +1,7 @@
 package com.app.maria.domain.account.service;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -9,9 +11,10 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository.ClaimedTask;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.account.provider.MydataProvider;
 import com.app.maria.domain.account.type.Status;
-import com.app.maria.global.exception.MydataApiException;
+import com.app.maria.global.client.mydata.MydataClient;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 class AccountMydataSyncServiceTest {
@@ -28,7 +30,7 @@ class AccountMydataSyncServiceTest {
     private static final String CI_HASH = "ci-hash";
 
     @Mock private AccountMapper accountMapper;
-    @Mock private MydataProvider mydataProvider;
+    @Mock private MydataClient mydataClient;
     @Mock private RedisMydataSyncTaskRepository taskRepository;
     @InjectMocks private AccountMydataSyncService service;
 
@@ -39,7 +41,7 @@ class AccountMydataSyncServiceTest {
         service.create(account);
 
         verify(taskRepository).enqueue(10L, "SYNC");
-        verify(mydataProvider, never()).syncRiaAccount(CI_HASH, account);
+        verify(mydataClient, never()).syncRiaAccount(any(), any());
     }
 
     @Test
@@ -49,7 +51,7 @@ class AccountMydataSyncServiceTest {
         service.updateLimit(account);
 
         verify(taskRepository).enqueue(10L, "SYNC");
-        verify(mydataProvider, never()).syncRiaAccount(CI_HASH, account);
+        verify(mydataClient, never()).syncRiaAccount(any(), any());
     }
 
     @Test
@@ -59,11 +61,10 @@ class AccountMydataSyncServiceTest {
         when(taskRepository.claimDueTasks(100)).thenReturn(List.of(task));
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(account));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataProvider.syncRiaAccount(CI_HASH, account)).thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 
-        verify(mydataProvider).syncRiaAccount(CI_HASH, account);
+        verify(mydataClient).syncRiaAccount(CI_HASH, account.getLimitAmount());
         verify(taskRepository).complete(task);
         verify(taskRepository).release(task);
     }
@@ -78,13 +79,11 @@ class AccountMydataSyncServiceTest {
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(createAccount));
         when(accountMapper.selectByAccountId(11L)).thenReturn(Optional.of(updateAccount));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataProvider.syncRiaAccount(CI_HASH, createAccount)).thenReturn(HttpStatus.OK);
-        when(mydataProvider.syncRiaAccount(CI_HASH, updateAccount)).thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 
-        verify(mydataProvider).syncRiaAccount(CI_HASH, createAccount);
-        verify(mydataProvider).syncRiaAccount(CI_HASH, updateAccount);
+        verify(mydataClient).syncRiaAccount(CI_HASH, createAccount.getLimitAmount());
+        verify(mydataClient).syncRiaAccount(CI_HASH, updateAccount.getLimitAmount());
         verify(taskRepository).complete(createTask);
         verify(taskRepository).complete(updateTask);
         verify(taskRepository).release(createTask);
@@ -101,7 +100,7 @@ class AccountMydataSyncServiceTest {
         verify(taskRepository).complete(task);
         verify(taskRepository).release(task);
         verifyNoInteractions(accountMapper);
-        verifyNoInteractions(mydataProvider);
+        verifyNoInteractions(mydataClient);
     }
 
     @Test
@@ -111,8 +110,9 @@ class AccountMydataSyncServiceTest {
         when(taskRepository.claimDueTasks(100)).thenReturn(List.of(task));
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(account));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataProvider.syncRiaAccount(CI_HASH, account))
-                .thenThrow(new MydataApiException("동기화 실패", null));
+        doThrow(new AppException(ErrorType.MYDATA_API_UNAVAILABLE))
+                .when(mydataClient)
+                .syncRiaAccount(CI_HASH, account.getLimitAmount());
 
         service.retryOpenedAccounts();
 

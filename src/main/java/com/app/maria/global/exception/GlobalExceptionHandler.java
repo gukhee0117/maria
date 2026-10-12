@@ -132,13 +132,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 8. mydata 예외
-    @ExceptionHandler(MydataApiException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleMydataApiException(MydataApiException e) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     // 9. ForeignProduct 예외
     @ExceptionHandler(ForeignProductException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductException(
