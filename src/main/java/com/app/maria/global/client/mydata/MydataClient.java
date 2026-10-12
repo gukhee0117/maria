@@ -82,7 +82,7 @@ public class MydataClient {
         } catch (RestClientException e) {
             throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
         }
-        if (response == null || response.getData() == null) {
+        if (response == null || response.getData() == null || response.getData().contains(null)) {
             throw new AppException(ErrorType.MYDATA_API_INVALID_RESPONSE, ciHash);
         }
         return response.getData();
