@@ -1,6 +1,7 @@
 package com.app.maria.domain.account.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -22,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 class AccountMydataSyncServiceTest {
@@ -61,8 +61,6 @@ class AccountMydataSyncServiceTest {
         when(taskRepository.claimDueTasks(100)).thenReturn(List.of(task));
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(account));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataClient.syncRiaAccount(CI_HASH, account.getLimitAmount()))
-                .thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 
@@ -81,10 +79,6 @@ class AccountMydataSyncServiceTest {
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(createAccount));
         when(accountMapper.selectByAccountId(11L)).thenReturn(Optional.of(updateAccount));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataClient.syncRiaAccount(CI_HASH, createAccount.getLimitAmount()))
-                .thenReturn(HttpStatus.OK);
-        when(mydataClient.syncRiaAccount(CI_HASH, updateAccount.getLimitAmount()))
-                .thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 
@@ -116,8 +110,9 @@ class AccountMydataSyncServiceTest {
         when(taskRepository.claimDueTasks(100)).thenReturn(List.of(task));
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(account));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataClient.syncRiaAccount(CI_HASH, account.getLimitAmount()))
-                .thenThrow(new AppException(ErrorType.MYDATA_API_UNAVAILABLE));
+        doThrow(new AppException(ErrorType.MYDATA_API_UNAVAILABLE))
+                .when(mydataClient)
+                .syncRiaAccount(CI_HASH, account.getLimitAmount());
 
         service.retryOpenedAccounts();
 

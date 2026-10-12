@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -39,20 +38,14 @@ public class MydataClient {
         return sumOtherBrokers(ciHash, MydataRiaAccountDTO::getRiaLimit);
     }
 
-    public HttpStatusCode syncRiaAccount(String ciHash, BigDecimal riaLimit) {
+    public void syncRiaAccount(String ciHash, BigDecimal riaLimit) {
         Map<String, String> body =
                 Map.of(
                         "ciHash", ciHash,
                         "brokerName", mydataApiProperties.getOwnBrokerName(),
                         "riaLimit", String.valueOf(riaLimit));
         try {
-            return restClient
-                    .post()
-                    .uri(SYNC_RIA_ACCOUNT_PATH)
-                    .body(body)
-                    .retrieve()
-                    .toBodilessEntity()
-                    .getStatusCode();
+            restClient.post().uri(SYNC_RIA_ACCOUNT_PATH).body(body).retrieve().toBodilessEntity();
         } catch (RestClientException e) {
             throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
         }

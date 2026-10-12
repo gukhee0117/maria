@@ -18,7 +18,6 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -175,8 +174,7 @@ class MydataClientTest {
                 .andExpect(content().string(not(containsString("riaCumulativeSell"))))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-        assertThat(mydataClient.syncRiaAccount("ci-hash", new BigDecimal("40000000")))
-                .isEqualTo(HttpStatus.OK);
+        mydataClient.syncRiaAccount("ci-hash", new BigDecimal("40000000"));
         mockServer.verify();
     }
 

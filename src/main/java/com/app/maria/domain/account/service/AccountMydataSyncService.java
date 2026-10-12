@@ -84,14 +84,8 @@ public class AccountMydataSyncService {
 
     private void synchronize(AccountDTO account, String ciHash, ClaimedTask task) {
         try {
-            boolean successful =
-                    mydataClient.syncRiaAccount(ciHash, account.getLimitAmount()).is2xxSuccessful();
-            if (successful) {
-                taskRepository.complete(task);
-                return;
-            }
-            taskRepository.reschedule(task, SyncOperation.SYNC.name());
-            log.error("MyData RIA 계좌 동기화 실패: accountId={}", account.getAccountId());
+            mydataClient.syncRiaAccount(ciHash, account.getLimitAmount());
+            taskRepository.complete(task);
         } catch (RuntimeException exception) {
             log.error("MyData RIA 계좌 동기화 예외: accountId={}", account.getAccountId(), exception);
             taskRepository.reschedule(task, SyncOperation.SYNC.name());
