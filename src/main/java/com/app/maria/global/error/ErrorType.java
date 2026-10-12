@@ -113,6 +113,24 @@ public enum ErrorType {
     KIS_PRICE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "전일종가를 조회할 수 없습니다.", LogLevel.WARN),
     KIS_TOKEN_ISSUE(HttpStatus.BAD_GATEWAY, "KIS 토큰 발급에 실패하였습니다.", LogLevel.ERROR),
     UNSUPPORTED_EXCHANGE(HttpStatus.INTERNAL_SERVER_ERROR, "지원하지 않는 거래소입니다.", LogLevel.WARN),
+    EXCHANGE_RATE_API_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "환율 API 호출에 실패했습니다.", LogLevel.ERROR),
+
+    // Settlement / 가환전
+    SETTLEMENT_INVALID_REQUEST(HttpStatus.BAD_REQUEST, "정산 요청 정보가 올바르지 않습니다.", LogLevel.WARN),
+    SETTLEMENT_CALCULATION_FAILED(HttpStatus.BAD_REQUEST, "정산 금액을 계산할 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_BATCH_NOT_FOUND(HttpStatus.NOT_FOUND, "정산 배치를 찾을 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "정산 항목을 찾을 수 없습니다.", LogLevel.WARN),
+    KRW_EXCHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "환전 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_ACCOUNT_MISMATCH(HttpStatus.CONFLICT, "환전과 정산 대상 계좌가 일치하지 않습니다.", LogLevel.WARN),
+    SETTLEMENT_STATE_CONFLICT(HttpStatus.CONFLICT, "정산 상태가 변경되어 처리할 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_RETRY_NO_FAILED_ITEM(HttpStatus.CONFLICT, "재처리할 실패 정산 항목이 없습니다.", LogLevel.WARN),
+    SETTLEMENT_BATCH_LOCK_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "정산 배치 실행 잠금을 얻지 못했습니다.", LogLevel.ERROR),
+    SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE(
+            HttpStatus.INTERNAL_SERVER_ERROR, "정산 휴일 정보를 사용할 수 없습니다.", LogLevel.ERROR),
+    PROVISIONAL_EXCHANGE_SAVE_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "가환전 저장에 실패했습니다.", LogLevel.ERROR),
 
     // Admin
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다.", LogLevel.WARN),

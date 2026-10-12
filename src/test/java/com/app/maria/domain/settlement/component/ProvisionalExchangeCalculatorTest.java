@@ -3,7 +3,8 @@ package com.app.maria.domain.settlement.component;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -31,10 +32,13 @@ class ProvisionalExchangeCalculatorTest {
     @Test
     void rejectsMissingOrNonPositiveInputs() {
         assertThatThrownBy(() -> calculator.calculate(null, BigDecimal.ONE))
-                .isInstanceOf(SettlementCalculationException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_CALCULATION_FAILED);
         assertThatThrownBy(() -> calculator.calculate(BigDecimal.ZERO, BigDecimal.ONE))
-                .isInstanceOf(SettlementCalculationException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_CALCULATION_FAILED);
         assertThatThrownBy(() -> calculator.calculate(BigDecimal.ONE, BigDecimal.ZERO))
-                .isInstanceOf(SettlementCalculationException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_CALCULATION_FAILED);
     }
 }

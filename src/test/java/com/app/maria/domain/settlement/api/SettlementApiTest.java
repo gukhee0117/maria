@@ -10,11 +10,12 @@ import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.domain.settlement.service.SettlementService;
 import com.app.maria.domain.settlement.type.BatchStatus;
 import com.app.maria.domain.settlement.type.SettlementStatus;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -225,61 +226,69 @@ class SettlementApiTest {
     @Test
     void invalidSettlementExceptionReturnsBadRequest() throws Exception {
         when(settlementService.getSettlementBatch(1L))
-                .thenThrow(new InvalidSettlementException("batchId - 요청 값 오류"));
+                .thenThrow(
+                        new AppException(
+                                ErrorType.SETTLEMENT_INVALID_REQUEST, "batchId - 요청 값 오류"));
 
         mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", 1L))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("batchId - 요청 값 오류"));
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_INVALID_REQUEST"));
     }
 
     @Test
     void settlementBatchNotFoundExceptionReturnsNotFound() throws Exception {
         when(settlementService.getSettlementBatch(999L))
-                .thenThrow(new SettlementBatchNotFoundException("batch id로 배치 조회 실패"));
+                .thenThrow(
+                        new AppException(
+                                ErrorType.SETTLEMENT_BATCH_NOT_FOUND, "batch id로 배치 조회 실패"));
 
         mockMvc.perform(get("/api/admin/settlement/batches/{batchId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("batch id로 배치 조회 실패"));
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_BATCH_NOT_FOUND"));
     }
 
     @Test
     void settlementItemNotFoundExceptionReturnsNotFound() throws Exception {
         when(settlementService.getSettlementItem(1L, 999L))
-                .thenThrow(new SettlementItemNotFoundException("item detail 조회 실패"));
+                .thenThrow(
+                        new AppException(ErrorType.SETTLEMENT_ITEM_NOT_FOUND, "item detail 조회 실패"));
 
         mockMvc.perform(get("/api/admin/settlement/batches/{batchId}/items/{itemId}", 1L, 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("item detail 조회 실패"));
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_ITEM_NOT_FOUND"));
     }
 
     @Test
     void krwExchangeNotFoundExceptionReturnsNotFound() throws Exception {
         when(settlementService.getKrwExchange(999L))
-                .thenThrow(new KrwExchangeNotFoundException("환전 조회 실패"));
+                .thenThrow(new AppException(ErrorType.KRW_EXCHANGE_NOT_FOUND, "환전 조회 실패"));
 
         mockMvc.perform(get("/api/admin/settlement/exchanges/{exchangeId}", 999L))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("환전 조회 실패"));
+                .andExpect(jsonPath("$.code").value("KRW_EXCHANGE_NOT_FOUND"));
     }
 
     @Test
     void settlementCalculationExceptionReturnsBadRequest() throws Exception {
         when(settlementService.executeSettlementBatchByAdmin())
-                .thenThrow(new SettlementCalculationException("확정산 금액 계산 실패"));
+                .thenThrow(
+                        new AppException(ErrorType.SETTLEMENT_CALCULATION_FAILED, "확정산 금액 계산 실패"));
 
         mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("확정산 금액 계산 실패"));
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_CALCULATION_FAILED"));
     }
 
     @Test
     void settlementStateConflictExceptionReturnsConflict() throws Exception {
         when(settlementService.executeSettlementBatchByAdmin())
-                .thenThrow(new SettlementStateConflictException("확정산 Batch가 이미 실행 중입니다."));
+                .thenThrow(
+                        new AppException(
+                                ErrorType.SETTLEMENT_STATE_CONFLICT, "확정산 Batch가 이미 실행 중입니다."));
 
         mockMvc.perform(post("/api/admin/settlement/jobs"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("확정산 Batch가 이미 실행 중입니다."));
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_STATE_CONFLICT"));
     }
 
     private SettlementBatchDTO batch() {

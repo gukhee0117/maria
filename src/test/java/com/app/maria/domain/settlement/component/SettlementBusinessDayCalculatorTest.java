@@ -3,7 +3,8 @@ package com.app.maria.domain.settlement.component;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.app.maria.domain.settlement.exception.SettlementHolidayCalendarException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -58,7 +59,9 @@ class SettlementBusinessDayCalculatorTest {
     @Test
     void rejectsDateWhenHolidayYearIsNotConfigured() {
         assertThatThrownBy(() -> holidayCalendar.isHoliday(LocalDate.of(2028, 1, 3)))
-                .isInstanceOf(SettlementHolidayCalendarException.class)
-                .hasMessage("정산 휴일 정보가 없습니다. year=2028");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorType", ErrorType.SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE)
+                .hasFieldOrPropertyWithValue("errorData", "정산 휴일 정보가 없습니다. year=2028");
     }
 }

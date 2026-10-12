@@ -6,9 +6,10 @@ import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.settlement.component.ProvisionalExchangeCalculator;
 import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
-import com.app.maria.domain.settlement.exception.ProvisionalException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class ProvisionalExchangeServiceImpl implements ProvisionalExchangeServic
                         .finalAt(settlementBusinessDayCalculator.calculateFinalAt(provisionalAt))
                         .build();
         if (krwExchangeMapper.insertProvisional(krwExchangeDTO) != 1) {
-            throw new ProvisionalException("가환전 저장 실패");
+            throw new AppException(ErrorType.PROVISIONAL_EXCHANGE_SAVE_FAILED, "가환전 저장 실패");
         }
         AccountDTO newAmountAccount =
                 AccountDTO.builder()

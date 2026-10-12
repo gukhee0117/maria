@@ -6,17 +6,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
-import com.app.maria.domain.settlement.exception.SettlementAccountMismatchException;
-import com.app.maria.domain.settlement.exception.SettlementAccountNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,7 +52,8 @@ class SettlementFailureRecorderTest {
                 new SettlementFailureRecorder(settlementItemMapper, clockService);
 
         assertThatThrownBy(() -> recorder.markFailed(10L, new IllegalStateException("실패")))
-                .isInstanceOf(SettlementStateConflictException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
     }
 
     @Test
@@ -61,7 +62,8 @@ class SettlementFailureRecorderTest {
         SettlementFailureRecorder recorder =
                 new SettlementFailureRecorder(settlementItemMapper, clockService);
 
-        recorder.markFailed(10L, new SettlementCalculationException("계산 실패"));
+        recorder.markFailed(
+                10L, new AppException(ErrorType.SETTLEMENT_CALCULATION_FAILED, "계산 실패"));
 
         ArgumentCaptor<SettlementItemDTO> captor = ArgumentCaptor.forClass(SettlementItemDTO.class);
         verify(settlementItemMapper).updateItemResult(captor.capture());
@@ -69,26 +71,26 @@ class SettlementFailureRecorderTest {
                 .isEqualTo(SettlementFailureCode.CALCULATION_ERROR);
     }
 
-    @Test
-    void classifiesAccountNotFoundByExceptionTypeRegardlessOfMessage() {
+    @ParameterizedTest
+    @CsvSource({
+        "EXCHANGE_RATE_NOT_FOUND, EXCHANGE_RATE_NOT_FOUND",
+        "EXCHANGE_RATE_API_FAILED, EXTERNAL_API_ERROR",
+        "KRW_EXCHANGE_NOT_FOUND, EXCHANGE_NOT_FOUND",
+        "ACCOUNT_NOT_FOUND, ACCOUNT_NOT_FOUND",
+        "SETTLEMENT_ACCOUNT_MISMATCH, ACCOUNT_MISMATCH",
+        "SETTLEMENT_INVALID_REQUEST, INVALID_ORDER_STATUS",
+        "SETTLEMENT_CALCULATION_FAILED, CALCULATION_ERROR",
+        "SETTLEMENT_STATE_CONFLICT, DB_STATE_CONFLICT",
+        "SETTLEMENT_BATCH_LOCK_FAILED, UNKNOWN_ERROR"
+    })
+    void classifiesFailureCodeByErrorType(ErrorType errorType, SettlementFailureCode expected) {
         when(settlementItemMapper.updateItemResult(any(SettlementItemDTO.class))).thenReturn(1);
         SettlementFailureRecorder recorder =
                 new SettlementFailureRecorder(settlementItemMapper, clockService);
 
-        recorder.markFailed(10L, new SettlementAccountNotFoundException("문구가 변경되어도 분류돼야 합니다."));
+        recorder.markFailed(10L, new AppException(errorType, "detail"));
 
-        assertRecordedFailureCode(SettlementFailureCode.ACCOUNT_NOT_FOUND);
-    }
-
-    @Test
-    void classifiesAccountMismatchByExceptionTypeRegardlessOfMessage() {
-        when(settlementItemMapper.updateItemResult(any(SettlementItemDTO.class))).thenReturn(1);
-        SettlementFailureRecorder recorder =
-                new SettlementFailureRecorder(settlementItemMapper, clockService);
-
-        recorder.markFailed(10L, new SettlementAccountMismatchException("문구가 변경되어도 분류돼야 합니다."));
-
-        assertRecordedFailureCode(SettlementFailureCode.ACCOUNT_MISMATCH);
+        assertRecordedFailureCode(expected);
     }
 
     @Test
@@ -97,7 +99,8 @@ class SettlementFailureRecorderTest {
                 new SettlementFailureRecorder(settlementItemMapper, clockService);
 
         assertThatThrownBy(() -> recorder.markFailed(null, new IllegalStateException("실패")))
-                .isInstanceOf(SettlementStateConflictException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
 
         verify(settlementItemMapper, never()).updateItemResult(any());
     }

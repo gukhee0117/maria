@@ -1,6 +1,7 @@
 package com.app.maria.domain.settlement.component;
 
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,7 +17,7 @@ public class SettlementBusinessDayCalculator {
 
     public LocalDateTime calculateFinalAt(LocalDateTime provisionalAt) {
         if (provisionalAt == null) {
-            throw new SettlementCalculationException("가환전 시각이 필요합니다.");
+            throw new AppException(ErrorType.SETTLEMENT_CALCULATION_FAILED, "가환전 시각이 필요합니다.");
         }
 
         LocalDate candidate = provisionalAt.toLocalDate();
