@@ -16,7 +16,7 @@ import com.app.maria.domain.account.dto.request.AccountSearchRequestDTO;
 import com.app.maria.domain.account.dto.response.AccountLimitUsageResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.account.provider.MydataProvider;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -48,7 +48,7 @@ class AccountServiceImplTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 2, 10, 30);
 
     @Mock private AccountMapper accountMapper;
-    @Mock private MydataProvider mydataProvider;
+    @Mock private MydataClient mydataClient;
     @Mock private AccountLogService accountLogService;
     @Mock private BusinessClockService businessClockService;
     @Mock private AccountTransactionalService accountTransactionalService;
@@ -62,7 +62,7 @@ class AccountServiceImplTest {
         when(accountMapper.existsCustomerById(CUSTOMER_ID)).thenReturn(true);
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
                 .thenReturn(Optional.of("ci-hash"));
-        when(mydataProvider.getExternalConfiguredLimit("ci-hash")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalConfiguredLimit("ci-hash")).thenReturn(BigDecimal.ZERO);
         when(businessClockService.now()).thenReturn(NOW);
         when(auditActorProvider.getCurrentAdminId()).thenReturn(ADMIN_ID);
     }
@@ -95,7 +95,7 @@ class AccountServiceImplTest {
 
     @Test
     void updateLimitRejectsAmountThatExceedsMydataAvailableLimit() {
-        when(mydataProvider.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
                 .thenReturn(BigDecimal.valueOf(20_000_000L));
 
         assertThatThrownBy(
@@ -114,7 +114,7 @@ class AccountServiceImplTest {
 
     @Test
     void updateLimitRejectsWhenNoLimitIsAvailable() {
-        when(mydataProvider.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
                 .thenReturn(BigDecimal.valueOf(50_000_000L));
 
         assertThatThrownBy(
@@ -239,7 +239,7 @@ class AccountServiceImplTest {
     @Test
     void applyKeepsAccountAppliedWhenExternalLimitDoesNotMatch() {
         AccountDTO applied = account(Status.APPLIED, LIMIT);
-        when(mydataProvider.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
                 .thenReturn(BigDecimal.valueOf(25_000_000L));
         when(accountTransactionalService.apply(
                         eq(ADMIN_ID), any(AccountDTO.class), eq(NOW), eq(false)))

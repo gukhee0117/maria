@@ -2,200 +2,181 @@ package com.app.maria.global.client.mydata;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.app.maria.global.config.properties.MydataApiProperties;
-import com.app.maria.global.exception.MydataApiException;
-import com.app.maria.global.response.ApiResponseDTO;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
-@ExtendWith(MockitoExtension.class)
 class MydataClientTest {
 
-    @Mock RestTemplate restTemplate;
+    private static final String MYDATA_URL = "http://mydata.test";
+    private static final String RIA_ACCOUNTS_URL = MYDATA_URL + "/api/mydata/ria-accounts";
 
-    MydataClient mydataClient;
+    private MockRestServiceServer mockServer;
+    private MydataClient mydataClient;
 
     @BeforeEach
     void setUp() {
+        RestClient.Builder builder = RestClient.builder().baseUrl(MYDATA_URL);
+        mockServer = MockRestServiceServer.bindTo(builder).build();
         MydataApiProperties properties = new MydataApiProperties();
-        properties.setUrl("https://mydata.test");
         properties.setOwnBrokerName("리턴증권");
-        mydataClient = new MydataClient(restTemplate, properties);
+        mydataClient = new MydataClient(builder.build(), properties);
     }
 
-    private MydataRiaAccountDTO account(String brokerName, String riaCumulativeSell) {
-        return MydataRiaAccountDTO.builder()
-                .brokerName(brokerName)
-                .riaCumulativeSell(
-                        riaCumulativeSell == null ? null : new BigDecimal(riaCumulativeSell))
-                .build();
+    private void respondAccounts(String accountsJson) {
+        mockServer
+                .expect(requestTo(RIA_ACCOUNTS_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(
+                        withSuccess(
+                                "{\"message\":\"성공\",\"data\":" + accountsJson + "}",
+                                MediaType.APPLICATION_JSON));
     }
 
-    private void mockExchange(ResponseEntity<ApiResponseDTO<List<MydataRiaAccountDTO>>> toReturn) {
-        when(restTemplate.exchange(
-                        anyString(),
-                        eq(HttpMethod.POST),
-                        any(HttpEntity.class),
-                        any(ParameterizedTypeReference.class)))
-                .thenReturn(toReturn);
-    }
-
-    @Test
-    void getExternalSellTotal_계좌하나면_그계좌의_riaCumulativeSell을_반환한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of("성공", List.of(account("증권사A", "1000000"))),
-                        HttpStatus.OK));
-
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo("1000000");
+    private static String account(String brokerName, String riaLimit, String cumulativeSell) {
+        return "{\"brokerName\":\"%s\",\"riaLimit\":%s,\"riaCumulativeSell\":%s}"
+                .formatted(brokerName, riaLimit, cumulativeSell);
     }
 
     @Test
-    void getExternalSellTotal_계좌가_여러개면_riaCumulativeSell을_전부합산한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of(
-                                "성공",
-                                List.of(account("증권사A", "1000000"), account("증권사B", "2500000"))),
-                        HttpStatus.OK));
+    void getExternalSellTotal_우리증권사를_빼고_타사_누적매도만_더한다() {
+        respondAccounts(
+                "["
+                        + account("증권사A", "20000000", "1000000")
+                        + ","
+                        + account("리턴증권", "30000000", "9999999")
+                        + ","
+                        + account("증권사B", "10000000", "2000000")
+                        + "]");
 
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo("3500000");
+        assertThat(mydataClient.getExternalSellTotal("ci-hash"))
+                .isEqualByComparingTo("3000000");
+        mockServer.verify();
     }
 
     @Test
-    void getExternalSellTotal_riaCumulativeSell이_null인_계좌는_제외하고_합산한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of(
-                                "성공", List.of(account("증권사A", "1000000"), account("증권사B", null))),
-                        HttpStatus.OK));
+    void getExternalConfiguredLimit_우리증권사를_빼고_타사_설정한도만_더한다() {
+        respondAccounts(
+                "["
+                        + account("증권사A", "20000000", "0")
+                        + ","
+                        + account("리턴증권", "30000000", "0")
+                        + "]");
 
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo("1000000");
+        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .isEqualByComparingTo("20000000");
     }
 
     @Test
-    void getExternalSellTotal_리턴증권_자사항목은_제외하고_타사만_합산한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of(
-                                "성공",
-                                List.of(account("리턴증권", "9999999"), account("증권사A", "1000000"))),
-                        HttpStatus.OK));
+    void 타사_계좌가_없으면_0이다() {
+        respondAccounts("[]");
 
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo("1000000");
+        assertThat(mydataClient.getExternalSellTotal("ci-hash")).isEqualByComparingTo("0");
     }
 
     @Test
-    void getExternalSellTotal_전부_리턴증권_자사항목이면_0을반환한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of("성공", List.of(account("리턴증권", "9999999"))),
-                        HttpStatus.OK));
-
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    void getExternalSellTotal_응답데이터가_빈리스트면_0을반환한다() {
-        mockExchange(
-                new ResponseEntity<>(
-                        ApiResponseDTO.of("성공", List.<MydataRiaAccountDTO>of()), HttpStatus.OK));
-
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    void getExternalSellTotal_응답바디가_null이면_0을반환한다() {
-        mockExchange(new ResponseEntity<>(null, HttpStatus.OK));
-
-        BigDecimal result = mydataClient.getExternalSellTotal("ci-hash-1");
-
-        assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    void getExternalSellTotal_404면_장애로간주해_MydataApiException을던진다() {
-        HttpClientErrorException notFound =
-                HttpClientErrorException.create(
-                        HttpStatus.NOT_FOUND, "Not Found", HttpHeaders.EMPTY, new byte[0], null);
-        when(restTemplate.exchange(
-                        anyString(),
-                        eq(HttpMethod.POST),
-                        any(HttpEntity.class),
-                        any(ParameterizedTypeReference.class)))
-                .thenThrow(notFound);
-
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash-1"))
-                .isInstanceOf(MydataApiException.class)
-                .hasCause(notFound);
-    }
-
-    @Test
-    void getExternalSellTotal_통신오류면_MydataApiException으로감싸서던진다() {
-        RestClientException cause = new RestClientException("connection refused");
-        when(restTemplate.exchange(
-                        anyString(),
-                        eq(HttpMethod.POST),
-                        any(HttpEntity.class),
-                        any(ParameterizedTypeReference.class)))
-                .thenThrow(cause);
-
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash-1"))
-                .isInstanceOf(MydataApiException.class)
-                .hasCause(cause);
-    }
-
-    @Test
-    void getExternalSellTotal_요청URL과_바디에_ciHash가들어간다() {
-        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
-        when(restTemplate.exchange(
-                        urlCaptor.capture(),
-                        eq(HttpMethod.POST),
-                        entityCaptor.capture(),
-                        any(ParameterizedTypeReference.class)))
-                .thenReturn(
-                        new ResponseEntity<>(
-                                ApiResponseDTO.of("성공", List.<MydataRiaAccountDTO>of()),
-                                HttpStatus.OK));
+    void 요청바디에_ciHash가_들어간다() {
+        mockServer
+                .expect(requestTo(RIA_ACCOUNTS_URL))
+                .andExpect(content().string(containsString("\"ciHash\":\"ci-hash-xyz\"")))
+                .andRespond(
+                        withSuccess("{\"message\":\"성공\",\"data\":[]}", MediaType.APPLICATION_JSON));
 
         mydataClient.getExternalSellTotal("ci-hash-xyz");
 
-        assertThat(urlCaptor.getValue()).isEqualTo("https://mydata.test/api/mydata/ria-accounts");
-        Map<String, String> body = (Map<String, String>) entityCaptor.getValue().getBody();
-        assertThat(body).containsEntry("ciHash", "ci-hash-xyz");
+        mockServer.verify();
+    }
+
+    @Test
+    void 타사_금액이_null이거나_음수면_INVALID_RESPONSE() {
+        respondAccounts("[" + account("증권사A", "20000000", "null") + "]");
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
+
+        mockServer.reset();
+        respondAccounts("[" + account("증권사A", "-1", "0") + "]");
+        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
+    }
+
+    @Test
+    void 응답_data가_null이면_INVALID_RESPONSE() {
+        respondAccounts("null");
+
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
+    }
+
+    @Test
+    void 우리증권사_행의_금액이_비정상이어도_무시한다() {
+        respondAccounts("[" + account("리턴증권", "null", "null") + "]");
+
+        assertThat(mydataClient.getExternalSellTotal("ci-hash")).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void 서버오류_404_모두_UNAVAILABLE로_던진다() {
+        mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withServerError());
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);
+
+        mockServer.reset();
+        mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withResourceNotFound());
+        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);
+    }
+
+    @Test
+    void syncRiaAccount_우리증권사명과_한도만_보내고_누적매도는_안보낸다() {
+        mockServer
+                .expect(requestTo(RIA_ACCOUNTS_URL + "/save"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().string(containsString("\"ciHash\":\"ci-hash\"")))
+                .andExpect(content().string(containsString("\"brokerName\":\"리턴증권\"")))
+                .andExpect(content().string(containsString("\"riaLimit\":\"40000000\"")))
+                .andExpect(content().string(not(containsString("riaCumulativeSell"))))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThat(mydataClient.syncRiaAccount("ci-hash", new BigDecimal("40000000")))
+                .isEqualTo(HttpStatus.OK);
+        mockServer.verify();
+    }
+
+    @Test
+    void syncRiaAccount_실패하면_UNAVAILABLE로_던진다() {
+        mockServer.expect(requestTo(RIA_ACCOUNTS_URL + "/save")).andRespond(withServerError());
+
+        assertThatThrownBy(() -> mydataClient.syncRiaAccount("ci-hash", BigDecimal.TEN))
+                .isInstanceOf(AppException.class)
+                .extracting("errorType")
+                .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);
     }
 }

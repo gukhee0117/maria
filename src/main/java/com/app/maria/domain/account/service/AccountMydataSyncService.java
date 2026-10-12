@@ -4,7 +4,7 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository.ClaimedTask;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.account.provider.MydataProvider;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
@@ -20,7 +20,7 @@ public class AccountMydataSyncService {
     private static final int RETRY_BATCH_SIZE = 100;
 
     private final AccountMapper accountMapper;
-    private final MydataProvider mydataProvider;
+    private final MydataClient mydataClient;
     private final RedisMydataSyncTaskRepository taskRepository;
 
     public void create(AccountDTO account) {
@@ -84,7 +84,7 @@ public class AccountMydataSyncService {
 
     private void synchronize(AccountDTO account, String ciHash, ClaimedTask task) {
         try {
-            boolean successful = mydataProvider.syncRiaAccount(ciHash, account).is2xxSuccessful();
+            boolean successful = mydataClient.syncRiaAccount(ciHash, account.getLimitAmount()).is2xxSuccessful();
             if (successful) {
                 taskRepository.complete(task);
                 return;
