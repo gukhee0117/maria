@@ -10,8 +10,8 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository.ClaimedTask;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
@@ -61,7 +61,8 @@ class AccountMydataSyncServiceTest {
         when(taskRepository.claimDueTasks(100)).thenReturn(List.of(task));
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(account));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataClient.syncRiaAccount(CI_HASH, account.getLimitAmount())).thenReturn(HttpStatus.OK);
+        when(mydataClient.syncRiaAccount(CI_HASH, account.getLimitAmount()))
+                .thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 
@@ -80,8 +81,10 @@ class AccountMydataSyncServiceTest {
         when(accountMapper.selectByAccountId(10L)).thenReturn(Optional.of(createAccount));
         when(accountMapper.selectByAccountId(11L)).thenReturn(Optional.of(updateAccount));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
-        when(mydataClient.syncRiaAccount(CI_HASH, createAccount.getLimitAmount())).thenReturn(HttpStatus.OK);
-        when(mydataClient.syncRiaAccount(CI_HASH, updateAccount.getLimitAmount())).thenReturn(HttpStatus.OK);
+        when(mydataClient.syncRiaAccount(CI_HASH, createAccount.getLimitAmount()))
+                .thenReturn(HttpStatus.OK);
+        when(mydataClient.syncRiaAccount(CI_HASH, updateAccount.getLimitAmount()))
+                .thenReturn(HttpStatus.OK);
 
         service.retryOpenedAccounts();
 

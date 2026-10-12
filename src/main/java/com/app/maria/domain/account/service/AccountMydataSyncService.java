@@ -4,8 +4,8 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository;
 import com.app.maria.domain.account.infra.RedisMydataSyncTaskRepository.ClaimedTask;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +84,8 @@ public class AccountMydataSyncService {
 
     private void synchronize(AccountDTO account, String ciHash, ClaimedTask task) {
         try {
-            boolean successful = mydataClient.syncRiaAccount(ciHash, account.getLimitAmount()).is2xxSuccessful();
+            boolean successful =
+                    mydataClient.syncRiaAccount(ciHash, account.getLimitAmount()).is2xxSuccessful();
             if (successful) {
                 taskRepository.complete(task);
                 return;
