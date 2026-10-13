@@ -3,6 +3,7 @@ package com.app.maria.domain.sellorder.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -44,6 +45,21 @@ class SellLimitServiceImplTest {
         when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("10000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("15000000"))).isTrue();
+    }
+
+    @Test
+    @DisplayName("호출 순서: selectCiHash → HTTP → selectAccountLimitForUpdate(락) → sumUsedAmount — 이 순서가 깨지면 테스트가 실패한다")
+    void isWithinSellLimitCallsInExpectedOrder() {
+        stubAccount(100L, "50000000", "0", "ci-hash-1");
+        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(BigDecimal.ZERO);
+
+        sellLimitService.isWithinSellLimit(100L, BigDecimal.ZERO);
+
+        var order = inOrder(sellLimitMapper, mydataClient);
+        order.verify(sellLimitMapper).selectCiHashByAccountId(100L);
+        order.verify(mydataClient).getExternalSellTotal("ci-hash-1");
+        order.verify(sellLimitMapper).selectAccountLimitForUpdate(100L);
+        order.verify(sellLimitMapper).sumUsedAmount(100L);
     }
 
     @Test
