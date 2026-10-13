@@ -1,7 +1,8 @@
 package com.app.maria.domain.settlement.component;
 
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
 import com.app.maria.domain.settlement.type.ProvisionalRate;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.stereotype.Component;
@@ -21,7 +22,8 @@ public class ProvisionalExchangeCalculator {
 
     private void validatePositive(BigDecimal value, String fieldName) {
         if (value == null || value.signum() <= 0) {
-            throw new SettlementCalculationException(fieldName + "은 0보다 커야 합니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_CALCULATION_FAILED, fieldName + "은 0보다 커야 합니다.");
         }
     }
 }

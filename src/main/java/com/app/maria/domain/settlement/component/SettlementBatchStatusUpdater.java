@@ -2,13 +2,14 @@ package com.app.maria.domain.settlement.component;
 
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.BatchStatus;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -51,11 +52,13 @@ public class SettlementBatchStatusUpdater {
                         .selectBatchById(batchId)
                         .orElseThrow(
                                 () ->
-                                        new SettlementStateConflictException(
+                                        new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "Batch 실패 상태 변경 대상 없음 batchId=" + batchId))
                         .getStatus();
         if (currentStatus != BatchStatus.FAILED) {
-            throw new SettlementStateConflictException("Batch 실패 상태 변경 실패 batchId=" + batchId);
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "Batch 실패 상태 변경 실패 batchId=" + batchId);
         }
     }
 
@@ -69,7 +72,8 @@ public class SettlementBatchStatusUpdater {
 
     public void completeFromLatestItems(Long batchId) {
         if (settlementBatchMapper.refreshBatchStatusAfterRetry(batchId) != 1) {
-            throw new SettlementStateConflictException("Batch 최종 상태 변경 실패 batchId=" + batchId);
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "Batch 최종 상태 변경 실패 batchId=" + batchId);
         }
     }
 
@@ -77,7 +81,8 @@ public class SettlementBatchStatusUpdater {
         SettlementBatchDTO command =
                 SettlementBatchDTO.builder().batchId(batchId).runId(runId).build();
         if (settlementBatchMapper.markBatchRetryRunning(command) != 1) {
-            throw new SettlementStateConflictException("Batch 재처리 상태 변경 실패 batchId=" + batchId);
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "Batch 재처리 상태 변경 실패 batchId=" + batchId);
         }
     }
 

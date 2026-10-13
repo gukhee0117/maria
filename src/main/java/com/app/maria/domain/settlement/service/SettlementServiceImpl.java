@@ -8,7 +8,6 @@ import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementBatchGuardMapper;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
@@ -22,6 +21,8 @@ import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -76,7 +77,8 @@ public class SettlementServiceImpl implements SettlementService {
                                     if (settlementBatchGuardMapper
                                             .selectGuardForUpdate(businessDate)
                                             .isEmpty()) {
-                                        throw new SettlementBatchLockException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_BATCH_LOCK_FAILED,
                                                 "확정산 Batch 업무일 잠금 획득 실패");
                                     }
 
@@ -107,7 +109,8 @@ public class SettlementServiceImpl implements SettlementService {
 
                                     if (settlementBatchMapper.insertBatch(newBatch) != 1
                                             || newBatch.getBatchId() == null) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "확정산 Batch 생성에 실패했습니다.");
                                     }
 
@@ -126,7 +129,8 @@ public class SettlementServiceImpl implements SettlementService {
                                 });
 
         if (result == null) {
-            throw new SettlementStateConflictException("확정산 Batch 트랜잭션 처리에 실패했습니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "확정산 Batch 트랜잭션 처리에 실패했습니다.");
         }
         if (result.shouldLaunch()) {
             launchBatch(result.batch());
@@ -145,7 +149,11 @@ public class SettlementServiceImpl implements SettlementService {
     public SettlementBatchDTO getSettlementBatch(Long batchId) {
         return settlementBatchMapper
                 .selectBatchById(batchId)
-                .orElseThrow(() -> new SettlementBatchNotFoundException("batch id로 배치 조회 실패"));
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorType.SETTLEMENT_BATCH_NOT_FOUND,
+                                        "batch id로 배치 조회 실패"));
     }
 
     @Override
@@ -165,7 +173,10 @@ public class SettlementServiceImpl implements SettlementService {
     public SettlementBatchDTO getSettlementBatchByRunId(String runId) {
         return settlementBatchMapper
                 .selectBatchByRunId(runId)
-                .orElseThrow(() -> new SettlementBatchNotFoundException("run id로 배치 조회 실패"));
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorType.SETTLEMENT_BATCH_NOT_FOUND, "run id로 배치 조회 실패"));
     }
 
     @Override
@@ -185,7 +196,10 @@ public class SettlementServiceImpl implements SettlementService {
                 SettlementJoinDTO.builder().batchId(batchId).itemId(itemId).build();
         return settlementJoinMapper
                 .selectItemDetail(cursor)
-                .orElseThrow(() -> new SettlementItemNotFoundException("item detail 조회 실패"));
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorType.SETTLEMENT_ITEM_NOT_FOUND, "item detail 조회 실패"));
     }
 
     @Override
@@ -200,10 +214,13 @@ public class SettlementServiceImpl implements SettlementService {
                                                     .selectBatchByIdForUpdate(batchId)
                                                     .orElseThrow(
                                                             () ->
-                                                                    new SettlementBatchNotFoundException(
+                                                                    new AppException(
+                                                                            ErrorType
+                                                                                    .SETTLEMENT_BATCH_NOT_FOUND,
                                                                             "재처리 대상 Batch를 찾을 수 없습니다."));
                                     if (batch.getStatus() != BatchStatus.FAILED) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "실패 상태 Batch의 Item만 재처리할 수 있습니다.");
                                     }
                                     SettlementItemDTO failedItem =
@@ -211,12 +228,15 @@ public class SettlementServiceImpl implements SettlementService {
                                                     .selectItemByIdForUpdate(itemId)
                                                     .orElseThrow(
                                                             () ->
-                                                                    new SettlementItemNotFoundException(
+                                                                    new AppException(
+                                                                            ErrorType
+                                                                                    .SETTLEMENT_ITEM_NOT_FOUND,
                                                                             "재처리 대상 정산 Item을 찾을 수 없습니다."));
                                     if (!batchId.equals(failedItem.getBatchId())
                                             || failedItem.getResult()
                                                     != SettlementItemResult.FAILED) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "실패한 정산 Item만 재처리할 수 있습니다.");
                                     }
                                     settlementItemMapper.selectItemsByExchangeIdForUpdate(
@@ -225,7 +245,8 @@ public class SettlementServiceImpl implements SettlementService {
                                                     failedItem.getExchangeId())
                                             || settlementItemMapper.existsPendingItemByExchangeId(
                                                     failedItem.getExchangeId())) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "이미 성공 처리되었거나 재처리 중인 정산 건입니다.");
                                     }
 
@@ -236,7 +257,8 @@ public class SettlementServiceImpl implements SettlementService {
                                                     .build();
                                     if (settlementItemMapper.insertRetryItem(command) != 1
                                             || command.getItemId() == null) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "정산 Item 재처리 이력 생성에 실패했습니다.");
                                     }
                                     settlementBatchStatusUpdater.startItemRetry(batchId);
@@ -250,7 +272,8 @@ public class SettlementServiceImpl implements SettlementService {
                                     return command;
                                 });
         if (retryItem == null) {
-            throw new SettlementStateConflictException("정산 Item 재처리 트랜잭션 처리에 실패했습니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "정산 Item 재처리 트랜잭션 처리에 실패했습니다.");
         }
 
         try {
@@ -263,17 +286,20 @@ public class SettlementServiceImpl implements SettlementService {
                                             .build())
                             .orElseThrow(
                                     () ->
-                                            new SettlementItemNotFoundException(
+                                            new AppException(
+                                                    ErrorType.SETTLEMENT_ITEM_NOT_FOUND,
                                                     "재처리 대상 정산 정보를 찾을 수 없습니다."));
             SettlementBatchDTO batch =
                     settlementBatchMapper
                             .selectBatchById(batchId)
                             .orElseThrow(
                                     () ->
-                                            new SettlementBatchNotFoundException(
+                                            new AppException(
+                                                    ErrorType.SETTLEMENT_BATCH_NOT_FOUND,
                                                     "batch id로 배치 조회 실패"));
             if (target.getFinalAt() == null) {
-                throw new SettlementStateConflictException(
+                throw new AppException(
+                        ErrorType.SETTLEMENT_STATE_CONFLICT,
                         "확정산 기준일이 없습니다. exchangeId=" + target.getExchangeId());
             }
             LocalDate rateDate = target.getFinalAt().toLocalDate();
@@ -288,7 +314,10 @@ public class SettlementServiceImpl implements SettlementService {
 
         return settlementItemMapper
                 .selectItemById(retryItem.getItemId())
-                .orElseThrow(() -> new SettlementItemNotFoundException("재처리 Item 조회 실패"));
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorType.SETTLEMENT_ITEM_NOT_FOUND, "재처리 Item 조회 실패"));
     }
 
     @Override
@@ -303,15 +332,19 @@ public class SettlementServiceImpl implements SettlementService {
                                                     .selectBatchByIdForUpdate(batchId)
                                                     .orElseThrow(
                                                             () ->
-                                                                    new SettlementBatchNotFoundException(
+                                                                    new AppException(
+                                                                            ErrorType
+                                                                                    .SETTLEMENT_BATCH_NOT_FOUND,
                                                                             "재처리 대상 Batch를 찾을 수 없습니다."));
                                     if (foundBatch.getStatus() != BatchStatus.FAILED) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_STATE_CONFLICT,
                                                 "실패 상태 Batch만 재처리할 수 있습니다.");
                                     }
                                     if (settlementItemMapper.insertRetryItemsForFailedBatch(batchId)
                                             == 0) {
-                                        throw new SettlementStateConflictException(
+                                        throw new AppException(
+                                                ErrorType.SETTLEMENT_RETRY_NO_FAILED_ITEM,
                                                 "재처리할 실패 정산 Item이 없습니다.");
                                     }
                                     String retryRunId = UUID.randomUUID().toString();
@@ -330,7 +363,8 @@ public class SettlementServiceImpl implements SettlementService {
                                     return foundBatch;
                                 });
         if (batch == null) {
-            throw new SettlementStateConflictException("정산 Batch 재처리 트랜잭션 처리에 실패했습니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "정산 Batch 재처리 트랜잭션 처리에 실패했습니다.");
         }
         launchBatch(batch);
         return batch;
@@ -341,7 +375,7 @@ public class SettlementServiceImpl implements SettlementService {
     public KrwExchangeDTO getKrwExchange(Long exchangeId) {
         return krwExchangeMapper
                 .selectExchangeById(exchangeId)
-                .orElseThrow(() -> new KrwExchangeNotFoundException("환전 조회 실패"));
+                .orElseThrow(() -> new AppException(ErrorType.KRW_EXCHANGE_NOT_FOUND, "환전 조회 실패"));
     }
 
     private record BatchLaunchResult(SettlementBatchDTO batch, boolean shouldLaunch) {}
@@ -375,7 +409,7 @@ public class SettlementServiceImpl implements SettlementService {
     private void markLaunchRejected(Long batchId, TaskRejectedException exception) {
         settlementBatchStatusUpdater.markFailedIfRunning(
                 batchId, "확정산 Batch 작업 제출 실패: " + exception.getMessage());
-        throw new SettlementStateConflictException("확정산 Batch 작업 제출에 실패했습니다.");
+        throw new AppException(ErrorType.SETTLEMENT_STATE_CONFLICT, "확정산 Batch 작업 제출에 실패했습니다.");
     }
 
     @Override

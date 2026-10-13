@@ -1,6 +1,7 @@
 package com.app.maria.domain.settlement.batch;
 
 import com.app.maria.domain.settlement.component.SettlementBatchStatusUpdater;
+import com.app.maria.global.error.AppException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
@@ -29,7 +30,7 @@ public class SettlementJobListener implements JobExecutionListener {
         String message =
                 jobExecution.getAllFailureExceptions().isEmpty()
                         ? "확정산 Job 실행 실패"
-                        : jobExecution.getAllFailureExceptions().get(0).getMessage();
+                        : AppException.detailOf(jobExecution.getAllFailureExceptions().get(0));
         statusUpdater.markFailedIfRunning(batchId, message);
     }
 }

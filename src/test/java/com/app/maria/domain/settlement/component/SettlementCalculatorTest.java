@@ -3,7 +3,8 @@ package com.app.maria.domain.settlement.component;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -69,8 +70,9 @@ class SettlementCalculatorTest {
                         () ->
                                 calculator.calculateFinalAmount(
                                         provisionalAmount, settlementFxRate, finalRate))
-                .isInstanceOf(SettlementCalculationException.class)
-                .hasMessage(fieldName + " - 요청 값 오류");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_CALCULATION_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", fieldName + " - 요청 값 오류");
     }
 
     @ParameterizedTest(name = "{0}={1}이면 계산을 차단한다")
@@ -86,8 +88,9 @@ class SettlementCalculatorTest {
                         () ->
                                 calculator.calculateFinalAmount(
                                         provisionalAmount, settlementFxRate, finalRate))
-                .isInstanceOf(SettlementCalculationException.class)
-                .hasMessage(fieldName + "은 0보다 커야 합니다.");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_CALCULATION_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", fieldName + "은 0보다 커야 합니다.");
     }
 
     private static Stream<Arguments> exchangeRateScenarios() {

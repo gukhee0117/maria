@@ -9,8 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
-import com.app.maria.domain.settlement.exception.InvalidSettlementException;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
@@ -55,8 +53,9 @@ class ExchangeRateProviderImplTest {
     @DisplayName("통화가 null이면 외부 환율을 조회하지 않고 요청 오류를 반환한다")
     void getFinalRateRejectsNullCurrency() {
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate(null, SEARCH_DATE))
-                .isInstanceOf(InvalidSettlementException.class)
-                .hasMessage("환율 조회 통화 입력");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_INVALID_REQUEST)
+                .hasFieldOrPropertyWithValue("errorData", "환율 조회 통화 입력");
 
         verifyNoInteractions(exchangeRateClient);
     }
@@ -66,8 +65,9 @@ class ExchangeRateProviderImplTest {
     @DisplayName("통화가 공백이면 외부 환율을 조회하지 않고 요청 오류를 반환한다")
     void getFinalRateRejectsBlankCurrency(String currency) {
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate(currency, SEARCH_DATE))
-                .isInstanceOf(InvalidSettlementException.class)
-                .hasMessage("환율 조회 통화 입력");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_INVALID_REQUEST)
+                .hasFieldOrPropertyWithValue("errorData", "환율 조회 통화 입력");
 
         verifyNoInteractions(exchangeRateClient);
     }
@@ -76,8 +76,9 @@ class ExchangeRateProviderImplTest {
     @DisplayName("기준일이 null이면 외부 환율을 조회하지 않고 요청 오류를 반환한다")
     void getFinalRateRejectsNullSearchDate() {
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", null))
-                .isInstanceOf(InvalidSettlementException.class)
-                .hasMessage("환율 기준일 입력");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_INVALID_REQUEST)
+                .hasFieldOrPropertyWithValue("errorData", "환율 기준일 입력");
 
         verifyNoInteractions(exchangeRateClient);
     }
@@ -88,8 +89,9 @@ class ExchangeRateProviderImplTest {
         when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenReturn(null);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                .isInstanceOf(ExchangeRateExternalApiException.class)
-                .hasMessage("유효하지 않은 환율 응답");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "유효하지 않은 환율 응답");
     }
 
     @ParameterizedTest
@@ -99,8 +101,9 @@ class ExchangeRateProviderImplTest {
         when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenReturn(new BigDecimal(rate));
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                .isInstanceOf(ExchangeRateExternalApiException.class)
-                .hasMessage("유효하지 않은 환율 응답");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "유효하지 않은 환율 응답");
     }
 
     @Test
@@ -122,8 +125,9 @@ class ExchangeRateProviderImplTest {
                 .thenThrow(timeoutException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                .isInstanceOf(ExchangeRateExternalApiException.class)
-                .hasMessage("환율 API 연결 또는 응답 시간 초과")
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "환율 API 연결 또는 응답 시간 초과")
                 .hasCause(timeoutException);
 
         verify(exchangeRateClient, times(3)).getBaseRate("USD", SEARCH_DATE);
@@ -168,8 +172,9 @@ class ExchangeRateProviderImplTest {
         when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenThrow(clientException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                .isInstanceOf(ExchangeRateExternalApiException.class)
-                .hasMessage("환율 API 호출 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "환율 API 호출 실패");
 
         verify(exchangeRateClient).getBaseRate("USD", SEARCH_DATE);
     }
@@ -183,8 +188,9 @@ class ExchangeRateProviderImplTest {
         Thread.currentThread().interrupt();
         try {
             assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                    .isInstanceOf(ExchangeRateExternalApiException.class)
-                    .hasMessage("환율 API 재시도 대기 중단");
+                    .isInstanceOf(AppException.class)
+                    .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                    .hasFieldOrPropertyWithValue("errorData", "환율 API 재시도 대기 중단");
         } finally {
             Thread.interrupted();
         }
@@ -198,8 +204,9 @@ class ExchangeRateProviderImplTest {
                 .thenThrow(clientException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
-                .isInstanceOf(ExchangeRateExternalApiException.class)
-                .hasMessage("환율 API 호출 실패")
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "환율 API 호출 실패")
                 .hasCause(clientException);
     }
 

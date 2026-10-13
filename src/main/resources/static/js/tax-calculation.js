@@ -37,7 +37,7 @@ $(function () {
     var benefitFilter = "";
     var selectedAccountId = null;
     var kpiFilter = null; // null | "taxable" | "reducedOrExcluded" - 상단 KPI 카드 클릭으로 설정됨
-    var sortMode = "finalTaxDesc";
+    var sortMode = "finalDeductionDesc";
     var allBatchHistory = [];
     var batchHistoryPage = 1;
     var BATCH_HISTORY_PAGE_SIZE = 10;
@@ -142,9 +142,13 @@ $(function () {
             visible = visible.slice().sort(function (a, b) {
                 return Number(a.adjustRatio || 0) - Number(b.adjustRatio || 0);
             });
-        } else {
+        } else if (sortMode === "finalTaxDesc") {
             visible = visible.slice().sort(function (a, b) {
                 return Number(b.finalTax || 0) - Number(a.finalTax || 0);
+            });
+        } else {
+            visible = visible.slice().sort(function (a, b) {
+                return Number(b.finalDeduction || 0) - Number(a.finalDeduction || 0);
             });
         }
         return visible;

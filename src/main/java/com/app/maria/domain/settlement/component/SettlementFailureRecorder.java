@@ -1,13 +1,6 @@
 package com.app.maria.domain.settlement.component;
 
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
-import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
-import com.app.maria.domain.settlement.exception.InvalidSettlementException;
-import com.app.maria.domain.settlement.exception.KrwExchangeNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementAccountMismatchException;
-import com.app.maria.domain.settlement.exception.SettlementAccountNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementCalculationException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementFailureCode;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
@@ -31,7 +24,7 @@ public class SettlementFailureRecorder {
             propagation = Propagation.REQUIRES_NEW)
     public void markFailed(Long itemId, Exception exception) {
         if (itemId == null) {
-            throw new SettlementStateConflictException("기록 대상 Item 미확인");
+            throw new AppException(ErrorType.SETTLEMENT_STATE_CONFLICT, "기록 대상 Item 미확인");
         }
 
         SettlementItemDTO item =
@@ -44,37 +37,25 @@ public class SettlementFailureRecorder {
                         .build();
 
         if (settlementItemMapper.updateItemResult(item) != 1) {
-            throw new SettlementStateConflictException("정산 Item 실패 기록 실패");
+            throw new AppException(ErrorType.SETTLEMENT_STATE_CONFLICT, "정산 Item 실패 기록 실패");
         }
     }
 
     private SettlementFailureCode classify(Exception exception) {
-        if (exception instanceof AppException appEx
-                && appEx.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
-            return SettlementFailureCode.EXCHANGE_RATE_NOT_FOUND;
+        if (!(exception instanceof AppException appEx)) {
+            return SettlementFailureCode.UNKNOWN_ERROR;
         }
-        if (exception instanceof ExchangeRateExternalApiException) {
-            return SettlementFailureCode.EXTERNAL_API_ERROR;
-        }
-        if (exception instanceof KrwExchangeNotFoundException) {
-            return SettlementFailureCode.EXCHANGE_NOT_FOUND;
-        }
-        if (exception instanceof SettlementAccountNotFoundException) {
-            return SettlementFailureCode.ACCOUNT_NOT_FOUND;
-        }
-        if (exception instanceof SettlementAccountMismatchException) {
-            return SettlementFailureCode.ACCOUNT_MISMATCH;
-        }
-        if (exception instanceof InvalidSettlementException) {
-            return SettlementFailureCode.INVALID_ORDER_STATUS;
-        }
-        if (exception instanceof SettlementCalculationException) {
-            return SettlementFailureCode.CALCULATION_ERROR;
-        }
-        if (exception instanceof SettlementStateConflictException) {
-            return SettlementFailureCode.DB_STATE_CONFLICT;
-        }
-        return SettlementFailureCode.UNKNOWN_ERROR;
+        return switch (appEx.getErrorType()) {
+            case EXCHANGE_RATE_NOT_FOUND -> SettlementFailureCode.EXCHANGE_RATE_NOT_FOUND;
+            case EXCHANGE_RATE_API_FAILED -> SettlementFailureCode.EXTERNAL_API_ERROR;
+            case KRW_EXCHANGE_NOT_FOUND -> SettlementFailureCode.EXCHANGE_NOT_FOUND;
+            case ACCOUNT_NOT_FOUND -> SettlementFailureCode.ACCOUNT_NOT_FOUND;
+            case SETTLEMENT_ACCOUNT_MISMATCH -> SettlementFailureCode.ACCOUNT_MISMATCH;
+            case SETTLEMENT_INVALID_REQUEST -> SettlementFailureCode.INVALID_ORDER_STATUS;
+            case SETTLEMENT_CALCULATION_FAILED -> SettlementFailureCode.CALCULATION_ERROR;
+            case SETTLEMENT_STATE_CONFLICT -> SettlementFailureCode.DB_STATE_CONFLICT;
+            default -> SettlementFailureCode.UNKNOWN_ERROR;
+        };
     }
 
     private String message(Exception exception) {

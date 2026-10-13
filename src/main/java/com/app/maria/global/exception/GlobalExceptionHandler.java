@@ -4,7 +4,6 @@ import com.app.maria.domain.foreignproduct.exception.ForeignProductException;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.member.exception.MemberException;
 import com.app.maria.domain.member.exception.MemberNotFoundException;
-import com.app.maria.domain.settlement.exception.*;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
 import jakarta.validation.ConstraintViolation;
@@ -69,69 +68,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
     }
 
-    // 7. Settlement 예외
-    @ExceptionHandler(SettlementException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementException(SettlementException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(InvalidSettlementException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleInvalidSettlementException(
-            InvalidSettlementException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementBatchNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementBatchNotFoundException(
-            SettlementBatchNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementItemNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementItemNotFoundException(
-            SettlementItemNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementCalculationException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementCalculationException(
-            SettlementCalculationException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementStateConflictException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementStateConflictException(
-            SettlementStateConflictException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementBatchAlreadyRunningException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementBatchAlreadyRunningException(
-            SettlementBatchAlreadyRunningException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(KrwExchangeNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleKrwExchangeNotFoundException(
-            KrwExchangeNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementAccountMismatchException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementAccountMismatchException(
-            SettlementAccountMismatchException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(SettlementAccountNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleSettlementAccountNotFoundException(
-            SettlementAccountNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
     // 9. ForeignProduct 예외
     @ExceptionHandler(ForeignProductException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductException(
@@ -144,13 +80,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductNotFound(
             ForeignProductNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 14. 가환전 처리 예외
-    @ExceptionHandler(ProvisionalException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleProvisionalException(ProvisionalException e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponseDTO.of(e.getMessage()));
     }
 
     // 16. AppException — 새로 만든 예외 구조 하나가 처리함. 아래 3~19번처럼 예외 종류마다
