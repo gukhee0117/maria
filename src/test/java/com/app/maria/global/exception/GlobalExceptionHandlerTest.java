@@ -50,6 +50,14 @@ class GlobalExceptionHandlerTest {
                                 .value(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage()));
     }
 
+    @Test
+    void unexpectedExceptionReturns500WithApiResponseDtoFormat() throws Exception {
+        mockMvc.perform(get("/test/unexpected"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다."))
+                .andExpect(jsonPath("$.code").doesNotExist());
+    }
+
     @ParameterizedTest
     @EnumSource(
             value = ErrorType.class,
@@ -100,6 +108,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/account-error/{errorType}")
         void throwAccountError(@PathVariable ErrorType errorType) {
             throw new AppException(errorType, 1L);
+        }
+
+        @GetMapping("/test/unexpected")
+        void throwUnexpected() {
+            throw new RuntimeException("DB 연결 끊김 같은 예상 밖 오류");
         }
     }
 }

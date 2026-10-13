@@ -96,6 +96,15 @@ public class GlobalExceptionHandler {
                 .body(ApiResponseDTO.error(e.getErrorType().name(), e.getMessage()));
     }
 
+    // 폴백 — 위 핸들러에서 잡히지 않은 예외(RestClientException 등). ApiResponseDTO 형식을 보장해
+    // 화면 JS가 빈 메시지를 띄우는 일을 막는다.
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleUnexpectedException(Exception e) {
+        log.error("[UNEXPECTED_ERROR]", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponseDTO.of("서버 내부 오류가 발생했습니다."));
+    }
+
     // 심각도(logLevel)에 따라 로그 레벨을 나눠 찍는다. errorData(예: accountId)는 여기 로그에만
     // 남고 사용자 응답엔 안 나간다. e를 그대로 넘겨서 스택트레이스 전체가 로그에 같이 찍히게 함.
     private void logAppException(AppException e) {
