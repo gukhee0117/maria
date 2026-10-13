@@ -439,6 +439,22 @@ class AuditLogMapperTest {
     }
 
     @Test
+    @DisplayName("selectAuditLogs는 audit_log.recorded_at 값을 그대로 반환한다 — SELECT에서 컬럼이 빠지면 이 테스트가 깬다")
+    void selectAuditLogsReturnsRecordedAt() throws SQLException {
+        LocalDateTime expectedRecordedAt = LocalDateTime.of(2026, 3, 15, 9, 30);
+        insertLogWithRecordedAt(
+                1L, "SELL_ORDER", "1", "SELL_ORDER_EXECUTED",
+                "2026-08-01 09:00:00", "2026-03-15 09:30:00");
+
+        List<AuditLogDTO> result = auditLogMapper.selectAuditLogs(searchDefaults().build());
+
+        assertThat(result)
+                .singleElement()
+                .extracting(AuditLogDTO::getRecordedAt)
+                .isEqualTo(expectedRecordedAt);
+    }
+
+    @Test
     @DisplayName(
             "countAuditLogs도 adminKeyword/targetKeyword 조건에 필요한 join(admin_user×2, account)이 걸려있어 에러 없이 동작한다")
     void countAuditLogsWorksWithFieldFiltersRequiringAllJoins() throws SQLException {
@@ -522,6 +538,25 @@ class AuditLogMapperTest {
                             + "', '"
                             + processedAt
                             + "')");
+        }
+    }
+
+    private void insertLogWithRecordedAt(
+            Long adminId,
+            String targetTable,
+            String targetPk,
+            String reasonCode,
+            String processedAt,
+            String recordedAt)
+            throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+                Statement statement = connection.createStatement()) {
+            statement.execute(
+                    "INSERT INTO audit_log (admin_id, target_table, target_pk, before_value, after_value, reason_code, processed_at, recorded_at) "
+                            + "VALUES ("
+                            + adminId + ", '" + targetTable + "', '" + targetPk
+                            + "', 'VIEWER', 'ADMIN', '" + reasonCode
+                            + "', '" + processedAt + "', '" + recordedAt + "')");
         }
     }
 
