@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void setAuthentication(Claims claims) {
+        if (!"access".equals(claims.get("type"))) return;
         Long adminId = Long.valueOf(claims.getSubject());
         String role = claims.get("role", String.class);
 
