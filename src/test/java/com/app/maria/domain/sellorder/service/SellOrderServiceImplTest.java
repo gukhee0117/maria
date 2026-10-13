@@ -20,9 +20,12 @@ import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
+import com.app.maria.domain.sellorder.type.SellOrderAuditLogReasonCode;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.service.ProvisionalExchangeService;
 import com.app.maria.domain.settlement.service.SettlementService;
+import com.app.maria.global.audit.dto.AuditLogDTO;
+import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.client.kis.KisPriceClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -68,6 +71,8 @@ class SellOrderServiceImplTest {
     @Mock ProvisionalExchangeService provisionalExchangeService;
 
     @Mock SettlementService settlementService;
+
+    @Mock AuditLogService auditLogService;
 
     @InjectMocks SellOrderServiceImpl sellOrderService;
 
@@ -384,6 +389,62 @@ class SellOrderServiceImplTest {
                 .hasMessage("다른 요청이 먼저 처리되었습니다.");
 
         verify(sellOrderMapper, times(1)).insertSellOrder(any());
+    }
+
+    @Test
+    @DisplayName("한도 초과 반려 시 SELL_ORDER_REJECTED reason code로 감사로그를 1건 기록한다")
+    void placeSellOrderLogsAuditWithRejectedReasonCodeWhenLimitExceeded() {
+        SellOrderRequestDTO request = validRequestBuilder().build();
+        when(inboundMapper.selectFifoLots(1L, 10L))
+                .thenReturn(List.of(lot(1L, "50", LocalDateTime.of(2026, 1, 1, 0, 0))));
+        when(foreignProductMapper.selectById(10L)).thenReturn(Optional.of(validProduct()));
+        stubPriceAndRate();
+        when(sellLimitService.isWithinSellLimit(any(), any())).thenReturn(false);
+        when(businessClockService.now()).thenReturn(NOW);
+
+        sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request);
+
+        ArgumentCaptor<AuditLogDTO> captor = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, times(1)).log(captor.capture());
+        AuditLogDTO logged = captor.getValue();
+        assertThat(logged.getAdminId()).isEqualTo(ACTOR_ADMIN_ID);
+        assertThat(logged.getTargetTable()).isEqualTo("SELL_ORDER");
+        assertThat(logged.getAfterValue()).isEqualTo(SellOrderStatus.REJECTED.name());
+        assertThat(logged.getReasonCode())
+                .isEqualTo(SellOrderAuditLogReasonCode.SELL_ORDER_REJECTED.name());
+    }
+
+    @Test
+    @DisplayName("2개 lot에 걸쳐 체결되면 SELL_ORDER_EXECUTED reason code로 감사로그를 lot마다 1건씩 기록한다")
+    void placeSellOrderLogsAuditPerLotWithExecutedReasonCodeWhenMultipleLotsUsed() {
+        SellOrderRequestDTO request = validRequestBuilder().build();
+        when(inboundMapper.selectFifoLots(1L, 10L))
+                .thenReturn(
+                        List.of(
+                                lot(1L, "6", LocalDateTime.of(2026, 1, 1, 0, 0)),
+                                lot(2L, "50", LocalDateTime.of(2026, 2, 1, 0, 0))));
+        when(foreignProductMapper.selectById(10L)).thenReturn(Optional.of(validProduct()));
+        stubPriceAndRate();
+        when(sellLimitService.isWithinSellLimit(any(), any())).thenReturn(true);
+        when(inboundMapper.decreaseCurrentQty(1L, new BigDecimal("6"))).thenReturn(1);
+        when(inboundMapper.decreaseCurrentQty(2L, new BigDecimal("4"))).thenReturn(1);
+        when(businessClockService.now()).thenReturn(NOW);
+
+        sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request);
+
+        ArgumentCaptor<AuditLogDTO> captor = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, times(2)).log(captor.capture());
+        captor.getAllValues()
+                .forEach(
+                        logged -> {
+                            assertThat(logged.getAdminId()).isEqualTo(ACTOR_ADMIN_ID);
+                            assertThat(logged.getTargetTable()).isEqualTo("SELL_ORDER");
+                            assertThat(logged.getAfterValue())
+                                    .isEqualTo(SellOrderStatus.EXECUTED.name());
+                            assertThat(logged.getReasonCode())
+                                    .isEqualTo(
+                                            SellOrderAuditLogReasonCode.SELL_ORDER_EXECUTED.name());
+                        });
     }
 
     @Test

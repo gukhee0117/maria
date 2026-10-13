@@ -31,7 +31,6 @@ public class AdminServiceImpl implements AdminService {
     private final AuditLogService auditLogService;
 
     @Override
-    @Transactional(readOnly = true)
     public AdminLoginResponseDTO login(AdminLoginRequestDTO request) {
         AdminUserDTO admin =
                 adminMapper
@@ -46,6 +45,15 @@ public class AdminServiceImpl implements AdminService {
                 jwtTokenProvider.createAccessToken(
                         admin.getAdminId(), admin.getLoginId(), admin.getName(), admin.getRole());
         String refreshToken = jwtTokenProvider.createRefreshToken(admin.getAdminId());
+
+        auditLogService.log(
+                AuditLogDTO.builder()
+                        .adminId(admin.getAdminId())
+                        .targetTable("ADMIN_USER")
+                        .targetPk(String.valueOf(admin.getAdminId()))
+                        .afterValue("LOGIN")
+                        .reasonCode("ADMIN_LOGIN")
+                        .build());
 
         return AdminLoginResponseDTO.builder()
                 .accessToken(accessToken)

@@ -443,8 +443,12 @@ class AuditLogMapperTest {
     void selectAuditLogsReturnsRecordedAt() throws SQLException {
         LocalDateTime expectedRecordedAt = LocalDateTime.of(2026, 3, 15, 9, 30);
         insertLogWithRecordedAt(
-                1L, "SELL_ORDER", "1", "SELL_ORDER_EXECUTED",
-                "2026-08-01 09:00:00", "2026-03-15 09:30:00");
+                1L,
+                "SELL_ORDER",
+                "1",
+                "SELL_ORDER_EXECUTED",
+                "2026-08-01 09:00:00",
+                "2026-03-15 09:30:00");
 
         List<AuditLogDTO> result = auditLogMapper.selectAuditLogs(searchDefaults().build());
 
@@ -554,9 +558,18 @@ class AuditLogMapperTest {
             statement.execute(
                     "INSERT INTO audit_log (admin_id, target_table, target_pk, before_value, after_value, reason_code, processed_at, recorded_at) "
                             + "VALUES ("
-                            + adminId + ", '" + targetTable + "', '" + targetPk
-                            + "', 'VIEWER', 'ADMIN', '" + reasonCode
-                            + "', '" + processedAt + "', '" + recordedAt + "')");
+                            + adminId
+                            + ", '"
+                            + targetTable
+                            + "', '"
+                            + targetPk
+                            + "', 'VIEWER', 'ADMIN', '"
+                            + reasonCode
+                            + "', '"
+                            + processedAt
+                            + "', '"
+                            + recordedAt
+                            + "')");
         }
     }
 

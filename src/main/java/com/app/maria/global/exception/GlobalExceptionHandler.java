@@ -114,7 +114,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleUnexpectedException(Exception e) {
         HttpStatusCode status =
-                (e instanceof ErrorResponse er) ? er.getStatusCode() : HttpStatus.INTERNAL_SERVER_ERROR;
+                (e instanceof ErrorResponse er)
+                        ? er.getStatusCode()
+                        : HttpStatus.INTERNAL_SERVER_ERROR;
         if (status.is5xxServerError()) {
             log.error("[UNEXPECTED_ERROR]", e);
         }
