@@ -1,5 +1,6 @@
 package com.app.maria.global.exception;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +50,24 @@ class GlobalExceptionHandlerTest {
                 .andExpect(
                         jsonPath("$.message")
                                 .value(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED.getMessage()));
+    }
+
+    @Test
+    void unexpectedExceptionReturns500WithApiResponseDtoFormat() throws Exception {
+        mockMvc.perform(get("/test/unexpected"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("서버 내부 오류가 발생했습니다."))
+                .andExpect(jsonPath("$.code").doesNotExist());
+    }
+
+    @Test
+    void accessDeniedExceptionIsRethrownNotWrappedAs500() {
+        // AccessDeniedException은 폴백 핸들러가 잡지 않고 re-throw해서
+        // Spring Security 필터 체인의 accessDeniedHandler에 위임해야 한다.
+        // 폴백이 잡아버리면 ApiResponseDTO 500이 나오지만,
+        // re-throw하면 MockMvc가 ServletException으로 감싸서 perform() 자체에서 던진다.
+        assertThatThrownBy(() -> mockMvc.perform(get("/test/access-denied")))
+                .hasCauseInstanceOf(AccessDeniedException.class);
     }
 
     @ParameterizedTest
@@ -100,6 +120,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/account-error/{errorType}")
         void throwAccountError(@PathVariable ErrorType errorType) {
             throw new AppException(errorType, 1L);
+        }
+
+        @GetMapping("/test/unexpected")
+        void throwUnexpected() {
+            throw new RuntimeException("DB 연결 끊김 같은 예상 밖 오류");
+        }
+
+        @GetMapping("/test/access-denied")
+        void throwAccessDenied() {
+            throw new AccessDeniedException("권한 없음");
         }
     }
 }

@@ -12,7 +12,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -94,6 +98,27 @@ public class GlobalExceptionHandler {
         // code는 지금 화면(JS)에선 안 쓰지만, 2차 React 화면에서 에러 종류별로 분기할 때 쓸 값.
         return ResponseEntity.status(e.getErrorType().getStatus())
                 .body(ApiResponseDTO.error(e.getErrorType().name(), e.getMessage()));
+    }
+
+    // Spring Security 예외(403/401)는 여기서 잡지 않고 Security 필터 체인에 위임한다.
+    // @ExceptionHandler(Exception.class) 폴백이 먼저 낚아채면 403→500으로 바뀌는 문제를 막기 위함.
+    @ExceptionHandler({AccessDeniedException.class, AuthenticationException.class})
+    public void rethrowSecurityException(Exception e) throws Exception {
+        throw e;
+    }
+
+    // 폴백 — 위 핸들러에서 분류되지 않은 예상 밖 오류. ApiResponseDTO 형식을 보장해
+    // 화면 JS가 빈 메시지를 띄우는 일을 막는다.
+    // Spring MVC가 자체적으로 던지는 4xx ErrorResponse(예: 405 MethodNotAllowed)는
+    // 해당 상태 코드를 그대로 돌려줘서 500으로 뭉개지 않도록 한다.
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleUnexpectedException(Exception e) {
+        HttpStatusCode status =
+                (e instanceof ErrorResponse er) ? er.getStatusCode() : HttpStatus.INTERNAL_SERVER_ERROR;
+        if (status.is5xxServerError()) {
+            log.error("[UNEXPECTED_ERROR]", e);
+        }
+        return ResponseEntity.status(status).body(ApiResponseDTO.of("서버 내부 오류가 발생했습니다."));
     }
 
     // 심각도(logLevel)에 따라 로그 레벨을 나눠 찍는다. errorData(예: accountId)는 여기 로그에만
