@@ -104,8 +104,11 @@ class SellLimitServiceImplTest {
     }
 
     @Test
-    @DisplayName("계좌 한도 정보를 찾을 수 없으면 예외를 던지고 이후 조회/myData는 하지 않는다")
+    @DisplayName("계좌 한도 정보를 찾을 수 없으면 예외를 던지고 이후 sumUsedAmount는 호출하지 않는다")
     void isWithinSellLimitThrowsWhenAccountLimitNotFound() {
+        // ciHash 조회 → myData HTTP → 행 락 순서이므로 account-not-found 전에 myData는 이미 호출됨
+        when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci-hash-1"));
+        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(BigDecimal.ZERO);
         when(sellLimitMapper.selectAccountLimitForUpdate(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
@@ -113,15 +116,11 @@ class SellLimitServiceImplTest {
                 .hasMessage(ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND.getMessage());
 
         verify(sellLimitMapper, never()).sumUsedAmount(any());
-        verifyNoInteractions(mydataClient);
     }
 
     @Test
     @DisplayName("ci_hash를 찾을 수 없으면 예외를 던지고 myData는 조회하지 않는다")
     void isWithinSellLimitThrowsWhenCiHashNotFound() {
-        when(sellLimitMapper.selectAccountLimitForUpdate(100L))
-                .thenReturn(Optional.of(new BigDecimal("50000000")));
-        when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("0"));
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))

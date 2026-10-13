@@ -21,16 +21,9 @@ public class SellLimitServiceImpl implements SellLimitService {
 
     @Override
     public boolean isWithinSellLimit(Long accountId, BigDecimal orderAmount) {
-        BigDecimal limitAmount =
-                sellLimitMapper
-                        .selectAccountLimitForUpdate(accountId)
-                        .orElseThrow(
-                                () ->
-                                        new AppException(
-                                                ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND, accountId));
-
-        BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);
-
+        // ciHash 조회 → myData HTTP 호출(락 밖) → 행 락 취득 순서로 처리.
+        // HTTP 호출을 락 안에서 하면 myData 응답 지연이 그대로 락 점유 시간이 되어
+        // 동시 매도 요청이 몰릴 때 병목이 생긴다.
         String ciHash =
                 sellLimitMapper
                         .selectCiHashByAccountId(accountId)
@@ -41,6 +34,16 @@ public class SellLimitServiceImpl implements SellLimitService {
                                                 accountId));
 
         BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
+
+        BigDecimal limitAmount =
+                sellLimitMapper
+                        .selectAccountLimitForUpdate(accountId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.SELL_ORDER_ACCOUNT_NOT_FOUND, accountId));
+
+        BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);
 
         BigDecimal localTotal = usedAmount.add(orderAmount);
         BigDecimal globalTotal = localTotal.add(externalSum);
