@@ -59,7 +59,7 @@
 
     <select id="selectAuditLogs" parameterType="com.app.maria.global.audit.dto.AuditLogSearchDTO"
             resultType="com.app.maria.global.audit.dto.AuditLogDTO">
-        SELECT al.audit_id, al.admin_id, al.target_table, al.target_pk, al.before_value, al.after_value, al.reason_code, al.processed_at, au.name AS admin_name, au.role AS admin_role,
+        SELECT al.audit_id, al.admin_id, al.target_table, al.target_pk, al.before_value, al.after_value, al.reason_code, al.processed_at, al.recorded_at, au.name AS admin_name, au.role AS admin_role,
             target_admin.name AS target_admin_name, target_account.account_no AS target_owner_account_no, target_batch.executed_at AS target_batch_executed_at
         FROM audit_log al
         LEFT JOIN admin_user au ON au.admin_id = al.admin_id
