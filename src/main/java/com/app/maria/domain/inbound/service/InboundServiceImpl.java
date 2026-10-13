@@ -9,10 +9,13 @@ import com.app.maria.domain.inbound.dto.*;
 import com.app.maria.domain.inbound.dto.request.InboundRequestDTO;
 import com.app.maria.domain.inbound.dto.response.*;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
+import com.app.maria.domain.inbound.type.InboundAuditLogReasonCode;
 import com.app.maria.domain.inbound.type.InboundZeroApprovalReason;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
+import com.app.maria.global.audit.dto.AuditLogDTO;
+import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
@@ -39,6 +42,7 @@ public class InboundServiceImpl implements InboundService {
     private final SellOrderMapper sellOrderMapper;
     private final RestClient restClient;
     private final BusinessClockService businessClockService;
+    private final AuditLogService auditLogService;
 
     public InboundServiceImpl(
             InboundMapper inboundMapper,
@@ -46,17 +50,19 @@ public class InboundServiceImpl implements InboundService {
             AccountMapper accountMapper,
             SellOrderMapper sellOrderMapper,
             @Qualifier("returnSecuritiesRestClient") RestClient restClient,
-            BusinessClockService businessClockService) {
+            BusinessClockService businessClockService,
+            AuditLogService auditLogService) {
         this.inboundMapper = inboundMapper;
         this.foreignProductMapper = foreignProductMapper;
         this.accountMapper = accountMapper;
         this.sellOrderMapper = sellOrderMapper;
         this.restClient = restClient;
         this.businessClockService = businessClockService;
+        this.auditLogService = auditLogService;
     }
 
     @Override
-    public InboundResponseDTO processInbound(InboundRequestDTO request) {
+    public InboundResponseDTO processInbound(Long actorAdminId, InboundRequestDTO request) {
 
         Long accountId = request.getAccountId();
         Long foreignProductId = request.getForeignProductId();
@@ -189,6 +195,23 @@ public class InboundServiceImpl implements InboundService {
                     requestedQty,
                     snapshotQty);
         }
+
+        InboundAuditLogReasonCode reasonCode =
+                zeroApprovalReason != null
+                        ? InboundAuditLogReasonCode.INBOUND_ZERO_APPROVED
+                        : InboundAuditLogReasonCode.INBOUND_APPROVED;
+        String afterValue =
+                zeroApprovalReason != null
+                        ? approvedQty + "(" + zeroApprovalReason.name() + ")"
+                        : String.valueOf(approvedQty);
+        auditLogService.log(
+                AuditLogDTO.builder()
+                        .adminId(actorAdminId)
+                        .targetTable("INBOUND")
+                        .targetPk(String.valueOf(inboundDTO.getInboundId()))
+                        .afterValue(afterValue)
+                        .reasonCode(reasonCode.name())
+                        .build());
 
         return InboundResponseDTO.of(inboundDTO, snapshotQty, zeroApprovalReason);
     }

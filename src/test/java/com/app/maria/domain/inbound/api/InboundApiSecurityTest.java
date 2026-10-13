@@ -44,7 +44,8 @@ class InboundApiSecurityTest {
     @DisplayName("REVIEWER 권한이면 200과 함께 입고 처리 결과를 반환한다")
     @WithMockUser(roles = "REVIEWER")
     void processInboundReturns200ForReviewerRole() throws Exception {
-        when(inboundService.processInbound(org.mockito.ArgumentMatchers.any()))
+        when(inboundService.processInbound(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(
                         InboundResponseDTO.builder()
                                 .inboundId(10L)
@@ -58,7 +59,9 @@ class InboundApiSecurityTest {
                                 .content(REQUEST_BODY))
                 .andExpect(status().isOk());
 
-        verify(inboundService).processInbound(org.mockito.ArgumentMatchers.any());
+        verify(inboundService)
+                .processInbound(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -71,7 +74,9 @@ class InboundApiSecurityTest {
                                 .content(REQUEST_BODY))
                 .andExpect(status().isForbidden());
 
-        verify(inboundService, never()).processInbound(org.mockito.ArgumentMatchers.any());
+        verify(inboundService, never())
+                .processInbound(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -84,7 +89,9 @@ class InboundApiSecurityTest {
                                 .content(REQUEST_BODY))
                 .andExpect(status().isForbidden());
 
-        verify(inboundService, never()).processInbound(org.mockito.ArgumentMatchers.any());
+        verify(inboundService, never())
+                .processInbound(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -97,6 +104,8 @@ class InboundApiSecurityTest {
                                 .content(REQUEST_BODY))
                 .andExpect(status().isForbidden());
 
-        verify(inboundService, never()).processInbound(org.mockito.ArgumentMatchers.any());
+        verify(inboundService, never())
+                .processInbound(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }

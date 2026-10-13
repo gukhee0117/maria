@@ -58,7 +58,7 @@ class InboundApiTest {
                         .approvedQty(BigDecimal.valueOf(80))
                         .processedAt(LocalDateTime.now())
                         .build();
-        when(inboundService.processInbound(any())).thenReturn(response);
+        when(inboundService.processInbound(any(), any())).thenReturn(response);
 
         mockMvc.perform(
                         post("/api/admin/inbounds")
@@ -76,7 +76,7 @@ class InboundApiTest {
                 .andExpect(jsonPath("$.message").value("입고대상 수량 계산 성공"))
                 .andExpect(jsonPath("$.data.approvedQty").value(80));
 
-        verify(inboundService).processInbound(any());
+        verify(inboundService).processInbound(any(), any());
     }
 
     @Test
@@ -94,7 +94,7 @@ class InboundApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("accountId는 필수입니다."));
 
-        verify(inboundService, never()).processInbound(any());
+        verify(inboundService, never()).processInbound(any(), any());
     }
 
     @Test
@@ -113,7 +113,7 @@ class InboundApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("requestedQty는 0 이상이어야 합니다."));
 
-        verify(inboundService, never()).processInbound(any());
+        verify(inboundService, never()).processInbound(any(), any());
     }
 
     @Test
@@ -133,7 +133,7 @@ class InboundApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("currentHoldingAtRequest는 0 이상이어야 합니다."));
 
-        verify(inboundService, never()).processInbound(any());
+        verify(inboundService, never()).processInbound(any(), any());
     }
 
     @Test
@@ -151,7 +151,7 @@ class InboundApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("foreignProductId는 필수입니다."));
 
-        verify(inboundService, never()).processInbound(any());
+        verify(inboundService, never()).processInbound(any(), any());
     }
 
     @Test
@@ -169,7 +169,7 @@ class InboundApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("requestedQty는 필수입니다."));
 
-        verify(inboundService, never()).processInbound(any());
+        verify(inboundService, never()).processInbound(any(), any());
     }
 
     @Test
@@ -182,7 +182,7 @@ class InboundApiTest {
                         .approvedQty(BigDecimal.valueOf(80))
                         .processedAt(LocalDateTime.now())
                         .build();
-        when(inboundService.processInbound(any())).thenReturn(response);
+        when(inboundService.processInbound(any(), any())).thenReturn(response);
 
         mockMvc.perform(
                         post("/api/admin/inbounds")
@@ -197,12 +197,12 @@ class InboundApiTest {
                 """))
                 .andExpect(status().isOk());
 
-        verify(inboundService).processInbound(any());
+        verify(inboundService).processInbound(any(), any());
     }
 
     @Test
     void processInboundReturnsBadGatewayWhenRegistrableStockMissing() throws Exception {
-        when(inboundService.processInbound(any()))
+        when(inboundService.processInbound(any(), any()))
                 .thenThrow(new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND));
 
         mockMvc.perform(

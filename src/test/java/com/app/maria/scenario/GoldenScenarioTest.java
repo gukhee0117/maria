@@ -287,6 +287,7 @@ class GoldenScenarioTest {
                         ? holding.heldQty().add(BigDecimal.valueOf(1 + random.nextInt(20)))
                         : holding.heldQty();
         inboundService.processInbound(
+                ADMIN_ID,
                 InboundRequestDTO.builder()
                         .accountId(accountId)
                         .foreignProductId(holding.foreignProductId())
