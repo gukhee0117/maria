@@ -49,6 +49,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -235,15 +237,16 @@ class InboundServiceImplTest {
                 .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
     }
 
-    @Test
-    void processInboundThrowsWhenAccountStatusCannotTrade() {
+    @ParameterizedTest
+    @EnumSource(value = Status.class, names = "OPENED", mode = EnumSource.Mode.EXCLUDE)
+    void processInboundThrowsWhenAccountStatusCannotTrade(Status status) {
         when(accountMapper.selectByAccountId(ACCOUNT_ID))
                 .thenReturn(
                         Optional.of(
                                 AccountDTO.builder()
                                         .accountId(ACCOUNT_ID)
                                         .customerId(CUSTOMER_ID)
-                                        .status(Status.CLOSED)
+                                        .status(status)
                                         .build()));
 
         assertThatThrownBy(
