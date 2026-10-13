@@ -13,9 +13,12 @@ import com.app.maria.domain.sellorder.dto.SellOrderSummaryDTO;
 import com.app.maria.domain.sellorder.dto.request.SellOrderRequestDTO;
 import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
+import com.app.maria.domain.sellorder.type.SellOrderAuditLogReasonCode;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.service.ProvisionalExchangeService;
 import com.app.maria.domain.settlement.service.SettlementService;
+import com.app.maria.global.audit.dto.AuditLogDTO;
+import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
 import com.app.maria.global.client.kis.KisExchangeCode;
 import com.app.maria.global.client.kis.KisPriceClient;
@@ -49,6 +52,7 @@ public class SellOrderServiceImpl implements SellOrderService {
     private final BusinessClockService businessClockService;
     private final ProvisionalExchangeService provisionalExchangeService;
     private final SettlementService settlementService;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
@@ -101,6 +105,7 @@ public class SellOrderServiceImpl implements SellOrderService {
                             .processedAt(businessClockService.now())
                             .build();
             sellOrderMapper.insertSellOrder(rejected);
+            logSellOrder(actorAdminId, rejected, SellOrderAuditLogReasonCode.SELL_ORDER_REJECTED);
 
             return List.of(new SellOrderResponseDTO(rejected));
         }
@@ -128,6 +133,7 @@ public class SellOrderServiceImpl implements SellOrderService {
                             .processedAt(businessClockService.now())
                             .build();
             sellOrderMapper.insertSellOrder(executed);
+            logSellOrder(actorAdminId, executed, SellOrderAuditLogReasonCode.SELL_ORDER_EXECUTED);
             executeOrders.add(executed);
 
             provisionalExchangeService.createProvisionalExchange(executed);
@@ -212,6 +218,18 @@ public class SellOrderServiceImpl implements SellOrderService {
                 .pendingProvisionalAmount(pendingProvisionalAmount)
                 .todayFinalizedAmount(todayFinalizedAmount)
                 .build();
+    }
+
+    private void logSellOrder(
+            Long adminId, SellOrderDTO order, SellOrderAuditLogReasonCode reasonCode) {
+        auditLogService.log(
+                AuditLogDTO.builder()
+                        .adminId(adminId)
+                        .targetTable("SELL_ORDER")
+                        .targetPk(String.valueOf(order.getOrderId()))
+                        .afterValue(order.getStatus().name())
+                        .reasonCode(reasonCode.name())
+                        .build());
     }
 
     private BigDecimal changeRate(BigDecimal today, BigDecimal yesterday) {
