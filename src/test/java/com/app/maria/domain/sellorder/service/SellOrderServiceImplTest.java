@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
@@ -31,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +48,8 @@ class SellOrderServiceImplTest {
 
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 9, 12, 0);
     private static final Long ACTOR_ADMIN_ID = 99L;
+
+    @Mock AccountMapper accountMapper;
 
     @Mock SellOrderMapper sellOrderMapper;
 
@@ -65,11 +71,35 @@ class SellOrderServiceImplTest {
 
     @InjectMocks SellOrderServiceImpl sellOrderService;
 
+    @BeforeEach
+    void stubOpenedAccountByDefault() {
+        // placeSellOrder를 호출하는 모든 테스트에서 계좌 상태 가드를 통과시킨다.
+        // 이 스텁이 필요 없는 테스트(getSellOrder* 등)에서도 오류가 나지 않도록 lenient로 등록.
+        lenient().when(accountMapper.selectByAccountId(1L))
+                .thenReturn(Optional.of(
+                        AccountDTO.builder().accountId(1L).status(Status.OPENED).build()));
+    }
+
     private SellOrderRequestDTO.SellOrderRequestDTOBuilder validRequestBuilder() {
         return SellOrderRequestDTO.builder()
                 .accountId(1L)
                 .foreignProductId(10L)
                 .sellQty(new BigDecimal("10"));
+    }
+
+    @Test
+    @DisplayName("OPENED 상태가 아닌 계좌(예: CLOSURE_REQUESTED)에서 매도를 요청하면 ACCOUNT_STATE_NOT_ALLOWED 예외를 던지고 이후 로직은 실행하지 않는다")
+    void placeSellOrderThrowsWhenAccountStatusIsNotOpened() {
+        SellOrderRequestDTO request = validRequestBuilder().build();
+        when(accountMapper.selectByAccountId(1L)).thenReturn(Optional.of(
+                AccountDTO.builder().accountId(1L).status(Status.CLOSURE_REQUESTED).build()));
+
+        assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_STATE_NOT_ALLOWED.getMessage());
+
+        verifyNoInteractions(inboundMapper, kisPriceClient, exchangeRateClient,
+                sellOrderMapper, sellLimitService, foreignProductMapper);
     }
 
     private InboundDetailDTO lot(
