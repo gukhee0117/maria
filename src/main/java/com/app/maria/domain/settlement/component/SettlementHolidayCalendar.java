@@ -1,6 +1,7 @@
 package com.app.maria.domain.settlement.component;
 
-import com.app.maria.domain.settlement.exception.SettlementHolidayCalendarException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +29,9 @@ public class SettlementHolidayCalendar {
     public boolean isHoliday(LocalDate date) {
         Set<LocalDate> holidays = holidaysByYear.get(date.getYear());
         if (holidays == null) {
-            throw new SettlementHolidayCalendarException("정산 휴일 정보가 없습니다. year=" + date.getYear());
+            throw new AppException(
+                    ErrorType.SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE,
+                    "정산 휴일 정보가 없습니다. year=" + date.getYear());
         }
         return holidays.contains(date);
     }
@@ -52,11 +55,15 @@ public class SettlementHolidayCalendar {
                 result.computeIfAbsent(holiday.getYear(), ignored -> new HashSet<>()).add(holiday);
             }
             if (result.isEmpty()) {
-                throw new SettlementHolidayCalendarException("정산 휴일 정보가 비어 있습니다.");
+                throw new AppException(
+                        ErrorType.SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE, "정산 휴일 정보가 비어 있습니다.");
             }
             return result;
         } catch (IOException exception) {
-            throw new SettlementHolidayCalendarException("정산 휴일 정보를 읽을 수 없습니다.", exception);
+            throw new AppException(
+                    ErrorType.SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE,
+                    "정산 휴일 정보를 읽을 수 없습니다.",
+                    exception);
         }
     }
 
@@ -64,8 +71,10 @@ public class SettlementHolidayCalendar {
         try {
             return LocalDate.parse(value);
         } catch (DateTimeParseException exception) {
-            throw new SettlementHolidayCalendarException(
-                    "정산 휴일 정보 형식이 올바르지 않습니다. line=" + lineNumber, exception);
+            throw new AppException(
+                    ErrorType.SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE,
+                    "정산 휴일 정보 형식이 올바르지 않습니다. line=" + lineNumber,
+                    exception);
         }
     }
 }

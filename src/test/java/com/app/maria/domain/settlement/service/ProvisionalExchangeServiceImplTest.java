@@ -13,9 +13,10 @@ import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.settlement.component.ProvisionalExchangeCalculator;
 import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
-import com.app.maria.domain.settlement.exception.ProvisionalException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -79,8 +80,10 @@ class ProvisionalExchangeServiceImplTest {
         when(krwExchangeMapper.insertProvisional(any(KrwExchangeDTO.class))).thenReturn(0);
 
         assertThatThrownBy(() -> service.createProvisionalExchange(order))
-                .isInstanceOf(ProvisionalException.class)
-                .hasMessage("가환전 저장 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorType", ErrorType.PROVISIONAL_EXCHANGE_SAVE_FAILED)
+                .hasFieldOrPropertyWithValue("errorData", "가환전 저장 실패");
 
         verify(accountTransactionalService, never()).updateAmount(any(AccountDTO.class));
     }

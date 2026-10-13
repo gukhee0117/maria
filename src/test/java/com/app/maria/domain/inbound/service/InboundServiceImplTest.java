@@ -30,7 +30,6 @@ import com.app.maria.domain.inbound.dto.response.AccountHoldingResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundPriorApprovalResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundSummaryResponseDTO;
-import com.app.maria.domain.inbound.exception.InboundNotFoundException;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.inbound.type.InboundZeroApprovalReason;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
@@ -203,8 +202,8 @@ class InboundServiceImplTest {
                         () ->
                                 inboundService.processInbound(
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
-                .isInstanceOf(InboundNotFoundException.class)
-                .hasMessage("등록가능 보유수량 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.REGISTRABLE_STOCK_NOT_FOUND.getMessage());
     }
 
     @Test
@@ -218,8 +217,8 @@ class InboundServiceImplTest {
                         () ->
                                 inboundService.processInbound(
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
-                .isInstanceOf(InboundNotFoundException.class)
-                .hasMessage("등록가능 보유수량 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.REGISTRABLE_STOCK_NOT_FOUND.getMessage());
     }
 
     @Test

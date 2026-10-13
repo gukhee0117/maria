@@ -5,7 +5,6 @@ import com.app.maria.domain.domestic.dto.*;
 import com.app.maria.domain.domestic.dto.request.DomesticInvestmentSearchRequestDTO;
 import com.app.maria.domain.domestic.dto.request.DomesticTradeRequestDTO;
 import com.app.maria.domain.domestic.dto.response.*;
-import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundException;
 import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -14,6 +13,7 @@ import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
@@ -83,14 +83,20 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
     }
 
     private List<Long> resolveUnpurchasableAccountIds() {
+        return findUnpurchasableFundHoldings()
+                .map(DomesticFundHoldingDetailDTO::getAccountId)
+                .distinct()
+                .toList();
+    }
+
+    private Stream<DomesticFundHoldingDetailDTO> findUnpurchasableFundHoldings() {
         return domesticStockBalanceMapper.selectActiveFundHoldings().stream()
                 .filter(
                         h ->
                                 !domesticPurchaseEligibilityService.isPurchasable(
-                                        Type.FUND, h.getDomesticStockRatio(), h.getInceptionDate()))
-                .map(DomesticFundHoldingDetailDTO::getAccountId)
-                .distinct()
-                .toList();
+                                        Type.FUND,
+                                        h.getDomesticStockRatio(),
+                                        h.getInceptionDate()));
     }
 
     @Override
@@ -99,7 +105,10 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
                 domesticStockBalanceMapper
                         .selectAccountSummaryById(accountId)
                         .orElseThrow(
-                                () -> new DomesticInvestmentNotFoundException("계좌를 찾을 수 없습니다."));
+                                () ->
+                                        new AppException(
+                                                ErrorType.DOMESTIC_INVESTMENT_NOT_FOUND,
+                                                accountId));
 
         List<DomesticHoldingDTO> holdings =
                 domesticStockBalanceMapper.selectHoldingsByAccountId(accountId);
@@ -144,21 +153,13 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
         DomesticInvestmentSummaryDTO stats =
                 domesticStockBalanceMapper.selectSummaryStats(sinceDate);
 
-        long unpurchasableCount =
-                domesticStockBalanceMapper.selectActiveFundHoldings().stream()
-                        .filter(
-                                h ->
-                                        !domesticPurchaseEligibilityService.isPurchasable(
-                                                Type.FUND,
-                                                h.getDomesticStockRatio(),
-                                                h.getInceptionDate()))
-                        .count();
+        int unpurchasableCount = (int) findUnpurchasableFundHoldings().count();
 
         return new DomesticInvestmentSummaryResponseDTO(
                 DomesticInvestmentSummaryDTO.builder()
                         .totalAccountCount(stats.getTotalAccountCount())
                         .restrictedAccountCount(stats.getRestrictedAccountCount())
-                        .unpurchasableHoldingCount((int) unpurchasableCount)
+                        .unpurchasableHoldingCount(unpurchasableCount)
                         .totalCashAmount(stats.getTotalCashAmount())
                         .domesticStockAmount(stats.getDomesticStockAmount())
                         .domesticFundAmount(stats.getDomesticFundAmount())
@@ -172,11 +173,7 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
 
     @Override
     public List<DomesticUnpurchasableHoldingResponseDTO> getUnpurchasableHoldings() {
-        return domesticStockBalanceMapper.selectActiveFundHoldings().stream()
-                .filter(
-                        h ->
-                                !domesticPurchaseEligibilityService.isPurchasable(
-                                        Type.FUND, h.getDomesticStockRatio(), h.getInceptionDate()))
+        return findUnpurchasableFundHoldings()
                 .map(DomesticUnpurchasableHoldingResponseDTO::new)
                 .toList();
     }

@@ -13,6 +13,7 @@ import com.app.maria.domain.targetproduct.mapper.TargetProductMapper;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.global.client.mydatatrade.MydataTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -170,12 +171,16 @@ public class ExternalTradeSyncServiceImpl implements ExternalTradeSyncService {
 
     private void recordFailure(MydataTradeResponseDTO trade, Exception e) {
         LocalDateTime now = businessClockService.now();
+        String detail =
+                e instanceof AppException appException
+                        ? e.getMessage() + " data=" + appException.getErrorData()
+                        : e.getMessage();
         targetProductMapper.upsertFailure(
                 TargetProductJudgementFailureDTO.builder()
                         .mydataTradeId(trade.getTradeId())
                         .ciHash(trade.getCiHash())
                         .tradeDate(trade.getTradeDate())
-                        .lastError(truncate(e.getMessage(), 500))
+                        .lastError(truncate(detail, 500))
                         .firstFailedAt(now)
                         .lastFailedAt(now)
                         .build());

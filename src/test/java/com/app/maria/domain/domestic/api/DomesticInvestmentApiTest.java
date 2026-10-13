@@ -23,10 +23,11 @@ import com.app.maria.domain.domestic.dto.response.DomesticCashHeavyPageResponseD
 import com.app.maria.domain.domestic.dto.response.DomesticInvestmentSummaryResponseDTO;
 import com.app.maria.domain.domestic.dto.response.DomesticRestrictedHoldingResponseDTO;
 import com.app.maria.domain.domestic.dto.response.DomesticUnpurchasableHoldingResponseDTO;
-import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundException;
 import com.app.maria.domain.domestic.service.DomesticInvestmentService;
 import com.app.maria.domain.domestic.type.DomesticStockStatus;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.util.List;
@@ -178,11 +179,13 @@ class DomesticInvestmentApiTest {
     @DisplayName("존재하지 않는 계좌면 404를 반환한다")
     void getAccountDetailReturnsNotFoundWhenAccountMissing() throws Exception {
         when(domesticInvestmentService.getAccountDetail(999L))
-                .thenThrow(new DomesticInvestmentNotFoundException("계좌를 찾을 수 없습니다."));
+                .thenThrow(new AppException(ErrorType.DOMESTIC_INVESTMENT_NOT_FOUND));
 
         mockMvc.perform(get("/api/admin/domestic-investments/999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("계좌를 찾을 수 없습니다."));
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.DOMESTIC_INVESTMENT_NOT_FOUND.getMessage()));
     }
 
     @Test

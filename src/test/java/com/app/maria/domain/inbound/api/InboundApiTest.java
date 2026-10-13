@@ -19,8 +19,9 @@ import com.app.maria.domain.inbound.dto.response.InboundAccountSummaryResponseDT
 import com.app.maria.domain.inbound.dto.response.InboundPriorApprovalResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundSummaryResponseDTO;
-import com.app.maria.domain.inbound.exception.InboundNotFoundException;
 import com.app.maria.domain.inbound.service.InboundService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import com.app.maria.global.response.PageResponseDTO;
 import java.math.BigDecimal;
@@ -200,9 +201,9 @@ class InboundApiTest {
     }
 
     @Test
-    void processInboundReturnsNotFoundWhenRegistrableStockMissing() throws Exception {
+    void processInboundReturnsBadGatewayWhenRegistrableStockMissing() throws Exception {
         when(inboundService.processInbound(any()))
-                .thenThrow(new InboundNotFoundException("등록가능 보유수량 조회 실패"));
+                .thenThrow(new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND));
 
         mockMvc.perform(
                         post("/api/admin/inbounds")
@@ -215,8 +216,10 @@ class InboundApiTest {
                   "requestedQty": 80
                 }
                 """))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("등록가능 보유수량 조회 실패"));
+                .andExpect(status().isBadGateway())
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.REGISTRABLE_STOCK_NOT_FOUND.getMessage()));
     }
 
     @Test

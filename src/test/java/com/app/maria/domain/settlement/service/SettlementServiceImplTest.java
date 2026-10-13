@@ -18,10 +18,6 @@ import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.KrwExchangeNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementBatchNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementItemNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementBatchGuardMapper;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
@@ -36,6 +32,8 @@ import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -198,8 +196,9 @@ class SettlementServiceImplTest {
                 .launch(any());
 
         assertThatThrownBy(() -> settlementService.executeSettlementBatch())
-                .isInstanceOf(SettlementStateConflictException.class)
-                .hasMessage("확정산 Batch 작업 제출에 실패했습니다.");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT)
+                .hasFieldOrPropertyWithValue("errorData", "확정산 Batch 작업 제출에 실패했습니다.");
 
         verify(settlementBatchStatusUpdater)
                 .markFailedIfRunning(BATCH_ID, "확정산 Batch 작업 제출 실패: queue full");
@@ -226,6 +225,24 @@ class SettlementServiceImplTest {
                 "FAILED",
                 "RUNNING",
                 SettlementAuditLogReasonCode.SETTLEMENT_BATCH_RETRIED);
+    }
+
+    @Test
+    @DisplayName("실패 Batch에 재처리할 실패 Item이 없으면 별도 에러로 거부한다")
+    void retryFailedSettlementBatchRejectsWhenNoFailedItem() {
+        SettlementBatchDTO failedBatch = batch();
+        failedBatch.setStatus(BatchStatus.FAILED);
+        when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
+        when(settlementBatchMapper.selectBatchByIdForUpdate(BATCH_ID))
+                .thenReturn(Optional.of(failedBatch));
+        when(settlementItemMapper.insertRetryItemsForFailedBatch(BATCH_ID)).thenReturn(0);
+
+        assertThatThrownBy(() -> settlementService.retryFailedSettlementBatch(BATCH_ID))
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorType", ErrorType.SETTLEMENT_RETRY_NO_FAILED_ITEM);
+
+        verify(settlementBatchLauncher, never()).launch(any());
     }
 
     @Test
@@ -315,8 +332,9 @@ class SettlementServiceImplTest {
         when(settlementBatchMapper.selectBatchById(BATCH_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getSettlementBatch(BATCH_ID))
-                .isInstanceOf(SettlementBatchNotFoundException.class)
-                .hasMessage("batch id로 배치 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_BATCH_NOT_FOUND)
+                .hasFieldOrPropertyWithValue("errorData", "batch id로 배치 조회 실패");
     }
 
     @Test
@@ -336,8 +354,9 @@ class SettlementServiceImplTest {
         when(settlementBatchMapper.selectBatchByRunId(RUN_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getSettlementBatchByRunId(RUN_ID))
-                .isInstanceOf(SettlementBatchNotFoundException.class)
-                .hasMessage("run id로 배치 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_BATCH_NOT_FOUND)
+                .hasFieldOrPropertyWithValue("errorData", "run id로 배치 조회 실패");
     }
 
     @Test
@@ -365,7 +384,8 @@ class SettlementServiceImplTest {
         when(settlementBatchMapper.selectBatchById(BATCH_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getPendingSettlementItems(BATCH_ID, 0L))
-                .isInstanceOf(SettlementBatchNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_BATCH_NOT_FOUND);
 
         verify(settlementItemMapper, never()).selectPendingItems(any());
     }
@@ -394,7 +414,8 @@ class SettlementServiceImplTest {
         when(settlementBatchMapper.selectBatchById(BATCH_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getSettlementItem(BATCH_ID, ITEM_ID))
-                .isInstanceOf(SettlementBatchNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_BATCH_NOT_FOUND);
 
         verify(settlementJoinMapper, never()).selectItemDetail(any());
     }
@@ -407,8 +428,9 @@ class SettlementServiceImplTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getSettlementItem(BATCH_ID, ITEM_ID))
-                .isInstanceOf(SettlementItemNotFoundException.class)
-                .hasMessage("item detail 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_ITEM_NOT_FOUND)
+                .hasFieldOrPropertyWithValue("errorData", "item detail 조회 실패");
     }
 
     @Test
@@ -428,8 +450,9 @@ class SettlementServiceImplTest {
         when(krwExchangeMapper.selectExchangeById(EXCHANGE_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementService.getKrwExchange(EXCHANGE_ID))
-                .isInstanceOf(KrwExchangeNotFoundException.class)
-                .hasMessage("환전 조회 실패");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.KRW_EXCHANGE_NOT_FOUND)
+                .hasFieldOrPropertyWithValue("errorData", "환전 조회 실패");
     }
 
     @Test

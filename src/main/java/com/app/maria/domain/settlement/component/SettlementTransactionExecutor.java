@@ -4,16 +4,13 @@ import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.InvalidSettlementException;
-import com.app.maria.domain.settlement.exception.KrwExchangeNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementAccountMismatchException;
-import com.app.maria.domain.settlement.exception.SettlementAccountNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
 import com.app.maria.domain.settlement.type.SettlementStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +39,8 @@ public class SettlementTransactionExecutor {
                         .selectExchangeByIdForUpdate(target.getExchangeId())
                         .orElseThrow(
                                 () -> {
-                                    return new KrwExchangeNotFoundException("환전 정보 조회 실패");
+                                    return new AppException(
+                                            ErrorType.KRW_EXCHANGE_NOT_FOUND, "환전 정보 조회 실패");
                                 });
 
         if (exchange.getSettlementStatus() == SettlementStatus.FINALIZED) {
@@ -50,20 +48,24 @@ public class SettlementTransactionExecutor {
             return;
         }
         if (exchange.getSettlementStatus() != SettlementStatus.PROVISIONAL) {
-            throw new SettlementStateConflictException("확정산 대상 상태가 올바르지 않습니다.");
+            throw new AppException(ErrorType.SETTLEMENT_STATE_CONFLICT, "확정산 대상 상태가 올바르지 않습니다.");
         }
         if (target.getSellOrderStatus() == null
                 || !SellOrderStatus.EXECUTED.equals(target.getSellOrderStatus())) {
-            throw new InvalidSettlementException("체결된 매도 주문만 확정산 가능");
+            throw new AppException(ErrorType.SETTLEMENT_INVALID_REQUEST, "체결된 매도 주문만 확정산 가능");
         }
         if (!exchange.getAccountId().equals(target.getAccountId())) {
-            throw new SettlementAccountMismatchException("환전과 정산 대상 계좌가 일치하지 않습니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_ACCOUNT_MISMATCH, "환전과 정산 대상 계좌가 일치하지 않습니다.");
         }
 
         // 모든 정산 경로에서 exchange -> account 순서로 잠금을 획득한다.
         krwExchangeMapper
                 .selectAccountAmountForUpdate(exchange.getAccountId())
-                .orElseThrow(() -> new SettlementAccountNotFoundException("정산 대상 계좌를 찾을 수 없습니다."));
+                .orElseThrow(
+                        () ->
+                                new AppException(
+                                        ErrorType.ACCOUNT_NOT_FOUND, "정산 대상 계좌를 찾을 수 없습니다."));
 
         BigDecimal finalAmount =
                 settlementCalculator.calculateFinalAmount(
@@ -88,7 +90,7 @@ public class SettlementTransactionExecutor {
                 || target.getItemId() == null
                 || target.getExchangeId() == null
                 || target.getAccountId() == null) {
-            throw new InvalidSettlementException("확정산 대상 정보가 올바르지 않습니다.");
+            throw new AppException(ErrorType.SETTLEMENT_INVALID_REQUEST, "확정산 대상 정보가 올바르지 않습니다.");
         }
     }
 
@@ -108,7 +110,7 @@ public class SettlementTransactionExecutor {
 
     private void requireOneRow(int affectedRows, String message) {
         if (affectedRows != 1) {
-            throw new SettlementStateConflictException(message);
+            throw new AppException(ErrorType.SETTLEMENT_STATE_CONFLICT, message);
         }
     }
 }

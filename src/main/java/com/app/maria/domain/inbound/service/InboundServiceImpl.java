@@ -7,7 +7,6 @@ import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.inbound.dto.*;
 import com.app.maria.domain.inbound.dto.request.InboundRequestDTO;
 import com.app.maria.domain.inbound.dto.response.*;
-import com.app.maria.domain.inbound.exception.InboundNotFoundException;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.inbound.type.InboundZeroApprovalReason;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
@@ -91,7 +90,8 @@ public class InboundServiceImpl implements InboundService {
                                         ApiResponseDTO<RegistrableStockResponseDTO>>() {});
 
         if (apiResponse == null || apiResponse.getData() == null) {
-            throw new InboundNotFoundException("등록가능 보유수량 조회 실패");
+            throw new AppException(
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash + "/" + foreignProductId);
         }
 
         RegistrableStockResponseDTO registrableStock = apiResponse.getData();
@@ -326,7 +326,8 @@ public class InboundServiceImpl implements InboundService {
                                 new ParameterizedTypeReference<
                                         ApiResponseDTO<List<RegistrableStockResponseDTO>>>() {});
         if (apiResponse == null || apiResponse.getData() == null) {
-            throw new InboundNotFoundException("등록가능 보유수량 lot 조회 실패");
+            throw new AppException(
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash + "/" + foreignProductId);
         }
         return apiResponse.getData();
     }

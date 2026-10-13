@@ -6,10 +6,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.domestic.dto.DomesticProductDTO;
-import com.app.maria.domain.domestic.exception.DomesticProductNotFoundException;
 import com.app.maria.domain.domestic.mapper.DomesticProductMapper;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -154,13 +155,13 @@ class DomesticPurchaseEligibilityServiceImplTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 종목이면 DomesticProductNotFoundException을 던지고 Clock은 조회하지 않는다")
+    @DisplayName("존재하지 않는 종목이면 AppException(DOMESTIC_PRODUCT_NOT_FOUND)을 던지고 Clock은 조회하지 않는다")
     void isPurchasableThrowsWhenProductNotFound() {
         when(domesticProductMapper.selectById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> domesticPurchaseEligibilityService.isPurchasable(999L))
-                .isInstanceOf(DomesticProductNotFoundException.class)
-                .hasMessage("종목 정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.DOMESTIC_PRODUCT_NOT_FOUND);
 
         verifyNoInteractions(businessClockService);
     }

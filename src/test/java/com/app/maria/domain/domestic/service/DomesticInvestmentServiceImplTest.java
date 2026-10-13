@@ -23,7 +23,6 @@ import com.app.maria.domain.domestic.dto.DomesticRestrictedHoldingDTO;
 import com.app.maria.domain.domestic.dto.DomesticTradeHistoryDTO;
 import com.app.maria.domain.domestic.dto.request.DomesticInvestmentSearchRequestDTO;
 import com.app.maria.domain.domestic.dto.request.DomesticTradeRequestDTO;
-import com.app.maria.domain.domestic.exception.DomesticInvestmentNotFoundException;
 import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.domestic.type.DomesticStockStatus;
 import com.app.maria.domain.domestic.type.Type;
@@ -254,14 +253,14 @@ class DomesticInvestmentServiceImplTest {
     }
 
     @Test
-    @DisplayName("계좌 요약이 없으면 DomesticInvestmentNotFoundException을 던진다")
+    @DisplayName("계좌 요약이 없으면 AppException(DOMESTIC_INVESTMENT_NOT_FOUND)을 던진다")
     void getAccountDetailThrowsWhenAccountSummaryNotFound() {
         when(domesticStockBalanceMapper.selectAccountSummaryById(ACCOUNT_ID))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> domesticInvestmentService.getAccountDetail(ACCOUNT_ID))
-                .isInstanceOf(DomesticInvestmentNotFoundException.class)
-                .hasMessage("계좌를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.DOMESTIC_INVESTMENT_NOT_FOUND);
     }
 
     @Test

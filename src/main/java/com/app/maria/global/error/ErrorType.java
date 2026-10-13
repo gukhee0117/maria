@@ -85,6 +85,9 @@ public enum ErrorType {
             HttpStatus.BAD_GATEWAY, "일반계좌 확인 응답을 처리할 수 없습니다.", LogLevel.ERROR),
     GENERAL_ACCOUNT_API_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "일반계좌 확인 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
+    MYDATA_API_INVALID_RESPONSE(HttpStatus.BAD_GATEWAY, "myData 응답을 처리할 수 없습니다.", LogLevel.ERROR),
+    MYDATA_API_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "myData 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
 
     // 계좌 해지 예외 처리
     ACCOUNT_CLOSURE_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 해지 신청을 찾을 수 없습니다.", LogLevel.WARN),
@@ -110,6 +113,24 @@ public enum ErrorType {
     KIS_PRICE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "전일종가를 조회할 수 없습니다.", LogLevel.WARN),
     KIS_TOKEN_ISSUE(HttpStatus.BAD_GATEWAY, "KIS 토큰 발급에 실패하였습니다.", LogLevel.ERROR),
     UNSUPPORTED_EXCHANGE(HttpStatus.INTERNAL_SERVER_ERROR, "지원하지 않는 거래소입니다.", LogLevel.WARN),
+    EXCHANGE_RATE_API_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "환율 API 호출에 실패했습니다.", LogLevel.ERROR),
+
+    // Settlement / 가환전
+    SETTLEMENT_INVALID_REQUEST(HttpStatus.BAD_REQUEST, "정산 요청 정보가 올바르지 않습니다.", LogLevel.WARN),
+    SETTLEMENT_CALCULATION_FAILED(HttpStatus.BAD_REQUEST, "정산 금액을 계산할 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_BATCH_NOT_FOUND(HttpStatus.NOT_FOUND, "정산 배치를 찾을 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "정산 항목을 찾을 수 없습니다.", LogLevel.WARN),
+    KRW_EXCHANGE_NOT_FOUND(HttpStatus.NOT_FOUND, "환전 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_ACCOUNT_MISMATCH(HttpStatus.CONFLICT, "환전과 정산 대상 계좌가 일치하지 않습니다.", LogLevel.WARN),
+    SETTLEMENT_STATE_CONFLICT(HttpStatus.CONFLICT, "정산 상태가 변경되어 처리할 수 없습니다.", LogLevel.WARN),
+    SETTLEMENT_RETRY_NO_FAILED_ITEM(HttpStatus.CONFLICT, "재처리할 실패 정산 항목이 없습니다.", LogLevel.WARN),
+    SETTLEMENT_BATCH_LOCK_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "정산 배치 실행 잠금을 얻지 못했습니다.", LogLevel.ERROR),
+    SETTLEMENT_HOLIDAY_CALENDAR_UNAVAILABLE(
+            HttpStatus.INTERNAL_SERVER_ERROR, "정산 휴일 정보를 사용할 수 없습니다.", LogLevel.ERROR),
+    PROVISIONAL_EXCHANGE_SAVE_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "가환전 저장에 실패했습니다.", LogLevel.ERROR),
 
     // Admin
     ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "관리자를 찾을 수 없습니다.", LogLevel.WARN),
@@ -121,7 +142,18 @@ public enum ErrorType {
     // AuditLog
     AUDIT_LOG_ACTOR_NOT_FOUND(
             HttpStatus.BAD_REQUEST, "감사 로그를 위한 관리자 정보를 찾을 수 없습니다.", LogLevel.WARN),
-    AUDIT_LOG_INSERT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다.", LogLevel.ERROR);
+    AUDIT_LOG_INSERT_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "감사 로그 저장에 실패했습니다.", LogLevel.ERROR),
+
+    // TargetProduct(G2)
+    TARGET_PRODUCT_FUND_NOT_FOUND(HttpStatus.BAD_GATEWAY, "펀드 정보를 조회할 수 없습니다.", LogLevel.ERROR),
+
+    // Domestic(D1/D2)
+    DOMESTIC_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    DOMESTIC_INVESTMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌를 찾을 수 없습니다.", LogLevel.WARN),
+
+    // Inbound(B1)
+    REGISTRABLE_STOCK_NOT_FOUND(
+            HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR);
 
     private final HttpStatus status;
     private final String message;

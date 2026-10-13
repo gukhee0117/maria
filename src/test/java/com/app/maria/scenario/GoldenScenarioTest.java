@@ -2,6 +2,7 @@ package com.app.maria.scenario;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
@@ -51,6 +52,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * 축소 규모(500명) 골든 시나리오 생성기.
@@ -120,9 +122,9 @@ class GoldenScenarioTest {
     @MockitoBean private ExchangeRateProvider exchangeRateProvider;
 
     // 매도한도(누적 매도금액) 체크용 — 아직 검증 대상 아님(§8-3), 항상 0(전액 여유)으로 고정.
-    // 계좌 승인 시 5천만원 합산한도 판정(MydataProvider)은 mock 안 함 — 실제 mydata_ria_account
+    // 계좌 승인 시 5천만원 합산한도 판정(getExternalConfiguredLimit)은 spy라 진짜 호출 — 실제 mydata_ria_account
     // 데이터로 판정돼서, 타사 RIA 한도가 이미 많이 찬 계좌는 정말로 개설이 막힌다.
-    @MockitoBean private MydataClient mydataClient;
+    @MockitoSpyBean private MydataClient mydataClient;
 
     private final Random random = new Random(RANDOM_SEED);
 
@@ -139,7 +141,7 @@ class GoldenScenarioTest {
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
         when(exchangeRateProvider.getFinalRate(anyString(), any()))
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
-        when(mydataClient.getExternalSellTotal(anyString())).thenReturn(BigDecimal.ZERO);
+        doReturn(BigDecimal.ZERO).when(mydataClient).getExternalSellTotal(anyString());
     }
 
     @Test

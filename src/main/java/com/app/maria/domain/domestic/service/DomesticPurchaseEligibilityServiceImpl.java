@@ -1,10 +1,11 @@
 package com.app.maria.domain.domestic.service;
 
 import com.app.maria.domain.domestic.dto.DomesticProductDTO;
-import com.app.maria.domain.domestic.exception.DomesticProductNotFoundException;
 import com.app.maria.domain.domestic.mapper.DomesticProductMapper;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,10 @@ public class DomesticPurchaseEligibilityServiceImpl implements DomesticPurchaseE
                 domesticProductMapper
                         .selectById(domesticProductId)
                         .orElseThrow(
-                                () -> new DomesticProductNotFoundException("종목 정보를 찾을 수 없습니다."));
+                                () ->
+                                        new AppException(
+                                                ErrorType.DOMESTIC_PRODUCT_NOT_FOUND,
+                                                domesticProductId));
         return isPurchasable(
                 product.getType(), product.getDomesticStockRatio(), product.getInceptionDate());
     }

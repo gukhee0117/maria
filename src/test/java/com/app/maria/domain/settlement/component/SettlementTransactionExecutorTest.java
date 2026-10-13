@@ -11,13 +11,12 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.SettlementAccountMismatchException;
-import com.app.maria.domain.settlement.exception.SettlementAccountNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -117,7 +116,8 @@ class SettlementTransactionExecutorTest {
         when(krwExchangeMapper.finalizeExchange(any())).thenReturn(0);
 
         assertThatThrownBy(() -> executor.execute(target, new BigDecimal("1400")))
-                .isInstanceOf(SettlementStateConflictException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
 
         verify(krwExchangeMapper).selectAccountAmountForUpdate(20L);
         verify(settlementItemMapper, never()).updateItemResult(any());
@@ -131,7 +131,8 @@ class SettlementTransactionExecutorTest {
                 .thenReturn(Optional.of(exchange(SettlementStatus.PROVISIONAL)));
 
         assertThatThrownBy(() -> executor.execute(target, new BigDecimal("1400")))
-                .isInstanceOf(SettlementAccountMismatchException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_ACCOUNT_MISMATCH);
     }
 
     @Test
@@ -142,7 +143,8 @@ class SettlementTransactionExecutorTest {
         when(krwExchangeMapper.selectAccountAmountForUpdate(20L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> executor.execute(target, new BigDecimal("1400")))
-                .isInstanceOf(SettlementAccountNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.ACCOUNT_NOT_FOUND);
     }
 
     private SettlementJoinDTO target() {

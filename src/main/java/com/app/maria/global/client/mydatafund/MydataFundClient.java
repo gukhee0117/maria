@@ -1,7 +1,8 @@
 package com.app.maria.global.client.mydatafund;
 
 import com.app.maria.domain.targetproduct.dto.response.MydataFundResponseDTO;
-import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
@@ -28,7 +29,7 @@ public class MydataFundClient {
                                         ApiResponseDTO<MydataFundResponseDTO>>() {});
 
         if (apiResponse == null || apiResponse.getData() == null) {
-            throw new TargetProductNotFoundException("펀드 정보를 찾을 수 없습니다: " + fundCode);
+            throw new AppException(ErrorType.TARGET_PRODUCT_FUND_NOT_FOUND, fundCode);
         }
 
         return apiResponse.getData();

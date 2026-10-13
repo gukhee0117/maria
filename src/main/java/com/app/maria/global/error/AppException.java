@@ -37,4 +37,13 @@ public class AppException extends RuntimeException {
         this.errorType = errorType;
         this.errorData = errorData;
     }
+
+    // 내부 기록(DB 실패 사유 등)용. errorData가 있으면 그게 더 구체적이니 그것만, 없으면 기본 메시지.
+    // 응답 메시지에는 쓰지 말 것 — 위 주의 참고.
+    public static String detailOf(Throwable throwable) {
+        if (throwable instanceof AppException appException && appException.errorData != null) {
+            return String.valueOf(appException.errorData);
+        }
+        return throwable.getMessage();
+    }
 }

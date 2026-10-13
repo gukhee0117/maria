@@ -12,12 +12,12 @@ import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementPageDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
 import com.app.maria.domain.targetproduct.dto.request.TargetProductSearchRequestDTO;
-import com.app.maria.domain.targetproduct.exception.TargetProductException;
-import com.app.maria.domain.targetproduct.exception.TargetProductNotFoundException;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.domain.targetproduct.type.StockType;
 import com.app.maria.domain.targetproduct.type.TradeType;
 import com.app.maria.global.config.SecurityConfig;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -172,23 +172,15 @@ class TargetProductApiTest {
     }
 
     @Test
-    void getJudgementsReturnsBadRequestWhenTargetProductExceptionThrown() throws Exception {
+    void getJudgementsReturnsBadGatewayWhenFundLookupFails() throws Exception {
         when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
-                .thenThrow(new TargetProductException("대상상품 판별에 실패했습니다."));
+                .thenThrow(new AppException(ErrorType.TARGET_PRODUCT_FUND_NOT_FOUND));
 
         mockMvc.perform(get("/api/admin/target-products"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("대상상품 판별에 실패했습니다."));
-    }
-
-    @Test
-    void getJudgementsReturnsNotFoundWhenTargetProductNotFoundExceptionThrown() throws Exception {
-        when(targetProductService.getJudgements(any(TargetProductSearchRequestDTO.class)))
-                .thenThrow(new TargetProductNotFoundException("펀드 정보를 찾을 수 없습니다."));
-
-        mockMvc.perform(get("/api/admin/target-products"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("펀드 정보를 찾을 수 없습니다."));
+                .andExpect(status().isBadGateway())
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(ErrorType.TARGET_PRODUCT_FUND_NOT_FOUND.getMessage()));
     }
 
     @Test

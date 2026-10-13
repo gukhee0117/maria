@@ -15,8 +15,6 @@ import com.app.maria.domain.settlement.component.SettlementTransactionExecutor;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.mapper.SettlementJoinMapper;
@@ -404,7 +402,7 @@ class SettlementBatchTaskletTest {
         when(settlementJoinMapper.selectTargetByItemId(any()))
                 .thenReturn(Optional.of(target(10L)), Optional.of(target(11L)));
         when(exchangeRateProvider.getFinalRate("USD", batch.getExecutedAt().toLocalDate()))
-                .thenThrow(new ExchangeRateExternalApiException("환율 API 장애", null));
+                .thenThrow(new AppException(ErrorType.EXCHANGE_RATE_API_FAILED, "환율 API 장애", null));
         ChunkContext chunkContext = new ChunkContext(new StepContext(stepExecution));
 
         tasklet.execute(contribution, chunkContext);
@@ -412,10 +410,8 @@ class SettlementBatchTaskletTest {
 
         verify(exchangeRateProvider, times(1))
                 .getFinalRate("USD", batch.getExecutedAt().toLocalDate());
-        verify(settlementFailureRecorder)
-                .markFailed(eq(10L), any(ExchangeRateExternalApiException.class));
-        verify(settlementFailureRecorder)
-                .markFailed(eq(11L), any(ExchangeRateExternalApiException.class));
+        verify(settlementFailureRecorder).markFailed(eq(10L), any(AppException.class));
+        verify(settlementFailureRecorder).markFailed(eq(11L), any(AppException.class));
         verify(settlementTransactionExecutor, never()).execute(any(), any());
     }
 
@@ -441,7 +437,8 @@ class SettlementBatchTaskletTest {
                                 tasklet.execute(
                                         contribution,
                                         new ChunkContext(new StepContext(stepExecution))))
-                .isInstanceOf(SettlementStateConflictException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
 
         verify(settlementBatchStatusUpdater, never()).completeFromLatestItems(any());
     }
@@ -457,7 +454,8 @@ class SettlementBatchTaskletTest {
                                 tasklet.execute(
                                         contribution,
                                         new ChunkContext(new StepContext(stepExecution))))
-                .isInstanceOf(SettlementStateConflictException.class);
+                .isInstanceOf(AppException.class)
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
     }
 
     private SettlementBatchDTO batch() {

@@ -6,9 +6,6 @@ import com.app.maria.domain.settlement.component.SettlementTransactionExecutor;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.exception.ExchangeRateExternalApiException;
-import com.app.maria.domain.settlement.exception.SettlementBatchNotFoundException;
-import com.app.maria.domain.settlement.exception.SettlementStateConflictException;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.mapper.SettlementJoinMapper;
@@ -52,7 +49,8 @@ public class SettlementBatchTasklet implements Tasklet {
         Object runParameter = chunkContext.getStepContext().getJobParameters().get("runId");
         String runId = runParameter instanceof String ? (String) runParameter : null;
         if (batchId == null || runId == null || runId.isBlank()) {
-            throw new SettlementStateConflictException("확정산 Job Parameter가 올바르지 않습니다.");
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "확정산 Job Parameter가 올바르지 않습니다.");
         }
 
         SettlementBatchDTO batch =
@@ -60,10 +58,12 @@ public class SettlementBatchTasklet implements Tasklet {
                         .selectBatchById(batchId)
                         .orElseThrow(
                                 () ->
-                                        new SettlementBatchNotFoundException(
+                                        new AppException(
+                                                ErrorType.SETTLEMENT_BATCH_NOT_FOUND,
                                                 "Batch를 찾을 수 없습니다. batchId=" + batchId));
         if (batch.getStatus() != BatchStatus.RUNNING || !runId.equals(batch.getRunId())) {
-            throw new SettlementStateConflictException(
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT,
                     "확정산 Batch 상태가 실행 가능하지 않습니다. batchId=" + batchId);
         }
 
@@ -99,7 +99,8 @@ public class SettlementBatchTasklet implements Tasklet {
                     SettlementJoinDTO.builder().batchId(batchId).itemId(item.getItemId()).build();
             Optional<SettlementJoinDTO> target = settlementJoinMapper.selectTargetByItemId(query);
             if (target.isEmpty()) {
-                throw new SettlementStateConflictException(
+                throw new AppException(
+                        ErrorType.SETTLEMENT_STATE_CONFLICT,
                         "확정산 대상을 찾을 수 없습니다. itemId=" + item.getItemId());
             }
 
@@ -115,7 +116,8 @@ public class SettlementBatchTasklet implements Tasklet {
 
     private LocalDate requireFinalDate(SettlementJoinDTO target) {
         if (target.getFinalAt() == null) {
-            throw new SettlementStateConflictException(
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT,
                     "확정산 기준일이 없습니다. exchangeId=" + target.getExchangeId());
         }
         return target.getFinalAt().toLocalDate();
@@ -145,20 +147,21 @@ public class SettlementBatchTasklet implements Tasklet {
             executionContext.putString(valueKey, rate.toPlainString());
             return rate;
         } catch (AppException e) {
-            if (e.getErrorType() != ErrorType.EXCHANGE_RATE_NOT_FOUND) {
-                throw e;
+            String failureType =
+                    switch (e.getErrorType()) {
+                        case EXCHANGE_RATE_NOT_FOUND -> "NOT_FOUND";
+                        case EXCHANGE_RATE_API_FAILED -> "EXTERNAL_API";
+                        default -> null;
+                    };
+            if (failureType != null) {
+                cacheFailure(
+                        executionContext,
+                        valueKey,
+                        failureTypeKey,
+                        failureMessageKey,
+                        failureType,
+                        e);
             }
-            cacheFailure(
-                    executionContext, valueKey, failureTypeKey, failureMessageKey, "NOT_FOUND", e);
-            throw e;
-        } catch (ExchangeRateExternalApiException e) {
-            cacheFailure(
-                    executionContext,
-                    valueKey,
-                    failureTypeKey,
-                    failureMessageKey,
-                    "EXTERNAL_API",
-                    e);
             throw e;
         }
     }
@@ -215,7 +218,7 @@ public class SettlementBatchTasklet implements Tasklet {
                 return new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND, message);
             }
             if ("EXTERNAL_API".equals(type)) {
-                return new ExchangeRateExternalApiException(message, null);
+                return new AppException(ErrorType.EXCHANGE_RATE_API_FAILED, message);
             }
         }
 
@@ -229,12 +232,14 @@ public class SettlementBatchTasklet implements Tasklet {
             String failureTypeKey,
             String failureMessageKey,
             String failureType,
-            Exception exception) {
+            AppException exception) {
         executionContext.remove(valueKey);
         executionContext.putString(failureTypeKey, failureType);
         executionContext.putString(
                 failureMessageKey,
-                exception.getMessage() == null ? "환율 조회 실패" : exception.getMessage());
+                exception.getErrorData() == null
+                        ? "환율 조회 실패"
+                        : String.valueOf(exception.getErrorData()));
     }
 
     private void clearFailureCache(
@@ -245,7 +250,8 @@ public class SettlementBatchTasklet implements Tasklet {
 
     private void finalizeBatch(Long batchId, int pendingCount) {
         if (pendingCount > 0) {
-            throw new SettlementStateConflictException(
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT,
                     "미처리 Item이 남아 있어 Batch를 종료할 수 없습니다. batchId="
                             + batchId
                             + ", pending="
