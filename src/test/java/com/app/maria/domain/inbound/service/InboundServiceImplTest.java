@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
@@ -93,6 +94,7 @@ class InboundServiceImplTest {
                                 AccountDTO.builder()
                                         .accountId(ACCOUNT_ID)
                                         .customerId(CUSTOMER_ID)
+                                        .status(Status.OPENED)
                                         .build()));
         lenient()
                 .when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
@@ -231,6 +233,27 @@ class InboundServiceImplTest {
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
+    }
+
+    @Test
+    void processInboundThrowsWhenAccountStatusCannotTrade() {
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(
+                        Optional.of(
+                                AccountDTO.builder()
+                                        .accountId(ACCOUNT_ID)
+                                        .customerId(CUSTOMER_ID)
+                                        .status(Status.CLOSED)
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                inboundService.processInbound(
+                                        request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_STATE_NOT_ALLOWED.getMessage());
+
+        verify(accountMapper, never()).selectCiHashByCustomerId(any());
     }
 
     @Test
