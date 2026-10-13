@@ -8,5 +8,9 @@ public enum Status {
     OPENED,
     CLOSURE_REQUESTED,
     CLOSED,
-    REJECTED
+    REJECTED;
+
+    public boolean canTrade() {
+        return this == OPENED;
+    }
 }
