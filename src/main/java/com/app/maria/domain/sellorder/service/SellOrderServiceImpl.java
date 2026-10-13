@@ -51,7 +51,7 @@ public class SellOrderServiceImpl implements SellOrderService {
     private final SettlementService settlementService;
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @Transactional(isolation = Isolation.READ_COMMITTED, rollbackFor = Exception.class)
     public List<SellOrderResponseDTO> placeSellOrder(
             Long actorAdminId, SellOrderRequestDTO request) {
 
