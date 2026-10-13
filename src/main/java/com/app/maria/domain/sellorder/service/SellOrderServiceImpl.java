@@ -1,5 +1,6 @@
 package com.app.maria.domain.sellorder.service;
 
+import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
@@ -38,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(rollbackFor = Exception.class)
 public class SellOrderServiceImpl implements SellOrderService {
 
+    private final AccountMapper accountMapper;
     private final SellOrderMapper sellOrderMapper;
     private final KisPriceClient kis;
     private final ExchangeRateClient exchange;
@@ -54,6 +56,11 @@ public class SellOrderServiceImpl implements SellOrderService {
             Long actorAdminId, SellOrderRequestDTO request) {
 
         SellOrderDTO sellOrderDTO = request.toSellOrderDTO();
+
+        accountMapper
+                .selectByAccountId(sellOrderDTO.getAccountId())
+                .filter(a -> a.getStatus().canTrade())
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
 
         List<InboundDetailDTO> lots =
                 inboundMapper.selectFifoLots(
