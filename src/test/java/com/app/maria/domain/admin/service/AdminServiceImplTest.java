@@ -54,8 +54,8 @@ class AdminServiceImplTest {
     }
 
     @Test
-    @DisplayName("정상 요청이면 토큰을 발급한다")
-    void loginIssuesTokensOnSuccess() {
+    @DisplayName("정상 요청이면 토큰을 발급하고 로그인 감사로그를 기록한다")
+    void loginIssuesTokensAndLogsAuditOnSuccess() {
         AdminLoginRequestDTO request =
                 AdminLoginRequestDTO.builder()
                         .loginId("reviewer1")
@@ -72,10 +72,19 @@ class AdminServiceImplTest {
 
         assertThat(result.getAccessToken()).isEqualTo("access-token");
         assertThat(result.getRefreshToken()).isEqualTo("refresh-token");
+
+        ArgumentCaptor<AuditLogDTO> captor = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService).log(captor.capture());
+        AuditLogDTO logged = captor.getValue();
+        assertThat(logged.getAdminId()).isEqualTo(1L);
+        assertThat(logged.getTargetTable()).isEqualTo("ADMIN_USER");
+        assertThat(logged.getTargetPk()).isEqualTo("1");
+        assertThat(logged.getAfterValue()).isEqualTo("LOGIN");
+        assertThat(logged.getReasonCode()).isEqualTo("ADMIN_LOGIN");
     }
 
     @Test
-    @DisplayName("존재하지 않는 아이디면 예외를 던지고 토큰을 발급하지 않는다")
+    @DisplayName("존재하지 않는 아이디면 예외를 던지고 토큰과 감사로그를 남기지 않는다")
     void loginThrowsWhenLoginIdNotFound() {
         AdminLoginRequestDTO request =
                 AdminLoginRequestDTO.builder().loginId("nobody").password("raw-password").build();
@@ -86,11 +95,11 @@ class AdminServiceImplTest {
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ADMIN_LOGIN_FAILED.getMessage());
 
-        verifyNoInteractions(passwordEncoder, jwtTokenProvider);
+        verifyNoInteractions(passwordEncoder, jwtTokenProvider, auditLogService);
     }
 
     @Test
-    @DisplayName("비밀번호가 틀리면 예외를 던지고 토큰을 발급하지 않는다")
+    @DisplayName("비밀번호가 틀리면 예외를 던지고 토큰과 감사로그를 남기지 않는다")
     void loginThrowsWhenPasswordIncorrect() {
         AdminLoginRequestDTO request =
                 AdminLoginRequestDTO.builder()
@@ -105,7 +114,7 @@ class AdminServiceImplTest {
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ADMIN_LOGIN_FAILED.getMessage());
 
-        verifyNoInteractions(jwtTokenProvider);
+        verifyNoInteractions(jwtTokenProvider, auditLogService);
     }
 
     @Test
