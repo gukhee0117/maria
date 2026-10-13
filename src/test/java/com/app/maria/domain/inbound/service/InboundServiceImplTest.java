@@ -32,12 +32,15 @@ import com.app.maria.domain.inbound.dto.response.InboundPriorApprovalResponseDTO
 import com.app.maria.domain.inbound.dto.response.InboundResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundSummaryResponseDTO;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
+import com.app.maria.domain.inbound.type.InboundAuditLogReasonCode;
 import com.app.maria.domain.inbound.type.InboundZeroApprovalReason;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.sellorder.mapper.SellOrderMapper;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
+import com.app.maria.global.audit.dto.AuditLogDTO;
+import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
@@ -61,6 +64,7 @@ import org.springframework.web.client.RestClient;
 class InboundServiceImplTest {
 
     private static final Long ACCOUNT_ID = 1L;
+    private static final Long ACTOR_ADMIN_ID = 99L;
     private static final Long CUSTOMER_ID = 5177L;
     private static final String CI_HASH = "ci-hash-5177";
     private static final Long FOREIGN_PRODUCT_ID = 1L;
@@ -83,6 +87,8 @@ class InboundServiceImplTest {
     @Mock private RestClient.ResponseSpec responseSpec;
 
     @Mock private BusinessClockService businessClockService;
+
+    @Mock private AuditLogService auditLogService;
 
     @InjectMocks private InboundServiceImpl inboundService;
 
@@ -135,10 +141,29 @@ class InboundServiceImplTest {
 
         InboundResponseDTO result =
                 inboundService.processInbound(
-                        request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.valueOf(80));
         assertThat(result.getSnapshotQty()).isEqualByComparingTo(BigDecimal.valueOf(100));
+    }
+
+    @Test
+    void processInboundLogsAuditLogOnApproval() {
+        stubRegistrableStock(BigDecimal.valueOf(100));
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
+
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+
+        ArgumentCaptor<AuditLogDTO> captor = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, times(1)).log(captor.capture());
+        AuditLogDTO logged = captor.getValue();
+        assertThat(logged.getAdminId()).isEqualTo(ACTOR_ADMIN_ID);
+        assertThat(logged.getTargetTable()).isEqualTo("INBOUND");
+        assertThat(logged.getAfterValue()).isEqualTo("80");
+        assertThat(logged.getReasonCode())
+                .isEqualTo(InboundAuditLogReasonCode.INBOUND_APPROVED.name());
     }
 
     @Test
@@ -149,7 +174,7 @@ class InboundServiceImplTest {
 
         InboundResponseDTO result =
                 inboundService.processInbound(
-                        request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.valueOf(50));
     }
@@ -162,7 +187,7 @@ class InboundServiceImplTest {
 
         InboundResponseDTO result =
                 inboundService.processInbound(
-                        request(BigDecimal.valueOf(80), BigDecimal.valueOf(30)));
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(30)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.valueOf(30));
     }
@@ -175,7 +200,7 @@ class InboundServiceImplTest {
 
         InboundResponseDTO result =
                 inboundService.processInbound(
-                        request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
 
         // availableQty = 100 - 60 = 40, requestedQty(50)와 currentHolding(90)보다 작음
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.valueOf(40));
@@ -189,11 +214,30 @@ class InboundServiceImplTest {
 
         InboundResponseDTO result =
                 inboundService.processInbound(
-                        request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(result.getZeroApprovalReason())
                 .isEqualTo(InboundZeroApprovalReason.SNAPSHOT_QUANTITY_EXHAUSTED);
+    }
+
+    @Test
+    void processInboundLogsZeroApprovedReasonCodeWhenApprovedQtyIsZero() {
+        stubRegistrableStock(BigDecimal.valueOf(100));
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.valueOf(100));
+
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
+
+        ArgumentCaptor<AuditLogDTO> captor = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, times(1)).log(captor.capture());
+        AuditLogDTO logged = captor.getValue();
+        assertThat(logged.getReasonCode())
+                .isEqualTo(InboundAuditLogReasonCode.INBOUND_ZERO_APPROVED.name());
+        assertThat(logged.getAfterValue())
+                .isEqualTo(
+                        "0(" + InboundZeroApprovalReason.SNAPSHOT_QUANTITY_EXHAUSTED.name() + ")");
     }
 
     @Test
@@ -205,6 +249,7 @@ class InboundServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 inboundService.processInbound(
+                                        ACTOR_ADMIN_ID,
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.REGISTRABLE_STOCK_NOT_FOUND.getMessage());
@@ -220,6 +265,7 @@ class InboundServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 inboundService.processInbound(
+                                        ACTOR_ADMIN_ID,
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.REGISTRABLE_STOCK_NOT_FOUND.getMessage());
@@ -232,6 +278,7 @@ class InboundServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 inboundService.processInbound(
+                                        ACTOR_ADMIN_ID,
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
@@ -252,6 +299,7 @@ class InboundServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 inboundService.processInbound(
+                                        ACTOR_ADMIN_ID,
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_STATE_NOT_ALLOWED.getMessage());
@@ -266,6 +314,7 @@ class InboundServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 inboundService.processInbound(
+                                        ACTOR_ADMIN_ID,
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND.getMessage());
@@ -277,7 +326,8 @@ class InboundServiceImplTest {
         when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
                 .thenReturn(BigDecimal.ZERO);
 
-        inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         verify(accountMapper).selectByAccountId(ACCOUNT_ID);
         verify(accountMapper).selectCiHashByCustomerId(CUSTOMER_ID);
@@ -295,7 +345,8 @@ class InboundServiceImplTest {
                 .thenReturn(BigDecimal.ZERO);
         ArgumentCaptor<InboundDetailDTO> captor = ArgumentCaptor.forClass(InboundDetailDTO.class);
 
-        inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         verify(inboundMapper).insertInboundDetail(captor.capture());
         // 증권사 registrable-stock 응답의 generalAccountId를 그대로 써야 함
@@ -320,7 +371,8 @@ class InboundServiceImplTest {
                 .thenReturn(BigDecimal.ZERO);
         ArgumentCaptor<InboundDetailDTO> captor = ArgumentCaptor.forClass(InboundDetailDTO.class);
 
-        inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         verify(inboundMapper).insertInboundDetail(captor.capture());
         assertThat(captor.getValue().getAccountType()).isEqualTo(GeneralAccountType.IRP);
@@ -338,7 +390,8 @@ class InboundServiceImplTest {
         ArgumentCaptor<InboundDetailDTO> captor = ArgumentCaptor.forClass(InboundDetailDTO.class);
 
         // IRP 40주(1월 매수, 먼저 채움) + 종합위탁 60주(3월 매수) 중 40주만 = 총 80주 승인
-        inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.valueOf(90)));
 
         verify(inboundMapper, times(2)).insertInboundDetail(captor.capture());
         List<InboundDetailDTO> details = captor.getAllValues();
@@ -368,7 +421,8 @@ class InboundServiceImplTest {
 
         // availableQty = 100 - 30 = 70 -> 70주 그대로 승인
         // IRP는 40주 중 이미 30주 승인돼서 10주만 남음, 나머지 60주는 종합위탁에서
-        inboundService.processInbound(request(BigDecimal.valueOf(70), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(70), BigDecimal.valueOf(90)));
 
         verify(inboundMapper, times(2)).insertInboundDetail(captor.capture());
         List<InboundDetailDTO> details = captor.getAllValues();
@@ -398,7 +452,8 @@ class InboundServiceImplTest {
 
         // 같은 general_account(10L)에 lot 2개(40+30=70 보유), 이미 20 승인됨 -> 실제 잔여는 70-20=50
         // (버그 있었을 때는 alreadyUsed 20이 각 lot에서 중복 차감돼 lot1=20, lot2=10만 잡혀 총 30만 승인됨)
-        inboundService.processInbound(request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(50), BigDecimal.valueOf(90)));
 
         verify(inboundMapper, times(2)).insertInboundDetail(captor.capture());
         List<InboundDetailDTO> details = captor.getAllValues();
@@ -419,7 +474,8 @@ class InboundServiceImplTest {
 
         // currentHoldingAtRequest = 0 -> approvedQty = 0 (반려)이어도 lot 1건은 기록돼야 함
         InboundResponseDTO result =
-                inboundService.processInbound(request(BigDecimal.valueOf(80), BigDecimal.ZERO));
+                inboundService.processInbound(
+                        ACTOR_ADMIN_ID, request(BigDecimal.valueOf(80), BigDecimal.ZERO));
 
         verify(inboundMapper, times(1)).insertInboundDetail(captor.capture());
         assertThat(captor.getValue().getQty()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -435,7 +491,8 @@ class InboundServiceImplTest {
                 .thenReturn(BigDecimal.ZERO);
 
         InboundResponseDTO result =
-                inboundService.processInbound(request(BigDecimal.ZERO, BigDecimal.valueOf(90)));
+                inboundService.processInbound(
+                        ACTOR_ADMIN_ID, request(BigDecimal.ZERO, BigDecimal.valueOf(90)));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(result.getZeroApprovalReason())
@@ -463,7 +520,8 @@ class InboundServiceImplTest {
 
         // IRP는 소진(가용 0)이라 건너뛰고 종합위탁(20L)에서만 30주 승인돼야 함
         // (버그 있었을 때는 IRP에 qty=0 쓰레기 행이 먼저 만들어지고 종합위탁 행이 추가로 또 만들어져 총 2건이었음)
-        inboundService.processInbound(request(BigDecimal.valueOf(30), BigDecimal.valueOf(90)));
+        inboundService.processInbound(
+                ACTOR_ADMIN_ID, request(BigDecimal.valueOf(30), BigDecimal.valueOf(90)));
 
         verify(inboundMapper, times(1)).insertInboundDetail(captor.capture());
         InboundDetailDTO detail = captor.getValue();
