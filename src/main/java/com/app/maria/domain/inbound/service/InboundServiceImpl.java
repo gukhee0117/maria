@@ -1,5 +1,6 @@
 package com.app.maria.domain.inbound.service;
 
+import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
@@ -62,11 +63,15 @@ public class InboundServiceImpl implements InboundService {
         BigDecimal requestedQty = request.getRequestedQty();
         BigDecimal currentHoldingAtRequest = request.getCurrentHoldingAtRequest();
 
-        Long customerId =
+        AccountDTO account =
                 accountMapper
                         .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId))
-                        .getCustomerId();
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
+        if (!account.getStatus().canTrade()) {
+            throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
+        }
+        Long customerId = account.getCustomerId();
 
         String ciHash =
                 accountMapper

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
@@ -48,6 +49,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -93,6 +96,7 @@ class InboundServiceImplTest {
                                 AccountDTO.builder()
                                         .accountId(ACCOUNT_ID)
                                         .customerId(CUSTOMER_ID)
+                                        .status(Status.OPENED)
                                         .build()));
         lenient()
                 .when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
@@ -231,6 +235,28 @@ class InboundServiceImplTest {
                                         request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Status.class, names = "OPENED", mode = EnumSource.Mode.EXCLUDE)
+    void processInboundThrowsWhenAccountStatusCannotTrade(Status status) {
+        when(accountMapper.selectByAccountId(ACCOUNT_ID))
+                .thenReturn(
+                        Optional.of(
+                                AccountDTO.builder()
+                                        .accountId(ACCOUNT_ID)
+                                        .customerId(CUSTOMER_ID)
+                                        .status(status)
+                                        .build()));
+
+        assertThatThrownBy(
+                        () ->
+                                inboundService.processInbound(
+                                        request(BigDecimal.valueOf(80), BigDecimal.valueOf(90))))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_STATE_NOT_ALLOWED.getMessage());
+
+        verify(accountMapper, never()).selectCiHashByCustomerId(any());
     }
 
     @Test
