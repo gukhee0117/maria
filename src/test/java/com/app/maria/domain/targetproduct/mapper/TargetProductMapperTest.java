@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementDTO;
+import com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailureListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSearchDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
@@ -586,6 +587,74 @@ class TargetProductMapperTest {
         TargetProductSummaryDTO summary = targetProductMapper.selectSummary(today, tomorrow);
 
         assertThat(summary.getTodayInheritanceGiftCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("cutoff 이전에 첫 실패한 건만 고객명과 함께 firstFailedAt 오름차순으로 조회한다")
+    void selectPermanentFailuresReturnsRowsAtOrBeforeCutoffOrderedByFirstFailedAtAsc()
+            throws SQLException {
+        insertCustomer("ci-1", "홍길동");
+        insertFailure(1L, "ci-1", LocalDate.of(2026, 3, 1), LocalDateTime.of(2026, 8, 1, 0, 0));
+        insertFailure(2L, "ci-1", LocalDate.of(2026, 3, 2), LocalDateTime.of(2026, 8, 3, 0, 0));
+        insertFailure(3L, "ci-1", LocalDate.of(2026, 3, 3), LocalDateTime.of(2026, 8, 6, 0, 0));
+
+        List<TargetProductJudgementFailureListDTO> result =
+                targetProductMapper.selectPermanentFailures(
+                        LocalDateTime.of(2026, 8, 3, 0, 0), 0, 10);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getFirstFailedAt()).isEqualTo(LocalDateTime.of(2026, 8, 1, 0, 0));
+        assertThat(result.get(1).getFirstFailedAt()).isEqualTo(LocalDateTime.of(2026, 8, 3, 0, 0));
+        assertThat(result.get(0).getCustomerName()).isEqualTo("홍길동");
+    }
+
+    @Test
+    @DisplayName("offset을 지정하면 그만큼 건너뛴 뒤부터 조회한다")
+    void selectPermanentFailuresAppliesOffsetForPagination() throws SQLException {
+        insertCustomer("ci-1", "홍길동");
+        insertFailure(1L, "ci-1", LocalDate.of(2026, 3, 1), LocalDateTime.of(2026, 8, 1, 0, 0));
+        insertFailure(2L, "ci-1", LocalDate.of(2026, 3, 2), LocalDateTime.of(2026, 8, 2, 0, 0));
+
+        List<TargetProductJudgementFailureListDTO> result =
+                targetProductMapper.selectPermanentFailures(
+                        LocalDateTime.of(2026, 8, 9, 0, 0), 1, 10);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getFirstFailedAt()).isEqualTo(LocalDateTime.of(2026, 8, 2, 0, 0));
+    }
+
+    @Test
+    @DisplayName("countPermanentFailures는 cutoff 이전에 첫 실패한 건만 센다")
+    void countPermanentFailuresCountsOnlyRowsAtOrBeforeCutoff() throws SQLException {
+        insertCustomer("ci-1", "홍길동");
+        insertFailure(1L, "ci-1", LocalDate.of(2026, 3, 1), LocalDateTime.of(2026, 8, 1, 0, 0));
+        insertFailure(2L, "ci-1", LocalDate.of(2026, 3, 2), LocalDateTime.of(2026, 8, 5, 0, 0));
+
+        int count = targetProductMapper.countPermanentFailures(LocalDateTime.of(2026, 8, 3, 0, 0));
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    private void insertFailure(
+            Long mydataTradeId, String ciHash, LocalDate tradeDate, LocalDateTime firstFailedAt)
+            throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+                Statement statement = connection.createStatement()) {
+            statement.execute(
+                    "INSERT INTO target_product_judgement_failure "
+                            + "(mydata_trade_id, ci_hash, trade_date, failure_count, last_error, first_failed_at, last_failed_at) "
+                            + "VALUES ("
+                            + mydataTradeId
+                            + ", '"
+                            + ciHash
+                            + "', '"
+                            + tradeDate
+                            + "', 1, 'error', '"
+                            + firstFailedAt
+                            + "', '"
+                            + firstFailedAt
+                            + "')");
+        }
     }
 
     private void insertCustomer(String ciHash, String name) throws SQLException {

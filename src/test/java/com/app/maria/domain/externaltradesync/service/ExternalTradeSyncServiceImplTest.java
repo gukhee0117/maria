@@ -24,6 +24,7 @@ import com.app.maria.domain.targetproduct.mapper.TargetProductMapper;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.global.client.mydatatrade.MydataTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -36,7 +37,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class ExternalTradeSyncServiceImplTest {
@@ -55,13 +55,15 @@ class ExternalTradeSyncServiceImplTest {
 
     @Mock private BusinessClockService businessClockService;
 
+    @Mock private ExternalTradeSyncProperties externalTradeSyncProperties;
+
     @InjectMocks private ExternalTradeSyncServiceImpl externalTradeSyncService;
 
     @BeforeEach
     void setUpClock() {
-        // @InjectMocks는 @Value 필드를 채워주지 않아 기본값(0)으로 남는다 -> 모든 기존
-        // 실패가 즉시 영구실패로 판정돼버리므로 운영값(application.yaml)과 맞춰 직접 주입한다.
-        ReflectionTestUtils.setField(externalTradeSyncService, "maxJudgeFailureDays", 3);
+        // 스텁 안 하면 Mockito가 int 기본값 0을 반환해 모든 기존 실패가 즉시 영구실패로
+        // 판정돼버리므로, 운영값(application.yaml)과 맞춰 명시적으로 스텁한다.
+        lenient().when(externalTradeSyncProperties.getMaxJudgeFailureDays()).thenReturn(3);
         // 대부분의 테스트가 syncCustomer()를 거쳐 now()를 호출하지만,
         // 고객이 아예 없는 테스트(syncAllDoesNothingWhenNoCustomers)는 호출하지 않으므로 lenient 처리
         lenient().when(businessClockService.now()).thenReturn(TODAY.atStartOfDay());

@@ -1,6 +1,7 @@
 package com.app.maria.domain.targetproduct.api;
 
 import com.app.maria.domain.targetproduct.dto.request.TargetProductSearchRequestDTO;
+import com.app.maria.domain.targetproduct.dto.response.TargetProductJudgementFailurePageResponseDTO;
 import com.app.maria.domain.targetproduct.dto.response.TargetProductJudgementPageResponseDTO;
 import com.app.maria.domain.targetproduct.dto.response.TargetProductSummaryResponseDTO;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
@@ -59,5 +60,16 @@ public class TargetProductApi {
         TargetProductSummaryResponseDTO result =
                 new TargetProductSummaryResponseDTO(targetProductService.getSummary());
         return ResponseEntity.ok(ApiResponseDTO.of("외부 순매수 판정 요약 조회 성공", result));
+    }
+
+    @GetMapping("/failures")
+    public ResponseEntity<ApiResponseDTO<TargetProductJudgementFailurePageResponseDTO>>
+            getPermanentFailures(
+                    @RequestParam(defaultValue = "0") @PositiveOrZero int page,
+                    @RequestParam(defaultValue = "20") @Positive int size) {
+        TargetProductJudgementFailurePageResponseDTO result =
+                new TargetProductJudgementFailurePageResponseDTO(
+                        targetProductService.getPermanentFailures(page, size));
+        return ResponseEntity.ok(ApiResponseDTO.of("외부거래 영구실패 목록 조회 성공", result));
     }
 }

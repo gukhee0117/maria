@@ -13,6 +13,7 @@ import com.app.maria.domain.targetproduct.mapper.TargetProductMapper;
 import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.global.client.mydatatrade.MydataTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
 import com.app.maria.global.error.AppException;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -23,7 +24,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -37,9 +37,7 @@ public class ExternalTradeSyncServiceImpl implements ExternalTradeSyncService {
     private final TargetProductMapper targetProductMapper;
     private final TargetProductService targetProductService;
     private final BusinessClockService businessClockService;
-
-    @Value("${custom.external-trade-sync.max-judge-failure-days:3}")
-    private int maxJudgeFailureDays;
+    private final ExternalTradeSyncProperties externalTradeSyncProperties;
 
     private enum JudgeOutcome {
         NEW,
@@ -166,7 +164,7 @@ public class ExternalTradeSyncServiceImpl implements ExternalTradeSyncService {
     private boolean isPermanentlyFailed(TargetProductJudgementFailureDTO failure) {
         long daysSinceFirstFailure =
                 Duration.between(failure.getFirstFailedAt(), businessClockService.now()).toDays();
-        return daysSinceFirstFailure >= maxJudgeFailureDays;
+        return daysSinceFirstFailure >= externalTradeSyncProperties.getMaxJudgeFailureDays();
     }
 
     private void recordFailure(MydataTradeResponseDTO trade, Exception e) {

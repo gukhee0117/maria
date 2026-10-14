@@ -1,11 +1,8 @@
 package com.app.maria.domain.targetproduct.mapper;
 
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailureDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductSearchDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
+import com.app.maria.domain.targetproduct.dto.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
@@ -32,4 +29,11 @@ public interface TargetProductMapper {
             @Param("today") LocalDate today, @Param("tomorrow") LocalDate tomorrow);
 
     void deleteFailureByMydataTradeId(Long mydataTradeId);
+
+    List<TargetProductJudgementFailureListDTO> selectPermanentFailures(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("offset") int offset,
+            @Param("size") int size);
+
+    int countPermanentFailures(@Param("cutoff") LocalDateTime cutoff);
 }

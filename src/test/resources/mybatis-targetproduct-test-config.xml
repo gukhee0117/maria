@@ -11,6 +11,7 @@
     <typeAliases>
         <typeAlias alias="TargetProductJudgementDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductJudgementDTO"/>
         <typeAlias alias="TargetProductJudgementFailureDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailureDTO"/>
+        <typeAlias alias="TargetProductJudgementFailureListDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailureListDTO"/>
         <typeAlias alias="TargetProductJudgementListDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO"/>
         <typeAlias alias="TargetProductSearchDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductSearchDTO"/>
         <typeAlias alias="TargetProductSummaryDTO" type="com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO"/>
