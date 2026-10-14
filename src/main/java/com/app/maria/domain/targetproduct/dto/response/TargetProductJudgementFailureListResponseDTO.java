@@ -8,8 +8,7 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
-@ToString
+@ToString(exclude = "lastError")
 @Builder
 public class TargetProductJudgementFailureListResponseDTO {
     private Long failureId;

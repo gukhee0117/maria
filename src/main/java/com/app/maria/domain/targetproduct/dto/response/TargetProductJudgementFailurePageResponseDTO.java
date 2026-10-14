@@ -7,7 +7,6 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
-@Setter
 @ToString
 @Builder
 public class TargetProductJudgementFailurePageResponseDTO {
