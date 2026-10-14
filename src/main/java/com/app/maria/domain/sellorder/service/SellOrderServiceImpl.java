@@ -1,5 +1,6 @@
 package com.app.maria.domain.sellorder.service;
 
+import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
@@ -61,10 +62,14 @@ public class SellOrderServiceImpl implements SellOrderService {
 
         SellOrderDTO sellOrderDTO = request.toSellOrderDTO();
 
-        accountMapper
-                .selectByAccountId(sellOrderDTO.getAccountId())
-                .filter(a -> a.getStatus().canTrade())
-                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+        AccountDTO account =
+                accountMapper
+                        .selectByAccountId(sellOrderDTO.getAccountId())
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+        if (!account.getStatus().canTrade()) {
+            throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
+        }
 
         List<InboundDetailDTO> lots =
                 inboundMapper.selectFifoLots(
