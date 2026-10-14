@@ -1,11 +1,7 @@
 package com.app.maria.domain.targetproduct.service;
 
 import com.app.maria.domain.externaltradesync.dto.response.MydataTradeResponseDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductJudgementPageDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductSearchDTO;
-import com.app.maria.domain.targetproduct.dto.TargetProductSummaryDTO;
+import com.app.maria.domain.targetproduct.dto.*;
 import com.app.maria.domain.targetproduct.dto.request.TargetProductSearchRequestDTO;
 import com.app.maria.domain.targetproduct.dto.response.MydataFundResponseDTO;
 import com.app.maria.domain.targetproduct.mapper.TargetProductMapper;
@@ -13,6 +9,7 @@ import com.app.maria.domain.targetproduct.type.StockType;
 import com.app.maria.domain.targetproduct.type.TradeType;
 import com.app.maria.global.client.mydatafund.MydataFundClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -32,6 +29,7 @@ public class TargetProductServiceImpl implements TargetProductService {
     private final TargetProductMapper targetProductMapper;
     private final MydataFundClient mydataFundClient;
     private final BusinessClockService businessClockService;
+    private final ExternalTradeSyncProperties externalTradeSyncProperties;
 
     @Override
     public TargetProductJudgementDTO judge(MydataTradeResponseDTO trade) {
@@ -136,5 +134,27 @@ public class TargetProductServiceImpl implements TargetProductService {
         return fund.getInceptionDate() != null
                 && !fund.getInceptionDate()
                         .isAfter(asOfDate.minusMonths(INCEPTION_GRACE_PERIOD_MONTHS));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TargetProductJudgementFailurePageDTO getPermanentFailures(int page, int size) {
+        LocalDateTime cutoff =
+                businessClockService
+                        .now()
+                        .minusDays(externalTradeSyncProperties.getMaxJudgeFailureDays());
+        int offset = page * size;
+        List<TargetProductJudgementFailureListDTO> content =
+                targetProductMapper.selectPermanentFailures(cutoff, offset, size);
+        long totalElements = targetProductMapper.countPermanentFailures(cutoff);
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        return TargetProductJudgementFailurePageDTO.builder()
+                .content(content)
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .build();
     }
 }

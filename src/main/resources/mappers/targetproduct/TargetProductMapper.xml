@@ -128,4 +128,26 @@
         WHERE judged_at &gt;= #{today} AND judged_at &lt; #{tomorrow}
     </select>
 
+    <select id="selectPermanentFailures" resultType="TargetProductJudgementFailureListDTO">
+        SELECT
+        f.failure_id      AS failureId,
+        c.name             AS customerName,
+        f.trade_date       AS tradeDate,
+        f.failure_count    AS failureCount,
+        f.last_error       AS lastError,
+        f.first_failed_at  AS firstFailedAt,
+        f.last_failed_at   AS lastFailedAt
+        FROM target_product_judgement_failure f
+        JOIN customer c ON c.ci_hash = f.ci_hash
+        WHERE f.first_failed_at &lt;= #{cutoff}
+        ORDER BY f.first_failed_at ASC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countPermanentFailures" resultType="int">
+        SELECT COUNT(*)
+        FROM target_product_judgement_failure f
+        WHERE f.first_failed_at &lt;= #{cutoff}
+    </select>
+
 </mapper>

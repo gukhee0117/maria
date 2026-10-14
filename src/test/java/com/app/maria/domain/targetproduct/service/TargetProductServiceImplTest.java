@@ -2,6 +2,8 @@ package com.app.maria.domain.targetproduct.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -9,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.externaltradesync.dto.response.MydataTradeResponseDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementDTO;
+import com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailureListDTO;
+import com.app.maria.domain.targetproduct.dto.TargetProductJudgementFailurePageDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementListDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductJudgementPageDTO;
 import com.app.maria.domain.targetproduct.dto.TargetProductSearchDTO;
@@ -20,6 +24,7 @@ import com.app.maria.domain.targetproduct.type.StockType;
 import com.app.maria.domain.targetproduct.type.TradeType;
 import com.app.maria.global.client.mydatafund.MydataFundClient;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +47,8 @@ class TargetProductServiceImplTest {
 
     @Mock private BusinessClockService businessClockService;
 
+    @Mock private ExternalTradeSyncProperties externalTradeSyncProperties;
+
     @InjectMocks private TargetProductServiceImpl targetProductService;
 
     private static final LocalDateTime FIXED_NOW = LocalDateTime.of(2026, 8, 7, 0, 0);
@@ -49,6 +56,9 @@ class TargetProductServiceImplTest {
     @BeforeEach
     void setUp() {
         lenient().when(businessClockService.now()).thenReturn(FIXED_NOW);
+        // ExternalTradeSyncServiceImplTest와 동일한 이유로, 스텁 안 하면 int 기본값 0이
+        // 반환되어 getPermanentFailures()의 cutoff 계산이 깨진다.
+        lenient().when(externalTradeSyncProperties.getMaxJudgeFailureDays()).thenReturn(3);
     }
 
     @Test
@@ -260,6 +270,40 @@ class TargetProductServiceImplTest {
         TargetProductSummaryDTO result = targetProductService.getSummary();
 
         assertThat(result.getTotalJudgementCount()).isEqualTo(50);
+    }
+
+    @Test
+    @DisplayName(
+            "getPermanentFailures()는 page*size를 offset으로, now()-maxJudgeFailureDays를 cutoff로 계산해 매퍼에 넘긴다")
+    void getPermanentFailuresCalculatesOffsetAndCutoffAndDelegatesToMapper() {
+        List<TargetProductJudgementFailureListDTO> expected =
+                List.of(TargetProductJudgementFailureListDTO.builder().failureId(1L).build());
+        when(targetProductMapper.selectPermanentFailures(any(), eq(20), eq(10)))
+                .thenReturn(expected);
+        when(targetProductMapper.countPermanentFailures(any())).thenReturn(25);
+
+        TargetProductJudgementFailurePageDTO result =
+                targetProductService.getPermanentFailures(2, 10);
+
+        verify(targetProductMapper)
+                .selectPermanentFailures(eq(FIXED_NOW.minusDays(3)), eq(20), eq(10));
+        assertThat(result.getContent()).isEqualTo(expected);
+        assertThat(result.getPage()).isEqualTo(2);
+        assertThat(result.getSize()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("getPermanentFailures()는 totalElements를 size로 나눈 뒤 올림해 totalPages를 계산한다")
+    void getPermanentFailuresCalculatesTotalPagesFromTotalElements() {
+        when(targetProductMapper.selectPermanentFailures(any(), anyInt(), anyInt()))
+                .thenReturn(List.of());
+        when(targetProductMapper.countPermanentFailures(any())).thenReturn(45);
+
+        TargetProductJudgementFailurePageDTO result =
+                targetProductService.getPermanentFailures(0, 20);
+
+        assertThat(result.getTotalElements()).isEqualTo(45);
+        assertThat(result.getTotalPages()).isEqualTo(3);
     }
 
     private static MydataTradeResponseDTO trade(
