@@ -12,6 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,8 +27,9 @@ public class InboundApi {
     @PreAuthorize("hasRole('REVIEWER')")
     @PostMapping
     public ResponseEntity<ApiResponseDTO<InboundResponseDTO>> processInbound(
+            @AuthenticationPrincipal Long actorAdminId,
             @Valid @RequestBody InboundRequestDTO request) {
-        InboundResponseDTO result = inboundService.processInbound(request);
+        InboundResponseDTO result = inboundService.processInbound(actorAdminId, request);
         return ResponseEntity.ok(ApiResponseDTO.of("입고대상 수량 계산 성공", result));
     }
 

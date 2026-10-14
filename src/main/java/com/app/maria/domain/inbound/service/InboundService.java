@@ -7,7 +7,7 @@ import com.app.maria.global.response.PageResponseDTO;
 import java.util.List;
 
 public interface InboundService {
-    InboundResponseDTO processInbound(InboundRequestDTO request);
+    InboundResponseDTO processInbound(Long actorAdminId, InboundRequestDTO request);
 
     List<AccountHoldingResponseDTO> getHoldings(Long accountId);
 
