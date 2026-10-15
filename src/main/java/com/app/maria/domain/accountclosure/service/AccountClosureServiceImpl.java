@@ -110,8 +110,7 @@ public class AccountClosureServiceImpl implements AccountClosureService {
                 account.getAccountId(),
                 Status.OPENED,
                 Status.CLOSURE_REQUESTED,
-                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_REQUESTED,
-                closure.getRequestedAt());
+                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_REQUESTED);
         return closure.getClosureRequestId();
     }
 
@@ -154,8 +153,7 @@ public class AccountClosureServiceImpl implements AccountClosureService {
                 closure.getAccountId(),
                 Status.CLOSURE_REQUESTED,
                 Status.OPENED,
-                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_REJECTED,
-                closure.getProcessedAt());
+                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_REJECTED);
     }
 
     @Override
@@ -243,8 +241,7 @@ public class AccountClosureServiceImpl implements AccountClosureService {
                 closure.getAccountId(),
                 Status.CLOSURE_REQUESTED,
                 Status.CLOSED,
-                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_APPROVED,
-                closure.getProcessedAt());
+                AccountClosureAuditLogReasonCode.ACCOUNT_CLOSURE_APPROVED);
     }
 
     @Override
@@ -284,8 +281,7 @@ public class AccountClosureServiceImpl implements AccountClosureService {
             Long accountId,
             Status beforeStatus,
             Status afterStatus,
-            AccountClosureAuditLogReasonCode reasonCode,
-            LocalDateTime processedAt) {
+            AccountClosureAuditLogReasonCode reasonCode) {
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(adminId)
@@ -294,7 +290,6 @@ public class AccountClosureServiceImpl implements AccountClosureService {
                         .beforeValue(beforeStatus.name())
                         .afterValue(afterStatus.name())
                         .reasonCode(reasonCode.name())
-                        .processedAt(processedAt)
                         .build());
     }
 
