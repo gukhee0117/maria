@@ -26,6 +26,9 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    // 고객 로그인 (아이디 존재 여부와 비밀번호 오류를 구분해 노출하지 않는다.)
+    CUSTOMER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
+
     // 계좌
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 정보를 찾을 수 없습니다.", LogLevel.WARN),
     ACCOUNT_CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),

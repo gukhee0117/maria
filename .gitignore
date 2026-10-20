@@ -24,6 +24,7 @@ build/
 
 # Local scratch/log files
 scratchpad/
+Claude outputs/
 
 ### STS ###
 .apt_generated
