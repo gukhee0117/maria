@@ -11,8 +11,6 @@ import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.global.client.registrablestock.RegistrableStockClient;
 import com.app.maria.global.clock.service.BusinessClockService;
-import com.app.maria.global.config.JpaConfig;
-import com.app.maria.global.config.TransactionConfig;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
 import java.math.BigDecimal;
@@ -27,15 +25,17 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
@@ -44,18 +44,13 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 실제 서비스 프록시·JPA Repository·H2 트랜잭션을 사용한다. 외부 API와 업무시각만 대체한다. 테스트 자체는 트랜잭션을 열지 않으므로 서비스 호출 종료 후 별도
+ * 실제 서비스 프록시·MyBatis Mapper·H2 트랜잭션을 사용한다. 외부 API와 업무시각만 대체한다. 테스트 자체는 트랜잭션을 열지 않으므로 서비스 호출 종료 후 별도
  * 연결로 커밋·롤백 결과를 확인한다. H2 검증이며 MariaDB의 격리 수준·잠금 동작 검증을 대체하지 않는다.
  */
-@DataJpaTest(
-        properties = {
-            "spring.jpa.hibernate.ddl-auto=create-drop",
-            "spring.jpa.show-sql=false",
-            "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-            "spring.datasource.name=customer-inbound-transaction-test"
-        })
-@Import({JpaConfig.class, TransactionConfig.class, CustomerInboundServiceImpl.class})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@ActiveProfiles("inboundtransactiontest")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Timeout(30)
 class CustomerInboundTransactionTest {
     private static final String CI_HASH = "inbound-transaction-test-ci";
@@ -66,9 +61,81 @@ class CustomerInboundTransactionTest {
     @MockitoBean private RegistrableStockClient registrableStockClient;
     @MockitoBean private BusinessClockService businessClockService;
 
+    @BeforeAll
+    void createSchema() {
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS customer (
+                    customer_id BIGINT PRIMARY KEY, name VARCHAR(50) NOT NULL,
+                    birth_date DATE NOT NULL, phone VARCHAR(20), investor_type VARCHAR(20) NOT NULL,
+                    ci_hash VARCHAR(64) NOT NULL UNIQUE,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS account (
+                    account_id BIGINT PRIMARY KEY,
+                    customer_id BIGINT NOT NULL UNIQUE REFERENCES customer(customer_id),
+                    status VARCHAR(20) NOT NULL, opened_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    account_no VARCHAR(10) UNIQUE, limit_amount DECIMAL(15,0) NOT NULL,
+                    amount DECIMAL(15,0) NOT NULL DEFAULT 0, benefit VARCHAR(12),
+                    last_domestic_trade_id BIGINT
+                )
+                """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS foreign_product (
+                    foreign_product_id BIGINT PRIMARY KEY, ticker VARCHAR(20) NOT NULL,
+                    name VARCHAR(100) NOT NULL, market VARCHAR(50) NOT NULL,
+                    currency VARCHAR(10), type VARCHAR(15) NOT NULL
+                )
+                """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inbound (
+                    inbound_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    account_id BIGINT NOT NULL REFERENCES account(account_id),
+                    requested_qty DECIMAL(15,4) NOT NULL,
+                    current_holding_at_request DECIMAL(15,4),
+                    approved_qty DECIMAL(15,4) NOT NULL,
+                    processed_at TIMESTAMP NOT NULL
+                )
+                """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inbound_detail (
+                    inbound_detail_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    inbound_id BIGINT NOT NULL REFERENCES inbound(inbound_id),
+                    foreign_product_id BIGINT NOT NULL REFERENCES foreign_product(foreign_product_id),
+                    registrable_stock_id BIGINT,
+                    source_broker VARCHAR(20),
+                    source_general_account_id BIGINT,
+                    account_type VARCHAR(30),
+                    recorded_at TIMESTAMP NOT NULL,
+                    purchase_date TIMESTAMP NOT NULL,
+                    purchase_price DECIMAL(15,4) NOT NULL,
+                    purchase_currency VARCHAR(10) NOT NULL,
+                    purchase_fx_rate DECIMAL(15,4) NOT NULL,
+                    qty DECIMAL(15,4) NOT NULL,
+                    current_qty DECIMAL(15,4) NOT NULL
+                )
+                """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inbound_min (
+                    inbound_min_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    inbound_detail_id BIGINT NOT NULL REFERENCES inbound_detail(inbound_detail_id),
+                    requested_qty DECIMAL(15,4) NOT NULL,
+                    approved_qty DECIMAL(15,4) NOT NULL,
+                    snapshot_qty DECIMAL(15,4) NOT NULL
+                )
+                """);
+    }
+
     @BeforeEach
     void seedCommittedData() {
-        // 전용 H2 DB만 정리한다. 실제 MariaDB와 기존 테스트의 DB에는 연결하지 않는다.
         jdbc.update("DELETE FROM inbound_min");
         jdbc.update("DELETE FROM inbound_detail");
         jdbc.update("DELETE FROM inbound");
@@ -140,7 +207,6 @@ class CustomerInboundTransactionTest {
     @Test
     @DisplayName("일부 상세·근거 저장 후 배분 불일치가 발견되면 새 행만 모두 롤백한다")
     void allocationFailureRollsBackAllNewRowsAndPreservesExistingHistory() {
-        // 선택 출처(200)의 누적과 원본(300)의 누적이 어긋난 기존 이력을 재현한다.
         seedInconsistentHistory();
         List<List<Integer>> beforeRollback = new CopyOnWriteArrayList<>();
         when(registrableStockClient.findCustomerLots(CI_HASH))
@@ -157,7 +223,6 @@ class CustomerInboundTransactionTest {
                                 assertThat(exception.getErrorType())
                                         .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
 
-        // 서비스 내부에서 INSERT된 사실과 트랜잭션 종료 후 사라진 사실을 각각 확인한다.
         assertThat(beforeRollback).containsExactly(List.of(2, 2, 2));
         assertThat(rowCounts()).containsExactly(1, 1, 1);
         assertThat(jdbc.queryForObject("SELECT SUM(qty) FROM inbound_detail", BigDecimal.class))
@@ -172,7 +237,6 @@ class CustomerInboundTransactionTest {
                 .thenAnswer(
                         invocation -> {
                             observeRowsBeforeCompletion(beforeRollback);
-                            // 두 번째 상세에서 VARCHAR(10) DB 제약을 위반한다.
                             return List.of(
                                     lot(300L, "10", "USD"), lot(301L, "10", "CURRENCY_TOO_LONG"));
                         });
@@ -205,7 +269,6 @@ class CustomerInboundTransactionTest {
                                                     .isActualTransactionActive())
                                     .isTrue();
                             if (externalCalls.incrementAndGet() == 1) {
-                                // 계좌 잠금을 얻은 첫 요청을 외부 조회 지점에서 붙잡는다.
                                 firstHasLock.countDown();
                                 assertThat(releaseFirst.await(10, TimeUnit.SECONDS)).isTrue();
                             }
@@ -225,7 +288,6 @@ class CustomerInboundTransactionTest {
                             });
             assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
-            // 잠금이 없다면 두 번째 요청이 외부 조회까지 도달하여 먼저 완료하므로 실패한다.
             assertThatThrownBy(() -> second.get(300, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
             assertThat(externalCalls.get()).isEqualTo(1);

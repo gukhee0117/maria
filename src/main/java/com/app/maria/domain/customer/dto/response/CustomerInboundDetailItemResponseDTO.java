@@ -1,6 +1,6 @@
 package com.app.maria.domain.customer.dto.response;
 
-import com.app.maria.domain.inbound.entity.InboundDetailEntity;
+import com.app.maria.domain.inbound.dto.InboundDetailDTO;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -16,7 +16,7 @@ public class CustomerInboundDetailItemResponseDTO {
     private final String purchaseCurrency;
     private final BigDecimal purchaseFxRate;
 
-    public CustomerInboundDetailItemResponseDTO(InboundDetailEntity detail) {
+    public CustomerInboundDetailItemResponseDTO(InboundDetailDTO detail) {
         this.inboundDetailId = detail.getInboundDetailId();
         this.sourceBroker = detail.getSourceBroker();
         this.approvedQty = detail.getQty();

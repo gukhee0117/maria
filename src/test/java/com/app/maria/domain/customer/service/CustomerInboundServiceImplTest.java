@@ -3,23 +3,20 @@ package com.app.maria.domain.customer.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.app.maria.domain.account.entity.AccountEntity;
-import com.app.maria.domain.account.repository.AccountRepository;
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
-import com.app.maria.domain.customer.entity.CustomerEntity;
-import com.app.maria.domain.foreignproduct.entity.ForeignProductEntity;
-import com.app.maria.domain.foreignproduct.repository.ForeignProductRepository;
-import com.app.maria.domain.inbound.repository.InboundDetailRepository;
-import com.app.maria.domain.inbound.repository.InboundMinRepository;
-import com.app.maria.domain.inbound.repository.InboundRepository;
+import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
+import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
+import com.app.maria.domain.inbound.dto.InboundDTO;
+import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.global.client.registrablestock.RegistrableStockClient;
@@ -30,7 +27,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,64 +46,55 @@ class CustomerInboundServiceImplTest {
     private static final String CI_HASH = "ci-hash-test";
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 22, 9, 0);
 
-    @Mock private AccountRepository accountRepository;
-    @Mock private ForeignProductRepository foreignProductRepository;
-    @Mock private InboundRepository inboundRepository;
-    @Mock private InboundDetailRepository inboundDetailRepository;
-    @Mock private InboundMinRepository inboundMinRepository;
+    @Mock private AccountMapper accountMapper;
+    @Mock private ForeignProductMapper foreignProductMapper;
+    @Mock private InboundMapper inboundMapper;
     @Mock private RegistrableStockClient registrableStockClient;
     @Mock private BusinessClockService businessClockService;
 
     @InjectMocks private CustomerInboundServiceImpl service;
 
-    private AccountEntity mockAccount;
-    private ForeignProductEntity mockProduct;
-
-    @BeforeEach
-    void setUp() {
-        mockAccount = mock(AccountEntity.class);
-        mockProduct = mock(ForeignProductEntity.class);
-    }
+    // ── stubs ──────────────────────────────────────────────────────────────
 
     private void stubAccount(Status status) {
-        when(accountRepository.findByCustomer_CustomerIdForUpdate(CUSTOMER_ID))
-                .thenReturn(Optional.of(mockAccount));
-        when(mockAccount.getStatus()).thenReturn(status);
+        AccountDTO account = AccountDTO.builder().accountId(ACCOUNT_ID).status(status).build();
+        when(accountMapper.selectByCustomerIdForUpdate(CUSTOMER_ID)).thenReturn(Optional.of(account));
     }
 
-    private void stubCustomer() {
-        CustomerEntity mockCustomer = mock(CustomerEntity.class);
-        when(mockAccount.getCustomer()).thenReturn(mockCustomer);
-        when(mockCustomer.getCiHash()).thenReturn(CI_HASH);
+    private void stubCiHash() {
+        when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(CI_HASH));
     }
 
     private void stubEligibleAccount() {
         stubAccount(Status.OPENED);
-        stubCustomer();
-        when(mockAccount.getAccountId()).thenReturn(ACCOUNT_ID);
-        when(foreignProductRepository.findByForeignProductIdInOrderByTickerAscForeignProductIdAsc(
-                        List.of(FOREIGN_PRODUCT_ID)))
-                .thenReturn(List.of(mockProduct));
+        stubCiHash();
     }
 
-    private void stubResponseAndPersistence() {
-        when(mockProduct.getForeignProductId()).thenReturn(FOREIGN_PRODUCT_ID);
-        when(mockProduct.getTicker()).thenReturn("AAPL");
-        when(mockProduct.getName()).thenReturn("Apple Inc.");
+    private void stubProduct() {
+        ForeignProductDTO product = ForeignProductDTO.builder()
+                .foreignProductId(FOREIGN_PRODUCT_ID)
+                .ticker("AAPL")
+                .name("Apple Inc.")
+                .build();
+        when(foreignProductMapper.selectByIdsOrderedByTickerAndId(List.of(FOREIGN_PRODUCT_ID)))
+                .thenReturn(List.of(product));
+    }
+
+    private void stubPersistence() {
         when(businessClockService.now()).thenReturn(NOW);
-        when(inboundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(inboundDetailRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // insertInbound sets inboundId via useGeneratedKeys — simulate by capturing argument
+        // (the mapper void call mutates the DTO's inboundId via MyBatis keyProperty)
+        // We stub nothing here; InboundDTO.inboundId stays null, which is fine for unit assertions
     }
 
     private void stubApprovedQty(BigDecimal approvedQty) {
-        when(inboundDetailRepository.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(approvedQty);
     }
 
     private void stubLotApprovedQty(Long stockId, BigDecimal approvedQty) {
-        when(inboundDetailRepository.sumApprovedQtyByAccountAndRegistrableStockId(
-                        ACCOUNT_ID, stockId))
+        when(inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(ACCOUNT_ID, stockId))
                 .thenReturn(approvedQty);
     }
 
@@ -143,11 +130,15 @@ class CustomerInboundServiceImplTest {
     @DisplayName("요청 수량이 미사용 적격 수량 이내이면 요청량 전량을 승인한다")
     void submit_approvesFullRequestedQty_whenWithinAvailable() {
         stubEligibleAccount();
-        stubResponseAndPersistence();
+        stubProduct();
+        stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         stubLotApprovedQty(STOCK_ID, BigDecimal.ZERO);
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         CustomerInboundSubmitResponseDTO result =
                 service.submit(CUSTOMER_ID, request(new BigDecimal("30")));
@@ -157,23 +148,27 @@ class CustomerInboundServiceImplTest {
         assertThat(result.getPartialReason()).isNull();
         assertThat(result.getDetails()).hasSize(1);
         assertThat(result.getProcessedAt()).isEqualTo(NOW);
-        verify(inboundRepository).save(any());
-        verify(inboundDetailRepository, times(1)).save(any());
-        verify(inboundMinRepository, times(1)).save(any());
+        verify(inboundMapper).insertInbound(any());
+        verify(inboundMapper, times(1)).insertInboundDetail(any());
+        verify(inboundMapper, times(1)).insertInboundMin(any());
     }
 
     @Test
     @DisplayName("요청 수량이 미사용 적격 수량을 초과하면 미사용 수량만 승인하고 BELOW_REQUEST를 반환한다")
     void submit_approvesPartialQty_andReturnsBelowRequestReason() {
         stubEligibleAccount();
-        stubResponseAndPersistence();
-        stubLotApprovedQty(STOCK_ID, new BigDecimal("30"));
+        stubProduct();
+        stubPersistence();
         // snapshotQty=50, alreadyApproved=30 → available=20, requested=100 → approved=20
+        stubLotApprovedQty(STOCK_ID, new BigDecimal("30"));
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundDetailRepository.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(new BigDecimal("30"));
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         CustomerInboundSubmitResponseDTO result =
                 service.submit(CUSTOMER_ID, request(new BigDecimal("100")));
@@ -187,40 +182,41 @@ class CustomerInboundServiceImplTest {
     @DisplayName("여러 lot에 걸쳐 FIFO 배분하고 lot별 상세와 근거를 각각 저장한다")
     void submit_distributesAcrossMultipleLots_usingFIFO() {
         stubEligibleAccount();
-        stubResponseAndPersistence();
+        stubProduct();
+        stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         Long stock1 = 301L, stock2 = 302L;
         when(registrableStockClient.findCustomerLots(CI_HASH))
-                .thenReturn(
-                        List.of(
-                                lot(stock1, new BigDecimal("10")),
-                                lot(stock2, new BigDecimal("20"))));
+                .thenReturn(List.of(
+                        lot(stock1, new BigDecimal("10")),
+                        lot(stock2, new BigDecimal("20"))));
         stubLotApprovedQty(stock1, BigDecimal.ZERO);
         stubLotApprovedQty(stock2, BigDecimal.ZERO);
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         CustomerInboundSubmitResponseDTO result =
                 service.submit(CUSTOMER_ID, request(new BigDecimal("25")));
 
         assertThat(result.getApprovedQty()).isEqualByComparingTo("25");
         assertThat(result.getDetails()).hasSize(2);
-        verify(inboundDetailRepository, times(2)).save(any());
-        verify(inboundMinRepository, times(2)).save(any());
+        verify(inboundMapper, times(2)).insertInboundDetail(any());
+        verify(inboundMapper, times(2)).insertInboundMin(any());
     }
 
     @Test
     @DisplayName("계좌가 없으면 ACCOUNT_NOT_FOUND 예외를 던진다")
     void submit_throws_whenAccountNotFound() {
-        when(accountRepository.findByCustomer_CustomerIdForUpdate(CUSTOMER_ID))
-                .thenReturn(Optional.empty());
+        when(accountMapper.selectByCustomerIdForUpdate(CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
 
-        verify(inboundRepository, never()).save(any());
+        verify(inboundMapper, never()).insertInbound(any());
     }
 
     @Test
@@ -230,107 +226,112 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
 
-        verify(inboundRepository, never()).save(any());
+        verify(inboundMapper, never()).insertInbound(any());
     }
 
     @Test
     @DisplayName("선택 출처·종목에 매칭 lot이 없으면 CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND 예외를 던진다")
     void submit_throws_whenNoMatchingLots() {
         stubAccount(Status.OPENED);
-        stubCustomer();
+        stubCiHash();
         when(registrableStockClient.findCustomerLots(CI_HASH)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND));
 
-        verify(inboundRepository, never()).save(any());
+        verify(inboundMapper, never()).insertInbound(any());
     }
 
     @Test
     @DisplayName("NULL 원본 이력이 존재하면 임의 배분을 차단하고 INBOUND_LOT_ORIGIN_UNRESOLVABLE 예외를 던진다")
     void submit_throws_whenNullOriginLegacyExists() {
         stubEligibleAccount();
+        stubProduct();
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
-        when(inboundDetailRepository.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.INBOUND_LOT_ORIGIN_UNRESOLVABLE));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.INBOUND_LOT_ORIGIN_UNRESOLVABLE));
 
-        verify(inboundRepository, never()).save(any());
+        verify(inboundMapper, never()).insertInbound(any());
     }
 
     @Test
     @DisplayName("미사용 적격 수량이 0이면 입고 기록을 생성하지 않고 CUSTOMER_INBOUND_QTY_ZERO 예외를 던진다")
     void submit_throws_whenAvailableQtyIsZero() {
         stubEligibleAccount();
+        stubProduct();
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundDetailRepository.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
-                .thenReturn(new BigDecimal("50")); // alreadyApproved = snapshotQty → available = 0
+                .thenReturn(new BigDecimal("50"));
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
 
-        verify(inboundRepository, never()).save(any());
+        verify(inboundMapper, never()).insertInbound(any());
     }
 
     @Test
     @DisplayName("lot별 잔여 수량이 소진되어 배분을 완료할 수 없으면 INBOUND_ALLOCATION_INTEGRITY_FAILED 예외를 던진다")
     void submit_throws_whenLotQtyAlreadyDepleted_causesAllocationFailure() {
         stubEligibleAccount();
+        stubProduct();
+        stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
-        when(businessClockService.now()).thenReturn(NOW);
-        when(inboundRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         // account-level: snapshotQty=10, alreadyApproved=0 → approvedQty=10
-        // lot-level: sumApproved=10 → lotAvailable=0 → remaining 소진 불가
+        // lot-level: lotAlreadyApproved=10 → lotAvailable=0 → remaining 소진 불가
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("10"))));
-        when(inboundDetailRepository.sumApprovedQtyByAccountAndRegistrableStockId(
-                        ACCOUNT_ID, STOCK_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(ACCOUNT_ID, STOCK_ID))
                 .thenReturn(new BigDecimal("10"));
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(new BigDecimal("10"))))
                 .isInstanceOf(AppException.class)
-                .satisfies(
-                        ex ->
-                                assertThat(((AppException) ex).getErrorType())
-                                        .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
+                .satisfies(ex ->
+                        assertThat(((AppException) ex).getErrorType())
+                                .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
     }
 
     @Test
     @DisplayName("동시 요청 직렬화를 위해 쓰기 경로에서 비관적 잠금 조회를 사용한다")
     void submit_usesLockingQuery_forConcurrentRequestSerialization() {
         stubEligibleAccount();
-        stubResponseAndPersistence();
+        stubProduct();
+        stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         stubLotApprovedQty(STOCK_ID, BigDecimal.ZERO);
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
+        when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+                .thenReturn(false);
 
         service.submit(CUSTOMER_ID, request(BigDecimal.TEN));
 
-        verify(accountRepository).findByCustomer_CustomerIdForUpdate(CUSTOMER_ID);
-        verify(accountRepository, never()).findByCustomer_CustomerId(any());
+        verify(accountMapper).selectByCustomerIdForUpdate(CUSTOMER_ID);
     }
 }

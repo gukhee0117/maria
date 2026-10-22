@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:inbound_transaction_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: none
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+  cache:
+    type: simple

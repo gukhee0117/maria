@@ -1,17 +1,15 @@
 package com.app.maria.domain.customer.service;
 
-import com.app.maria.domain.account.entity.AccountEntity;
-import com.app.maria.domain.account.repository.AccountRepository;
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
-import com.app.maria.domain.foreignproduct.entity.ForeignProductEntity;
-import com.app.maria.domain.foreignproduct.repository.ForeignProductRepository;
-import com.app.maria.domain.inbound.entity.InboundDetailEntity;
-import com.app.maria.domain.inbound.entity.InboundEntity;
-import com.app.maria.domain.inbound.entity.InboundMinEntity;
-import com.app.maria.domain.inbound.repository.InboundDetailRepository;
-import com.app.maria.domain.inbound.repository.InboundMinRepository;
-import com.app.maria.domain.inbound.repository.InboundRepository;
+import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
+import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
+import com.app.maria.domain.inbound.dto.InboundDTO;
+import com.app.maria.domain.inbound.dto.InboundDetailDTO;
+import com.app.maria.domain.inbound.dto.InboundMinDTO;
+import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.global.client.registrablestock.RegistrableStockClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -27,23 +25,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(transactionManager = "jpaTransactionManager")
+@Transactional
 public class CustomerInboundServiceImpl implements CustomerInboundService {
 
-    private final AccountRepository accountRepository;
-    private final ForeignProductRepository foreignProductRepository;
-    private final InboundRepository inboundRepository;
-    private final InboundDetailRepository inboundDetailRepository;
-    private final InboundMinRepository inboundMinRepository;
+    private final AccountMapper accountMapper;
+    private final ForeignProductMapper foreignProductMapper;
+    private final InboundMapper inboundMapper;
     private final RegistrableStockClient registrableStockClient;
     private final BusinessClockService businessClockService;
 
     @Override
     public CustomerInboundSubmitResponseDTO submit(
             Long customerId, CustomerInboundSubmitRequestDTO request) {
-        // 동시 신청 직렬화 — 계좌 행 잠금
-        AccountEntity account = accountRepository
-                .findByCustomer_CustomerIdForUpdate(customerId)
+        // 동시 신청 직렬화 — 트랜잭션 최초 읽기를 FOR UPDATE로 실행해
+        // REPEATABLE READ 스냅샷 기준을 현재 커밋 상태로 고정한다.
+        // 이후의 일반 SELECT(누적 승인 수량 등)도 이 시점 이후 커밋된 데이터를 읽는다.
+        AccountDTO account = accountMapper.selectByCustomerIdForUpdate(customerId)
                 .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
 
         if (!account.getStatus().canTrade()) {
@@ -54,7 +51,9 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
         Long sourceGeneralAccountId = request.getSourceGeneralAccountId();
         BigDecimal requestedQty = request.getRequestedQty();
 
-        String ciHash = account.getCustomer().getCiHash();
+        String ciHash = accountMapper.selectCiHashByCustomerId(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
+
         List<RegistrableStockResponseDTO> matchingLots = registrableStockClient
                 .findCustomerLots(ciHash)
                 .stream()
@@ -67,16 +66,15 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                     ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND, foreignProductId);
         }
 
-        ForeignProductEntity product = foreignProductRepository
-                .findByForeignProductIdInOrderByTickerAscForeignProductIdAsc(
-                        List.of(foreignProductId))
+        ForeignProductDTO product = foreignProductMapper
+                .selectByIdsOrderedByTickerAndId(List.of(foreignProductId))
                 .stream()
                 .findFirst()
                 .orElseThrow(() -> new AppException(
                         ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND, foreignProductId));
 
-        // 기존 NULL 원본 이력이 있으면 lot 배분 불가 — 확인 대상으로 처리
-        if (inboundDetailRepository.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+        // 기존 NULL 원본 이력이 있으면 lot 배분 불가
+        if (inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                 account.getAccountId(), foreignProductId, sourceGeneralAccountId)) {
             throw new AppException(
                     ErrorType.INBOUND_LOT_ORIGIN_UNRESOLVABLE, foreignProductId);
@@ -87,7 +85,7 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                 .map(RegistrableStockResponseDTO::getHeldQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal alreadyApproved = inboundDetailRepository
+        BigDecimal alreadyApproved = inboundMapper
                 .sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         account.getAccountId(), foreignProductId, sourceGeneralAccountId);
 
@@ -100,17 +98,22 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
 
         LocalDateTime now = businessClockService.now();
 
-        // FIFO lot 배분
-        List<InboundDetailEntity> savedDetails = new ArrayList<>();
-        BigDecimal remaining = approvedQty;
+        InboundDTO inbound = InboundDTO.builder()
+                .accountId(account.getAccountId())
+                .requestedQty(requestedQty)
+                .approvedQty(approvedQty)
+                .processedAt(now)
+                .build();
+        inboundMapper.insertInbound(inbound);
 
-        InboundEntity inbound = inboundRepository.save(
-                InboundEntity.create(account, requestedQty, approvedQty, now));
+        // FIFO lot 배분
+        List<InboundDetailDTO> savedDetails = new ArrayList<>();
+        BigDecimal remaining = approvedQty;
 
         for (RegistrableStockResponseDTO lot : matchingLots) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
-            BigDecimal lotAlreadyApproved = inboundDetailRepository
+            BigDecimal lotAlreadyApproved = inboundMapper
                     .sumApprovedQtyByAccountAndRegistrableStockId(
                             account.getAccountId(), lot.getRegistrableStockId());
             BigDecimal lotAvailable = lot.getHeldQty()
@@ -122,23 +125,25 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
             BigDecimal lotApproved = remaining.min(lotAvailable);
             remaining = remaining.subtract(lotApproved);
 
-            InboundDetailEntity detail = inboundDetailRepository.save(
-                    InboundDetailEntity.create(
-                            inbound,
-                            product,
-                            lot.getRegistrableStockId(),
-                            lot.getGeneralAccountId(),
-                            lot.getAccountType(),
-                            lot.getSourceBroker(),
-                            now,
-                            lot.getPurchaseDate(),
-                            lot.getPurchasePrice(),
-                            lot.getPurchaseCurrency(),
-                            lot.getPurchaseFxRate(),
-                            lotApproved));
+            InboundDetailDTO detail = InboundDetailDTO.builder()
+                    .inboundId(inbound.getInboundId())
+                    .foreignProductId(foreignProductId)
+                    .registrableStockId(lot.getRegistrableStockId())
+                    .sourceGeneralAccountId(lot.getGeneralAccountId())
+                    .accountType(lot.getAccountType())
+                    .sourceBroker(lot.getSourceBroker())
+                    .recordedAt(now)
+                    .purchaseDate(lot.getPurchaseDate())
+                    .purchasePrice(lot.getPurchasePrice())
+                    .purchaseCurrency(lot.getPurchaseCurrency())
+                    .purchaseFxRate(lot.getPurchaseFxRate())
+                    .qty(lotApproved)
+                    .currentQty(lotApproved)
+                    .build();
+            inboundMapper.insertInboundDetail(detail);
 
-            inboundMinRepository.save(
-                    InboundMinEntity.create(detail, requestedQty, lotApproved, lot.getHeldQty()));
+            inboundMapper.insertInboundMin(InboundMinDTO.of(
+                    detail.getInboundDetailId(), requestedQty, lotApproved, lot.getHeldQty()));
 
             savedDetails.add(detail);
         }
@@ -148,7 +153,7 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
             throw new AppException(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED, approvedQty);
         }
         BigDecimal detailSum = savedDetails.stream()
-                .map(InboundDetailEntity::getQty)
+                .map(InboundDetailDTO::getQty)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (detailSum.compareTo(approvedQty) != 0) {
             throw new AppException(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED, approvedQty);

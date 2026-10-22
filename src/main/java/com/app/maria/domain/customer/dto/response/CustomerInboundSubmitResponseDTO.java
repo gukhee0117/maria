@@ -1,8 +1,8 @@
 package com.app.maria.domain.customer.dto.response;
 
-import com.app.maria.domain.foreignproduct.entity.ForeignProductEntity;
-import com.app.maria.domain.inbound.entity.InboundDetailEntity;
-import com.app.maria.domain.inbound.entity.InboundEntity;
+import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
+import com.app.maria.domain.inbound.dto.InboundDTO;
+import com.app.maria.domain.inbound.dto.InboundDetailDTO;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,9 +21,9 @@ public class CustomerInboundSubmitResponseDTO {
     private final List<CustomerInboundDetailItemResponseDTO> details;
 
     public CustomerInboundSubmitResponseDTO(
-            InboundEntity inbound,
-            ForeignProductEntity product,
-            List<InboundDetailEntity> detailEntities) {
+            InboundDTO inbound,
+            ForeignProductDTO product,
+            List<InboundDetailDTO> detailDtos) {
         this.inboundId = inbound.getInboundId();
         this.foreignProductId = product.getForeignProductId();
         this.ticker = product.getTicker();
@@ -34,7 +34,7 @@ public class CustomerInboundSubmitResponseDTO {
                 ? "BELOW_REQUEST"
                 : null;
         this.processedAt = inbound.getProcessedAt();
-        this.details = detailEntities.stream()
+        this.details = detailDtos.stream()
                 .map(CustomerInboundDetailItemResponseDTO::new)
                 .toList();
     }

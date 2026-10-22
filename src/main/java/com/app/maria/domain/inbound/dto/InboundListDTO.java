@@ -13,6 +13,7 @@ import lombok.*;
 @Builder
 public class InboundListDTO {
     private Long inboundId;
+    private Long foreignProductId;
     private Long accountId;
     private String accountNo;
     private String customerName;

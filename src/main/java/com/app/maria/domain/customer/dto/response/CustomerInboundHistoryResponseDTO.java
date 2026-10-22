@@ -1,7 +1,6 @@
 package com.app.maria.domain.customer.dto.response;
 
-import com.app.maria.domain.foreignproduct.entity.ForeignProductEntity;
-import com.app.maria.domain.inbound.entity.InboundEntity;
+import com.app.maria.domain.inbound.dto.InboundListDTO;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -16,13 +15,13 @@ public class CustomerInboundHistoryResponseDTO {
     private final BigDecimal approvedQty;
     private final LocalDateTime processedAt;
 
-    public CustomerInboundHistoryResponseDTO(InboundEntity inbound, ForeignProductEntity product) {
-        this.inboundId = inbound.getInboundId();
-        this.foreignProductId = product != null ? product.getForeignProductId() : null;
-        this.ticker = product != null ? product.getTicker() : null;
-        this.name = product != null ? product.getName() : null;
-        this.requestedQty = inbound.getRequestedQty();
-        this.approvedQty = inbound.getApprovedQty();
-        this.processedAt = inbound.getProcessedAt();
+    public CustomerInboundHistoryResponseDTO(InboundListDTO dto) {
+        this.inboundId = dto.getInboundId();
+        this.foreignProductId = dto.getForeignProductId();
+        this.ticker = dto.getTicker();
+        this.name = dto.getProductName();
+        this.requestedQty = dto.getRequestedQty();
+        this.approvedQty = dto.getApprovedQty();
+        this.processedAt = dto.getProcessedAt();
     }
 }

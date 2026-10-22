@@ -24,10 +24,15 @@
         FOR UPDATE
     </select>
     <select id="selectByCustomerId" resultType="AccountDTO" parameterType="Long">
-        SELECT
-        *
+        SELECT *
         FROM account
         WHERE customer_id = #{customerId}
+    </select>
+    <select id="selectByCustomerIdForUpdate" resultType="AccountDTO" parameterType="Long">
+        SELECT *
+        FROM account
+        WHERE customer_id = #{customerId}
+        FOR UPDATE
     </select>
     <select id="existsByCustomerId" resultType="boolean" parameterType="Long">
         SELECT EXISTS (
