@@ -15,10 +15,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
@@ -43,8 +43,10 @@ public class CustomerAuthApi {
 
     public CustomerAuthApi(
             CustomerAuthService customerAuthService,
-            @Qualifier("customerSecurityContextRepository") SecurityContextRepository contextRepository,
-            @Qualifier("customerSessionAuthenticationStrategy") SessionAuthenticationStrategy sessionStrategy,
+            @Qualifier("customerSecurityContextRepository")
+                    SecurityContextRepository contextRepository,
+            @Qualifier("customerSessionAuthenticationStrategy")
+                    SessionAuthenticationStrategy sessionStrategy,
             CookieCsrfTokenRepository customerCsrfTokenRepository) {
         this.customerAuthService = customerAuthService;
         this.contextRepository = contextRepository;
@@ -66,8 +68,9 @@ public class CustomerAuthApi {
             HttpServletRequest request,
             HttpServletResponse response) {
         CustomerPrincipal principal = customerAuthService.authenticate(body);
-        Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
-                principal, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
+        Authentication authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        principal, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
         sessionStrategy.onAuthentication(authentication, request, response);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
@@ -86,7 +89,9 @@ public class CustomerAuthApi {
     @PostMapping("/auth/logout")
     @Operation(summary = "고객 세션 로그아웃 (인증·CSRF 필수)")
     public ApiResponseDTO<Void> logout(
-            HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication authentication) {
         new CsrfLogoutHandler(csrfRepository).logout(request, response, authentication);
         new SecurityContextLogoutHandler().logout(request, response, authentication);
         new CookieClearingLogoutHandler("JSESSIONID").logout(request, response, authentication);

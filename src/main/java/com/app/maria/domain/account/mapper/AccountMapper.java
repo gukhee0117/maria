@@ -27,7 +27,8 @@ public interface AccountMapper {
     // customer_id 기준 단건 조회
     Optional<AccountDTO> selectByCustomerId(Long customerId);
 
-    // customer_id 기준 단건 조회 + 잠금 (동시 신청 직렬화 — 트랜잭션 최초 읽기를 잠금 읽기로 만들어 REPEATABLE READ 스냅샷 기준을 현재 커밋 상태로 고정)
+    // customer_id 기준 단건 조회 + 잠금 (동시 신청 직렬화 — 트랜잭션 최초 읽기를 잠금 읽기로 만들어 REPEATABLE READ 스냅샷 기준을 현재 커밋
+    // 상태로 고정)
     Optional<AccountDTO> selectByCustomerIdForUpdate(Long customerId);
 
     // customer_id 기준 계좌 존재 여부

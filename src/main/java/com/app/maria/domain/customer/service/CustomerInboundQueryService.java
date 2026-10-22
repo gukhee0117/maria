@@ -5,7 +5,6 @@ import com.app.maria.domain.customer.dto.response.CustomerInboundCandidatesRespo
 import com.app.maria.domain.customer.dto.response.CustomerInboundDetailResponseDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundHistoryResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
-
 import java.util.List;
 
 public interface CustomerInboundQueryService {
@@ -13,7 +12,8 @@ public interface CustomerInboundQueryService {
 
     CustomerInboundCandidatesResponseDTO getCandidates(Long customerId, Long foreignProductId);
 
-    PageResponseDTO<CustomerInboundHistoryResponseDTO> getHistory(Long customerId, int page, int size);
+    PageResponseDTO<CustomerInboundHistoryResponseDTO> getHistory(
+            Long customerId, int page, int size);
 
     CustomerInboundDetailResponseDTO getDetail(Long customerId, Long inboundId);
 }

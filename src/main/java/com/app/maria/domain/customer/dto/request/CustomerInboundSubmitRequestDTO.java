@@ -11,11 +11,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CustomerInboundSubmitRequestDTO {
 
-    @NotNull
-    private Long foreignProductId;
+    @NotNull private Long foreignProductId;
 
-    @NotNull
-    private Long sourceGeneralAccountId;
+    @NotNull private Long sourceGeneralAccountId;
 
     @NotNull
     @Positive

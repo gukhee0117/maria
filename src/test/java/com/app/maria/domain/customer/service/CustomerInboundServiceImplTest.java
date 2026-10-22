@@ -15,7 +15,6 @@ import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO
 import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
-import com.app.maria.domain.inbound.dto.InboundDTO;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
@@ -58,7 +57,8 @@ class CustomerInboundServiceImplTest {
 
     private void stubAccount(Status status) {
         AccountDTO account = AccountDTO.builder().accountId(ACCOUNT_ID).status(status).build();
-        when(accountMapper.selectByCustomerIdForUpdate(CUSTOMER_ID)).thenReturn(Optional.of(account));
+        when(accountMapper.selectByCustomerIdForUpdate(CUSTOMER_ID))
+                .thenReturn(Optional.of(account));
     }
 
     private void stubCiHash() {
@@ -71,11 +71,12 @@ class CustomerInboundServiceImplTest {
     }
 
     private void stubProduct() {
-        ForeignProductDTO product = ForeignProductDTO.builder()
-                .foreignProductId(FOREIGN_PRODUCT_ID)
-                .ticker("AAPL")
-                .name("Apple Inc.")
-                .build();
+        ForeignProductDTO product =
+                ForeignProductDTO.builder()
+                        .foreignProductId(FOREIGN_PRODUCT_ID)
+                        .ticker("AAPL")
+                        .name("Apple Inc.")
+                        .build();
         when(foreignProductMapper.selectByIdsOrderedByTickerAndId(List.of(FOREIGN_PRODUCT_ID)))
                 .thenReturn(List.of(product));
     }
@@ -187,9 +188,10 @@ class CustomerInboundServiceImplTest {
         stubApprovedQty(BigDecimal.ZERO);
         Long stock1 = 301L, stock2 = 302L;
         when(registrableStockClient.findCustomerLots(CI_HASH))
-                .thenReturn(List.of(
-                        lot(stock1, new BigDecimal("10")),
-                        lot(stock2, new BigDecimal("20"))));
+                .thenReturn(
+                        List.of(
+                                lot(stock1, new BigDecimal("10")),
+                                lot(stock2, new BigDecimal("20"))));
         stubLotApprovedQty(stock1, BigDecimal.ZERO);
         stubLotApprovedQty(stock2, BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
@@ -212,9 +214,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
 
         verify(inboundMapper, never()).insertInbound(any());
     }
@@ -226,9 +229,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
 
         verify(inboundMapper, never()).insertInbound(any());
     }
@@ -242,9 +246,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND));
 
         verify(inboundMapper, never()).insertInbound(any());
     }
@@ -262,9 +267,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.INBOUND_LOT_ORIGIN_UNRESOLVABLE));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.INBOUND_LOT_ORIGIN_UNRESOLVABLE));
 
         verify(inboundMapper, never()).insertInbound(any());
     }
@@ -285,9 +291,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
 
         verify(inboundMapper, never()).insertInbound(any());
     }
@@ -311,9 +318,10 @@ class CustomerInboundServiceImplTest {
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(new BigDecimal("10"))))
                 .isInstanceOf(AppException.class)
-                .satisfies(ex ->
-                        assertThat(((AppException) ex).getErrorType())
-                                .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
     }
 
     @Test

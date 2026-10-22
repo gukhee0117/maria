@@ -21,21 +21,18 @@ public class CustomerInboundSubmitResponseDTO {
     private final List<CustomerInboundDetailItemResponseDTO> details;
 
     public CustomerInboundSubmitResponseDTO(
-            InboundDTO inbound,
-            ForeignProductDTO product,
-            List<InboundDetailDTO> detailDtos) {
+            InboundDTO inbound, ForeignProductDTO product, List<InboundDetailDTO> detailDtos) {
         this.inboundId = inbound.getInboundId();
         this.foreignProductId = product.getForeignProductId();
         this.ticker = product.getTicker();
         this.name = product.getName();
         this.requestedQty = inbound.getRequestedQty();
         this.approvedQty = inbound.getApprovedQty();
-        this.partialReason = inbound.getApprovedQty().compareTo(inbound.getRequestedQty()) < 0
-                ? "BELOW_REQUEST"
-                : null;
+        this.partialReason =
+                inbound.getApprovedQty().compareTo(inbound.getRequestedQty()) < 0
+                        ? "BELOW_REQUEST"
+                        : null;
         this.processedAt = inbound.getProcessedAt();
-        this.details = detailDtos.stream()
-                .map(CustomerInboundDetailItemResponseDTO::new)
-                .toList();
+        this.details = detailDtos.stream().map(CustomerInboundDetailItemResponseDTO::new).toList();
     }
 }

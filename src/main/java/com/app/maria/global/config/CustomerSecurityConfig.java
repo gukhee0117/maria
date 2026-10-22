@@ -65,7 +65,8 @@ public class CustomerSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
         configuration.setAllowCredentials(true);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "X-XSRF-TOKEN", "Idempotency-Key"));
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -84,33 +85,61 @@ public class CustomerSecurityConfig {
             throws Exception {
         http.securityMatcher("/api/customer/**")
                 .cors(config -> config.configurationSource(cors))
-                .sessionManagement(config -> config.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-                .securityContext(config -> config.securityContextRepository(repository).requireExplicitSave(true))
-                .csrf(config -> config
-                        .csrfTokenRepository(customerCsrfTokenRepository)
-                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
+                .sessionManagement(
+                        config -> config.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .securityContext(
+                        config ->
+                                config.securityContextRepository(repository)
+                                        .requireExplicitSave(true))
+                .csrf(
+                        config ->
+                                config.csrfTokenRepository(customerCsrfTokenRepository)
+                                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .requestCache(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, "/api/customer/csrf").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/customer/auth/login").permitAll()
-                        .anyRequest().hasRole("CUSTOMER"))
-                .exceptionHandling(config -> config
-                        .authenticationEntryPoint((request, response, exception) ->
-                                writeError(response, objectMapper, 401, "UNAUTHORIZED", "로그인이 필요합니다."))
-                        .accessDeniedHandler((request, response, exception) -> {
-                            boolean csrf = exception instanceof CsrfException;
-                            writeError(response, objectMapper, 403,
-                                    csrf ? "CSRF_INVALID" : "FORBIDDEN",
-                                    csrf ? "CSRF 토큰을 확인해 주세요." : "접근 권한이 없습니다.");
-                        }));
+                .authorizeHttpRequests(
+                        auth ->
+                                auth.requestMatchers(HttpMethod.GET, "/api/customer/csrf")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/customer/auth/login")
+                                        .permitAll()
+                                        .anyRequest()
+                                        .hasRole("CUSTOMER"))
+                .exceptionHandling(
+                        config ->
+                                config.authenticationEntryPoint(
+                                                (request, response, exception) ->
+                                                        writeError(
+                                                                response,
+                                                                objectMapper,
+                                                                401,
+                                                                "UNAUTHORIZED",
+                                                                "로그인이 필요합니다."))
+                                        .accessDeniedHandler(
+                                                (request, response, exception) -> {
+                                                    boolean csrf =
+                                                            exception instanceof CsrfException;
+                                                    writeError(
+                                                            response,
+                                                            objectMapper,
+                                                            403,
+                                                            csrf ? "CSRF_INVALID" : "FORBIDDEN",
+                                                            csrf
+                                                                    ? "CSRF 토큰을 확인해 주세요."
+                                                                    : "접근 권한이 없습니다.");
+                                                }));
         return http.build();
     }
 
     private static void writeError(
-            HttpServletResponse response, ObjectMapper objectMapper, int status, String code, String message)
+            HttpServletResponse response,
+            ObjectMapper objectMapper,
+            int status,
+            String code,
+            String message)
             throws IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
