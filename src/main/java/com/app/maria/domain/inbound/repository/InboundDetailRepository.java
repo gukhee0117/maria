@@ -44,4 +44,31 @@ public interface InboundDetailRepository extends Repository<InboundDetailEntity,
             """)
     BigDecimal sumApprovedQtyByAccountAndProduct(
             @Param("accountId") Long accountId, @Param("foreignProductId") Long foreignProductId);
+
+    // FIFO lot 배분용: 동일 registrableStockId에 이미 승인된 수량 합산
+    @Query(
+            """
+            select coalesce(sum(detail.qty), 0)
+            from InboundDetailEntity detail
+            where detail.inbound.account.accountId = :accountId
+              and detail.registrableStockId = :registrableStockId
+            """)
+    BigDecimal sumApprovedQtyByAccountAndRegistrableStockId(
+            @Param("accountId") Long accountId,
+            @Param("registrableStockId") Long registrableStockId);
+
+    // registrableStockId=NULL인 기존 이력이 있으면 FIFO 배분 불가 — 확인 대상으로 처리
+    @Query(
+            """
+            select count(detail) > 0
+            from InboundDetailEntity detail
+            where detail.inbound.account.accountId = :accountId
+              and detail.foreignProduct.foreignProductId = :foreignProductId
+              and detail.sourceGeneralAccountId = :sourceGeneralAccountId
+              and detail.registrableStockId is null
+            """)
+    boolean existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+            @Param("accountId") Long accountId,
+            @Param("foreignProductId") Long foreignProductId,
+            @Param("sourceGeneralAccountId") Long sourceGeneralAccountId);
 }

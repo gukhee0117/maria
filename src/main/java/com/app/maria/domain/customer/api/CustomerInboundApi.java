@@ -1,10 +1,13 @@
 package com.app.maria.domain.customer.api;
 
+import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerForeignProductResponseDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundCandidatesResponseDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundDetailResponseDTO;
 import com.app.maria.domain.customer.dto.response.CustomerInboundHistoryResponseDTO;
+import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
 import com.app.maria.domain.customer.service.CustomerInboundQueryService;
+import com.app.maria.domain.customer.service.CustomerInboundService;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
@@ -14,6 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerInboundApi {
 
     private final CustomerInboundQueryService customerInboundQueryService;
+    private final CustomerInboundService customerInboundService;
 
     @GetMapping("/foreign-products")
     public ResponseEntity<ApiResponseDTO<List<CustomerForeignProductResponseDTO>>> getForeignProducts(
@@ -59,5 +66,14 @@ public class CustomerInboundApi {
         return ResponseEntity.ok(ApiResponseDTO.of(
                 "입고 상세 조회 성공",
                 customerInboundQueryService.getDetail(principal.customerId(), inboundId)));
+    }
+
+    @PostMapping("/inbounds")
+    public ResponseEntity<ApiResponseDTO<CustomerInboundSubmitResponseDTO>> submit(
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
+            @Valid @RequestBody CustomerInboundSubmitRequestDTO request) {
+        return ResponseEntity.ok(ApiResponseDTO.of(
+                "입고 신청 완료",
+                customerInboundService.submit(principal.customerId(), request)));
     }
 }
