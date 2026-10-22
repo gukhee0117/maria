@@ -2,6 +2,7 @@ package com.app.maria.domain.inbound.repository;
 
 import com.app.maria.domain.inbound.entity.InboundDetailEntity;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,10 @@ public interface InboundDetailRepository extends Repository<InboundDetailEntity,
     List<InboundDetailEntity>
             findByInbound_InboundIdAndInbound_Account_Customer_CustomerIdOrderByInboundDetailIdAsc(
                     Long inboundId, Long customerId);
+
+    @EntityGraph(attributePaths = "foreignProduct")
+    List<InboundDetailEntity> findByInbound_InboundIdInOrderByInboundDetailIdAsc(
+            Collection<Long> inboundIds);
 
     // currentQty가 아닌 최초 승인 qty를 합산한다. 원본 ID가 NULL인 기존 상세도 제외하지 않는다.
     @Query(

@@ -156,7 +156,16 @@ public enum ErrorType {
 
     // Inbound(B1)
     REGISTRABLE_STOCK_NOT_FOUND(
-            HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR);
+            HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR),
+
+    // 고객 입고 조회 (다른 고객의 입고 조회 시 존재 여부를 노출하지 않는다.)
+    INBOUND_NOT_FOUND(HttpStatus.NOT_FOUND, "입고 내역을 찾을 수 없습니다.", LogLevel.WARN),
+
+    // 고객 입고 신청
+    CUSTOMER_INBOUND_QTY_ZERO(HttpStatus.BAD_REQUEST, "입고 가능한 수량이 없습니다.", LogLevel.WARN),
+    CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND(
+            HttpStatus.BAD_REQUEST, "선택한 계좌·종목의 적격 주식 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SOURCE_ACCOUNT_INVALID(HttpStatus.BAD_REQUEST, "출처 일반계좌를 확인할 수 없습니다.", LogLevel.WARN);
 
     private final HttpStatus status;
     private final String message;
