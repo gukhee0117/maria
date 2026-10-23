@@ -48,5 +48,10 @@ public interface WithdrawalMapper {
 
     Optional<WithdrawalHistoryDTO> selectWithdrawalHistoryById(Long withdrawalId);
 
+    Optional<WithdrawalHistoryDTO> selectWithdrawalHistoryByIdAndAccountId(
+            @Param("withdrawalId") Long withdrawalId, @Param("accountId") Long accountId);
+
     List<WithdrawalAllocationHistoryDTO> selectAllocationHistoriesByWithdrawalId(Long withdrawalId);
+
+    BigDecimal selectProvisionalAmountByAccountId(Long accountId);
 }
