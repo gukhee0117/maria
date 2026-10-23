@@ -371,6 +371,7 @@ public class InboundServiceImpl implements InboundService {
                 InboundDetailDTO.builder()
                         .inboundId(inboundId)
                         .foreignProductId(foreignProductId)
+                        .registrableStockId(lot != null ? lot.getRegistrableStockId() : null)
                         .qty(lotQty)
                         .currentQty(lotQty)
                         .recordedAt(businessClockService.now())

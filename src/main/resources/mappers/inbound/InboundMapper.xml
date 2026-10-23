@@ -10,10 +10,10 @@
 
     <insert id="insertInboundDetail" parameterType="InboundDetailDTO"
             useGeneratedKeys="true" keyProperty="inboundDetailId">
-        INSERT INTO inbound_detail (inbound_id, foreign_product_id, source_broker, qty, current_qty,
+        INSERT INTO inbound_detail (inbound_id, foreign_product_id, registrable_stock_id, source_broker, qty, current_qty,
         recorded_at, purchase_date, purchase_price, purchase_currency, purchase_fx_rate,
         source_general_account_id, account_type)
-        VALUES (#{inboundId}, #{foreignProductId}, #{sourceBroker}, #{qty}, #{currentQty},
+        VALUES (#{inboundId}, #{foreignProductId}, #{registrableStockId}, #{sourceBroker}, #{qty}, #{currentQty},
         #{recordedAt}, #{purchaseDate}, #{purchasePrice}, #{purchaseCurrency}, #{purchaseFxRate},
         #{sourceGeneralAccountId}, #{accountType})
     </insert>
@@ -187,12 +187,13 @@
 
     <select id="selectInboundsByAccountId" resultType="InboundListDTO">
         SELECT
-        i.inbound_id     AS inboundId,
-        i.account_id     AS accountId,
-        a.account_no     AS accountNo,
-        c.name           AS customerName,
-        fp.ticker        AS ticker,
-        fp.name          AS productName,
+        i.inbound_id        AS inboundId,
+        fp.foreign_product_id AS foreignProductId,
+        i.account_id        AS accountId,
+        a.account_no        AS accountNo,
+        c.name              AS customerName,
+        fp.ticker           AS ticker,
+        fp.name             AS productName,
         id.source_broker AS sourceBroker,
         i.requested_qty  AS requestedQty,
         i.current_holding_at_request AS currentHoldingAtRequest,
@@ -244,6 +245,49 @@
         )
         )
         ORDER BY i.processed_at ASC
+    </select>
+
+    <select id="sumApprovedQtyByAccountAndProductAndSourceGeneralAccount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(id.qty), 0)
+        FROM inbound_detail id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.foreign_product_id = #{foreignProductId}
+        AND id.source_general_account_id = #{sourceGeneralAccountId}
+    </select>
+
+    <select id="sumApprovedQtyByAccountAndRegistrableStockId" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(id.qty), 0)
+        FROM inbound_detail id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.registrable_stock_id = #{registrableStockId}
+    </select>
+
+    <select id="existsNullOriginByAccountAndProductAndSourceGeneralAccount" resultType="boolean">
+        SELECT COUNT(*) > 0
+        FROM inbound_detail id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.foreign_product_id = #{foreignProductId}
+        AND id.source_general_account_id = #{sourceGeneralAccountId}
+        AND id.registrable_stock_id IS NULL
+    </select>
+
+    <select id="selectInboundByIdAndAccountId" resultType="InboundDTO">
+        SELECT inbound_id, account_id, requested_qty, current_holding_at_request, approved_qty, processed_at
+        FROM inbound
+        WHERE inbound_id = #{inboundId} AND account_id = #{accountId}
+    </select>
+
+    <select id="selectDetailsByInboundId" resultType="InboundDetailDTO">
+        SELECT inbound_detail_id, inbound_id, foreign_product_id, registrable_stock_id,
+               source_broker, qty, current_qty, recorded_at,
+               purchase_date, purchase_price, purchase_currency, purchase_fx_rate,
+               source_general_account_id, account_type
+        FROM inbound_detail
+        WHERE inbound_id = #{inboundId}
+        ORDER BY inbound_detail_id ASC
     </select>
 
 </mapper>

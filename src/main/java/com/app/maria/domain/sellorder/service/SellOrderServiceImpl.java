@@ -65,8 +65,7 @@ public class SellOrderServiceImpl implements SellOrderService {
         AccountDTO account =
                 accountMapper
                         .selectByAccountId(sellOrderDTO.getAccountId())
-                        .orElseThrow(
-                                () -> new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
+                        .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED));
         if (!account.getStatus().canTrade()) {
             throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
         }

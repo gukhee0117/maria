@@ -16,6 +16,7 @@ public class InboundDetailDTO {
     private GeneralAccountType accountType;
     private Long inboundId;
     private Long foreignProductId;
+    private Long registrableStockId;
     private String sourceBroker;
     private BigDecimal qty;
     private BigDecimal currentQty;

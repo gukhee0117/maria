@@ -54,4 +54,23 @@ public interface InboundMapper {
     int countInboundsByAccountId(@Param("accountId") Long accountId);
 
     List<InboundPriorApprovalDTO> selectPriorApprovals(@Param("inboundId") Long inboundId);
+
+    BigDecimal sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+            @Param("accountId") Long accountId,
+            @Param("foreignProductId") Long foreignProductId,
+            @Param("sourceGeneralAccountId") Long sourceGeneralAccountId);
+
+    BigDecimal sumApprovedQtyByAccountAndRegistrableStockId(
+            @Param("accountId") Long accountId,
+            @Param("registrableStockId") Long registrableStockId);
+
+    boolean existsNullOriginByAccountAndProductAndSourceGeneralAccount(
+            @Param("accountId") Long accountId,
+            @Param("foreignProductId") Long foreignProductId,
+            @Param("sourceGeneralAccountId") Long sourceGeneralAccountId);
+
+    Optional<InboundDTO> selectInboundByIdAndAccountId(
+            @Param("inboundId") Long inboundId, @Param("accountId") Long accountId);
+
+    List<InboundDetailDTO> selectDetailsByInboundId(@Param("inboundId") Long inboundId);
 }

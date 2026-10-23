@@ -12,7 +12,10 @@ import lombok.*;
 @ToString
 @Builder
 public class RegistrableStockResponseDTO {
+    private Long registrableStockId;
+    private Long foreignProductId;
     private Long generalAccountId;
+    private String accountNo;
     private GeneralAccountType accountType;
     private BigDecimal heldQty;
     private String sourceBroker;

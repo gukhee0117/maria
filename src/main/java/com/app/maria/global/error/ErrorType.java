@@ -26,6 +26,9 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    // 고객 로그인 (아이디 존재 여부와 비밀번호 오류를 구분해 노출하지 않는다.)
+    CUSTOMER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
+
     // 계좌
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 정보를 찾을 수 없습니다.", LogLevel.WARN),
     ACCOUNT_CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),
@@ -153,7 +156,24 @@ public enum ErrorType {
 
     // Inbound(B1)
     REGISTRABLE_STOCK_NOT_FOUND(
-            HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR);
+            HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR),
+
+    // 고객 입고 조회 (다른 고객의 입고 조회 시 존재 여부를 노출하지 않는다.)
+    INBOUND_NOT_FOUND(HttpStatus.NOT_FOUND, "입고 내역을 찾을 수 없습니다.", LogLevel.WARN),
+
+    // 고객 입고 신청
+    CUSTOMER_INBOUND_QTY_ZERO(HttpStatus.BAD_REQUEST, "입고 가능한 수량이 없습니다.", LogLevel.WARN),
+    CUSTOMER_REGISTRABLE_STOCK_NOT_FOUND(
+            HttpStatus.BAD_REQUEST, "선택한 계좌·종목의 적격 주식 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    SOURCE_ACCOUNT_INVALID(HttpStatus.BAD_REQUEST, "출처 일반계좌를 확인할 수 없습니다.", LogLevel.WARN),
+
+    // 입고 신청 — lot 배분 불가·무결성 위반
+    INBOUND_LOT_ORIGIN_UNRESOLVABLE(
+            HttpStatus.CONFLICT,
+            "기존 입고 이력의 원본 계좌를 확인할 수 없어 신청을 처리할 수 없습니다. 관리자에게 문의해 주세요.",
+            LogLevel.WARN),
+    INBOUND_ALLOCATION_INTEGRITY_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "입고 수량 배분 중 오류가 발생했습니다.", LogLevel.ERROR);
 
     private final HttpStatus status;
     private final String message;

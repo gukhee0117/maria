@@ -1277,6 +1277,7 @@ class InboundMapperTest {
               inbound_detail_id BIGINT PRIMARY KEY AUTO_INCREMENT,
               inbound_id BIGINT NOT NULL,
               foreign_product_id BIGINT NOT NULL,
+              registrable_stock_id BIGINT,
               source_broker VARCHAR(50),
               qty DECIMAL(15, 4) NOT NULL,
               current_qty DECIMAL(15, 4) NOT NULL,

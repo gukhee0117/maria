@@ -64,9 +64,10 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // ─── Order(2): 화면·인증 엔드포인트 — 명시 허용 외 전부 차단 ──────────────
+    // Order(2)는 CustomerSecurityConfig의 고객 세션 API가 사용한다.
+    // ─── Order(3): 화면·인증 엔드포인트 — 명시 허용 외 전부 차단 ──────────────
     @Bean
-    @Order(2)
+    @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
         http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)

@@ -16,4 +16,14 @@
         WHERE foreign_product_id = #{foreignProductId}
     </select>
 
+    <select id="selectByIdsOrderedByTickerAndId" resultType="ForeignProductDTO">
+        SELECT foreign_product_id, ticker, name, market, currency, type AS foreignProductType
+        FROM foreign_product
+        WHERE foreign_product_id IN
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY ticker ASC, foreign_product_id ASC
+    </select>
+
 </mapper>
