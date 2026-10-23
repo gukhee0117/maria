@@ -2,6 +2,8 @@ package com.app.maria.global.error;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import org.junit.jupiter.api.Test;
 
 class AppExceptionTest {

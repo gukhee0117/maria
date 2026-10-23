@@ -8,7 +8,7 @@ import static org.mockito.Mockito.*;
 
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExchangeApiProperties;
-import com.app.maria.global.error.AppException;
+import com.app.maria.global.exception.AppException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;

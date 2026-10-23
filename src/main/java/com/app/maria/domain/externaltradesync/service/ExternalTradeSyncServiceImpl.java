@@ -14,7 +14,7 @@ import com.app.maria.domain.targetproduct.service.TargetProductService;
 import com.app.maria.global.client.mydatatrade.MydataTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
-import com.app.maria.global.error.AppException;
+import com.app.maria.global.exception.AppException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

@@ -15,8 +15,8 @@ import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;

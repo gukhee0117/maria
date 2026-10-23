@@ -9,8 +9,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.net.SocketTimeoutException;
 import java.time.LocalDateTime;
 import java.util.List;

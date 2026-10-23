@@ -1,6 +1,6 @@
 package com.app.maria.domain.tax.batch;
 
-import com.app.maria.global.error.AppException;
+import com.app.maria.global.exception.AppException;
 import org.springframework.batch.core.step.skip.SkipLimitExceededException;
 import org.springframework.batch.core.step.skip.SkipPolicy;
 import org.springframework.stereotype.Component;
