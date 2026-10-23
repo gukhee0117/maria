@@ -141,6 +141,23 @@
         <include refid="withdrawalHistoryGroupBy"/>
     </select>
 
+    <select id="selectWithdrawalHistoryByIdAndAccountId"
+            resultType="com.app.maria.domain.withdrawal.dto.WithdrawalHistoryDTO">
+        <include refid="withdrawalHistoryColumns"/>
+        WHERE w.withdrawal_id = #{withdrawalId}
+        AND w.account_id = #{accountId}
+        <include refid="withdrawalHistoryGroupBy"/>
+    </select>
+
+    <select id="selectProvisionalAmountByAccountId"
+            parameterType="Long"
+            resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(provisional_amount), 0)
+        FROM krw_exchange
+        WHERE account_id = #{accountId}
+        AND settlement_status = 'PROVISIONAL'
+    </select>
+
     <select id="selectAllocationHistoriesByWithdrawalId"
             parameterType="Long"
             resultType="com.app.maria.domain.withdrawal.dto.WithdrawalAllocationHistoryDTO">

@@ -109,11 +109,19 @@ public class WithdrawalProcessor {
                 withdrawalMapper.selectAvailableLeftAmountsByAccountId(accountId);
 
         // 확정된 납입 원금의 잔액 합계와 자유롭게 인출할 수 있는 수익금을 계산한다.
+        // account.amount에는 가환전(PROVISIONAL) 금액도 포함되어 있으나 left_amount에는 잡히지 않으므로
+        // PROVISIONAL 합계를 별도로 차감해야 한다.
         BigDecimal totalPrincipal =
                 leftAmounts.stream()
                         .map(LeftAmountDTO::getCurAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal earnings = account.getAmount().subtract(totalPrincipal).max(BigDecimal.ZERO);
+        BigDecimal provisionalTotal =
+                withdrawalMapper.selectProvisionalAmountByAccountId(accountId);
+        BigDecimal earnings =
+                account.getAmount()
+                        .subtract(totalPrincipal)
+                        .subtract(provisionalTotal)
+                        .max(BigDecimal.ZERO);
         BigDecimal earningsAllocation = requestedAmount.min(earnings);
         BigDecimal remainingRequest = requestedAmount.subtract(earningsAllocation);
 

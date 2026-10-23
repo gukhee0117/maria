@@ -20,6 +20,8 @@ public interface WithdrawalService {
 
     WithdrawalDetailResponseDTO getWithdrawal(Long withdrawalId);
 
+    WithdrawalDetailResponseDTO getWithdrawalByIdAndAccountId(Long withdrawalId, Long accountId);
+
     boolean hasImmaturePrincipal(Long accountId);
 
     BigDecimal getImmaturePrincipalAmount(Long accountId);
