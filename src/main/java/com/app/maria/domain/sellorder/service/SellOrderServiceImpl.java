@@ -85,7 +85,11 @@ public class SellOrderServiceImpl implements SellOrderService {
         ForeignProductDTO product =
                 foreignProductMapper
                         .selectById(sellOrderDTO.getForeignProductId())
-                        .orElseThrow(() -> new AppException(ErrorType.FOREIGN_PRODUCT_NOT_FOUND));
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.FOREIGN_PRODUCT_NOT_FOUND,
+                                                sellOrderDTO.getForeignProductId()));
 
         String kisMarketCode = KisExchangeCode.fromMarket(product.getMarket());
         BigDecimal previousClose = kis.getPreviousClose(kisMarketCode, product.getTicker());

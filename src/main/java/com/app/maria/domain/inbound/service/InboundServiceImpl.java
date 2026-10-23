@@ -228,7 +228,8 @@ public class InboundServiceImpl implements InboundService {
                                                     () ->
                                                             new AppException(
                                                                     ErrorType
-                                                                            .FOREIGN_PRODUCT_NOT_FOUND));
+                                                                            .FOREIGN_PRODUCT_NOT_FOUND,
+                                                                    holding.getForeignProductId()));
                             return new AccountHoldingResponseDTO(product, holding.getCurrentQty());
                         })
                 .toList();
