@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.app.maria.domain.account.dto.request.ReasonRequestDTO;
 import com.app.maria.domain.accountclosure.api.AccountClosureApi;
+import com.app.maria.domain.accountclosure.service.AccountClosureApprovalOrchestrator;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.withdrawal.api.WithdrawalApi;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
@@ -29,11 +30,15 @@ class BusinessApiAuthorizationTest {
 
     private final WithdrawalService withdrawalService = mock(WithdrawalService.class);
     private final AccountClosureService accountClosureService = mock(AccountClosureService.class);
+    private final AccountClosureApprovalOrchestrator accountClosureApprovalOrchestrator =
+            mock(AccountClosureApprovalOrchestrator.class);
 
     private final WithdrawalApi withdrawalApi = securedProxy(new WithdrawalApi(withdrawalService));
 
     private final AccountClosureApi accountClosureApi =
-            securedProxy(new AccountClosureApi(accountClosureService));
+            securedProxy(
+                    new AccountClosureApi(
+                            accountClosureService, accountClosureApprovalOrchestrator));
 
     @AfterEach
     void clearSecurityContext() {

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.accountclosure.dto.request.AccountClosureApplyRequestDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureDetailResponseDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureResponseDTO;
+import com.app.maria.domain.accountclosure.service.AccountClosureApprovalOrchestrator;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.accountclosure.type.AccountClosureStatus;
 import com.app.maria.global.error.AppException;
@@ -45,13 +46,17 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AccountClosureApiTest {
 
     @Mock private AccountClosureService accountClosureService;
+    @Mock private AccountClosureApprovalOrchestrator accountClosureApprovalOrchestrator;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc =
-                MockMvcBuilders.standaloneSetup(new AccountClosureApi(accountClosureService))
+                MockMvcBuilders.standaloneSetup(
+                                new AccountClosureApi(
+                                        accountClosureService,
+                                        accountClosureApprovalOrchestrator))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                         .setMessageConverters(
@@ -231,7 +236,7 @@ class AccountClosureApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청 승인 완료"));
 
-        verify(accountClosureService).approveClosure(7L, 30L);
+        verify(accountClosureApprovalOrchestrator).approveClosure(7L, 30L);
     }
 
     @Test
@@ -239,26 +244,26 @@ class AccountClosureApiTest {
         mockMvc.perform(post("/api/admin/account-closures/0/approve"))
                 .andExpect(status().isBadRequest());
 
-        verifyNoInteractions(accountClosureService);
+        verifyNoInteractions(accountClosureApprovalOrchestrator);
     }
 
     @Test
     void missingApprovalRequestReturnsNotFound() throws Exception {
         doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_FOUND))
-                .when(accountClosureService)
+                .when(accountClosureApprovalOrchestrator)
                 .approveClosure(7L, 999L);
 
         mockMvc.perform(post("/api/admin/account-closures/999/approve"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("계좌 해지 신청을 찾을 수 없습니다."));
 
-        verify(accountClosureService).approveClosure(7L, 999L);
+        verify(accountClosureApprovalOrchestrator).approveClosure(7L, 999L);
     }
 
     @Test
     void approvalOfAlreadyProcessedClosureReturnsBadRequest() throws Exception {
         doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_NOT_ALLOWED))
-                .when(accountClosureService)
+                .when(accountClosureApprovalOrchestrator)
                 .approveClosure(7L, 30L);
 
         mockMvc.perform(post("/api/admin/account-closures/30/approve"))
@@ -271,7 +276,7 @@ class AccountClosureApiTest {
     @Test
     void approvalProcessingFailureReturnsInternalServerError() throws Exception {
         doThrow(new AppException(ErrorType.ACCOUNT_CLOSURE_PROCESSING_FAILED))
-                .when(accountClosureService)
+                .when(accountClosureApprovalOrchestrator)
                 .approveClosure(7L, 30L);
 
         mockMvc.perform(post("/api/admin/account-closures/30/approve"))

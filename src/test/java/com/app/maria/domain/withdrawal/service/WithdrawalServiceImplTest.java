@@ -248,17 +248,18 @@ class WithdrawalServiceImplTest {
     }
 
     @Test
-    void closureProcessorFailure_recordsFailedRowAndRethrowsException() {
+    void closureProcessorFailure_doesNotRecordFailedRow() {
+        // 해지 경로의 실패 기록은 AccountClosureApprovalOrchestrator 가 트랜잭션 롤백 후 담당한다.
+        // withdrawForClosure 자체는 try-catch 없이 예외를 그대로 전파한다.
         prepareVerification(GeneralAccountStatus.ACTIVE);
         AppException exception =
                 new AppException(ErrorType.WITHDRAWAL_PROCESSING_FAILED, ACCOUNT_ID);
         when(withdrawalProcessor.withdrawForClosure(any(), any())).thenThrow(exception);
-        when(businessClockService.now()).thenReturn(PROCESSED_AT);
 
         assertThatThrownBy(() -> withdrawalService.withdrawForClosure(request()))
                 .isSameAs(exception);
 
-        verify(withdrawalFailureService).record(any());
+        verify(withdrawalFailureService, never()).record(any());
     }
 
     @Test
@@ -272,6 +273,17 @@ class WithdrawalServiceImplTest {
 
         assertThat(result).isSameAs(expected);
         verify(withdrawalFailureService, never()).record(any());
+    }
+
+    @Test
+    void processorFailure_whenRecordingThrows_originalExceptionIsStillRethrown() {
+        prepareVerification(GeneralAccountStatus.ACTIVE);
+        AppException originalException =
+                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, ACCOUNT_ID);
+        when(withdrawalProcessor.withdraw(any(), any())).thenThrow(originalException);
+        when(businessClockService.now()).thenThrow(new RuntimeException("시계 조회 실패"));
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(request())).isSameAs(originalException);
     }
 
     private void prepareVerification(GeneralAccountStatus destinationStatus) {

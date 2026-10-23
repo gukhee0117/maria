@@ -4,6 +4,7 @@ import com.app.maria.domain.account.dto.request.ReasonRequestDTO;
 import com.app.maria.domain.accountclosure.dto.request.AccountClosureApplyRequestDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureDetailResponseDTO;
 import com.app.maria.domain.accountclosure.dto.response.AccountClosureResponseDTO;
+import com.app.maria.domain.accountclosure.service.AccountClosureApprovalOrchestrator;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.accountclosure.type.AccountClosureStatus;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
 public class AccountClosureApi {
     private final AccountClosureService accountClosureService;
+    private final AccountClosureApprovalOrchestrator accountClosureApprovalOrchestrator;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'REVIEWER')")
@@ -50,7 +52,7 @@ public class AccountClosureApi {
     public ResponseEntity<ApiResponseDTO<Void>> approveClosure(
             @AuthenticationPrincipal Long adminId,
             @PathVariable @Positive(message = "해지 신청 ID는 0보다 커야합니다.") Long closureRequestId) {
-        accountClosureService.approveClosure(adminId, closureRequestId);
+        accountClosureApprovalOrchestrator.approveClosure(adminId, closureRequestId);
         return ResponseEntity.ok(ApiResponseDTO.of("계좌 해지 신청 승인 완료", null));
     }
 

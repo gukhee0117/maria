@@ -19,6 +19,7 @@ import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountRes
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
+import lombok.extern.slf4j.Slf4j;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WithdrawalServiceImpl implements WithdrawalService {
@@ -43,7 +45,11 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         try {
             return withdrawalProcessor.withdraw(requestDTO, destination);
         } catch (Exception e) {
-            recordFailed(requestDTO, destination);
+            try {
+                recordFailed(requestDTO, destination);
+            } catch (Exception re) {
+                log.warn("인출 실패 이력 저장 중 오류 — accountId={}", requestDTO.getAccountId(), re);
+            }
             throw e;
         }
     }
@@ -51,12 +57,10 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     @Override
     public WithdrawalResultDTO withdrawForClosure(WithdrawalRequestDTO requestDTO) {
         GeneralAccountResponseDTO destination = verifyDestinationAccount(requestDTO);
-        try {
-            return withdrawalProcessor.withdrawForClosure(requestDTO, destination);
-        } catch (Exception e) {
-            recordFailed(requestDTO, destination);
-            throw e;
-        }
+        // 실패 기록은 AccountClosureApprovalOrchestrator가 트랜잭션 롤백 후 담당한다.
+        // 이 호출 지점은 이미 해지 트랜잭션 안에서 ACCOUNT 행 잠금을 쥔 상태이므로,
+        // 여기서 REQUIRES_NEW를 시도하면 FK 잠금 충돌이 발생한다.
+        return withdrawalProcessor.withdrawForClosure(requestDTO, destination);
     }
 
     private GeneralAccountResponseDTO verifyDestinationAccount(WithdrawalRequestDTO requestDTO) {
