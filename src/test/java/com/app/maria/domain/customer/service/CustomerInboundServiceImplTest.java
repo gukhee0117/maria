@@ -8,7 +8,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.mockito.ArgumentCaptor;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
@@ -17,7 +16,6 @@ import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO
 import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
-import com.app.maria.domain.inbound.dto.InboundDTO;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
@@ -152,9 +150,7 @@ class CustomerInboundServiceImplTest {
         assertThat(result.getPartialReason()).isNull();
         assertThat(result.getDetails()).hasSize(1);
         assertThat(result.getProcessedAt()).isEqualTo(NOW);
-        ArgumentCaptor<InboundDTO> inboundCaptor = ArgumentCaptor.forClass(InboundDTO.class);
-        verify(inboundMapper).insertInbound(inboundCaptor.capture());
-        assertThat(inboundCaptor.getValue().getCurrentHoldingAtRequest()).isEqualByComparingTo("100");
+        verify(inboundMapper).insertInbound(any());
         verify(inboundMapper, times(1)).insertInboundDetail(any());
         verify(inboundMapper, times(1)).insertInboundMin(any());
     }

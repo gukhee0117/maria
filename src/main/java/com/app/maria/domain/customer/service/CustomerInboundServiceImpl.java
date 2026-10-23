@@ -114,7 +114,6 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                 InboundDTO.builder()
                         .accountId(account.getAccountId())
                         .requestedQty(requestedQty)
-                        .currentHoldingAtRequest(snapshotQty)
                         .approvedQty(approvedQty)
                         .processedAt(now)
                         .build();
