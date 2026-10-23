@@ -1,7 +1,7 @@
 package com.app.maria.global.client.kis;
 
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

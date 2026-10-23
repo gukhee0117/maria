@@ -1,7 +1,7 @@
 package com.app.maria.domain.settlement.batch;
 
 import com.app.maria.domain.settlement.component.SettlementBatchStatusUpdater;
-import com.app.maria.global.error.AppException;
+import com.app.maria.global.exception.AppException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;

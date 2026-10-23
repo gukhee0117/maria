@@ -1,8 +1,8 @@
 package com.app.maria.global.client.mydatafund;
 
 import com.app.maria.domain.targetproduct.dto.response.MydataFundResponseDTO;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;

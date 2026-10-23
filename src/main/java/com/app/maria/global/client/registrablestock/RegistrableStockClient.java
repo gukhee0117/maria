@@ -1,8 +1,8 @@
 package com.app.maria.global.client.registrablestock;
 
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
