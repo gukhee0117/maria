@@ -19,11 +19,11 @@ import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountRes
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
-import lombok.extern.slf4j.Slf4j;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -179,5 +179,4 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     public BigDecimal getImmatureAllocatedAmount(Long withdrawalId) {
         return withdrawalMapper.selectImmatureAllocatedAmountByWithdrawalId(withdrawalId);
     }
-
 }

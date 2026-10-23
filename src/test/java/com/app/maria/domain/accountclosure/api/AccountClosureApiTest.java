@@ -55,8 +55,7 @@ class AccountClosureApiTest {
         mockMvc =
                 MockMvcBuilders.standaloneSetup(
                                 new AccountClosureApi(
-                                        accountClosureService,
-                                        accountClosureApprovalOrchestrator))
+                                        accountClosureService, accountClosureApprovalOrchestrator))
                         .setControllerAdvice(new GlobalExceptionHandler())
                         .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                         .setMessageConverters(

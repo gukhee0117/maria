@@ -13,7 +13,6 @@ import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationHistoryDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalHistoryDTO;
-import com.app.maria.domain.withdrawal.service.ClosureWithdrawalContextHolder;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
@@ -294,8 +293,7 @@ class WithdrawalServiceImplTest {
     }
 
     private void prepareVerification(GeneralAccountStatus destinationStatus) {
-        when(accountMapper.selectByAccountId(ACCOUNT_ID))
-                .thenReturn(Optional.of(accountDTO()));
+        when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.of(accountDTO()));
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
                 .thenReturn(Optional.of("ci-hash"));
         when(generalAccountClient.verifyGeneralAccount(any()))

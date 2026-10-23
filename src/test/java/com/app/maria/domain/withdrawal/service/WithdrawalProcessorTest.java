@@ -205,7 +205,8 @@ class WithdrawalProcessorTest {
         when(accountMapper.updateBenefitToImpossible(ACCOUNT_ID)).thenReturn(1);
         when(accountBenefitLogMapper.insertLog(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200", true), verifiedAccount()))
+        assertThatThrownBy(
+                        () -> withdrawalService.withdraw(request("200", true), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED.getMessage());
     }

@@ -11,14 +11,12 @@ import org.springframework.stereotype.Service;
 /**
  * 해지 승인의 논트랜잭셔널 진입점.
  *
- * <p>AccountClosureServiceImpl.approveClosure()는 ACCOUNT 행을 FOR UPDATE로 잠근 채 인출을
- * 수행하므로, 인출 실패 기록(REQUIRES_NEW)을 같은 트랜잭션 안에서 시도하면 FK 잠금 충돌이 발생한다.
- * 이 클래스는 트랜잭션 없이 동작하면서 transactional approveClosure가 롤백된 뒤에 FAILED 행을
- * 기록한다.
+ * <p>AccountClosureServiceImpl.approveClosure()는 ACCOUNT 행을 FOR UPDATE로 잠근 채 인출을 수행하므로, 인출 실패
+ * 기록(REQUIRES_NEW)을 같은 트랜잭션 안에서 시도하면 FK 잠금 충돌이 발생한다. 이 클래스는 트랜잭션 없이 동작하면서 transactional
+ * approveClosure가 롤백된 뒤에 FAILED 행을 기록한다.
  *
- * <p>WithdrawalServiceImpl.withdrawForClosure()가 잠금 획득 후 ClosureWithdrawalContextHolder에
- * 컨텍스트를 저장한다. 이 클래스는 롤백 후 그 값을 꺼낸다. 값이 null이면 인출 시도 전에 실패한
- * 것이므로 FAILED 행을 남기지 않는다.
+ * <p>WithdrawalServiceImpl.withdrawForClosure()가 잠금 획득 후 ClosureWithdrawalContextHolder에 컨텍스트를
+ * 저장한다. 이 클래스는 롤백 후 그 값을 꺼낸다. 값이 null이면 인출 시도 전에 실패한 것이므로 FAILED 행을 남기지 않는다.
  */
 @Slf4j
 @Service
