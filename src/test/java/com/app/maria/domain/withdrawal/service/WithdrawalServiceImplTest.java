@@ -51,7 +51,6 @@ class WithdrawalServiceImplTest {
     @Mock private WithdrawalFailureService withdrawalFailureService;
     @Mock private AccountMapper accountMapper;
     @Mock private GeneralAccountClient generalAccountClient;
-    @Mock private ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
     @InjectMocks private WithdrawalServiceImpl withdrawalService;
 
     @Test
@@ -261,9 +260,6 @@ class WithdrawalServiceImplTest {
                 .isSameAs(exception);
 
         verify(withdrawalFailureService, never()).record(any());
-        // 오케스트레이터가 롤백 후 읽을 수 있도록 컨텍스트가 설정되어야 한다
-        verify(closureWithdrawalContextHolder)
-                .set(ACCOUNT_ID, new BigDecimal("700000"), "110-123-456789", GENERAL_ACCOUNT_ID);
     }
 
     @Test
@@ -277,8 +273,6 @@ class WithdrawalServiceImplTest {
 
         assertThat(result).isSameAs(expected);
         verify(withdrawalFailureService, never()).record(any());
-        verify(closureWithdrawalContextHolder)
-                .set(ACCOUNT_ID, new BigDecimal("700000"), "110-123-456789", GENERAL_ACCOUNT_ID);
     }
 
     @Test

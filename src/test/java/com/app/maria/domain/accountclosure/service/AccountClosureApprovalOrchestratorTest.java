@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,8 +13,8 @@ import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.service.ClosureWithdrawalContextHolder;
 import com.app.maria.domain.withdrawal.service.WithdrawalFailureService;
 import com.app.maria.global.clock.service.BusinessClockService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,8 @@ class AccountClosureApprovalOrchestratorTest {
 
         verify(accountClosureService).approveClosure(ADMIN_ID, CLOSURE_REQUEST_ID);
         verify(withdrawalFailureService, never()).record(any());
-        verify(closureWithdrawalContextHolder).clear();
+        // 시작 시 pre-emptive clear + finally clear = 총 2회
+        verify(closureWithdrawalContextHolder, times(2)).clear();
     }
 
     @Test

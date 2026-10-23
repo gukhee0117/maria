@@ -38,11 +38,12 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     private final BusinessClockService businessClockService;
     private final AccountMapper accountMapper;
     private final GeneralAccountClient generalAccountClient;
-    private final ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
 
     @Override
     public WithdrawalResultDTO withdraw(WithdrawalRequestDTO requestDTO) {
         GeneralAccountResponseDTO destination = verifyDestinationAccount(requestDTO);
+        // 목적계좌 검증을 통과한 시점부터 인출 시도로 간주한다.
+        // Processor 안에서 발생하는 모든 예외(잔액 부족·가환전 차단·DB 오류 등)를 기록 대상으로 삼는다.
         try {
             return withdrawalProcessor.withdraw(requestDTO, destination);
         } catch (Exception e) {
@@ -58,13 +59,8 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     @Override
     public WithdrawalResultDTO withdrawForClosure(WithdrawalRequestDTO requestDTO) {
         GeneralAccountResponseDTO destination = verifyDestinationAccount(requestDTO);
-        // 잠금 획득 후 확정된 금액과 목적계좌 정보를 ThreadLocal에 기록한다.
-        // 트랜잭션 롤백 후 AccountClosureApprovalOrchestrator가 꺼내 FAILED 행을 삽입한다.
-        closureWithdrawalContextHolder.set(
-                requestDTO.getAccountId(),
-                requestDTO.getRequestedAmount(),
-                destination.getAccountNo(),
-                requestDTO.getDestinationGeneralAccountId());
+        // 실패 기록은 AccountClosureApprovalOrchestrator가 트랜잭션 롤백 후 담당한다.
+        // 컨텍스트 기록은 WithdrawalProcessor 안에서 상태 검사 통과 후 수행된다.
         return withdrawalProcessor.withdrawForClosure(requestDTO, destination);
     }
 

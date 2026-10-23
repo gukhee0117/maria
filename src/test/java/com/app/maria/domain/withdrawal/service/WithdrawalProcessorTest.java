@@ -26,6 +26,7 @@ import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
+import com.app.maria.domain.withdrawal.service.ClosureWithdrawalContextHolder;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -56,6 +57,7 @@ class WithdrawalProcessorTest {
     @Mock AccountMapper accountMapper;
     @Mock WithdrawalMapper withdrawalMapper;
     @Mock AccountBenefitLogMapper accountBenefitLogMapper;
+    @Mock ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
     @InjectMocks WithdrawalProcessor withdrawalService;
 
     @Test
@@ -100,6 +102,38 @@ class WithdrawalProcessorTest {
         assertThat(result.getAllocations()).singleElement();
         verify(withdrawalMapper).deductAccountAmount(ACCOUNT_ID, new BigDecimal("300"));
         verify(withdrawalMapper).updateWithdrawalStatus(WITHDRAWAL_ID, WithdrawalStatus.COMPLETED);
+    }
+
+    @Test
+    void closureWithdrawal_statusCheckPasses_setsContext() {
+        // 상태 검사 통과 후 컨텍스트가 설정되어야 한다
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
+                .thenReturn(Optional.of(account(Status.CLOSURE_REQUESTED, "300")));
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(leftAmount(10L, "300", NOW.minusYears(2))));
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(BigDecimal.ZERO);
+        when(businessClockService.now()).thenReturn(NOW);
+        preparePersistenceSuccess();
+
+        withdrawalService.withdrawForClosure(request("300"), verifiedAccount());
+
+        verify(closureWithdrawalContextHolder)
+                .set(ACCOUNT_ID, new BigDecimal("300"), "110-123-456789", GENERAL_ACCOUNT_ID);
+    }
+
+    @Test
+    void closureWithdrawal_statusCheckFails_doesNotSetContext() {
+        // 상태 불일치(이미 처리됨 등)는 인출 시도 전이므로 컨텍스트를 설정하지 않는다
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
+                .thenReturn(Optional.of(account(Status.OPENED, "300")));
+
+        assertThatThrownBy(
+                        () -> withdrawalService.withdrawForClosure(request("300"), verifiedAccount()))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
+
+        verify(closureWithdrawalContextHolder, never()).set(any(), any(), any(), any());
     }
 
     @Test

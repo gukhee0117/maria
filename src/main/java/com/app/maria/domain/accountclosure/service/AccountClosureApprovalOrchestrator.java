@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
  *
  * <p>WithdrawalServiceImpl.withdrawForClosure()가 잠금 획득 후 ClosureWithdrawalContextHolder에 컨텍스트를
  * 저장한다. 이 클래스는 롤백 후 그 값을 꺼낸다. 값이 null이면 인출 시도 전에 실패한 것이므로 FAILED 행을 남기지 않는다.
+ *
+ * <p>한계: 해지 경로의 목적계좌 검증(verifyDestinationAccount)은 현재 ACCOUNT FOR UPDATE 잠금 안에서
+ * 실행된다. 외부 HTTP 호출을 트랜잭션 밖으로 분리하는 작업은 별도 이슈로 다룬다.
  */
 @Slf4j
 @Service
@@ -30,6 +33,8 @@ public class AccountClosureApprovalOrchestrator {
 
     /** 트랜잭셔널 해지 승인을 실행하고, 실패 시 FAILED 인출 이력을 기록한다. */
     public void approveClosure(Long adminId, Long closureRequestId) {
+        // 이전 호출에서 ThreadLocal이 남아있을 경우를 방어한다.
+        closureWithdrawalContextHolder.clear();
         try {
             accountClosureService.approveClosure(adminId, closureRequestId);
         } catch (Exception e) {

@@ -34,6 +34,7 @@ public class WithdrawalProcessor {
     private final AccountMapper accountMapper;
     private final WithdrawalMapper withdrawalMapper;
     private final AccountBenefitLogMapper accountBenefitLogMapper;
+    private final ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
 
     @Transactional
     public WithdrawalResultDTO withdraw(
@@ -60,6 +61,16 @@ public class WithdrawalProcessor {
 
         if (account.getStatus() != allowedStatus) {
             throw new AppException(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE, accountId);
+        }
+
+        // 잠금 획득 후 상태 검사를 통과한 시점에만 컨텍스트를 기록한다.
+        // 상태 불일치(반려·이미 처리됨)는 인출 시도 전이므로 FAILED 행을 남기지 않는다.
+        if (allowedStatus == Status.CLOSURE_REQUESTED) {
+            closureWithdrawalContextHolder.set(
+                    accountId,
+                    requestedAmount,
+                    destinationGeneralAccount.getAccountNo(),
+                    destinationGeneralAccount.getGeneralAccountId());
         }
 
         LocalDateTime currentDatetime = businessClockService.now();
