@@ -81,6 +81,22 @@ public class WithdrawalServiceImpl implements WithdrawalService {
 
     @Override
     @Transactional(readOnly = true)
+    public WithdrawalDetailResponseDTO getWithdrawalByIdAndAccountId(
+            Long withdrawalId, Long accountId) {
+        WithdrawalHistoryDTO withdrawal =
+                withdrawalMapper
+                        .selectWithdrawalHistoryByIdAndAccountId(withdrawalId, accountId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.WITHDRAWAL_NOT_FOUND, withdrawalId));
+
+        return WithdrawalDetailResponseDTO.from(
+                withdrawal, withdrawalMapper.selectAllocationHistoriesByWithdrawalId(withdrawalId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean hasImmaturePrincipal(Long accountId) {
         return getImmaturePrincipalAmount(accountId).compareTo(BigDecimal.ZERO) > 0;
     }
