@@ -53,9 +53,7 @@ class CustomerWithdrawalApiTest {
     private static RequestPostProcessor customerAuth() {
         Authentication auth =
                 new UsernamePasswordAuthenticationToken(
-                        PRINCIPAL,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
+                        PRINCIPAL, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
         return authentication(auth);
     }
 

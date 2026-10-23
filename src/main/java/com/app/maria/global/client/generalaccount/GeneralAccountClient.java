@@ -65,8 +65,7 @@ public class GeneralAccountClient {
                             .retrieve()
                             .body(
                                     new ParameterizedTypeReference<
-                                            ApiResponseDTO<
-                                                    List<GeneralAccountResponseDTO>>>() {});
+                                            ApiResponseDTO<List<GeneralAccountResponseDTO>>>() {});
             if (apiResponse == null || apiResponse.getData() == null) {
                 throw new AppException(ErrorType.GENERAL_ACCOUNT_API_INVALID_RESPONSE, ciHash);
             }

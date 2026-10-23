@@ -81,9 +81,7 @@ public enum ErrorType {
     INSUFFICIENT_WITHDRAWAL_AMOUNT(
             HttpStatus.BAD_REQUEST, "계좌 잔액보다 많은 금액을 인출할 수 없습니다.", LogLevel.WARN),
     WITHDRAWAL_BLOCKED_BY_PROVISIONAL(
-            HttpStatus.BAD_REQUEST,
-            "미확정 정산 중인 금액이 있어 인출 가능 금액이 부족합니다.",
-            LogLevel.WARN),
+            HttpStatus.BAD_REQUEST, "미확정 정산 중인 금액이 있어 인출 가능 금액이 부족합니다.", LogLevel.WARN),
     WITHDRAWAL_SOURCE_AMOUNT_INCONSISTENT(
             HttpStatus.INTERNAL_SERVER_ERROR, "인출 가능 금액을 계산하는 중 오류가 발생했습니다.", LogLevel.ERROR),
     WITHDRAWAL_PROCESSING_FAILED(

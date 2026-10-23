@@ -119,8 +119,7 @@ class CustomerWithdrawalServiceImplTest {
         when(withdrawalService.withdraw(any(WithdrawalRequestDTO.class))).thenReturn(expected);
 
         WithdrawalResultDTO result =
-                service.withdraw(
-                        CUSTOMER_ID, request(new BigDecimal("100000"), 20L, false));
+                service.withdraw(CUSTOMER_ID, request(new BigDecimal("100000"), 20L, false));
 
         assertThat(result.getWithdrawalId()).isEqualTo(5L);
 
@@ -156,8 +155,7 @@ class CustomerWithdrawalServiceImplTest {
         assertThatThrownBy(
                         () ->
                                 service.withdraw(
-                                        CUSTOMER_ID,
-                                        request(new BigDecimal("100000"), 20L, false)))
+                                        CUSTOMER_ID, request(new BigDecimal("100000"), 20L, false)))
                 .isInstanceOf(AppException.class)
                 .satisfies(
                         ex ->

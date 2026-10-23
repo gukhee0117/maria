@@ -462,8 +462,7 @@ class WithdrawalProcessorTest {
         // 잔액 100만원이 전부 가환전 중 — FINALIZED 원금 없음
         AccountDTO account = account(Status.OPENED, "1000000");
         prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
-        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
-                .thenReturn(Optional.of(account));
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID)).thenReturn(Optional.of(account));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(List.of());
         when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
@@ -483,8 +482,7 @@ class WithdrawalProcessorTest {
         // FINALIZED 원금 600 (1년 경과), 요청 500 → 성공
         AccountDTO account = account(Status.OPENED, "1000");
         prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
-        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
-                .thenReturn(Optional.of(account));
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID)).thenReturn(Optional.of(account));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(List.of(leftAmount(99L, "600", NOW.minusYears(2))));
         when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
@@ -499,8 +497,7 @@ class WithdrawalProcessorTest {
                 .satisfies(
                         allocation -> {
                             assertThat(allocation.getLeftAmountId()).isEqualTo(99L);
-                            assertThat(allocation.getAllocatedAmount())
-                                    .isEqualByComparingTo("500");
+                            assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("500");
                             assertThat(allocation.getType())
                                     .isEqualTo(WithdrawalType.MATURED_PRINCIPAL_INCLUDED);
                         });
