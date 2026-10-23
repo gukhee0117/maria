@@ -21,13 +21,11 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
-import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
-import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -58,28 +56,14 @@ class WithdrawalProcessorTest {
     @Mock AccountMapper accountMapper;
     @Mock WithdrawalMapper withdrawalMapper;
     @Mock AccountBenefitLogMapper accountBenefitLogMapper;
-    @Mock GeneralAccountClient generalAccountClient;
     @InjectMocks WithdrawalProcessor withdrawalService;
 
     @Test
-    void accountNotFound_stopsBeforeLoadingWithdrawalSources() {
-        when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
-        verify(accountMapper, never()).selectByAccountIdForUpdate(ACCOUNT_ID);
-        verifyNoInteractions(generalAccountClient);
-        verifyNoInteractions(withdrawalMapper, businessClockService);
-    }
-
-    @Test
     void nonOpenedAccount_stopsBeforeFifoCalculation() {
-        prepareExternalValidation(account(Status.APPLIED), GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(account(Status.APPLIED)));
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("100"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
         verifyNoInteractions(withdrawalMapper, businessClockService);
@@ -87,12 +71,10 @@ class WithdrawalProcessorTest {
 
     @Test
     void regularWithdrawalRejectsClosureRequestedAccount() {
-        prepareExternalValidation(
-                account(Status.CLOSURE_REQUESTED, "300"), GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(account(Status.CLOSURE_REQUESTED, "300")));
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("100"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
 
@@ -102,7 +84,6 @@ class WithdrawalProcessorTest {
     @Test
     void closureWithdrawalAllowsClosureRequestedAccount() {
         AccountDTO closureRequestedAccount = account(Status.CLOSURE_REQUESTED, "300");
-        prepareExternalValidation(closureRequestedAccount, GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(closureRequestedAccount));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
@@ -112,7 +93,8 @@ class WithdrawalProcessorTest {
         when(businessClockService.now()).thenReturn(NOW);
         preparePersistenceSuccess();
 
-        WithdrawalResultDTO result = withdrawalService.withdrawForClosure(request("300"));
+        WithdrawalResultDTO result =
+                withdrawalService.withdrawForClosure(request("300"), verifiedAccount());
 
         assertThat(result.getWithdrawalId()).isEqualTo(WITHDRAWAL_ID);
         assertThat(result.getAllocations()).singleElement();
@@ -121,22 +103,10 @@ class WithdrawalProcessorTest {
     }
 
     @Test
-    void closedDestinationAccount_isRejectedBeforeAccountLockAndWithdrawalPersistence() {
-        prepareExternalValidation(account(Status.OPENED, "500"), GeneralAccountStatus.CLOSED);
-
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("100")))
-                .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE.getMessage());
-
-        verify(accountMapper, never()).selectByAccountIdForUpdate(ACCOUNT_ID);
-        verifyNoInteractions(withdrawalMapper, businessClockService);
-    }
-
-    @Test
     void exactlyOneYearAfterFinalAt_isMatured() {
         prepareOpenedAccount(List.of(leftAmount(11L, "300", NOW.minusYears(1))));
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("200"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("200"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .singleElement()
@@ -154,7 +124,7 @@ class WithdrawalProcessorTest {
     void oneSecondBeforeOneYear_requiresEarlyWithdrawalConsent() {
         prepareOpenedAccount(List.of(leftAmount(12L, "300", NOW.minusYears(1).plusSeconds(1))));
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.EARLY_WITHDRAWAL_CONSENT_REQUIRED.getMessage());
 
@@ -174,7 +144,8 @@ class WithdrawalProcessorTest {
         when(accountMapper.updateBenefitToImpossible(ACCOUNT_ID)).thenReturn(1);
         when(accountBenefitLogMapper.insertLog(org.mockito.ArgumentMatchers.any())).thenReturn(1);
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("800", true));
+        WithdrawalResultDTO result =
+                withdrawalService.withdraw(request("800", true), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .extracting(WithdrawalAllocationDTO::getLeftAmountId)
@@ -212,7 +183,8 @@ class WithdrawalProcessorTest {
                 "300", BenefitType.IMPOSSIBLE, List.of(leftAmount(71L, "300", NOW.minusMonths(3))));
         when(accountMapper.updateBenefitToImpossible(ACCOUNT_ID)).thenReturn(0);
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("200", true));
+        WithdrawalResultDTO result =
+                withdrawalService.withdraw(request("200", true), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .singleElement()
@@ -233,7 +205,7 @@ class WithdrawalProcessorTest {
         when(accountMapper.updateBenefitToImpossible(ACCOUNT_ID)).thenReturn(1);
         when(accountBenefitLogMapper.insertLog(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200", true)))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200", true), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED.getMessage());
     }
@@ -245,7 +217,7 @@ class WithdrawalProcessorTest {
                         leftAmount(21L, "300", NOW.minusYears(2)),
                         leftAmount(22L, "500", NOW.minusYears(1).minusDays(1))));
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("700"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("700"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .extracting(WithdrawalAllocationDTO::getLeftAmountId)
@@ -254,15 +226,7 @@ class WithdrawalProcessorTest {
                 .extracting(WithdrawalAllocationDTO::getAllocatedAmount)
                 .containsExactly(new BigDecimal("300"), new BigDecimal("400"));
 
-        InOrder order =
-                inOrder(
-                        accountMapper,
-                        generalAccountClient,
-                        withdrawalMapper,
-                        businessClockService);
-        order.verify(accountMapper).selectByAccountId(ACCOUNT_ID);
-        order.verify(accountMapper).selectCiHashByCustomerId(CUSTOMER_ID);
-        order.verify(generalAccountClient).verifyGeneralAccount(any());
+        InOrder order = inOrder(accountMapper, withdrawalMapper, businessClockService);
         order.verify(accountMapper).selectByAccountIdForUpdate(ACCOUNT_ID);
         order.verify(businessClockService).now();
         order.verify(withdrawalMapper).selectAvailableLeftAmountsByAccountId(ACCOUNT_ID);
@@ -272,7 +236,7 @@ class WithdrawalProcessorTest {
     void requestWithinEarnings_isAllocatedWithoutAPrincipalSource() {
         prepareOpenedAccount("1000", List.of(leftAmount(31L, "700", NOW.minusYears(2))));
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("200"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("200"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .singleElement()
@@ -299,7 +263,7 @@ class WithdrawalProcessorTest {
                         leftAmount(41L, "300", NOW.minusYears(2)),
                         leftAmount(42L, "500", NOW.minusYears(1).minusDays(1))));
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("450"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("450"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .extracting(WithdrawalAllocationDTO::getLeftAmountId)
@@ -317,7 +281,7 @@ class WithdrawalProcessorTest {
     void negativeCalculatedEarnings_isTreatedAsZero() {
         prepareOpenedAccount("500", List.of(leftAmount(51L, "600", NOW.minusYears(2))));
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("100"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("100"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .singleElement()
@@ -332,42 +296,24 @@ class WithdrawalProcessorTest {
 
     @Test
     void requestExceedingAccountAmount_isRejectedBeforeLoadingSources() {
-        prepareExternalValidation(account(Status.OPENED, "500"), GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(account(Status.OPENED, "500")));
         when(businessClockService.now()).thenReturn(NOW);
-        // INSUFFICIENT_WITHDRAWAL_AMOUNT는 selectProvisionalAmountByAccountId 호출 전에 던져지므로 stub 불필요
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("501")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("501"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
-                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage())
-                .satisfies(
-                        throwable -> {
-                            AppException exception = (AppException) throwable;
-                            assertThat(exception.getErrorType())
-                                    .isEqualTo(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT);
-                            assertThat(exception.getErrorData())
-                                    .isInstanceOf(WithdrawalFailureContext.class);
-                            WithdrawalFailureContext context =
-                                    (WithdrawalFailureContext) exception.getErrorData();
-                            assertThat(context.getAccountId()).isEqualTo(ACCOUNT_ID);
-                            assertThat(context.getRequestedAmount()).isEqualByComparingTo("501");
-                            assertThat(context.getFailedAt()).isEqualTo(NOW);
-                            assertThat(context.getDestinationAccountNo())
-                                    .isEqualTo("110-123-456789");
-                            assertThat(context.getDestinationGeneralAccountId())
-                                    .isEqualTo(GENERAL_ACCOUNT_ID);
-                        });
+                .hasMessage(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT.getMessage());
+
         verifyNoInteractions(withdrawalMapper);
         verify(businessClockService).now();
     }
 
     @Test
     void zeroAmountRequest_isRejectedBeforeLoadingSources() {
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("0")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("0"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.INVALID_WITHDRAWAL_AMOUNT.getMessage());
-        verifyNoInteractions(accountMapper, generalAccountClient);
+        verifyNoInteractions(accountMapper);
         verifyNoInteractions(withdrawalMapper, businessClockService);
     }
 
@@ -376,7 +322,7 @@ class WithdrawalProcessorTest {
         prepareOpenedAccount(List.of(leftAmount(91L, "300", NOW.minusYears(2))));
         when(withdrawalMapper.insertWithdrawal(any(WithdrawalDTO.class))).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
@@ -394,7 +340,7 @@ class WithdrawalProcessorTest {
         when(withdrawalMapper.insertWithdrawalAllocation(any(WithdrawalAllocationDTO.class)))
                 .thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
@@ -409,7 +355,7 @@ class WithdrawalProcessorTest {
         prepareOpenedAccount(List.of(leftAmount(93L, "300", NOW.minusYears(2))));
         when(withdrawalMapper.deductLeftAmount(93L, new BigDecimal("200"))).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
@@ -423,7 +369,7 @@ class WithdrawalProcessorTest {
         prepareOpenedAccount(List.of(leftAmount(94L, "300", NOW.minusYears(2))));
         when(withdrawalMapper.deductAccountAmount(ACCOUNT_ID, new BigDecimal("200"))).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("200")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("200"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
 
@@ -435,7 +381,7 @@ class WithdrawalProcessorTest {
     void persistedWithdrawalUsesVerifiedDestinationAndGeneratedIdForAllocation() {
         prepareOpenedAccount(List.of(leftAmount(95L, "300", NOW.minusYears(2))));
 
-        withdrawalService.withdraw(request("200"));
+        withdrawalService.withdraw(request("200"), verifiedAccount());
 
         ArgumentCaptor<WithdrawalDTO> withdrawalCaptor =
                 ArgumentCaptor.forClass(WithdrawalDTO.class);
@@ -461,7 +407,6 @@ class WithdrawalProcessorTest {
     void allBalanceIsProvisional_blocksWithdrawalBeforeFifo() {
         // 잔액 100만원이 전부 가환전 중 — FINALIZED 원금 없음
         AccountDTO account = account(Status.OPENED, "1000000");
-        prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID)).thenReturn(Optional.of(account));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(List.of());
@@ -469,7 +414,7 @@ class WithdrawalProcessorTest {
                 .thenReturn(new BigDecimal("1000000"));
         when(businessClockService.now()).thenReturn(NOW);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request("100000")))
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("100000"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_BLOCKED_BY_PROVISIONAL.getMessage());
 
@@ -481,7 +426,6 @@ class WithdrawalProcessorTest {
         // 잔액 1000 중 400이 가환전 중 → 인출 가능액 600
         // FINALIZED 원금 600 (1년 경과), 요청 500 → 성공
         AccountDTO account = account(Status.OPENED, "1000");
-        prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID)).thenReturn(Optional.of(account));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(List.of(leftAmount(99L, "600", NOW.minusYears(2))));
@@ -490,7 +434,7 @@ class WithdrawalProcessorTest {
         when(businessClockService.now()).thenReturn(NOW);
         preparePersistenceSuccess();
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request("500"));
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("500"), verifiedAccount());
 
         assertThat(result.getAllocations())
                 .singleElement()
@@ -526,7 +470,6 @@ class WithdrawalProcessorTest {
             List<LeftAmountDTO> leftAmounts,
             BigDecimal provisionalTotal) {
         AccountDTO openedAccount = account(Status.OPENED, accountAmount, benefit);
-        prepareExternalValidation(openedAccount, GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(openedAccount));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
@@ -535,21 +478,6 @@ class WithdrawalProcessorTest {
                 .thenReturn(provisionalTotal);
         when(businessClockService.now()).thenReturn(NOW);
         preparePersistenceSuccess();
-    }
-
-    private void prepareExternalValidation(
-            AccountDTO accountBeforeLock, GeneralAccountStatus destinationStatus) {
-        when(accountMapper.selectByAccountId(ACCOUNT_ID))
-                .thenReturn(Optional.of(accountBeforeLock));
-        when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
-                .thenReturn(Optional.of("customer-ci-hash"));
-        when(generalAccountClient.verifyGeneralAccount(any()))
-                .thenReturn(
-                        GeneralAccountResponseDTO.builder()
-                                .generalAccountId(GENERAL_ACCOUNT_ID)
-                                .accountNo("110-123-456789")
-                                .status(destinationStatus)
-                                .build());
     }
 
     private void preparePersistenceSuccess() {
@@ -574,6 +502,14 @@ class WithdrawalProcessorTest {
                         withdrawalMapper.updateWithdrawalStatus(
                                 WITHDRAWAL_ID, WithdrawalStatus.COMPLETED))
                 .thenReturn(1);
+    }
+
+    private static GeneralAccountResponseDTO verifiedAccount() {
+        return GeneralAccountResponseDTO.builder()
+                .generalAccountId(GENERAL_ACCOUNT_ID)
+                .accountNo("110-123-456789")
+                .status(GeneralAccountStatus.ACTIVE)
+                .build();
     }
 
     private static AccountDTO account(Status status) {

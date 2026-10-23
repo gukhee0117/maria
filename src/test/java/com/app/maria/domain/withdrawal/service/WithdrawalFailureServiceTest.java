@@ -30,12 +30,12 @@ class WithdrawalFailureServiceTest {
     @InjectMocks private WithdrawalFailureService withdrawalFailureService;
 
     @Test
-    void insufficientBalance_isStoredAsFailedWithdrawal() {
+    void failure_isStoredAsFailedWithdrawal() {
         WithdrawalFailureContext context = failureContext();
         assertThat(context.toString()).doesNotContain("1234567890");
         when(withdrawalMapper.insertWithdrawal(org.mockito.ArgumentMatchers.any())).thenReturn(1);
 
-        withdrawalFailureService.recordInsufficientBalance(context);
+        withdrawalFailureService.record(context);
 
         ArgumentCaptor<WithdrawalDTO> captor = ArgumentCaptor.forClass(WithdrawalDTO.class);
         verify(withdrawalMapper).insertWithdrawal(captor.capture());
@@ -53,7 +53,7 @@ class WithdrawalFailureServiceTest {
         WithdrawalFailureContext context = failureContext();
         when(withdrawalMapper.insertWithdrawal(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
-        assertThatThrownBy(() -> withdrawalFailureService.recordInsufficientBalance(context))
+        assertThatThrownBy(() -> withdrawalFailureService.record(context))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.WITHDRAWAL_PROCESSING_FAILED.getMessage());
     }

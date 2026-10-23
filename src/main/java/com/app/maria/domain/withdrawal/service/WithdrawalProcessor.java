@@ -1,7 +1,5 @@
 package com.app.maria.domain.withdrawal.service;
 
-import static com.app.maria.global.client.generalaccount.type.GeneralAccountStatus.ACTIVE;
-
 import com.app.maria.domain.account.dto.AccountBenefitLogDTO;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
@@ -11,14 +9,11 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
-import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
-import com.app.maria.global.client.generalaccount.GeneralAccountClient;
-import com.app.maria.global.client.generalaccount.dto.request.GeneralAccountRequestDTO;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.error.AppException;
@@ -39,47 +34,22 @@ public class WithdrawalProcessor {
     private final AccountMapper accountMapper;
     private final WithdrawalMapper withdrawalMapper;
     private final AccountBenefitLogMapper accountBenefitLogMapper;
-    private final GeneralAccountClient generalAccountClient;
 
     @Transactional
-    public WithdrawalResultDTO withdraw(WithdrawalRequestDTO requestDTO) {
-        return processWithdrawal(requestDTO, Status.OPENED);
+    public WithdrawalResultDTO withdraw(
+            WithdrawalRequestDTO requestDTO, GeneralAccountResponseDTO destinationGeneralAccount) {
+        return processWithdrawal(requestDTO, destinationGeneralAccount, Status.OPENED);
     }
 
     private WithdrawalResultDTO processWithdrawal(
-            WithdrawalRequestDTO requestDTO, Status allowedStatus) {
+            WithdrawalRequestDTO requestDTO,
+            GeneralAccountResponseDTO destinationGeneralAccount,
+            Status allowedStatus) {
         Long accountId = requestDTO.getAccountId();
         BigDecimal requestedAmount = requestDTO.getRequestedAmount();
 
         if (requestedAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(ErrorType.INVALID_WITHDRAWAL_AMOUNT, requestedAmount);
-        }
-
-        AccountDTO accountBeforeLock =
-                accountMapper
-                        .selectByAccountId(accountId)
-                        .orElseThrow(
-                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
-        String ciHash =
-                accountMapper
-                        .selectCiHashByCustomerId(accountBeforeLock.getCustomerId())
-                        .orElseThrow(
-                                () ->
-                                        new AppException(
-                                                ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
-                                                accountBeforeLock.getCustomerId()));
-
-        GeneralAccountRequestDTO generalAccountRequest =
-                GeneralAccountRequestDTO.builder()
-                        .ciHash(ciHash)
-                        .generalAccountId(requestDTO.getDestinationGeneralAccountId())
-                        .build();
-        GeneralAccountResponseDTO destinationGeneralAccount =
-                generalAccountClient.verifyGeneralAccount(generalAccountRequest);
-        if (destinationGeneralAccount.getStatus() != ACTIVE) {
-            throw new AppException(
-                    ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE,
-                    requestDTO.getDestinationGeneralAccountId());
         }
 
         AccountDTO account =
@@ -95,14 +65,7 @@ public class WithdrawalProcessor {
         LocalDateTime currentDatetime = businessClockService.now();
 
         if (account.getAmount().compareTo(requestedAmount) < 0) {
-            throw new AppException(
-                    ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT,
-                    new WithdrawalFailureContext(
-                            accountId,
-                            requestedAmount,
-                            currentDatetime,
-                            destinationGeneralAccount.getAccountNo(),
-                            requestDTO.getDestinationGeneralAccountId()));
+            throw new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, accountId);
         }
 
         List<LeftAmountDTO> leftAmounts =
@@ -274,9 +237,9 @@ public class WithdrawalProcessor {
     }
 
     @Transactional
-    public WithdrawalResultDTO withdrawForClosure(WithdrawalRequestDTO requestDTO) {
-
-        return processWithdrawal(requestDTO, Status.CLOSURE_REQUESTED);
+    public WithdrawalResultDTO withdrawForClosure(
+            WithdrawalRequestDTO requestDTO, GeneralAccountResponseDTO destinationGeneralAccount) {
+        return processWithdrawal(requestDTO, destinationGeneralAccount, Status.CLOSURE_REQUESTED);
     }
 
     private List<WithdrawalAllocationDTO> allocateMaturedPrincipalFifo(

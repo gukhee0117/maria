@@ -18,7 +18,7 @@ public class WithdrawalFailureService {
     private final WithdrawalMapper withdrawalMapper;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordInsufficientBalance(WithdrawalFailureContext context) {
+    public void record(WithdrawalFailureContext context) {
         WithdrawalDTO failedWithdrawal =
                 WithdrawalDTO.builder()
                         .accountId(context.getAccountId())
