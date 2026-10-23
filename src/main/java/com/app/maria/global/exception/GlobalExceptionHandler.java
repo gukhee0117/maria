@@ -1,6 +1,5 @@
 package com.app.maria.global.exception;
 
-import com.app.maria.global.error.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;

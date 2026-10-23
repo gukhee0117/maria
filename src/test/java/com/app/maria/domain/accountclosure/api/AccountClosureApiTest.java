@@ -18,8 +18,8 @@ import com.app.maria.domain.accountclosure.dto.response.AccountClosureResponseDT
 import com.app.maria.domain.accountclosure.service.AccountClosureApprovalOrchestrator;
 import com.app.maria.domain.accountclosure.service.AccountClosureService;
 import com.app.maria.domain.accountclosure.type.AccountClosureStatus;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import java.math.BigDecimal;

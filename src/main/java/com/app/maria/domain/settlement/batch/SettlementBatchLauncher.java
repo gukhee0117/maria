@@ -2,7 +2,7 @@ package com.app.maria.domain.settlement.batch;
 
 import com.app.maria.domain.settlement.component.SettlementBatchStatusUpdater;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
-import com.app.maria.global.error.AppException;
+import com.app.maria.global.exception.AppException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;

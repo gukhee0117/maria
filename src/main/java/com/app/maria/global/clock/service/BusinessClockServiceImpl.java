@@ -2,8 +2,8 @@ package com.app.maria.global.clock.service;
 
 import com.app.maria.global.clock.dto.SystemClockDTO;
 import com.app.maria.global.clock.mapper.SystemClockMapper;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -2,8 +2,8 @@ package com.app.maria.domain.sellorder.service;
 
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
 import com.app.maria.global.client.mydata.MydataClient;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

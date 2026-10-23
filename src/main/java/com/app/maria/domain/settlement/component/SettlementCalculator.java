@@ -1,8 +1,8 @@
 package com.app.maria.domain.settlement.component;
 
 import com.app.maria.domain.settlement.type.ProvisionalRate;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.stereotype.Component;

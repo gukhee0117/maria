@@ -13,8 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.global.clock.dto.request.SystemClockChangeRequestDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.clock.service.SystemClockManagementService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import java.time.LocalDateTime;

@@ -20,8 +20,8 @@ import com.app.maria.domain.inbound.dto.response.InboundPriorApprovalResponseDTO
 import com.app.maria.domain.inbound.dto.response.InboundResponseDTO;
 import com.app.maria.domain.inbound.dto.response.InboundSummaryResponseDTO;
 import com.app.maria.domain.inbound.service.InboundService;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import com.app.maria.global.response.PageResponseDTO;
 import java.math.BigDecimal;

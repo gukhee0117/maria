@@ -1,8 +1,8 @@
 package com.app.maria.global.client.mydata;
 
 import com.app.maria.global.config.properties.MydataApiProperties;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import java.math.BigDecimal;
 import java.util.List;

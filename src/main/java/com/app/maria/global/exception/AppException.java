@@ -1,4 +1,4 @@
-package com.app.maria.global.error;
+package com.app.maria.global.exception;
 
 import lombok.Getter;
 

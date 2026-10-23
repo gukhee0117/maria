@@ -9,8 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.foreignproduct.dto.response.ForeignProductResponseDTO;
 import com.app.maria.domain.foreignproduct.service.ForeignProductService;
 import com.app.maria.domain.foreignproduct.type.ForeignProductType;
-import com.app.maria.global.error.AppException;
-import com.app.maria.global.error.ErrorType;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
