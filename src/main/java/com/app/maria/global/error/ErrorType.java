@@ -154,6 +154,10 @@ public enum ErrorType {
     DOMESTIC_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 정보를 찾을 수 없습니다.", LogLevel.WARN),
     DOMESTIC_INVESTMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌를 찾을 수 없습니다.", LogLevel.WARN),
 
+    // Foreign product / Member
+    FOREIGN_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다.", LogLevel.WARN),
+
     // Inbound(B1)
     REGISTRABLE_STOCK_NOT_FOUND(
             HttpStatus.BAD_GATEWAY, "등록가능 보유수량 정보를 조회할 수 없습니다.", LogLevel.ERROR),

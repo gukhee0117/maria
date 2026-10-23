@@ -1,9 +1,5 @@
 package com.app.maria.global.exception;
 
-import com.app.maria.domain.foreignproduct.exception.ForeignProductException;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
-import com.app.maria.domain.member.exception.MemberException;
-import com.app.maria.domain.member.exception.MemberNotFoundException;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
 import jakarta.validation.ConstraintViolation;
@@ -60,37 +56,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponseDTO.of(message));
     }
 
-    // 2. Member 예외
-    @ExceptionHandler(MemberException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleException(MemberException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(MemberNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleMemberNotFound(MemberNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 9. ForeignProduct 예외
-    @ExceptionHandler(ForeignProductException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductException(
-            ForeignProductException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    @ExceptionHandler(ForeignProductNotFoundException.class)
-    public ResponseEntity<ApiResponseDTO<Void>> handleForeignProductNotFound(
-            ForeignProductNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponseDTO.of(e.getMessage()));
-    }
-
-    // 16. AppException — 새로 만든 예외 구조 하나가 처리함. 아래 3~19번처럼 예외 종류마다
-    // 핸들러를 따로 안 만들어도 됨 (Tax/SellOrder/KIS/환율/Admin/AuditLog/Inbound/Domestic/TargetProduct
-    // 도메인이 이 구조로 옮겨짐.
-    // 나머지 도메인은 아직 밑에 그대로 있음 — 자기 도메인 옮길 땐 밑에 있는 해당 핸들러 지우고,
-    // 예외 던지는 곳을 AppException으로 바꾸면 됨 — 자세한 건 ErrorType.java / AppException.java 주석 참고)
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponseDTO<Void>> handleAppException(AppException e) {
         logAppException(e);

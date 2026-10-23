@@ -10,7 +10,6 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.inbound.dto.InboundDetailDTO;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
@@ -342,8 +341,9 @@ class SellOrderServiceImplTest {
         when(foreignProductMapper.selectById(10L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellOrderService.placeSellOrder(ACTOR_ADMIN_ID, request))
-                .isInstanceOf(ForeignProductNotFoundException.class)
-                .hasMessage("종목 정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .extracting(e -> ((AppException) e).getErrorType())
+                .isEqualTo(ErrorType.FOREIGN_PRODUCT_NOT_FOUND);
 
         verify(inboundMapper, never()).decreaseCurrentQty(any(), any());
         verifyNoInteractions(kisPriceClient, exchangeRateClient, sellOrderMapper, sellLimitService);

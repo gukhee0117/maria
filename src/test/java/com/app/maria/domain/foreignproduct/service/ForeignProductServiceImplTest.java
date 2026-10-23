@@ -6,9 +6,10 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.dto.response.ForeignProductResponseDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.foreignproduct.type.ForeignProductType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,8 @@ class ForeignProductServiceImplTest {
         when(foreignProductMapper.selectById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> foreignProductService.getForeignProduct(999L))
-                .isInstanceOf(ForeignProductNotFoundException.class);
+                .isInstanceOf(AppException.class)
+                .extracting(e -> ((AppException) e).getErrorType())
+                .isEqualTo(ErrorType.FOREIGN_PRODUCT_NOT_FOUND);
     }
 }

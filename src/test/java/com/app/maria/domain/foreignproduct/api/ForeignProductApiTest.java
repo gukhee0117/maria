@@ -7,9 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.app.maria.domain.foreignproduct.dto.response.ForeignProductResponseDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.service.ForeignProductService;
 import com.app.maria.domain.foreignproduct.type.ForeignProductType;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import com.app.maria.global.exception.GlobalExceptionHandler;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,11 +83,11 @@ class ForeignProductApiTest {
     @Test
     void getForeignProductReturnsNotFoundWhenProductDoesNotExist() throws Exception {
         when(foreignProductService.getForeignProduct(999L))
-                .thenThrow(
-                        new ForeignProductNotFoundException("존재하지 않는 종목입니다. foreignProductId=999"));
+                .thenThrow(new AppException(ErrorType.FOREIGN_PRODUCT_NOT_FOUND, 999L));
 
         mockMvc.perform(get("/api/admin/foreign-products/999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("존재하지 않는 종목입니다. foreignProductId=999"));
+                .andExpect(jsonPath("$.code").value("FOREIGN_PRODUCT_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("종목 정보를 찾을 수 없습니다."));
     }
 }

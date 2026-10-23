@@ -2,8 +2,9 @@ package com.app.maria.domain.foreignproduct.service;
 
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.dto.response.ForeignProductResponseDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
+import com.app.maria.global.error.AppException;
+import com.app.maria.global.error.ErrorType;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class ForeignProductServiceImpl implements ForeignProductService {
                 .map(ForeignProductResponseDTO::new)
                 .orElseThrow(
                         () ->
-                                new ForeignProductNotFoundException(
-                                        "존재하지 않는 종목입니다. foreignProductId=" + foreignProductId));
+                                new AppException(
+                                        ErrorType.FOREIGN_PRODUCT_NOT_FOUND, foreignProductId));
     }
 }

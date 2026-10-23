@@ -14,7 +14,6 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.foreignproduct.type.ForeignProductType;
 import com.app.maria.domain.inbound.dto.InboundAccountSummaryDTO;
@@ -582,8 +581,9 @@ class InboundServiceImplTest {
         when(foreignProductMapper.selectById(FOREIGN_PRODUCT_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> inboundService.getHoldings(ACCOUNT_ID))
-                .isInstanceOf(ForeignProductNotFoundException.class)
-                .hasMessage("종목 정보를 찾을 수 없습니다.");
+                .isInstanceOf(AppException.class)
+                .extracting(e -> ((AppException) e).getErrorType())
+                .isEqualTo(ErrorType.FOREIGN_PRODUCT_NOT_FOUND);
     }
 
     @Test

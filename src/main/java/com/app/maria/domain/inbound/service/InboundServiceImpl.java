@@ -3,7 +3,6 @@ package com.app.maria.domain.inbound.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.inbound.dto.*;
 import com.app.maria.domain.inbound.dto.request.InboundRequestDTO;
@@ -227,8 +226,9 @@ public class InboundServiceImpl implements InboundService {
                                             .selectById(holding.getForeignProductId())
                                             .orElseThrow(
                                                     () ->
-                                                            new ForeignProductNotFoundException(
-                                                                    "종목 정보를 찾을 수 없습니다."));
+                                                            new AppException(
+                                                                    ErrorType
+                                                                            .FOREIGN_PRODUCT_NOT_FOUND));
                             return new AccountHoldingResponseDTO(product, holding.getCurrentQty());
                         })
                 .toList();

@@ -3,7 +3,6 @@ package com.app.maria.domain.sellorder.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
-import com.app.maria.domain.foreignproduct.exception.ForeignProductNotFoundException;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.inbound.dto.InboundDetailDTO;
 import com.app.maria.domain.inbound.mapper.InboundMapper;
@@ -86,8 +85,7 @@ public class SellOrderServiceImpl implements SellOrderService {
         ForeignProductDTO product =
                 foreignProductMapper
                         .selectById(sellOrderDTO.getForeignProductId())
-                        .orElseThrow(
-                                () -> new ForeignProductNotFoundException("종목 정보를 찾을 수 없습니다."));
+                        .orElseThrow(() -> new AppException(ErrorType.FOREIGN_PRODUCT_NOT_FOUND));
 
         String kisMarketCode = KisExchangeCode.fromMarket(product.getMarket());
         BigDecimal previousClose = kis.getPreviousClose(kisMarketCode, product.getTicker());
