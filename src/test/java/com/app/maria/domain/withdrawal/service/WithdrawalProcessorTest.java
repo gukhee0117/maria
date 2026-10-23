@@ -26,7 +26,6 @@ import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
-import com.app.maria.domain.withdrawal.service.ClosureWithdrawalContextHolder;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -129,7 +128,9 @@ class WithdrawalProcessorTest {
                 .thenReturn(Optional.of(account(Status.OPENED, "300")));
 
         assertThatThrownBy(
-                        () -> withdrawalService.withdrawForClosure(request("300"), verifiedAccount()))
+                        () ->
+                                withdrawalService.withdrawForClosure(
+                                        request("300"), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE.getMessage());
 
