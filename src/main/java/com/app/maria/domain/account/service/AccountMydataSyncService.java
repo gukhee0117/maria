@@ -8,7 +8,7 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
-import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,17 +19,20 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class AccountMydataSyncService {
     private static final int RETRY_BATCH_SIZE = 100;
+    private static final String SYNC = "SYNC";
+    // 큐에 남아 있을 수 있는 옛 작업 이름(CREATE, UPDATE_LIMIT)도 SYNC로 처리한다
+    private static final Set<String> KNOWN_TASKS = Set.of(SYNC, "CREATE", "UPDATE_LIMIT");
 
     private final AccountMapper accountMapper;
     private final MydataClient mydataClient;
     private final RedisMydataSyncTaskRepository taskRepository;
 
     public void create(AccountDTO account) {
-        taskRepository.enqueue(account.getAccountId(), SyncOperation.SYNC.name());
+        taskRepository.enqueue(account.getAccountId(), SYNC);
     }
 
     public void updateLimit(AccountDTO account) {
-        taskRepository.enqueue(account.getAccountId(), SyncOperation.SYNC.name());
+        taskRepository.enqueue(account.getAccountId(), SYNC);
     }
 
     @Scheduled(fixedDelayString = "${custom.mydata.ria-sync-delay-ms:1000}")
@@ -46,9 +49,11 @@ public class AccountMydataSyncService {
     }
 
     private void retry(ClaimedTask task) {
-        SyncOperation operation = SyncOperation.from(task.value()).orElse(null);
-        if (operation == null) {
-            log.error("유효하지 않은 MyData 동기화 작업을 제거합니다: accountId={}", task.accountId());
+        if (task.value() == null || !KNOWN_TASKS.contains(task.value().split(":", 2)[0])) {
+            log.error(
+                    "유효하지 않은 MyData 동기화 작업을 제거합니다: accountId={}, value={}",
+                    task.accountId(),
+                    task.value());
             taskRepository.complete(task);
             return;
         }
@@ -71,7 +76,7 @@ public class AccountMydataSyncService {
             synchronize(account, ciHash, task);
         } catch (RuntimeException exception) {
             log.error("MyData RIA 계좌 재동기화 실패: accountId={}", task.accountId(), exception);
-            taskRepository.reschedule(task, operation.name());
+            taskRepository.reschedule(task, SYNC);
         }
     }
 
@@ -81,22 +86,7 @@ public class AccountMydataSyncService {
             taskRepository.complete(task);
         } catch (RuntimeException exception) {
             log.error("MyData RIA 계좌 동기화 예외: accountId={}", account.getAccountId(), exception);
-            taskRepository.reschedule(task, SyncOperation.SYNC.name());
-        }
-    }
-
-    private enum SyncOperation {
-        SYNC;
-
-        private static Optional<SyncOperation> from(String taskValue) {
-            if (taskValue == null) {
-                return Optional.empty();
-            }
-
-            return switch (taskValue.split(":", 2)[0]) {
-                case "SYNC", "CREATE", "UPDATE_LIMIT" -> Optional.of(SYNC);
-                default -> Optional.empty();
-            };
+            taskRepository.reschedule(task, SYNC);
         }
     }
 }
