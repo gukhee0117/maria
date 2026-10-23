@@ -117,6 +117,14 @@ public class WithdrawalProcessor {
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal provisionalTotal =
                 withdrawalMapper.selectProvisionalAmountByAccountId(accountId);
+
+        // 가환전 중인 금액은 배분 대상(수익금·원금)에서 제외한다.
+        // 전체 잔액 - 가환전액이 요청액보다 적으면 확정 전까지 인출 불가.
+        BigDecimal withdrawableAmount = account.getAmount().subtract(provisionalTotal);
+        if (withdrawableAmount.compareTo(requestedAmount) < 0) {
+            throw new AppException(ErrorType.WITHDRAWAL_BLOCKED_BY_PROVISIONAL, accountId);
+        }
+
         BigDecimal earnings =
                 account.getAmount()
                         .subtract(totalPrincipal)

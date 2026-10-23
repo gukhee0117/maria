@@ -107,6 +107,8 @@ class WithdrawalProcessorTest {
                 .thenReturn(Optional.of(closureRequestedAccount));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(List.of(leftAmount(10L, "300", NOW.minusYears(2))));
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(BigDecimal.ZERO);
         when(businessClockService.now()).thenReturn(NOW);
         preparePersistenceSuccess();
 
@@ -334,6 +336,7 @@ class WithdrawalProcessorTest {
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(account(Status.OPENED, "500")));
         when(businessClockService.now()).thenReturn(NOW);
+        // INSUFFICIENT_WITHDRAWAL_AMOUNT는 selectProvisionalAmountByAccountId 호출 전에 던져지므로 stub 불필요
 
         assertThatThrownBy(() -> withdrawalService.withdraw(request("501")))
                 .isInstanceOf(AppException.class)
@@ -454,6 +457,55 @@ class WithdrawalProcessorTest {
         assertThat(allocationCaptor.getValue().getWithdrawalId()).isEqualTo(WITHDRAWAL_ID);
     }
 
+    @Test
+    void allBalanceIsProvisional_blocksWithdrawalBeforeFifo() {
+        // 잔액 100만원이 전부 가환전 중 — FINALIZED 원금 없음
+        AccountDTO account = account(Status.OPENED, "1000000");
+        prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
+                .thenReturn(Optional.of(account));
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of());
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(new BigDecimal("1000000"));
+        when(businessClockService.now()).thenReturn(NOW);
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(request("100000")))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_BLOCKED_BY_PROVISIONAL.getMessage());
+
+        verify(withdrawalMapper, never()).insertWithdrawal(any());
+    }
+
+    @Test
+    void partialProvisional_allowsWithdrawalWithinAvailableAmount() {
+        // 잔액 1000 중 400이 가환전 중 → 인출 가능액 600
+        // FINALIZED 원금 600 (1년 경과), 요청 500 → 성공
+        AccountDTO account = account(Status.OPENED, "1000");
+        prepareExternalValidation(account, GeneralAccountStatus.ACTIVE);
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
+                .thenReturn(Optional.of(account));
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(leftAmount(99L, "600", NOW.minusYears(2))));
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(new BigDecimal("400"));
+        when(businessClockService.now()).thenReturn(NOW);
+        preparePersistenceSuccess();
+
+        WithdrawalResultDTO result = withdrawalService.withdraw(request("500"));
+
+        assertThat(result.getAllocations())
+                .singleElement()
+                .satisfies(
+                        allocation -> {
+                            assertThat(allocation.getLeftAmountId()).isEqualTo(99L);
+                            assertThat(allocation.getAllocatedAmount())
+                                    .isEqualByComparingTo("500");
+                            assertThat(allocation.getType())
+                                    .isEqualTo(WithdrawalType.MATURED_PRINCIPAL_INCLUDED);
+                        });
+    }
+
     private void prepareOpenedAccount(List<LeftAmountDTO> leftAmounts) {
         BigDecimal principal =
                 leftAmounts.stream()
@@ -468,12 +520,22 @@ class WithdrawalProcessorTest {
 
     private void prepareOpenedAccount(
             String accountAmount, BenefitType benefit, List<LeftAmountDTO> leftAmounts) {
+        prepareOpenedAccount(accountAmount, benefit, leftAmounts, BigDecimal.ZERO);
+    }
+
+    private void prepareOpenedAccount(
+            String accountAmount,
+            BenefitType benefit,
+            List<LeftAmountDTO> leftAmounts,
+            BigDecimal provisionalTotal) {
         AccountDTO openedAccount = account(Status.OPENED, accountAmount, benefit);
         prepareExternalValidation(openedAccount, GeneralAccountStatus.ACTIVE);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(openedAccount));
         when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
                 .thenReturn(leftAmounts);
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(provisionalTotal);
         when(businessClockService.now()).thenReturn(NOW);
         preparePersistenceSuccess();
     }
