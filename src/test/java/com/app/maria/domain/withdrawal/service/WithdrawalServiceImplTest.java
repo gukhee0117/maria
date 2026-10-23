@@ -2,10 +2,13 @@ package com.app.maria.domain.withdrawal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationHistoryDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalFailureContext;
@@ -17,6 +20,9 @@ import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
 import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.domain.withdrawal.type.WithdrawalType;
+import com.app.maria.global.client.generalaccount.GeneralAccountClient;
+import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
+import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -26,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,6 +40,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class WithdrawalServiceImplTest {
     private static final Long ACCOUNT_ID = 1L;
+    private static final Long CUSTOMER_ID = 99L;
+    private static final Long GENERAL_ACCOUNT_ID = 20L;
     private static final Long WITHDRAWAL_ID = 30L;
     private static final LocalDateTime PROCESSED_AT = LocalDateTime.of(2026, 8, 12, 10, 0);
 
@@ -40,6 +49,8 @@ class WithdrawalServiceImplTest {
     @Mock private BusinessClockService businessClockService;
     @Mock private WithdrawalProcessor withdrawalProcessor;
     @Mock private WithdrawalFailureService withdrawalFailureService;
+    @Mock private AccountMapper accountMapper;
+    @Mock private GeneralAccountClient generalAccountClient;
     @InjectMocks private WithdrawalServiceImpl withdrawalService;
 
     @Test
@@ -181,71 +192,115 @@ class WithdrawalServiceImplTest {
     }
 
     @Test
-    void insufficientBalance_isRecordedAndOriginalExceptionIsRethrown() {
-        WithdrawalRequestDTO request = request();
-        WithdrawalFailureContext context = failureContext();
-        AppException exception =
-                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, context);
-        when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
+    void accountNotFound_throwsBeforeProcessorCall() {
+        when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(request)).isSameAs(exception);
+        assertThatThrownBy(() -> withdrawalService.withdraw(request()))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
 
-        verify(withdrawalFailureService).recordInsufficientBalance(context);
+        verify(withdrawalProcessor, never()).withdraw(any(), any());
     }
 
     @Test
-    void successfulWithdrawalReturnsProcessorResult() {
-        WithdrawalRequestDTO request = request();
+    void inactiveDestinationAccount_throwsBeforeProcessorCall() {
+        prepareVerification(GeneralAccountStatus.CLOSED);
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(request()))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.WITHDRAWAL_DESTINATION_ACCOUNT_INACTIVE.getMessage());
+
+        verify(withdrawalProcessor, never()).withdraw(any(), any());
+    }
+
+    @Test
+    void processorFailure_recordsFailedRowAndRethrowsException() {
+        prepareVerification(GeneralAccountStatus.ACTIVE);
+        AppException exception =
+                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, ACCOUNT_ID);
+        when(withdrawalProcessor.withdraw(any(), any())).thenThrow(exception);
+        when(businessClockService.now()).thenReturn(PROCESSED_AT);
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(request())).isSameAs(exception);
+
+        ArgumentCaptor<WithdrawalFailureContext> captor =
+                ArgumentCaptor.forClass(WithdrawalFailureContext.class);
+        verify(withdrawalFailureService).record(captor.capture());
+        assertThat(captor.getValue().getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(captor.getValue().getRequestedAmount()).isEqualByComparingTo("700000");
+        assertThat(captor.getValue().getFailedAt()).isEqualTo(PROCESSED_AT);
+        assertThat(captor.getValue().getDestinationAccountNo()).isEqualTo("110-123-456789");
+        assertThat(captor.getValue().getDestinationGeneralAccountId())
+                .isEqualTo(GENERAL_ACCOUNT_ID);
+    }
+
+    @Test
+    void successfulWithdrawal_doesNotRecordFailure() {
+        prepareVerification(GeneralAccountStatus.ACTIVE);
         WithdrawalResultDTO expected =
                 WithdrawalResultDTO.builder().withdrawalId(WITHDRAWAL_ID).build();
-        when(withdrawalProcessor.withdraw(request)).thenReturn(expected);
+        when(withdrawalProcessor.withdraw(any(), any())).thenReturn(expected);
 
-        WithdrawalResultDTO result = withdrawalService.withdraw(request);
+        WithdrawalResultDTO result = withdrawalService.withdraw(request());
 
         assertThat(result).isSameAs(expected);
-        verify(withdrawalProcessor).withdraw(request);
-        verify(withdrawalFailureService, never())
-                .recordInsufficientBalance(org.mockito.ArgumentMatchers.any());
+        verify(withdrawalFailureService, never()).record(any());
     }
 
     @Test
-    void nonRecordableFailure_doesNotCreateFailedWithdrawal() {
-        WithdrawalRequestDTO request = request();
-        AppException exception = new AppException(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE);
-        when(withdrawalProcessor.withdraw(request)).thenThrow(exception);
-
-        assertThatThrownBy(() -> withdrawalService.withdraw(request)).isSameAs(exception);
-
-        verify(withdrawalFailureService, never())
-                .recordInsufficientBalance(org.mockito.ArgumentMatchers.any());
-    }
-
-    @Test
-    void closureInsufficientBalance_isAlsoRecorded() {
-        WithdrawalRequestDTO request = request();
-        WithdrawalFailureContext context = failureContext();
+    void closureProcessorFailure_doesNotRecordFailedRow() {
+        // 해지 경로의 실패 기록은 AccountClosureApprovalOrchestrator 가 트랜잭션 롤백 후 담당한다.
+        // withdrawForClosure 자체는 try-catch 없이 예외를 그대로 전파한다.
+        prepareVerification(GeneralAccountStatus.ACTIVE);
         AppException exception =
-                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, context);
-        when(withdrawalProcessor.withdrawForClosure(request)).thenThrow(exception);
+                new AppException(ErrorType.WITHDRAWAL_PROCESSING_FAILED, ACCOUNT_ID);
+        when(withdrawalProcessor.withdrawForClosure(any(), any())).thenThrow(exception);
 
-        assertThatThrownBy(() -> withdrawalService.withdrawForClosure(request)).isSameAs(exception);
+        assertThatThrownBy(() -> withdrawalService.withdrawForClosure(request()))
+                .isSameAs(exception);
 
-        verify(withdrawalFailureService).recordInsufficientBalance(context);
+        verify(withdrawalFailureService, never()).record(any());
     }
 
     @Test
-    void successfulClosureWithdrawalReturnsProcessorResult() {
-        WithdrawalRequestDTO request = request();
+    void successfulClosureWithdrawal_doesNotRecordFailure() {
+        prepareVerification(GeneralAccountStatus.ACTIVE);
         WithdrawalResultDTO expected =
                 WithdrawalResultDTO.builder().withdrawalId(WITHDRAWAL_ID).build();
-        when(withdrawalProcessor.withdrawForClosure(request)).thenReturn(expected);
+        when(withdrawalProcessor.withdrawForClosure(any(), any())).thenReturn(expected);
 
-        WithdrawalResultDTO result = withdrawalService.withdrawForClosure(request);
+        WithdrawalResultDTO result = withdrawalService.withdrawForClosure(request());
 
         assertThat(result).isSameAs(expected);
-        verify(withdrawalProcessor).withdrawForClosure(request);
-        verify(withdrawalFailureService, never())
-                .recordInsufficientBalance(org.mockito.ArgumentMatchers.any());
+        verify(withdrawalFailureService, never()).record(any());
+    }
+
+    @Test
+    void processorFailure_whenRecordingThrows_originalExceptionIsStillRethrown() {
+        prepareVerification(GeneralAccountStatus.ACTIVE);
+        AppException originalException =
+                new AppException(ErrorType.INSUFFICIENT_WITHDRAWAL_AMOUNT, ACCOUNT_ID);
+        when(withdrawalProcessor.withdraw(any(), any())).thenThrow(originalException);
+        when(businessClockService.now()).thenThrow(new RuntimeException("시계 조회 실패"));
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(request())).isSameAs(originalException);
+    }
+
+    private void prepareVerification(GeneralAccountStatus destinationStatus) {
+        when(accountMapper.selectByAccountId(ACCOUNT_ID)).thenReturn(Optional.of(accountDTO()));
+        when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
+                .thenReturn(Optional.of("ci-hash"));
+        when(generalAccountClient.verifyGeneralAccount(any()))
+                .thenReturn(
+                        GeneralAccountResponseDTO.builder()
+                                .generalAccountId(GENERAL_ACCOUNT_ID)
+                                .accountNo("110-123-456789")
+                                .status(destinationStatus)
+                                .build());
+    }
+
+    private static AccountDTO accountDTO() {
+        return AccountDTO.builder().accountId(ACCOUNT_ID).customerId(CUSTOMER_ID).build();
     }
 
     private WithdrawalHistoryDTO history(Long withdrawalId, String requestedAmount) {
@@ -279,18 +334,9 @@ class WithdrawalServiceImplTest {
 
     private WithdrawalRequestDTO request() {
         return WithdrawalRequestDTO.builder()
-                .accountId(10L)
+                .accountId(ACCOUNT_ID)
                 .requestedAmount(new BigDecimal("700000"))
-                .destinationGeneralAccountId(20L)
+                .destinationGeneralAccountId(GENERAL_ACCOUNT_ID)
                 .build();
-    }
-
-    private WithdrawalFailureContext failureContext() {
-        return new WithdrawalFailureContext(
-                10L,
-                new BigDecimal("700000"),
-                LocalDateTime.of(2026, 8, 18, 10, 30),
-                "1234567890",
-                20L);
     }
 }
