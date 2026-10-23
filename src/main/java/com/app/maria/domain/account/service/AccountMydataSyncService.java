@@ -8,6 +8,7 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.error.AppException;
 import com.app.maria.global.error.ErrorType;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -45,8 +46,9 @@ public class AccountMydataSyncService {
     }
 
     private void retry(ClaimedTask task) {
-        SyncOperation operation = parseOperation(task);
+        SyncOperation operation = SyncOperation.from(task.value()).orElse(null);
         if (operation == null) {
+            log.error("유효하지 않은 MyData 동기화 작업을 제거합니다: accountId={}", task.accountId());
             taskRepository.complete(task);
             return;
         }
@@ -73,15 +75,6 @@ public class AccountMydataSyncService {
         }
     }
 
-    private SyncOperation parseOperation(ClaimedTask task) {
-        try {
-            return SyncOperation.from(task.value());
-        } catch (IllegalArgumentException exception) {
-            log.error("유효하지 않은 MyData 동기화 작업을 제거합니다: accountId={}", task.accountId(), exception);
-            return null;
-        }
-    }
-
     private void synchronize(AccountDTO account, String ciHash, ClaimedTask task) {
         try {
             mydataClient.syncRiaAccount(ciHash, account.getLimitAmount());
@@ -95,14 +88,14 @@ public class AccountMydataSyncService {
     private enum SyncOperation {
         SYNC;
 
-        private static SyncOperation from(String taskValue) {
+        private static Optional<SyncOperation> from(String taskValue) {
             if (taskValue == null) {
-                throw new IllegalArgumentException("유효하지 않은 MyData 동기화 작업입니다.");
+                return Optional.empty();
             }
 
             return switch (taskValue.split(":", 2)[0]) {
-                case "SYNC", "CREATE", "UPDATE_LIMIT" -> SYNC;
-                default -> throw new IllegalArgumentException("유효하지 않은 MyData 동기화 작업입니다.");
+                case "SYNC", "CREATE", "UPDATE_LIMIT" -> Optional.of(SYNC);
+                default -> Optional.empty();
             };
         }
     }
