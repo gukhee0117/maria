@@ -158,6 +158,13 @@ class CustomerAuthRepositoryTest {
     }
 
     @Test
+    @DisplayName("72바이트를 넘는 비밀번호는 500이 아니라 로그인 실패로 처리한다")
+    void rejectsPasswordOver72Bytes() {
+        insertAuth(10, "customer1", "LOCAL", true);
+        assertLoginFailed("customer1", "가".repeat(30));
+    }
+
+    @Test
     @DisplayName("없는 아이디도 동일한 로그인 실패로 처리한다")
     void rejectsMissingLoginId() {
         assertLoginFailed("missing", "test-password");

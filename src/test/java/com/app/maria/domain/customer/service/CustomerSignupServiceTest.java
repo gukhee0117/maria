@@ -171,7 +171,7 @@ class CustomerSignupServiceTest {
     @DisplayName("동시 가입으로 저장이 유니크 위반이 되면 500이 아니라 가입 실패로 응답한다")
     void mapsConstraintViolationToSignupFailed() {
         CustomerRepository customerRepository = mock(CustomerRepository.class);
-        when(customerRepository.findByCiHash(any())).thenReturn(Optional.empty());
+        when(customerRepository.findByCiHashForUpdate(any())).thenReturn(Optional.empty());
         when(customerRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("uk_customer_ci_hash"));
         CustomerAuthRepository authRepository = mock(CustomerAuthRepository.class);

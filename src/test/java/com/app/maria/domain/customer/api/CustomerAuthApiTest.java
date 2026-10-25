@@ -191,6 +191,21 @@ class CustomerAuthApiTest {
     }
 
     @Test
+    @DisplayName("생년월일 형식이 틀리면 400이다")
+    void rejectsMalformedBirthDate() throws Exception {
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {"loginId":"hong1234","password":"password-1234",\
+                                        "rrn":"9001011234567","name":"홍길동","birthDate":"1990-13-01"}
+                                        """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("주민번호가 13자리가 아니면 거절한다")
     void rejectsShortRrn() throws Exception {
         assertBadRequest(body("hong1234", "password-1234", "900101123456"));

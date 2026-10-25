@@ -62,7 +62,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
         try {
             CustomerEntity customer =
                     customerRepository
-                            .findByCiHash(ciHash)
+                            .findByCiHashForUpdate(ciHash)
                             .map(existing -> verifyUnregistered(existing, request))
                             .orElseGet(
                                     () ->
