@@ -32,7 +32,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
     private final Clock clock;
 
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager", readOnly = true)
+    @Transactional(transactionManager = "jpaTransactionManager")
     public CustomerPrincipal authenticate(CustomerLoginRequestDTO request) {
         List<CustomerAuthEntity> credentials =
                 customerAuthRepository.findTop2ByLoginIdAndTypeOrderByAuthIdAsc(
@@ -46,6 +46,7 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                         request.getPassword(), credential.getPassword().getPasswordHash())) {
             throw new AppException(ErrorType.CUSTOMER_LOGIN_FAILED);
         }
+        credential.markLoggedIn(LocalDateTime.now(clock));
         CustomerEntity customer = credential.getCustomer();
         return new CustomerPrincipal(
                 customer.getCustomerId(), credential.getLoginId(), customer.getName());

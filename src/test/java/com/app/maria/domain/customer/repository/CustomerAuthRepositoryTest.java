@@ -120,6 +120,37 @@ class CustomerAuthRepositoryTest {
     }
 
     @Test
+    @DisplayName("로그인에 성공하면 마지막 로그인 시각을 실제 시각으로 갱신한다")
+    void updatesLastLoginAtOnSuccess() {
+        insertAuth(10, "customer1", "LOCAL", true);
+
+        service.authenticate(login("customer1", "test-password"));
+        entityManager.flush();
+
+        assertThat(
+                        jdbc.queryForObject(
+                                        "SELECT last_login_at FROM customer_auth WHERE auth_id = 10",
+                                        java.sql.Timestamp.class)
+                                .toLocalDateTime())
+                .isEqualTo(java.time.LocalDateTime.of(2026, 10, 25, 12, 0, 0));
+    }
+
+    @Test
+    @DisplayName("로그인에 실패하면 마지막 로그인 시각을 바꾸지 않는다")
+    void keepsLastLoginAtOnFailure() {
+        insertAuth(10, "customer1", "LOCAL", true);
+
+        assertLoginFailed("customer1", "wrong-password");
+        entityManager.flush();
+
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT last_login_at FROM customer_auth WHERE auth_id = 10",
+                                java.sql.Timestamp.class))
+                .isNull();
+    }
+
+    @Test
     @DisplayName("비밀번호가 틀리면 고객 로그인 실패로 응답한다")
     void rejectsIncorrectPassword() {
         insertAuth(10, "customer1", "LOCAL", true);

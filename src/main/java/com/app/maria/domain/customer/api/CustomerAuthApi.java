@@ -37,6 +37,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/customer")
 @SecurityRequirements
 public class CustomerAuthApi {
+    // 유휴 20분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
+    private static final int SESSION_TIMEOUT_SECONDS = 20 * 60;
+
     private final CustomerAuthService customerAuthService;
     private final SecurityContextRepository contextRepository;
     private final SessionAuthenticationStrategy sessionStrategy;
@@ -95,6 +98,7 @@ public class CustomerAuthApi {
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
+        request.getSession().setMaxInactiveInterval(SESSION_TIMEOUT_SECONDS);
     }
 
     @GetMapping("/auth/me")

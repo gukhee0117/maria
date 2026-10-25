@@ -1,5 +1,6 @@
 package com.app.maria.domain.customer.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -78,6 +79,35 @@ class CustomerAuthApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.customerId").value(7))
                 .andExpect(jsonPath("$.data.loginId").value("hong1234"));
+    }
+
+    @Test
+    @DisplayName("가입·로그인으로 만든 세션은 20분 동안 유지된다")
+    void sessionLastsTwentyMinutes() throws Exception {
+        when(customerAuthService.signup(any()))
+                .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
+        when(customerAuthService.authenticate(any()))
+                .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
+
+        MvcResult signup =
+                mockMvc.perform(
+                                post(SIGNUP)
+                                        .with(csrf())
+                                        .contentType(APPLICATION_JSON)
+                                        .content(
+                                                body("hong1234", "password-1234", "9001011234567")))
+                        .andReturn();
+        MvcResult login =
+                mockMvc.perform(
+                                post("/api/customer/auth/login")
+                                        .with(csrf())
+                                        .contentType(APPLICATION_JSON)
+                                        .content(
+                                                "{\"loginId\":\"hong1234\",\"password\":\"password-1234\"}"))
+                        .andReturn();
+
+        assertThat(signup.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1200);
+        assertThat(login.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1200);
     }
 
     @Test

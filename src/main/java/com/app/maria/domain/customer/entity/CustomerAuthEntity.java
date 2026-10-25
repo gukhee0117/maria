@@ -45,6 +45,10 @@ public class CustomerAuthEntity {
     @OneToOne(mappedBy = "auth", fetch = FetchType.LAZY)
     private CustomerAuthPasswordEntity password;
 
+    public void markLoggedIn(LocalDateTime at) {
+        this.lastLoginAt = at;
+    }
+
     public static CustomerAuthEntity newLocal(CustomerEntity customer, String loginId) {
         CustomerAuthEntity auth = new CustomerAuthEntity();
         auth.customer = customer;
