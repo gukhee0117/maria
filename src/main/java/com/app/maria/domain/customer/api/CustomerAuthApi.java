@@ -1,6 +1,7 @@
 package com.app.maria.domain.customer.api;
 
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
+import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerMeResponseDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -68,6 +69,24 @@ public class CustomerAuthApi {
             HttpServletRequest request,
             HttpServletResponse response) {
         CustomerPrincipal principal = customerAuthService.authenticate(body);
+        establishSession(principal, request, response);
+        return ApiResponseDTO.of("로그인 성공", new CustomerMeResponseDTO(principal));
+    }
+
+    @PostMapping("/auth/signup")
+    @Operation(summary = "고객 회원가입 + 자동 로그인 (CSRF 필수)")
+    public ApiResponseDTO<CustomerMeResponseDTO> signup(
+            @Valid @RequestBody CustomerSignupRequestDTO body,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        CustomerPrincipal principal = customerAuthService.signup(body);
+        establishSession(principal, request, response);
+        return ApiResponseDTO.of("가입 성공", new CustomerMeResponseDTO(principal));
+    }
+
+    // 로그인·가입 공통: 세션 ID를 교체하고 인증 정보를 세션에 저장한다.
+    private void establishSession(
+            CustomerPrincipal principal, HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication =
                 UsernamePasswordAuthenticationToken.authenticated(
                         principal, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
@@ -76,7 +95,6 @@ public class CustomerAuthApi {
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
-        return ApiResponseDTO.of("로그인 성공", new CustomerMeResponseDTO(principal));
     }
 
     @GetMapping("/auth/me")
