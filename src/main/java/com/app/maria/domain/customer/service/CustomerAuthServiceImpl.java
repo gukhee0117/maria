@@ -4,9 +4,7 @@ import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
-import com.app.maria.domain.customer.entity.CustomerAuthPasswordEntity;
 import com.app.maria.domain.customer.entity.CustomerEntity;
-import com.app.maria.domain.customer.repository.CustomerAuthPasswordRepository;
 import com.app.maria.domain.customer.repository.CustomerAuthRepository;
 import com.app.maria.domain.customer.repository.CustomerRepository;
 import com.app.maria.global.exception.AppException;
@@ -26,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerAuthServiceImpl implements CustomerAuthService {
     private final CustomerAuthRepository customerAuthRepository;
     private final CustomerRepository customerRepository;
-    private final CustomerAuthPasswordRepository customerAuthPasswordRepository;
     private final PasswordEncoder passwordEncoder;
     private final CiHasher ciHasher;
     private final Clock clock;
@@ -74,14 +71,14 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                                                             LocalDateTime.now(clock))));
             CustomerAuthEntity auth =
                     customerAuthRepository.saveAndFlush(
-                            CustomerAuthEntity.newLocal(customer, request.getLoginId()));
-            customerAuthPasswordRepository.saveAndFlush(
-                    CustomerAuthPasswordEntity.of(
-                            auth, passwordEncoder.encode(request.getPassword())));
+                            CustomerAuthEntity.newLocal(
+                                    customer,
+                                    request.getLoginId(),
+                                    passwordEncoder.encode(request.getPassword())));
             return new CustomerPrincipal(
                     customer.getCustomerId(), auth.getLoginId(), customer.getName());
         } catch (DataIntegrityViolationException e) {
-            throw new AppException(ErrorType.CUSTOMER_SIGNUP_FAILED);
+            throw new AppException(ErrorType.CUSTOMER_SIGNUP_FAILED, null, e);
         }
     }
 

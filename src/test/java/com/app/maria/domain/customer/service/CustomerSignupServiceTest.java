@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.entity.InvestorType;
-import com.app.maria.domain.customer.repository.CustomerAuthPasswordRepository;
 import com.app.maria.domain.customer.repository.CustomerAuthRepository;
 import com.app.maria.domain.customer.repository.CustomerRepository;
 import com.app.maria.global.config.JpaConfig;
@@ -179,7 +178,6 @@ class CustomerSignupServiceTest {
                 new CustomerAuthServiceImpl(
                         authRepository,
                         customerRepository,
-                        mock(CustomerAuthPasswordRepository.class),
                         passwordEncoder,
                         ciHasher,
                         Clock.systemDefaultZone());
@@ -187,9 +185,13 @@ class CustomerSignupServiceTest {
         assertThatThrownBy(() -> racing.signup(request("hong1234", "홍길동", BIRTH)))
                 .isInstanceOfSatisfying(
                         AppException.class,
-                        e ->
-                                assertThat(e.getErrorType())
-                                        .isEqualTo(ErrorType.CUSTOMER_SIGNUP_FAILED));
+                        e -> {
+                            assertThat(e.getErrorType())
+                                    .isEqualTo(ErrorType.CUSTOMER_SIGNUP_FAILED);
+                            // 원인을 잃지 않아야 DB 제약 위반(예: CHECK)을 로그에서 찾을 수 있다.
+                            assertThat(e.getCause())
+                                    .isInstanceOf(DataIntegrityViolationException.class);
+                        });
     }
 
     private CustomerSignupRequestDTO request(String loginId, String name, LocalDate birth) {

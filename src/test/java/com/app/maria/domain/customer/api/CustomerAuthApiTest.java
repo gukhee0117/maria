@@ -21,8 +21,12 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -184,10 +188,22 @@ class CustomerAuthApiTest {
                 .andExpect(jsonPath("$.data.expiresAt").value(EXPIRES_AT));
     }
 
-    @Test
-    @DisplayName("하이픈이 섞인 주민번호는 거절한다")
-    void rejectsHyphenatedRrn() throws Exception {
-        assertBadRequest(body("hong1234", "password-1234", "900101-1234567"));
+    static Stream<Arguments> invalidSignupBodies() {
+        return Stream.of(
+                Arguments.of("하이픈이 섞인 주민번호", body("hong1234", "password-1234", "900101-1234567")),
+                Arguments.of("13자리가 아닌 주민번호", body("hong1234", "password-1234", "900101123456")),
+                Arguments.of("73자 비밀번호", body("hong1234", "a".repeat(73), "9001011234567")),
+                Arguments.of("8자 미만 비밀번호", body("hong1234", "short12", "9001011234567")),
+                Arguments.of(
+                        "한글 비밀번호(BCrypt 72바이트 제한)",
+                        body("hong1234", "가".repeat(30), "9001011234567")),
+                Arguments.of("3자 아이디", body("abc", "password-1234", "9001011234567")));
+    }
+
+    @ParameterizedTest(name = "{0}은 거절한다")
+    @MethodSource("invalidSignupBodies")
+    void rejectsInvalidSignupInput(String caseName, String json) throws Exception {
+        assertBadRequest(json);
     }
 
     @Test
@@ -203,36 +219,6 @@ class CustomerAuthApiTest {
                                         "rrn":"9001011234567","name":"홍길동","birthDate":"1990-13-01"}
                                         """))
                 .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("주민번호가 13자리가 아니면 거절한다")
-    void rejectsShortRrn() throws Exception {
-        assertBadRequest(body("hong1234", "password-1234", "900101123456"));
-    }
-
-    @Test
-    @DisplayName("비밀번호가 73자 이상이면 거절한다")
-    void rejectsPasswordOver72() throws Exception {
-        assertBadRequest(body("hong1234", "a".repeat(73), "9001011234567"));
-    }
-
-    @Test
-    @DisplayName("비밀번호가 8자 미만이면 거절한다")
-    void rejectsShortPassword() throws Exception {
-        assertBadRequest(body("hong1234", "short12", "9001011234567"));
-    }
-
-    @Test
-    @DisplayName("한글 비밀번호는 거절한다(BCrypt는 72바이트까지만 처리)")
-    void rejectsMultibytePassword() throws Exception {
-        assertBadRequest(body("hong1234", "가".repeat(30), "9001011234567"));
-    }
-
-    @Test
-    @DisplayName("아이디가 3자면 거절한다")
-    void rejectsShortLoginId() throws Exception {
-        assertBadRequest(body("abc", "password-1234", "9001011234567"));
     }
 
     @Test

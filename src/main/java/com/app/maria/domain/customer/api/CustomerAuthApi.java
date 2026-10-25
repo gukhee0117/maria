@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.time.Clock;
 import java.time.Instant;
@@ -96,9 +95,7 @@ public class CustomerAuthApi {
 
     // 이 요청이 세션을 접근한 시점부터 유휴 시간이 다시 시작되므로 만료 시각 = 지금 + 유휴 허용 시간.
     private Instant expiresAt(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        int seconds = session == null ? SESSION_TIMEOUT_SECONDS : session.getMaxInactiveInterval();
-        return Instant.now(clock).plusSeconds(seconds);
+        return Instant.now(clock).plusSeconds(request.getSession().getMaxInactiveInterval());
     }
 
     // 로그인·가입 공통: 세션 ID를 교체하고 인증 정보를 세션에 저장한다.
@@ -129,7 +126,6 @@ public class CustomerAuthApi {
     public ApiResponseDTO<CustomerMeResponseDTO> extend(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             HttpServletRequest request) {
-        request.getSession(false); // 세션을 접근해 컨테이너의 유휴 시간을 갱신한다.
         return ApiResponseDTO.of(
                 "세션을 연장했습니다.", new CustomerMeResponseDTO(principal, expiresAt(request)));
     }

@@ -1,5 +1,6 @@
 package com.app.maria.domain.customer.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -42,18 +43,21 @@ public class CustomerAuthEntity {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
-    @OneToOne(mappedBy = "auth", fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "auth", fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
     private CustomerAuthPasswordEntity password;
 
     public void markLoggedIn(LocalDateTime at) {
         this.lastLoginAt = at;
     }
 
-    public static CustomerAuthEntity newLocal(CustomerEntity customer, String loginId) {
+    /** LOCAL 계정과 비밀번호 행을 함께 만든다(저장할 때 비밀번호도 같이 저장된다). */
+    public static CustomerAuthEntity newLocal(
+            CustomerEntity customer, String loginId, String passwordHash) {
         CustomerAuthEntity auth = new CustomerAuthEntity();
         auth.customer = customer;
         auth.loginId = loginId;
         auth.type = AuthType.LOCAL;
+        auth.password = CustomerAuthPasswordEntity.of(auth, passwordHash);
         return auth;
     }
 
