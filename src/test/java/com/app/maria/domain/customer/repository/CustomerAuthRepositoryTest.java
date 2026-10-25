@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
+import com.app.maria.domain.customer.entity.CustomerEntity;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.domain.customer.service.CustomerAuthServiceImpl;
 import com.app.maria.global.config.JpaConfig;
@@ -25,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -77,7 +79,8 @@ class CustomerAuthRepositoryTest {
                 """
                 CREATE TABLE customer_auth (
                     auth_id BIGINT PRIMARY KEY, customer_id BIGINT NOT NULL REFERENCES customer(customer_id),
-                    login_id VARCHAR(50) NOT NULL, type VARCHAR(10) NOT NULL, last_login_at TIMESTAMP
+                    login_id VARCHAR(50) NOT NULL, type VARCHAR(10) NOT NULL, last_login_at TIMESTAMP,
+                    UNIQUE (type, login_id)
                 )
                 """);
         jdbc.execute(
@@ -141,22 +144,23 @@ class CustomerAuthRepositoryTest {
     }
 
     @Test
-    @DisplayName("중복 LOCAL 계정은 비밀번호 누락 행도 포함해 감지하고 거절한다")
-    void rejectsAmbiguousLocalAccounts() {
-        insertAuth(10, "customer1", "LOCAL", true);
-        insertAuth(11, "customer1", "LOCAL", false);
-        assertLoginFailed("customer1", "test-password");
+    @DisplayName("같은 종류의 인증수단은 아이디가 중복될 수 없고, 종류가 다르면 같은 아이디를 허용한다")
+    void rejectsDuplicateLoginIdPerType() {
+        insertAuth(10, "customer1", "LOCAL", false);
+
+        assertThatThrownBy(() -> insertAuth(11, "customer1", "LOCAL", false))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        insertAuth(12, "customer1", "GOOGLE", false);
     }
 
     @Test
-    @DisplayName("중복 계정 조회는 두 건까지만 반환한다")
-    void limitsDuplicateLookupToTwoRows() {
-        insertAuth(10, "customer1", "LOCAL", false);
-        insertAuth(11, "customer1", "LOCAL", false);
-        insertAuth(12, "customer1", "LOCAL", false);
-        assertThat(repository.findTop2ByLoginIdAndTypeOrderByAuthIdAsc("customer1", AuthType.LOCAL))
-                .extracting(CustomerAuthEntity::getAuthId)
-                .containsExactly(10L, 11L);
+    @DisplayName("미진단(UNASSIGNED) 투자성향을 JPA로 읽는다")
+    void readsUnassignedInvestorType() {
+        jdbc.update("UPDATE customer SET investor_type = 'UNASSIGNED' WHERE customer_id = 1");
+        entityManager.clear();
+
+        assertThat(entityManager.find(CustomerEntity.class, 1L).getInvestorType())
+                .isEqualTo(CustomerEntity.InvestorType.UNASSIGNED);
     }
 
     @Test

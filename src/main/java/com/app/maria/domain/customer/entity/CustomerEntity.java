@@ -49,6 +49,7 @@ public class CustomerEntity {
         CONSERVATIVE,
         NEUTRAL,
         ACTIVE,
-        AGGRESSIVE
+        AGGRESSIVE,
+        UNASSIGNED
     }
 }
