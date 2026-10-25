@@ -43,4 +43,16 @@ public class CustomerEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    /** 가입으로 새로 만드는 고객. 투자성향은 설문 전이라 미진단이다. */
+    public static CustomerEntity newUnassigned(
+            String name, LocalDate birthDate, String ciHash, LocalDateTime createdAt) {
+        CustomerEntity customer = new CustomerEntity();
+        customer.name = name;
+        customer.birthDate = birthDate;
+        customer.ciHash = ciHash;
+        customer.createdAt = createdAt;
+        customer.investorType = InvestorType.UNASSIGNED;
+        return customer;
+    }
 }

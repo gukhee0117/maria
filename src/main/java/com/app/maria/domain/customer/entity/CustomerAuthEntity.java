@@ -45,6 +45,14 @@ public class CustomerAuthEntity {
     @OneToOne(mappedBy = "auth", fetch = FetchType.LAZY)
     private CustomerAuthPasswordEntity password;
 
+    public static CustomerAuthEntity newLocal(CustomerEntity customer, String loginId) {
+        CustomerAuthEntity auth = new CustomerAuthEntity();
+        auth.customer = customer;
+        auth.loginId = loginId;
+        auth.type = AuthType.LOCAL;
+        return auth;
+    }
+
     public enum AuthType {
         LOCAL,
         GOOGLE,

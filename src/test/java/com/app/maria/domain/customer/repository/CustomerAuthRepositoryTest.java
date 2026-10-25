@@ -3,6 +3,7 @@ package com.app.maria.domain.customer.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
@@ -45,7 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
     JpaConfig.class,
     TransactionConfig.class,
     CustomerAuthServiceImpl.class,
-    PasswordEncoderConfig.class
+    PasswordEncoderConfig.class,
+    CustomerAuthTestBeans.class
 })
 @Transactional(transactionManager = "jpaTransactionManager")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -67,6 +69,10 @@ class CustomerAuthRepositoryTest {
     @BeforeAll
     void createTestSchema() {
         // 테스트 전용 H2에 기존 DDL의 컬럼·관계를 구성한다. 실제 MariaDB는 사용하지 않는다.
+        // 같은 H2를 다른 테스트 클래스와 공유하므로 먼저 지운다.
+        jdbc.execute("DROP TABLE IF EXISTS customer_auth_password");
+        jdbc.execute("DROP TABLE IF EXISTS customer_auth");
+        jdbc.execute("DROP TABLE IF EXISTS customer");
         jdbc.execute(
                 """
                 CREATE TABLE customer (
