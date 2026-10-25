@@ -43,13 +43,4 @@ public class CustomerEntity {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    public enum InvestorType {
-        STABLE,
-        CONSERVATIVE,
-        NEUTRAL,
-        ACTIVE,
-        AGGRESSIVE,
-        UNASSIGNED
-    }
 }

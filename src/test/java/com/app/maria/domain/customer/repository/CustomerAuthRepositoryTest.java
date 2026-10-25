@@ -7,6 +7,7 @@ import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
 import com.app.maria.domain.customer.entity.CustomerEntity;
+import com.app.maria.domain.customer.entity.InvestorType;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.domain.customer.service.CustomerAuthServiceImpl;
 import com.app.maria.global.config.JpaConfig;
@@ -160,7 +161,7 @@ class CustomerAuthRepositoryTest {
         entityManager.clear();
 
         assertThat(entityManager.find(CustomerEntity.class, 1L).getInvestorType())
-                .isEqualTo(CustomerEntity.InvestorType.UNASSIGNED);
+                .isEqualTo(InvestorType.UNASSIGNED);
     }
 
     @Test
