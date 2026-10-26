@@ -24,6 +24,7 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.domain.document.mapper.DocumentIssueMapper;
 import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
@@ -88,6 +89,8 @@ class TaxCalculationServiceImplTest {
     @Mock AuditLogService auditLogService;
 
     @Mock AuditActorProvider auditActorProvider;
+
+    @Mock DocumentIssueMapper documentIssueMapper;
 
     @Spy TaxCalculator taxCalculator = new TaxCalculator();
 
@@ -343,6 +346,7 @@ class TaxCalculationServiceImplTest {
         taxCalculationService.calculateAndSave(ACCOUNT_ID);
 
         TaxCalculationDTO saved = captureSaved();
+        verifyNoInteractions(documentIssueMapper);
         assertThat(saved.getAccountId()).isEqualTo(ACCOUNT_ID);
         assertThat(saved.getCalculatedAt()).isEqualTo(NOW);
         assertThat(saved.getWeightedSell()).isEqualByComparingTo("43000000");
@@ -385,6 +389,7 @@ class TaxCalculationServiceImplTest {
         taxCalculationService.calculateAndSave(ACCOUNT_ID);
 
         TaxCalculationDTO saved = captureSaved();
+        verify(documentIssueMapper).revokeIssuedByAccountId(ACCOUNT_ID, NOW);
         assertThat(saved.getBasisType()).isEqualTo(TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK);
         assertThat(saved.getAdjustRatio()).isEqualByComparingTo("0");
         assertThat(saved.getFinalDeduction()).isEqualByComparingTo("0");

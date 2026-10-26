@@ -5,6 +5,7 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.domain.document.mapper.DocumentIssueMapper;
 import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.tax.batch.TaxSnapshotBatchHistoryReader;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
@@ -68,6 +69,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     private final KisPriceClient kisPriceClient;
     private final ExchangeRateClient exchangeRateClient;
     private final SettlementBusinessDayCalculator settlementBusinessDayCalculator;
+    private final DocumentIssueMapper documentIssueMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -110,6 +112,12 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
             taxMapper.insertCalculation(taxCalculationDTO);
         } catch (DuplicateKeyException e) {
             throw new AppException(alreadyExistsErrorType(basisType), accountId);
+        }
+
+        // 조기인출로 혜택이 취소되면 이미 발급한 증빙서류는 더 이상 유효하지 않다.
+        if (basisType == TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK) {
+            documentIssueMapper.revokeIssuedByAccountId(
+                    accountId, taxCalculationDTO.getCalculatedAt());
         }
 
         return TaxCalculationSaveResponseDTO.of(taxCalculationDTO);

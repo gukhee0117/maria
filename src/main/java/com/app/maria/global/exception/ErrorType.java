@@ -72,6 +72,20 @@ public enum ErrorType {
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(
             HttpStatus.CONFLICT, "이미 조기인출 정정이 처리된 계좌입니다.", LogLevel.WARN),
+    // 증빙서류
+    DOCUMENT_ISSUE_NOT_OPEN(HttpStatus.CONFLICT, "아직 증빙서류를 발급할 수 있는 기간이 아닙니다.", LogLevel.WARN),
+    DOCUMENT_FINAL_REPORT_NOT_FOUND(
+            HttpStatus.CONFLICT, "확정된 세액 계산이 없어 증빙서류를 발급할 수 없습니다.", LogLevel.WARN),
+    DOCUMENT_BENEFIT_CANCELED(
+            HttpStatus.CONFLICT, "세제혜택이 취소된 계좌는 증빙서류를 발급할 수 없습니다.", LogLevel.WARN),
+    DOCUMENT_BASIS_MISMATCH(
+            HttpStatus.CONFLICT, "저장된 세액과 현재 계산 결과가 달라 증빙서류를 발급할 수 없습니다.", LogLevel.WARN),
+    DOCUMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "증빙서류를 찾을 수 없습니다.", LogLevel.WARN),
+    DOCUMENT_REVOKED(HttpStatus.CONFLICT, "취소된 증빙서류는 다운로드할 수 없습니다.", LogLevel.WARN),
+    DOCUMENT_FILE_CORRUPTED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "증빙서류 파일 검증에 실패했습니다.", LogLevel.ERROR),
+    DOCUMENT_RENDER_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "증빙서류 PDF 생성에 실패했습니다.", LogLevel.ERROR),
     // 인출 예외 처리
     WITHDRAWAL_NOT_FOUND(HttpStatus.NOT_FOUND, "인출 내역을 찾을 수 없습니다.", LogLevel.WARN),
     INVALID_WITHDRAWAL_AMOUNT(HttpStatus.BAD_REQUEST, "인출 금액은 0원보다 커야 합니다.", LogLevel.WARN),

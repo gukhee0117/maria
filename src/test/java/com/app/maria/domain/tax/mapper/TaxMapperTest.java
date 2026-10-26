@@ -658,6 +658,36 @@ class TaxMapperTest {
     }
 
     @Test
+    @DisplayName("계좌와 basis_type으로 해당 행만 조회한다")
+    void selectCalculationByAccountAndBasis_해당_유형만() {
+        taxMapper.insertCalculation(calculation(ACCOUNT_ID, TaxBasisType.FINAL_REPORT));
+        taxMapper.insertCalculation(
+                calculation(ACCOUNT_ID, TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK));
+        taxMapper.insertCalculation(calculation(OTHER_ACCOUNT_ID, TaxBasisType.FINAL_REPORT));
+
+        TaxCalculationDTO found =
+                taxMapper
+                        .selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT)
+                        .orElseThrow();
+
+        assertThat(found.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(found.getBasisType()).isEqualTo(TaxBasisType.FINAL_REPORT);
+        assertThat(found.getFinalTax()).isEqualByComparingTo("1938472.80");
+    }
+
+    @Test
+    @DisplayName("해당 basis_type 행이 없으면 빈 값")
+    void selectCalculationByAccountAndBasis_없음() {
+        taxMapper.insertCalculation(
+                calculation(ACCOUNT_ID, TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK));
+
+        assertThat(
+                        taxMapper.selectCalculationByAccountAndBasis(
+                                ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("저장된 계산이 없으면 exists는 false")
     void existsByAccountAndBasis_없음() {
         assertThat(taxMapper.existsByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))

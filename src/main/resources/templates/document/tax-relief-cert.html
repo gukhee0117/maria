@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>RIA 과세특례 증빙서</title>
+<style>
+  @page { size: A4; margin: 12mm 15mm; }
+  body { font-family: 'NanumGothic'; font-size: 9.5pt; color: #1b2430; line-height: 1.5; }
+  .brand { font-size: 12pt; font-weight: bold; margin-bottom: 6pt; }
+  .brand span { color: #5b6675; font-size: 8.5pt; font-weight: normal; margin-left: 6pt; }
+  .head { border-bottom: 2px solid #1f4e8c; padding-bottom: 8pt; }
+  .head table { width: 100%; border-collapse: collapse; }
+  .head td { border: none; padding: 0; }
+  h1 { font-size: 16pt; color: #1f4e8c; margin: 0; }
+  .sub { color: #5b6675; font-size: 8.5pt; }
+  .meta { text-align: right; font-size: 8.5pt; color: #5b6675; }
+  .meta b { color: #1b2430; }
+  h2 { font-size: 10.5pt; margin: 11pt 0 4pt 0; padding-left: 6pt; border-left: 3px solid #1f4e8c; }
+  table.grid { width: 100%; border-collapse: collapse; }
+  table.grid th, table.grid td { border: 1px solid #d5dae1; padding: 3pt 6pt; }
+  table.grid th { background-color: #f5f7fa; text-align: left; font-weight: bold; }
+  .n { text-align: right; }
+  .total td { background-color: #f5f7fa; font-weight: bold; }
+  .final td { background-color: #eaf1fb; font-weight: bold; }
+  .note { font-size: 8.5pt; color: #5b6675; margin: 4pt 0 0 0; }
+  .reason { margin-top: 8pt; padding: 7pt 9pt; background-color: #f5f7fa; border: 1px solid #d5dae1; font-size: 9pt; }
+  .issuer { margin-top: 14pt; padding: 8pt 12pt; border: 1px solid #d5dae1; text-align: center; }
+  .warn { margin-top: 10pt; border-top: 1px solid #d5dae1; padding-top: 6pt; font-size: 8.5pt; font-weight: bold; }
+</style>
+</head>
+<body>
+  <div class="brand">리턴증권<span>Returns Securities</span></div>
+  <div class="head">
+    <table>
+      <tr>
+        <td>
+          <h1>국내시장복귀계좌(RIA) 과세특례 증빙서</h1>
+          <div class="sub">양도소득세 확정신고 첨부용 · 2026년 귀속</div>
+        </td>
+        <td class="meta">발급번호 <b th:text="${v.issueNo}">RIA-0000</b><br />발급일 <b th:text="${v.issuedDate}">2027-04-01</b></td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>1. 계좌 정보</h2>
+  <table class="grid">
+    <tr><th>성명</th><td th:text="${v.holderName}">홍길동</td><th>계좌번호</th><td th:text="${v.accountNo}">0000000000</td></tr>
+    <tr><th>개설일</th><td th:text="${v.openedDate}">2026-03-24</td><th>설정한도</th><td class="n" th:text="${v.limitAmount}">0원</td></tr>
+  </table>
+
+  <h2>2. 구간별 매도 및 양도소득 (가중치 반영)</h2>
+  <table class="grid">
+    <tr><th>매도 구간</th><th class="n">매도금액</th><th class="n">양도소득</th><th class="n">가중치</th><th class="n">가중 매도금액</th><th class="n">가중 양도소득</th></tr>
+    <tr th:each="p : ${v.periods}">
+      <td th:text="${p.label}">1~5월</td>
+      <td class="n" th:text="${p.sell}">0</td>
+      <td class="n" th:text="${p.gain}">0</td>
+      <td class="n" th:text="${p.weight}">100%</td>
+      <td class="n" th:text="${p.weightedSell}">0</td>
+      <td class="n" th:text="${p.weightedGain}">0</td>
+    </tr>
+    <tr class="total">
+      <td>합계</td>
+      <td class="n" th:text="${v.totalSell}">0</td>
+      <td class="n" th:text="${v.totalGain}">0</td>
+      <td class="n">-</td>
+      <td class="n" th:text="${v.totalWeightedSell}">0</td>
+      <td class="n" th:text="${v.totalWeightedGain}">0</td>
+    </tr>
+  </table>
+  <p class="note">단위: 원. 가중 양도소득 합계가 조정전공제액입니다.</p>
+
+  <h2>3. 공제액 및 세액 계산</h2>
+  <table class="grid">
+    <tr><td>조정전공제액</td><td class="n" th:text="${v.weightedGain}">0원</td></tr>
+    <tr><td>RIA 외 계좌 순매수금액 (가중)</td><td class="n" th:text="${v.externalAmount}">0원</td></tr>
+    <tr><td>조정비율</td><td class="n" th:text="${v.adjustRatio}">100%</td></tr>
+    <tr><td>최종공제액</td><td class="n" th:text="${v.finalDeduction}">0원</td></tr>
+    <tr><td>총 양도소득</td><td class="n" th:text="${v.originalGain}">0원</td></tr>
+    <tr><td>기본공제</td><td class="n" th:text="${v.basicDeduction}">0원</td></tr>
+    <tr><td>세율</td><td class="n" th:text="${v.taxRate}">22%</td></tr>
+    <tr class="final"><td>최종 세액</td><td class="n" th:text="${v.finalTax}">0원</td></tr>
+  </table>
+  <p class="note">
+    조정비율 = 1 - (순매수금액 ÷ 가중 매도금액)<br />
+    최종공제액 = 조정전공제액 × 조정비율<br />
+    최종 세액 = (총 양도소득 - 기본공제 - 최종공제액) × 세율
+  </p>
+
+  <div class="reason" th:if="${v.reducedByExternal}">
+    RIA 외 계좌의 해외주식 순매수(가중 <span th:text="${v.externalAmount}">0원</span>)가 있어 공제가 일부 줄었습니다.
+    순매수 상세는 해당 금융기관이 발급하는 순매수금액 내역서를 참고하세요.
+  </div>
+
+  <div class="issuer">
+    위 내용은 당사 RIA 계좌의 저장된 확정 계산 결과와 일치함을 확인합니다.<br />
+    <b th:text="${v.issuedDate}">2027-04-01</b><br />
+    <b>리턴증권 주식회사</b>
+  </div>
+
+  <div class="warn">이 문서는 신고 완료 증명이 아닌 확정신고 첨부 참고용 서류입니다. 신고·납부는 2027년 5월 국세청에 직접 하셔야 합니다.</div>
+</body>
+</html>
