@@ -1,6 +1,6 @@
-package com.app.maria.domain.customer.service;
+package com.app.maria.domain.withdrawal.service;
 
-import com.app.maria.domain.customer.dto.request.CustomerWithdrawalRequestDTO;
+import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;

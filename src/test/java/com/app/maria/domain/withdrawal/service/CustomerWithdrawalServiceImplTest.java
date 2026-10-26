@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.service;
+package com.app.maria.domain.withdrawal.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.customer.dto.request.CustomerWithdrawalRequestDTO;
+import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;

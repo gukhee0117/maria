@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.api;
+package com.app.maria.domain.withdrawal.api;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.app.maria.domain.customer.service.CustomerWithdrawalService;
+import com.app.maria.domain.withdrawal.service.CustomerWithdrawalService;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;

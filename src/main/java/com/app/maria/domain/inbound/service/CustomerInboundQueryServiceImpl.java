@@ -1,12 +1,12 @@
-package com.app.maria.domain.customer.service;
+package com.app.maria.domain.inbound.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
-import com.app.maria.domain.customer.dto.response.CustomerForeignProductResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundCandidateResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundCandidatesResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundDetailResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundHistoryResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerForeignProductResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundCandidateResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundCandidatesResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundDetailResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundHistoryResponseDTO;
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.foreignproduct.mapper.ForeignProductMapper;
 import com.app.maria.domain.inbound.dto.InboundDTO;

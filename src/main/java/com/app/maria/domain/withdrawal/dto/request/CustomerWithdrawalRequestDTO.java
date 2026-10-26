@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.dto.request;
+package com.app.maria.domain.withdrawal.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
