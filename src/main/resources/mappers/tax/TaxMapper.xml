@@ -92,6 +92,23 @@
         limit 1
     </select>
 
+    <select id="selectCalculationByAccountAndBasis" resultType="TaxCalculationDTO">
+        select
+            calc_id,
+            account_id,
+            calculated_at,
+            basis_type,
+            weighted_sell,
+            original_gain_amount,
+            weighted_gain,
+            weighted_external_amount,
+            adjust_ratio,
+            final_deduction,
+            final_tax
+        from tax_calculation
+        where account_id = #{accountId} and basis_type = #{basisType}
+    </select>
+
     <select id="selectHeldLotsByAccountId" resultType="HeldLotDTO">
         select
             id.inbound_detail_id,

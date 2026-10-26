@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:document_issue_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: none
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+  cache:
+    type: simple
+custom:
+  mydata:
+    url: http://test-mydata
+    own-broker-name: 테스트증권
+  returns-security:
+    url: http://test-returns-security
+  exchange:
+    name: test-exchange
+    url: http://test-exchange
+    api-key: test-key
+  price:
+    name: test-price
+    url: http://test-price
+    app-key: test-app-key
+    app-secret: test-app-secret
+  tax:
+    year: 2026
+  settlement:
+    cron: "0 0 0 * * *"
+    zone: "Asia/Seoul"
+jwt:
+  secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0LXB1cnBvc2Vz
+  expiration-minute: 20
+  refresh-expiration-day: 7

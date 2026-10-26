@@ -33,6 +33,9 @@ public interface TaxMapper {
 
     Optional<TaxCalculationDTO> selectLatestCalculation(@Param("accountId") Long accountId);
 
+    Optional<TaxCalculationDTO> selectCalculationByAccountAndBasis(
+            @Param("accountId") Long accountId, @Param("basisType") TaxBasisType basisType);
+
     List<HeldLotDTO> selectHeldLotsByAccountId(@Param("accountId") Long accountId);
 
     int countUnconfirmedFinalReport();
