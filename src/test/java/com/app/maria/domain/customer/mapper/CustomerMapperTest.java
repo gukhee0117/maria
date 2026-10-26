@@ -62,14 +62,15 @@ class CustomerMapperTest {
     }
 
     @Test
-    @DisplayName("OPENED 상태 계좌를 가진 고객만 조회된다")
-    void selectActiveRiaCustomersReturnsOnlyCustomersWithOpenedAccount() throws SQLException {
+    @DisplayName("개설된 적 있는(opened_at not null) 계좌를 가진 고객만 조회된다")
+    void selectRiaMonitoringCustomersReturnsOnlyCustomersWithEverOpenedAccount()
+            throws SQLException {
         insertCustomer(1L, "ci-1");
-        insertAccount(1L, "OPENED");
+        insertAccount(1L, "OPENED", "2026-08-01 09:00:00");
         insertCustomer(2L, "ci-2");
-        insertAccount(2L, "APPLIED");
+        insertAccount(2L, "APPLIED", null);
 
-        List<CustomerCiHashDTO> result = customerMapper.selectActiveRiaCustomers();
+        List<CustomerCiHashDTO> result = customerMapper.selectRiaMonitoringCustomers();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getCustomerId()).isEqualTo(1L);
@@ -77,39 +78,53 @@ class CustomerMapperTest {
     }
 
     @Test
-    @DisplayName("CLOSED, REJECTED, CLOSURE_REQUESTED 상태 계좌를 가진 고객은 제외된다")
-    void selectActiveRiaCustomersExcludesNonOpenedStatuses() throws SQLException {
+    @DisplayName("해지(CLOSED)·해지신청(CLOSURE_REQUESTED) 상태라도 개설된 적 있으면 포함된다")
+    void selectRiaMonitoringCustomersIncludesClosedAccounts() throws SQLException {
         insertCustomer(1L, "ci-1");
-        insertAccount(1L, "CLOSED");
+        insertAccount(1L, "CLOSED", "2026-08-01 09:00:00");
         insertCustomer(2L, "ci-2");
-        insertAccount(2L, "REJECTED");
-        insertCustomer(3L, "ci-3");
-        insertAccount(3L, "CLOSURE_REQUESTED");
+        insertAccount(2L, "CLOSURE_REQUESTED", "2026-08-02 09:00:00");
 
-        List<CustomerCiHashDTO> result = customerMapper.selectActiveRiaCustomers();
+        List<CustomerCiHashDTO> result = customerMapper.selectRiaMonitoringCustomers();
+
+        assertThat(result)
+                .extracting(CustomerCiHashDTO::getCiHash)
+                .containsExactlyInAnyOrder("ci-1", "ci-2");
+    }
+
+    @Test
+    @DisplayName("신청(APPLIED)·반려(REJECTED) 상태처럼 개설된 적 없는 계좌의 고객은 제외된다")
+    void selectRiaMonitoringCustomersExcludesNeverOpenedAccounts() throws SQLException {
+        insertCustomer(1L, "ci-1");
+        insertAccount(1L, "APPLIED", null);
+        insertCustomer(2L, "ci-2");
+        insertAccount(2L, "REJECTED", null);
+
+        List<CustomerCiHashDTO> result = customerMapper.selectRiaMonitoringCustomers();
 
         assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("계좌가 아예 없는 고객은 조회되지 않는다")
-    void selectActiveRiaCustomersExcludesCustomersWithoutAnyAccount() throws SQLException {
+    void selectRiaMonitoringCustomersExcludesCustomersWithoutAnyAccount() throws SQLException {
         insertCustomer(1L, "ci-1");
 
-        List<CustomerCiHashDTO> result = customerMapper.selectActiveRiaCustomers();
+        List<CustomerCiHashDTO> result = customerMapper.selectRiaMonitoringCustomers();
 
         assertThat(result).isEmpty();
     }
 
     @Test
-    @DisplayName("OPENED 계좌를 가진 고객이 여러 명이면 모두 조회된다")
-    void selectActiveRiaCustomersReturnsAllCustomersWithOpenedAccounts() throws SQLException {
+    @DisplayName("개설된 적 있는 계좌를 가진 고객이 여러 명이면 모두 조회된다")
+    void selectRiaMonitoringCustomersReturnsAllCustomersWithEverOpenedAccounts()
+            throws SQLException {
         insertCustomer(1L, "ci-1");
-        insertAccount(1L, "OPENED");
+        insertAccount(1L, "OPENED", "2026-08-01 09:00:00");
         insertCustomer(2L, "ci-2");
-        insertAccount(2L, "OPENED");
+        insertAccount(2L, "OPENED", "2026-08-02 09:00:00");
 
-        List<CustomerCiHashDTO> result = customerMapper.selectActiveRiaCustomers();
+        List<CustomerCiHashDTO> result = customerMapper.selectRiaMonitoringCustomers();
 
         assertThat(result)
                 .extracting(CustomerCiHashDTO::getCiHash)
@@ -127,7 +142,7 @@ class CustomerMapperTest {
                 3L, "김마리아", "1992-03-04", "010-5555-6666", "NEUTRAL", "2026-08-17 09:00:00");
         insertSearchCustomer(
                 4L, "이리아", "1993-04-05", "010-7777-8888", "STABLE", "2026-08-18 09:00:00");
-        insertAccount(2L, "REJECTED");
+        insertAccount(2L, "REJECTED", null);
 
         List<CustomerSearchDTO> result = customerMapper.searchEligibleCustomersByName("김", 10);
 
@@ -163,15 +178,18 @@ class CustomerMapperTest {
         }
     }
 
-    private void insertAccount(Long customerId, String status) throws SQLException {
+    private void insertAccount(Long customerId, String status, String openedAt)
+            throws SQLException {
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
             statement.execute(
-                    "INSERT INTO account (customer_id, status) VALUES ("
+                    "INSERT INTO account (customer_id, status, opened_at) VALUES ("
                             + customerId
                             + ", '"
                             + status
-                            + "')");
+                            + "', "
+                            + (openedAt == null ? "NULL" : "'" + openedAt + "'")
+                            + ")");
         }
     }
 
@@ -225,7 +243,8 @@ class CustomerMapperTest {
                     CREATE TABLE account (
                         account_id BIGINT PRIMARY KEY AUTO_INCREMENT,
                         customer_id BIGINT NOT NULL,
-                        status VARCHAR(20) NOT NULL
+                        status VARCHAR(20) NOT NULL,
+                        opened_at DATETIME
                     )
                     """);
         }

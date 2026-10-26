@@ -4,11 +4,12 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.maria.domain.customer.mapper.CustomerMapper">
 
-    <select id="selectActiveRiaCustomers" resultType="CustomerCiHashDTO">
+    <!-- 한 번이라도 개설된 계좌(해지 포함)의 고객까지 감시 대상 — APPLIED/REJECTED만 제외 -->
+    <select id="selectRiaMonitoringCustomers" resultType="CustomerCiHashDTO">
         SELECT c.customer_id, c.ci_hash
         FROM customer c
         JOIN account a ON a.customer_id = c.customer_id
-        WHERE a.status = 'OPENED'
+        WHERE a.opened_at IS NOT NULL
     </select>
 
     <select id="searchEligibleCustomersByName" resultType="CustomerSearchDTO">

@@ -102,7 +102,7 @@ class ExternalTradeSyncServiceImplTest {
     @Test
     @DisplayName("동기화 대상 고객이 없으면 mydata 조회, 판정, 커서 갱신 모두 발생하지 않는다")
     void syncAllDoesNothingWhenNoCustomers() {
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of());
+        when(customerMapper.selectRiaMonitoringCustomers()).thenReturn(List.of());
 
         externalTradeSyncService.syncAll();
 
@@ -112,7 +112,8 @@ class ExternalTradeSyncServiceImplTest {
     @Test
     @DisplayName("커서가 없는 고객(첫 동기화)은 fromDate 없이 mydata를 조회한다")
     void firstSyncQueriesWithNullFromDate() {
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of());
 
@@ -129,7 +130,8 @@ class ExternalTradeSyncServiceImplTest {
     @DisplayName("커서가 있는 고객은 마지막 동기화 거래일을 fromDate로 사용해 조회한다")
     void resumedSyncQueriesWithLastSyncedTradeDate() {
         LocalDate lastSynced = LocalDate.of(2026, 3, 1);
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L))
                 .thenReturn(
                         Optional.of(
@@ -154,7 +156,8 @@ class ExternalTradeSyncServiceImplTest {
                 trade(100L, "FOREIGN_STOCK", null, LocalDate.of(2026, 3, 5));
         MydataTradeResponseDTO fund = trade(101L, "FUND", "448630", LocalDate.of(2026, 3, 10));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(foreignStock, fund));
         when(targetProductMapper.existsByMydataTradeId(anyLong())).thenReturn(false);
@@ -173,7 +176,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO newTrade1 = trade(101L, "ETF", null, LocalDate.of(2026, 3, 6));
         MydataTradeResponseDTO newTrade2 = trade(102L, "ETN", null, LocalDate.of(2026, 3, 7));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any()))
                 .thenReturn(List.of(alreadyJudged, newTrade1, newTrade2));
@@ -201,7 +205,8 @@ class ExternalTradeSyncServiceImplTest {
                 trade(100L, "FOREIGN_STOCK", null, LocalDate.of(2026, 3, 5));
         MydataTradeResponseDTO newTrade = trade(101L, "ETF", null, LocalDate.of(2026, 3, 6));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(alreadyJudged, newTrade));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(true);
@@ -220,7 +225,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO succeeding =
                 trade(101L, "FOREIGN_STOCK", null, LocalDate.of(2026, 3, 6));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(failing, succeeding));
         when(targetProductMapper.existsByMydataTradeId(anyLong())).thenReturn(false);
@@ -239,7 +245,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO t2 = trade(101L, "ETF", null, LocalDate.of(2026, 3, 20));
         MydataTradeResponseDTO t3 = trade(102L, "ETN", null, LocalDate.of(2026, 3, 10));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         // 실제 mydata 조회는 trade_date 오름차순으로 오므로(MydataTradeMapper의 ORDER BY trade_date),
         // 테스트 픽스처도 그 순서(3/5 -> 3/10 -> 3/20)에 맞춰 구성한다.
@@ -263,7 +270,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO earliest = trade(101L, "ETF", null, LocalDate.of(2026, 3, 5));
         MydataTradeResponseDTO middle = trade(102L, "ETN", null, LocalDate.of(2026, 3, 10));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         // mydata가 날짜 역순으로 반환하는 상황을 재현 (리스트 마지막 원소가 최댓값이 아님)
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(latest, earliest, middle));
@@ -285,7 +293,8 @@ class ExternalTradeSyncServiceImplTest {
                 trade(101L, "FUND", "BADCODE", LocalDate.of(2026, 3, 10));
         MydataTradeResponseDTO early = trade(102L, "ETF", null, LocalDate.of(2026, 3, 5));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         // 리스트 순서(late -> failingMiddle -> early)는 날짜 순서와 정반대
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(late, failingMiddle, early));
@@ -312,7 +321,8 @@ class ExternalTradeSyncServiceImplTest {
     void cursorDoesNotAdvancePastAFailingTradeToAllowRetry() {
         MydataTradeResponseDTO failing = trade(100L, "FUND", "BADCODE", LocalDate.of(2026, 3, 20));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(failing));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(false);
@@ -330,7 +340,8 @@ class ExternalTradeSyncServiceImplTest {
     void tradeFailingSinceBeyondThresholdDaysIsPermanentlyFailedWithoutRetryAndCursorAdvances() {
         MydataTradeResponseDTO failing = trade(100L, "FUND", "BADCODE", LocalDate.of(2026, 3, 20));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(failing));
         // 최초 실패로부터 이미 3일 경과 -> judge()를 다시 시도하지 않고 바로 영구실패 처리된다
@@ -364,7 +375,8 @@ class ExternalTradeSyncServiceImplTest {
     void failureWithinThresholdDaysIsStillRetried() {
         MydataTradeResponseDTO failing = trade(100L, "FUND", "BADCODE", LocalDate.of(2026, 3, 20));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(failing));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(false);
@@ -390,7 +402,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO recovered =
                 trade(100L, "FOREIGN_STOCK", null, LocalDate.of(2026, 3, 5));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(recovered));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(false);
@@ -413,7 +426,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO succeeding =
                 trade(100L, "FOREIGN_STOCK", null, LocalDate.of(2026, 3, 5));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(succeeding));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(false);
@@ -431,7 +445,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO failing = trade(101L, "FUND", "BADCODE", LocalDate.of(2026, 3, 10));
         MydataTradeResponseDTO success2 = trade(102L, "ETF", null, LocalDate.of(2026, 3, 20));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(success1, failing, success2));
         when(targetProductMapper.existsByMydataTradeId(anyLong())).thenReturn(false);
@@ -459,7 +474,8 @@ class ExternalTradeSyncServiceImplTest {
     @Test
     @DisplayName("신규 거래가 없고 기존 커서도 없으면 커서를 생성하지 않는다")
     void cursorIsNotUpsertedWhenNoTradesAndNoExistingCursor() {
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of());
 
@@ -473,7 +489,8 @@ class ExternalTradeSyncServiceImplTest {
     @DisplayName("신규 거래가 없어도 기존 커서가 있으면 동일한 값으로 커서를 다시 저장한다")
     void cursorIsReupsertedWithSameValueWhenNoNewTrades() {
         LocalDate lastSynced = LocalDate.of(2026, 3, 1);
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L))
                 .thenReturn(
                         Optional.of(
@@ -508,7 +525,7 @@ class ExternalTradeSyncServiceImplTest {
                         .amount(BigDecimal.valueOf(1_000_000))
                         .build();
 
-        when(customerMapper.selectActiveRiaCustomers())
+        when(customerMapper.selectRiaMonitoringCustomers())
                 .thenReturn(List.of(customer(1L, "ci-1"), customer(2L, "ci-2")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(cursorMapper.selectByCustomerId(2L)).thenReturn(Optional.empty());
@@ -542,7 +559,8 @@ class ExternalTradeSyncServiceImplTest {
         MydataTradeResponseDTO past = trade(100L, "FOREIGN_STOCK", null, TODAY.minusDays(5));
         MydataTradeResponseDTO future = trade(101L, "FOREIGN_STOCK", null, TODAY.plusDays(1));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(past, future));
         when(targetProductMapper.existsByMydataTradeId(anyLong())).thenReturn(false);
@@ -563,7 +581,8 @@ class ExternalTradeSyncServiceImplTest {
     void syncCustomerIncludesTradeExactlyOnSystemToday() {
         MydataTradeResponseDTO onToday = trade(100L, "FOREIGN_STOCK", null, TODAY);
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(onToday));
         when(targetProductMapper.existsByMydataTradeId(anyLong())).thenReturn(false);
@@ -578,7 +597,8 @@ class ExternalTradeSyncServiceImplTest {
     void syncCustomerUpsertsNoCursorWhenAllTradesAreAfterSystemToday() {
         MydataTradeResponseDTO future = trade(100L, "FOREIGN_STOCK", null, TODAY.plusDays(3));
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(future));
 
@@ -603,7 +623,8 @@ class ExternalTradeSyncServiceImplTest {
                         .amount(BigDecimal.valueOf(1_000_000))
                         .build();
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(mismatched));
 
@@ -630,7 +651,8 @@ class ExternalTradeSyncServiceImplTest {
                         .amount(BigDecimal.valueOf(1_000_000))
                         .build();
 
-        when(customerMapper.selectActiveRiaCustomers()).thenReturn(List.of(customer(1L, "ci-1")));
+        when(customerMapper.selectRiaMonitoringCustomers())
+                .thenReturn(List.of(customer(1L, "ci-1")));
         when(cursorMapper.selectByCustomerId(1L)).thenReturn(Optional.empty());
         when(mydataTradeClient.getTrades(any())).thenReturn(List.of(matching, mismatched));
         when(targetProductMapper.existsByMydataTradeId(100L)).thenReturn(false);
