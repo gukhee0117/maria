@@ -93,7 +93,7 @@ class CustomerAuthApiTest {
 
     @Test
     @DisplayName("가입·로그인으로 만든 세션은 30분 동안 유지된다")
-    void sessionLastsTwentyMinutes() throws Exception {
+    void sessionLastsThirtyMinutes() throws Exception {
         when(customerAuthService.signup(any()))
                 .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
         when(customerAuthService.authenticate(any()))
