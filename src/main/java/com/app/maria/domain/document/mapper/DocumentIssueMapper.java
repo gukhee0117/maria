@@ -20,6 +20,8 @@ public interface DocumentIssueMapper {
     /** 파일을 포함해 한 행을 읽는다. 다운로드에서만 쓴다. */
     Optional<DocumentIssueDTO> selectWithFileById(@Param("documentIssueId") Long documentIssueId);
 
+    boolean existsByIssueNo(@Param("issueNo") String issueNo);
+
     int revokeIssuedByAccountId(
             @Param("accountId") Long accountId, @Param("revokedAt") LocalDateTime revokedAt);
 

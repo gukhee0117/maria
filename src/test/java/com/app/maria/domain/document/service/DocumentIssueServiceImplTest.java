@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,13 +47,15 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentIssueServiceImplTest {
@@ -72,27 +77,9 @@ class DocumentIssueServiceImplTest {
 
     @Mock RiaTaxProperties riaTaxProperties;
 
-    DocumentProperties documentProperties = new DocumentProperties();
+    @Spy DocumentProperties documentProperties = new DocumentProperties();
 
-    DocumentIssueServiceImpl service;
-
-    @BeforeEach
-    void setUp() {
-        // @InjectMocks는 생성자 주입이라 직접 만든 properties도 넣어야 한다.
-        service =
-                new DocumentIssueServiceImpl(
-                        documentIssueMapper,
-                        accountMapper,
-                        taxMapper,
-                        taxCalculationService,
-                        viewAssembler,
-                        pdfRenderer,
-                        clockService,
-                        documentProperties,
-                        riaTaxProperties,
-                        auditLogService,
-                        auditActorProvider);
-    }
+    @InjectMocks DocumentIssueServiceImpl service;
 
     private AccountDTO account(BenefitType benefit) {
         return AccountDTO.builder()
@@ -197,6 +184,72 @@ class DocumentIssueServiceImplTest {
         assertThat(row.getIssueNo()).matches("RIA-2027-[A-Z2-9]{8}");
         assertThat(response.getIssueNo()).isEqualTo(row.getIssueNo());
         verify(auditLogService, never()).log(any());
+    }
+
+    /** 발급 직전까지의 준비를 모두 해 둔다(발급번호 검사만 각 테스트가 정한다). */
+    private void readyForIssueNo() {
+        readyToIssue(BenefitType.POSSIBLE);
+        when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .thenReturn(Optional.of(stored()));
+        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(taxCalculationService.taxCalculate(ACCOUNT_ID))
+                .thenReturn(preview(new BigDecimal("1938473")));
+    }
+
+    @Test
+    @DisplayName("발급번호: 이미 쓰인 번호가 나오면 다른 번호를 다시 고른다")
+    void issueNo_retriesWhenAlreadyUsed() {
+        readyForIssueNo();
+        when(documentIssueMapper.existsByIssueNo(anyString())).thenReturn(true, true, false);
+        when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(TaxReliefCertView.builder().build());
+        when(pdfRenderer.render(any())).thenReturn(PDF);
+
+        service.issueForCustomer(CUSTOMER_ID);
+
+        verify(documentIssueMapper, times(3)).existsByIssueNo(anyString());
+        ArgumentCaptor<DocumentIssueDTO> saved = ArgumentCaptor.forClass(DocumentIssueDTO.class);
+        verify(documentIssueMapper).insert(saved.capture());
+        assertThat(saved.getValue().getIssueNo()).matches("RIA-2027-[A-Z2-9]{8}");
+    }
+
+    @Test
+    @DisplayName("발급번호: 계속 겹치면 한도에서 포기하고 PDF도 만들지 않는다")
+    void issueNo_givesUpAfterRetryLimit() {
+        readyForIssueNo();
+        when(documentIssueMapper.existsByIssueNo(anyString())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.DOCUMENT_ISSUE_NO_GENERATION_FAILED));
+        verify(documentIssueMapper, times(5)).existsByIssueNo(anyString());
+        verify(pdfRenderer, never()).render(any());
+        verify(documentIssueMapper, never()).insert(any());
+    }
+
+    @Test
+    @DisplayName("발급번호: 확인 뒤 저장 때 UNIQUE에 걸려도 일반 500이 아니라 발급번호 생성 실패로 바꾼다")
+    void issueNo_duplicateOnInsert_convertedToAppException() {
+        readyForIssueNo();
+        when(documentIssueMapper.existsByIssueNo(anyString())).thenReturn(false);
+        when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(TaxReliefCertView.builder().build());
+        when(pdfRenderer.render(any())).thenReturn(PDF);
+        doThrow(new DuplicateKeyException("uk_document_issue_no"))
+                .when(documentIssueMapper)
+                .insert(any());
+
+        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.DOCUMENT_ISSUE_NO_GENERATION_FAILED));
     }
 
     @Test

@@ -40,6 +40,10 @@
         where document_issue_id = #{documentIssueId}
     </select>
 
+    <select id="existsByIssueNo" resultType="boolean">
+        select exists(select 1 from document_issue where issue_no = #{issueNo})
+    </select>
+
     <update id="revokeIssuedByAccountId">
         update document_issue
         set status = 'REVOKED', revoked_at = #{revokedAt}

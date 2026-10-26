@@ -39,6 +39,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     private static final String TARGET_TABLE = "DOCUMENT_ISSUE";
     private static final String ISSUE_NO_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int ISSUE_NO_RANDOM_LENGTH = 8;
+    private static final int ISSUE_NO_RETRY_LIMIT = 5;
     private static final BigDecimal ROUNDING_TOLERANCE = new BigDecimal("0.05");
 
     private final DocumentIssueMapper documentIssueMapper;
@@ -63,7 +65,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     private final AuditLogService auditLogService;
     private final AuditActorProvider auditActorProvider;
 
-    // ponytail: 발급번호는 무작위 8자(32^8). 겹치면 UNIQUE가 막아 발급이 실패한다. 재시도는 필요해지면 추가.
+    // 발급번호는 무작위 8자(32^8)다. 번호를 먼저 확정할 때 겹치는지 확인하고, 그래도 겹치면 UNIQUE가 마지막으로 막는다.
     private final SecureRandom random = new SecureRandom();
 
     @Override
@@ -199,7 +201,12 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
                         .issuedById(byId)
                         .issuedAt(now)
                         .build();
-        documentIssueMapper.insert(issue);
+        try {
+            documentIssueMapper.insert(issue);
+        } catch (DuplicateKeyException e) {
+            // 번호를 확정한 뒤 다른 발급이 같은 번호를 먼저 저장한 경우(사실상 불가능)
+            throw new AppException(ErrorType.DOCUMENT_ISSUE_NO_GENERATION_FAILED, accountId, e);
+        }
         return new Issued(DocumentIssueResponseDTO.of(issue), true);
     }
 
@@ -277,12 +284,19 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
                         .build());
     }
 
+    /** 이미 쓰인 번호가 아닌 발급번호를 고른다. PDF에 번호가 찍히므로 저장 전에 확정한다. */
     private String newIssueNo(LocalDateTime now) {
-        StringBuilder suffix = new StringBuilder();
-        for (int i = 0; i < ISSUE_NO_RANDOM_LENGTH; i++) {
-            suffix.append(ISSUE_NO_ALPHABET.charAt(random.nextInt(ISSUE_NO_ALPHABET.length())));
+        for (int i = 0; i < ISSUE_NO_RETRY_LIMIT; i++) {
+            StringBuilder suffix = new StringBuilder();
+            for (int j = 0; j < ISSUE_NO_RANDOM_LENGTH; j++) {
+                suffix.append(ISSUE_NO_ALPHABET.charAt(random.nextInt(ISSUE_NO_ALPHABET.length())));
+            }
+            String issueNo = "RIA-" + now.getYear() + "-" + suffix;
+            if (!documentIssueMapper.existsByIssueNo(issueNo)) {
+                return issueNo;
+            }
         }
-        return "RIA-" + now.getYear() + "-" + suffix;
+        throw new AppException(ErrorType.DOCUMENT_ISSUE_NO_GENERATION_FAILED);
     }
 
     private String sha256(byte[] content) {

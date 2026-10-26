@@ -172,6 +172,15 @@ class DocumentIssueMapperTest {
     }
 
     @Test
+    @DisplayName("발급번호가 이미 있는지 확인한다")
+    void existsByIssueNo() {
+        issue(ACCOUNT_ID, "RIA-2027-AAAAAAAA", NOW);
+
+        assertThat(mapper.existsByIssueNo("RIA-2027-AAAAAAAA")).isTrue();
+        assertThat(mapper.existsByIssueNo("RIA-2027-BBBBBBBB")).isFalse();
+    }
+
+    @Test
     @DisplayName("계좌 주인의 이름을 조회한다")
     void selectHolderName() {
         assertThat(mapper.selectHolderName(ACCOUNT_ID)).contains("홍길동");

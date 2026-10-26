@@ -86,6 +86,8 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "증빙서류 파일 검증에 실패했습니다.", LogLevel.ERROR),
     DOCUMENT_RENDER_FAILED(
             HttpStatus.INTERNAL_SERVER_ERROR, "증빙서류 PDF 생성에 실패했습니다.", LogLevel.ERROR),
+    DOCUMENT_ISSUE_NO_GENERATION_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "증빙서류 발급번호 생성에 실패했습니다.", LogLevel.ERROR),
     // 인출 예외 처리
     WITHDRAWAL_NOT_FOUND(HttpStatus.NOT_FOUND, "인출 내역을 찾을 수 없습니다.", LogLevel.WARN),
     INVALID_WITHDRAWAL_AMOUNT(HttpStatus.BAD_REQUEST, "인출 금액은 0원보다 커야 합니다.", LogLevel.WARN),
