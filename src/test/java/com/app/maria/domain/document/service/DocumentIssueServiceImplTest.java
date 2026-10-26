@@ -3,6 +3,7 @@ package com.app.maria.domain.document.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,6 +23,7 @@ import com.app.maria.domain.document.type.IssuedByType;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
+import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.service.TaxCalculationService;
@@ -31,11 +33,13 @@ import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.DocumentProperties;
+import com.app.maria.global.config.properties.RiaTaxProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
@@ -66,6 +70,8 @@ class DocumentIssueServiceImplTest {
     @Mock AuditLogService auditLogService;
     @Mock AuditActorProvider auditActorProvider;
 
+    @Mock RiaTaxProperties riaTaxProperties;
+
     DocumentProperties documentProperties = new DocumentProperties();
 
     DocumentIssueServiceImpl service;
@@ -83,6 +89,7 @@ class DocumentIssueServiceImplTest {
                         pdfRenderer,
                         clockService,
                         documentProperties,
+                        riaTaxProperties,
                         auditLogService,
                         auditActorProvider);
     }
@@ -124,7 +131,26 @@ class DocumentIssueServiceImplTest {
         return TaxCalculationPreviewResponseDTO.builder()
                 .accountId(ACCOUNT_ID)
                 .taxCalculationResultDTO(result)
-                .breakdown(TaxBreakdownDTO.of(List.of(), List.of(), List.of()))
+                .breakdown(
+                        TaxBreakdownDTO.of(
+                                List.of(
+                                        period(1, 5, "1.0000", "30000000", "20000000"),
+                                        period(6, 7, "0.8000", "10000000", "6000000"),
+                                        period(8, 12, "0.5000", "10000000", "6000000")),
+                                List.of(),
+                                List.of()))
+                .build();
+    }
+
+    private TaxPeriodBreakdownDTO period(
+            int fromMonth, int toMonth, String weight, String sell, String gain) {
+        return TaxPeriodBreakdownDTO.builder()
+                .validFrom(LocalDate.of(2026, fromMonth, 1))
+                .validTo(LocalDate.of(2026, toMonth, 28))
+                .weight(new BigDecimal(weight))
+                .sellAmount(new BigDecimal(sell))
+                .gainAmount(new BigDecimal(gain))
+                .externalNetBuyAmount(BigDecimal.ZERO)
                 .build();
     }
 
@@ -135,6 +161,7 @@ class DocumentIssueServiceImplTest {
     }
 
     private void readyToIssueByAccount(BenefitType benefit) {
+        org.mockito.Mockito.lenient().when(riaTaxProperties.getYear()).thenReturn(2026);
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT_ID))
                 .thenReturn(Optional.of(account(benefit)));
         when(clockService.now()).thenReturn(OPEN_DAY);
@@ -150,7 +177,7 @@ class DocumentIssueServiceImplTest {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938473")));
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
-        when(viewAssembler.assemble(any(), any(), any(), any(), any(), any(), any()))
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
         when(pdfRenderer.render(any())).thenReturn(PDF);
 
@@ -239,6 +266,42 @@ class DocumentIssueServiceImplTest {
     }
 
     @Test
+    @DisplayName("발급: 구간별 표의 합이 저장된 합계와 다르면 거부한다")
+    void issue_breakdownTotalsMismatch_rejected() {
+        readyToIssue(BenefitType.POSSIBLE);
+        when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .thenReturn(Optional.of(stored()));
+        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        TaxCalculationPreviewResponseDTO matchingTotals = preview(new BigDecimal("1938473"));
+        when(taxCalculationService.taxCalculate(ACCOUNT_ID))
+                .thenReturn(
+                        TaxCalculationPreviewResponseDTO.builder()
+                                .accountId(ACCOUNT_ID)
+                                .taxCalculationResultDTO(
+                                        matchingTotals.getTaxCalculationResultDTO())
+                                .breakdown(
+                                        TaxBreakdownDTO.of(
+                                                List.of(
+                                                        period(
+                                                                1,
+                                                                5,
+                                                                "1.0000",
+                                                                "30000000",
+                                                                "20000000")),
+                                                List.of(),
+                                                List.of()))
+                                .build());
+
+        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.DOCUMENT_BASIS_MISMATCH));
+        verify(pdfRenderer, never()).render(any());
+    }
+
+    @Test
     @DisplayName("발급: 이미 발급된 증빙이 있으면 새로 만들지 않고 그대로 돌려준다")
     void issue_existing_returnsSame() {
         readyToIssue(BenefitType.POSSIBLE);
@@ -272,7 +335,7 @@ class DocumentIssueServiceImplTest {
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938473")));
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
-        when(viewAssembler.assemble(any(), any(), any(), any(), any(), any(), any()))
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
         when(pdfRenderer.render(any())).thenReturn(PDF);
 
@@ -359,11 +422,24 @@ class DocumentIssueServiceImplTest {
     }
 
     @Test
+    @DisplayName("관리자 다운로드: 취소된 증빙은 내려주지 않는다")
+    void downloadForAdmin_revoked_rejected() {
+        when(documentIssueMapper.selectWithFileById(5L))
+                .thenReturn(Optional.of(storedIssue(ACCOUNT_ID, DocumentStatus.REVOKED, PDF)));
+
+        assertThatThrownBy(() -> service.downloadForAdmin(5L))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e -> assertThat(e.getErrorType()).isEqualTo(ErrorType.DOCUMENT_REVOKED));
+        verify(auditLogService, never()).log(any());
+    }
+
+    @Test
     @DisplayName("관리자 다운로드: 감사로그를 남긴다")
     void downloadForAdmin_audits() {
         when(auditActorProvider.getCurrentAdminId()).thenReturn(99L);
         when(documentIssueMapper.selectWithFileById(5L))
-                .thenReturn(Optional.of(storedIssue(ACCOUNT_ID, DocumentStatus.REVOKED, PDF)));
+                .thenReturn(Optional.of(storedIssue(ACCOUNT_ID, DocumentStatus.ISSUED, PDF)));
 
         DocumentFileDTO file = service.downloadForAdmin(5L);
 

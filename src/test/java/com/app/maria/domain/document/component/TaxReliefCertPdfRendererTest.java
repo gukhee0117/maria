@@ -38,6 +38,10 @@ class TaxReliefCertPdfRendererTest {
 
     /** CLAUDE.md §3 검증 예시. 조정비율은 계산기가 소수 4자리로 반올림한 값(0.7442)을 쓴다. */
     private TaxReliefCertView view(BigDecimal adjustRatio, BigDecimal externalAmount) {
+        return view(2026, adjustRatio, externalAmount);
+    }
+
+    private TaxReliefCertView view(int taxYear, BigDecimal adjustRatio, BigDecimal externalAmount) {
         AccountDTO account =
                 AccountDTO.builder()
                         .accountId(1L)
@@ -67,6 +71,7 @@ class TaxReliefCertPdfRendererTest {
                         List.of(),
                         List.of());
         return assembler.assemble(
+                taxYear,
                 "RIA-2027-ABCD2345",
                 LocalDateTime.of(2027, 4, 1, 10, 0),
                 "홍길동",
@@ -117,10 +122,23 @@ class TaxReliefCertPdfRendererTest {
             assertThat(text)
                     .contains("RIA-2027-ABCD2345")
                     .contains("과세특례 증빙서")
+                    .contains("2026년 귀속")
                     .contains("홍길동")
                     .contains("1,938,473원")
                     .contains("RIA 외 계좌의 해외주식 순매수");
             assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    @DisplayName("PDF: 귀속연도는 값으로 넘긴 연도가 찍힌다")
+    void render_usesGivenTaxYear() throws Exception {
+        byte[] pdf = renderer.render(view(2030, new BigDecimal("1.0000"), BigDecimal.ZERO));
+
+        try (PDDocument document = PDDocument.load(pdf)) {
+            assertThat(new PDFTextStripper().getText(document))
+                    .contains("2030년 귀속")
+                    .doesNotContain("2026년 귀속");
         }
     }
 

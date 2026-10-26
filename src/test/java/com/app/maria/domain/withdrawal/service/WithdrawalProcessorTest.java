@@ -18,6 +18,7 @@ import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.domain.document.mapper.DocumentIssueMapper;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
@@ -56,6 +57,7 @@ class WithdrawalProcessorTest {
     @Mock AccountMapper accountMapper;
     @Mock WithdrawalMapper withdrawalMapper;
     @Mock AccountBenefitLogMapper accountBenefitLogMapper;
+    @Mock DocumentIssueMapper documentIssueMapper;
     @Mock ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
     @InjectMocks WithdrawalProcessor withdrawalService;
 
@@ -199,6 +201,7 @@ class WithdrawalProcessorTest {
         ArgumentCaptor<AccountBenefitLogDTO> logCaptor =
                 ArgumentCaptor.forClass(AccountBenefitLogDTO.class);
         verify(accountBenefitLogMapper).insertLog(logCaptor.capture());
+        verify(documentIssueMapper).revokeIssuedByAccountId(ACCOUNT_ID, NOW);
 
         assertThat(logCaptor.getValue())
                 .satisfies(
@@ -231,6 +234,7 @@ class WithdrawalProcessorTest {
                                     .isEqualTo(WithdrawalType.IMMATURE_PRINCIPAL_INCLUDED);
                         });
         verifyNoInteractions(accountBenefitLogMapper);
+        verifyNoInteractions(documentIssueMapper);
     }
 
     @Test
@@ -244,6 +248,8 @@ class WithdrawalProcessorTest {
                         () -> withdrawalService.withdraw(request("200", true), verifiedAccount()))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED.getMessage());
+        // 혜택 이력 저장이 실패하면 증빙도 취소하지 않는다(같은 트랜잭션이라 함께 롤백되지만, 호출 순서가 어긋나지 않았는지 확인).
+        verifyNoInteractions(documentIssueMapper);
     }
 
     @Test

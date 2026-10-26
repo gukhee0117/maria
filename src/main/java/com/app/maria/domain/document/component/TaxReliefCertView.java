@@ -9,6 +9,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class TaxReliefCertView {
+    private final int taxYear;
     private final String issueNo;
     private final String issuedDate;
     private final String holderName;

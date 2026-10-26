@@ -14,8 +14,10 @@ import com.app.maria.domain.document.type.DocumentAuditLogReasonCode;
 import com.app.maria.domain.document.type.DocumentStatus;
 import com.app.maria.domain.document.type.DocumentType;
 import com.app.maria.domain.document.type.IssuedByType;
+import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
+import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.service.TaxCalculationService;
@@ -25,6 +27,7 @@ import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.DocumentProperties;
+import com.app.maria.global.config.properties.RiaTaxProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
@@ -46,6 +49,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     private static final String TARGET_TABLE = "DOCUMENT_ISSUE";
     private static final String ISSUE_NO_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int ISSUE_NO_RANDOM_LENGTH = 8;
+    private static final BigDecimal ROUNDING_TOLERANCE = new BigDecimal("0.05");
 
     private final DocumentIssueMapper documentIssueMapper;
     private final AccountMapper accountMapper;
@@ -55,6 +59,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     private final TaxReliefCertPdfRenderer pdfRenderer;
     private final BusinessClockService clockService;
     private final DocumentProperties documentProperties;
+    private final RiaTaxProperties riaTaxProperties;
     private final AuditLogService auditLogService;
     private final AuditActorProvider auditActorProvider;
 
@@ -114,7 +119,12 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     @Override
     @Transactional
     public DocumentFileDTO downloadForAdmin(Long documentIssueId) {
-        DocumentFileDTO file = toFile(findWithFile(documentIssueId));
+        DocumentIssueDTO issue = findWithFile(documentIssueId);
+        // 취소된 증빙에는 취소 표시가 없어서 그대로 신고에 첨부될 수 있다. 관리자에게도 내려주지 않는다.
+        if (issue.getStatus() == DocumentStatus.REVOKED) {
+            throw new AppException(ErrorType.DOCUMENT_REVOKED, documentIssueId);
+        }
+        DocumentFileDTO file = toFile(issue);
         audit(
                 auditActorProvider.getCurrentAdminId(),
                 documentIssueId,
@@ -156,6 +166,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
 
         TaxCalculationPreviewResponseDTO preview = taxCalculationService.taxCalculate(accountId);
         verifyMatchesStored(accountId, calc, preview.getTaxCalculationResultDTO());
+        verifyBreakdownMatchesTotals(accountId, calc, preview.getBreakdown());
 
         String issueNo = newIssueNo(now);
         String holderName =
@@ -165,6 +176,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
         TaxReliefCertView view =
                 viewAssembler.assemble(
+                        riaTaxProperties.getYear(),
                         issueNo,
                         now,
                         holderName,
@@ -209,6 +221,25 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
         if (!same) {
             throw new AppException(ErrorType.DOCUMENT_BASIS_MISMATCH, accountId);
         }
+    }
+
+    /** 구간별 표(가중치 반영)의 합이 저장된 합계(가중 매도금액·조정전공제액)와 다르면 발급하지 않는다. 행마다 센트 단위로 반올림되므로 5센트까지는 허용한다. */
+    private void verifyBreakdownMatchesTotals(
+            Long accountId, TaxCalculationDTO stored, TaxBreakdownDTO breakdown) {
+        BigDecimal weightedSell = BigDecimal.ZERO;
+        BigDecimal weightedGain = BigDecimal.ZERO;
+        for (TaxPeriodBreakdownDTO period : breakdown.getPeriodBreakdown()) {
+            weightedSell = weightedSell.add(period.getSellAmount().multiply(period.getWeight()));
+            weightedGain = weightedGain.add(period.getGainAmount().multiply(period.getWeight()));
+        }
+        if (differs(weightedSell, stored.getWeightedSell())
+                || differs(weightedGain, stored.getWeightedGain())) {
+            throw new AppException(ErrorType.DOCUMENT_BASIS_MISMATCH, accountId);
+        }
+    }
+
+    private boolean differs(BigDecimal a, BigDecimal b) {
+        return a.subtract(b).abs().compareTo(ROUNDING_TOLERANCE) > 0;
     }
 
     private boolean same(BigDecimal a, BigDecimal b) {

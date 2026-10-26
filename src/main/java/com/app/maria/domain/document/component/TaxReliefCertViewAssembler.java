@@ -17,11 +17,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
-/** 저장된 확정 세액(calc)과 구간별 내역(breakdown)을 PDF용 문자열로 바꾼다. 금액 계산은 하지 않고 표시용 곱셈·합계만 한다. */
+/** 저장된 확정 세액(calc)과 구간별 내역(breakdown)을 PDF용 문자열로 바꾼다. 세액은 다시 계산하지 않고, 구간 행의 가중 금액만 표시용으로 곱한다. */
 @Component
 public class TaxReliefCertViewAssembler {
 
     public TaxReliefCertView assemble(
+            int taxYear,
             String issueNo,
             LocalDateTime issuedAt,
             String holderName,
@@ -46,6 +47,7 @@ public class TaxReliefCertViewAssembler {
         }
 
         return TaxReliefCertView.builder()
+                .taxYear(taxYear)
                 .issueNo(issueNo)
                 .issuedDate(issuedAt.toLocalDate().toString())
                 .holderName(holderName)

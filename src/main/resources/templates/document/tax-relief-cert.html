@@ -35,7 +35,7 @@
       <tr>
         <td>
           <h1>국내시장복귀계좌(RIA) 과세특례 증빙서</h1>
-          <div class="sub">양도소득세 확정신고 첨부용 · 2026년 귀속</div>
+          <div class="sub" th:text="|양도소득세 확정신고 첨부용 · ${v.taxYear}년 귀속|">양도소득세 확정신고 첨부용 · 2026년 귀속</div>
         </td>
         <td class="meta">발급번호 <b th:text="${v.issueNo}">RIA-0000</b><br />발급일 <b th:text="${v.issuedDate}">2027-04-01</b></td>
       </tr>

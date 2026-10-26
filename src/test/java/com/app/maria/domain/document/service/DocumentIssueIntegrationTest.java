@@ -227,6 +227,7 @@ class DocumentIssueIntegrationTest {
                     .contains(issued.getIssueNo())
                     .contains("통합테스트고객")
                     .contains("7000000001")
+                    .contains("2026년 귀속")
                     .contains("1,938,473원");
         }
     }
