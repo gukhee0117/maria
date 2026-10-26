@@ -104,7 +104,9 @@ public class CustomerSecurityConfig {
                                 auth.requestMatchers(HttpMethod.GET, "/api/customer/csrf")
                                         .permitAll()
                                         .requestMatchers(
-                                                HttpMethod.POST, "/api/customer/auth/login")
+                                                HttpMethod.POST,
+                                                "/api/customer/auth/login",
+                                                "/api/customer/auth/signup")
                                         .permitAll()
                                         .anyRequest()
                                         .hasRole("CUSTOMER"))
