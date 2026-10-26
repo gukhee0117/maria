@@ -1,7 +1,7 @@
 package com.app.maria.domain.withdrawal.service;
 
-import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
+import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
