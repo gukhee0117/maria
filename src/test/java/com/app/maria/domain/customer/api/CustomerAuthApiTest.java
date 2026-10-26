@@ -92,7 +92,7 @@ class CustomerAuthApiTest {
     }
 
     @Test
-    @DisplayName("가입·로그인으로 만든 세션은 20분 동안 유지된다")
+    @DisplayName("가입·로그인으로 만든 세션은 30분 동안 유지된다")
     void sessionLastsTwentyMinutes() throws Exception {
         when(customerAuthService.signup(any()))
                 .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
@@ -116,12 +116,12 @@ class CustomerAuthApiTest {
                                                 "{\"loginId\":\"hong1234\",\"password\":\"password-1234\"}"))
                         .andReturn();
 
-        assertThat(signup.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1200);
-        assertThat(login.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1200);
+        assertThat(signup.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1800);
+        assertThat(login.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1800);
     }
 
-    // 고정 시계(2026-10-25T03:00:00Z) + 20분
-    private static final String EXPIRES_AT = "2026-10-25T03:20:00Z";
+    // 고정 시계(2026-10-25T03:00:00Z) + 30분
+    private static final String EXPIRES_AT = "2026-10-25T03:30:00Z";
 
     private static RequestPostProcessor customerAuth() {
         return authentication(
@@ -131,9 +131,9 @@ class CustomerAuthApiTest {
                         List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
     }
 
-    private static MockHttpSession twentyMinuteSession() {
+    private static MockHttpSession thirtyMinuteSession() {
         MockHttpSession session = new MockHttpSession();
-        session.setMaxInactiveInterval(1200);
+        session.setMaxInactiveInterval(1800);
         return session;
     }
 
@@ -143,19 +143,19 @@ class CustomerAuthApiTest {
         mockMvc.perform(
                         get("/api/customer/auth/me")
                                 .with(customerAuth())
-                                .session(twentyMinuteSession()))
+                                .session(thirtyMinuteSession()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.expiresAt").value(EXPIRES_AT));
     }
 
     @Test
-    @DisplayName("연장하면 지금부터 20분 뒤로 만료 시각을 돌려준다")
+    @DisplayName("연장하면 지금부터 30분 뒤로 만료 시각을 돌려준다")
     void extendReturnsRenewedExpiresAt() throws Exception {
         mockMvc.perform(
                         post("/api/customer/auth/extend")
                                 .with(customerAuth())
                                 .with(csrf())
-                                .session(twentyMinuteSession()))
+                                .session(thirtyMinuteSession()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.expiresAt").value(EXPIRES_AT));
     }

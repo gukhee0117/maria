@@ -39,8 +39,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/customer")
 @SecurityRequirements
 public class CustomerAuthApi {
-    // 유휴 20분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
-    private static final int SESSION_TIMEOUT_SECONDS = 20 * 60;
+    // 유휴 30분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
+    private static final int SESSION_TIMEOUT_SECONDS = 30 * 60;
 
     private final CustomerAuthService customerAuthService;
     private final SecurityContextRepository contextRepository;
@@ -122,7 +122,7 @@ public class CustomerAuthApi {
     }
 
     @PostMapping("/auth/extend")
-    @Operation(summary = "세션 연장 (인증·CSRF 필수). 이 요청이 세션을 접근하는 순간 유휴 시간이 다시 20분이 된다")
+    @Operation(summary = "세션 연장 (인증·CSRF 필수). 이 요청이 세션을 접근하는 순간 유휴 시간이 다시 30분이 된다")
     public ApiResponseDTO<CustomerMeResponseDTO> extend(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             HttpServletRequest request) {
