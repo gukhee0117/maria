@@ -4,6 +4,7 @@ import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
+import com.app.maria.domain.settlement.notification.SettlementSseService;
 import com.app.maria.domain.settlement.service.SettlementService;
 import com.app.maria.domain.settlement.type.BatchStatus;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Validated
 @RestController
@@ -31,6 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class SettlementApi {
 
     private final SettlementService settlementService;
+    private final SettlementSseService settlementSseService;
+
+    @GetMapping(value = "/notifications", produces = "text/event-stream")
+    public SseEmitter subscribeSettlementNotifications() {
+        return settlementSseService.subscribeAdmin();
+    }
 
     @PostMapping("/jobs")
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT')")

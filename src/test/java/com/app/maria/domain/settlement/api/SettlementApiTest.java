@@ -10,6 +10,7 @@ import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
+import com.app.maria.domain.settlement.notification.SettlementSseService;
 import com.app.maria.domain.settlement.service.SettlementService;
 import com.app.maria.domain.settlement.type.BatchStatus;
 import com.app.maria.domain.settlement.type.SettlementStatus;
@@ -27,6 +28,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @WebMvcTest(SettlementApi.class)
 @Import(SecurityConfig.class)
@@ -37,7 +39,20 @@ class SettlementApiTest {
 
     @MockitoBean private SettlementService settlementService;
 
+    @MockitoBean private SettlementSseService settlementSseService;
+
     @MockitoBean private JwtTokenProvider jwtTokenProvider;
+
+    @Test
+    void subscribesToSettlementNotifications() throws Exception {
+        SseEmitter emitter = new SseEmitter();
+        when(settlementSseService.subscribeAdmin()).thenReturn(emitter);
+
+        mockMvc.perform(get("/api/admin/settlement/notifications")).andExpect(status().isOk());
+
+        verify(settlementSseService).subscribeAdmin();
+        emitter.complete();
+    }
 
     @Test
     void executeSettlementBatchReturnsAcceptedBatch() throws Exception {
