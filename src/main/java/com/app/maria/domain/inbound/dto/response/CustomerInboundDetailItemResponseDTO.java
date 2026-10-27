@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.dto.response;
+package com.app.maria.domain.inbound.dto.response;
 
 import com.app.maria.domain.inbound.dto.InboundDetailDTO;
 import java.math.BigDecimal;

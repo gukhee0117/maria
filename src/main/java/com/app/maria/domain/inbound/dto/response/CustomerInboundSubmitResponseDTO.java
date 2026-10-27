@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.dto.response;
+package com.app.maria.domain.inbound.dto.response;
 
 import com.app.maria.domain.foreignproduct.dto.ForeignProductDTO;
 import com.app.maria.domain.inbound.dto.InboundDTO;

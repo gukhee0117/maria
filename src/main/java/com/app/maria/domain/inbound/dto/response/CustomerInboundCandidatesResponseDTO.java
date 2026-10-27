@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.dto.response;
+package com.app.maria.domain.inbound.dto.response;
 
 import java.util.List;
 import lombok.Getter;

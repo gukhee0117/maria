@@ -1,4 +1,4 @@
-package com.app.maria.domain.customer.dto.request;
+package com.app.maria.domain.inbound.dto.request;
 
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;

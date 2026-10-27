@@ -1,12 +1,12 @@
-package com.app.maria.domain.customer.service;
+package com.app.maria.domain.inbound.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
-import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
+import com.app.maria.domain.inbound.dto.request.CustomerInboundSubmitRequestDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundSubmitResponseDTO;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.global.client.registrablestock.RegistrableStockClient;

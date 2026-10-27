@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/customers")
 @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
-public class CustomerApi {
+public class AdminCustomerApi {
 
     private final CustomerSearchService customerSearchService;
 
