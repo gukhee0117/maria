@@ -6,11 +6,13 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
+import com.app.maria.domain.settlement.event.SettlementCompletedEvent;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementStatus;
@@ -27,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementTransactionExecutorTest {
@@ -37,6 +40,7 @@ class SettlementTransactionExecutorTest {
 
     @Mock private SettlementCalculator settlementCalculator;
     @Mock private BusinessClockService businessClockService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private SettlementTransactionExecutor executor;
 
@@ -47,7 +51,8 @@ class SettlementTransactionExecutorTest {
                         krwExchangeMapper,
                         settlementItemMapper,
                         settlementCalculator,
-                        businessClockService);
+                        businessClockService,
+                        eventPublisher);
         lenient().when(businessClockService.now()).thenReturn(LocalDateTime.of(2026, 8, 9, 9, 0));
     }
 
@@ -86,6 +91,19 @@ class SettlementTransactionExecutorTest {
                 .isEqualByComparingTo("2800000.00");
         org.assertj.core.api.Assertions.assertThat(exchangeCaptor.getValue().getFinalAt())
                 .isEqualTo(originalFinalAt);
+
+        ArgumentCaptor<SettlementCompletedEvent> eventCaptor =
+                ArgumentCaptor.forClass(SettlementCompletedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        SettlementCompletedEvent event = eventCaptor.getValue();
+        org.assertj.core.api.Assertions.assertThat(event.batchId()).isEqualTo(40L);
+        org.assertj.core.api.Assertions.assertThat(event.itemId()).isEqualTo(30L);
+        org.assertj.core.api.Assertions.assertThat(event.accountId()).isEqualTo(20L);
+        org.assertj.core.api.Assertions.assertThat(event.exchangeId()).isEqualTo(10L);
+        org.assertj.core.api.Assertions.assertThat(event.finalAmount())
+                .isEqualByComparingTo("2800000.00");
+        org.assertj.core.api.Assertions.assertThat(event.settledAt())
+                .isEqualTo(LocalDateTime.of(2026, 8, 9, 9, 0));
     }
 
     @Test
@@ -102,6 +120,7 @@ class SettlementTransactionExecutorTest {
         verify(krwExchangeMapper, never()).selectAccountAmountForUpdate(any());
         verify(krwExchangeMapper, never()).replaceAccountAmount(any());
         verify(krwExchangeMapper, never()).insertLeftAmount(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
+import com.app.maria.domain.settlement.event.SettlementCompletedEvent;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
@@ -14,6 +15,7 @@ import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ public class SettlementTransactionExecutor {
     private final SettlementItemMapper settlementItemMapper;
     private final SettlementCalculator settlementCalculator;
     private final BusinessClockService businessClockService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(
             transactionManager = "transactionManager",
@@ -83,6 +86,15 @@ public class SettlementTransactionExecutor {
         requireOneRow(krwExchangeMapper.insertLeftAmount(exchange), "잔여 금액 생성 실패");
 
         markItemSuccess(target.getItemId(), settledAt);
+
+        eventPublisher.publishEvent(
+                new SettlementCompletedEvent(
+                        target.getBatchId(),
+                        target.getItemId(),
+                        exchange.getAccountId(),
+                        exchange.getExchangeId(),
+                        finalAmount,
+                        settledAt));
     }
 
     private void validateTarget(SettlementJoinDTO target) {
