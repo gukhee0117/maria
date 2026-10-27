@@ -1,0 +1,124 @@
+server:
+  port: 10000
+  error:
+    whitelabel:
+      enabled: false
+logging:
+  level:
+    root: WARN
+    com.app.maria: INFO
+    org.springframework.web: WARN
+spring:
+  config:
+    # 비밀값은 프로젝트 루트의 .env에서 읽는다(git 제외)
+    # 서버에서는 파일 없이 환경변수로 주입하므로 optional
+    import: optional:file:.env[.properties]
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: always
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10      # 최대 커넥션 수
+      minimum-idle: 5            # 최소 유지 커넥션
+      connection-timeout: 30000  # 커넥션 획득 대기 시간(ms)
+      idle-timeout: 600000       # 유휴 커넥션 유지 시간(ms)
+      initialization-fail-timeout: -1
+  # DevTools
+  devtools:
+    restart:
+      exclude: "**/domain/**"
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      timeout: 60000
+  cache:
+    type: redis
+# MyBatis
+mybatis:
+  # Mapper XML 위치
+  mapper-locations: classpath*:mappers/**/*.xml
+  # DTO / VO / Entity alias 패키지
+  type-aliases-package: com.app.maria.domain
+  configuration:
+    # DB snake_case → Java camelCase
+    # ACCOUNT_NO → accountNo
+    map-underscore-to-camel-case: true
+    # null 처리
+    jdbc-type-for-null: NULL
+    # 개발용 SQL 로그
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+# Swagger / OpenAPI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+  api-docs:
+    path: /api-docs
+app:
+  cookie:
+    secure: ${SECURE_COOKIE:false}
+  ci:
+    pepper: ${CI_PEPPER}  # 시드·myData·증권사와 같은 값(환경변수 주입)
+jwt:
+  secret: ${JWT_SECRET}  # Access Token 만료: 20분
+  expiration_minute: 20  # Refresh Token 만료: 7일
+  refresh_expiration_day: 7
+  token-blacklist-prefix: "blacklist:"
+  refresh-blacklist-prefix: "refresh:"
+# api
+custom:
+  exchange:
+    name: exchange-money
+    url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+    api-key: ${EXIM_API_KEY}
+    max-retries: 2
+    initial-backoff: 1000
+  external-trade-sync:
+    max-judge-failure-days: 3
+  price:
+    name: korea-investment
+    url: https://openapivts.koreainvestment.com:29443
+    app-key: ${KIS_APP_KEY}
+    app-secret: ${KIS_APP_SECRET}
+  returns-security:
+    url: ${RETURNS_SECURITY_URL}
+  mydata:
+    url: ${MYDATA_URL}
+    own-broker-name: 리턴증권
+  settlement:
+    cron: "0 0 0 * * *"
+    zone: "Asia/Seoul"
+  tax:
+    # 정산(00:00) · myData 동기화(01:00) 이후에 돌아야 그날 데이터가 반영된다
+    snapshot-cron: "0 0 2 * * *"
+    zone: "Asia/Seoul"
+    year: 2026
+sql:
+  init:
+    mode: never
+management:
+  health:
+    redis:
+      enabled: false
+# Spring AI — 끼루 챗봇
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+      embedding:
+        options:
+          model: text-embedding-3-small
+kkiru:
+  docs:
+    path: classpath:kkiru/docs/*.pdf

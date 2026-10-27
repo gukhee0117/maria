@@ -1,0 +1,9 @@
+# 운영 프로필 — SPRING_PROFILES_ACTIVE=prod. 값이 아니라 동작만 다른 설정을 둔다
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+app:
+  cookie:
+    secure: true
