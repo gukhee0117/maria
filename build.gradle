@@ -81,6 +81,9 @@ dependencies {
     implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
 
+    // PDF 생성 (증빙서류: Thymeleaf HTML -> PDF)
+    implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
+
     // AOP
     //Aspect사용
     implementation 'org.springframework.boot:spring-boot-starter-aop'

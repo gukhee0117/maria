@@ -9,6 +9,7 @@ import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.ErrorResponse;
@@ -53,6 +54,13 @@ public class GlobalExceptionHandler {
                         .map(ConstraintViolation::getMessage)
                         .orElse("요청값이 올바르지 않습니다.");
         return ResponseEntity.badRequest().body(ApiResponseDTO.of(message));
+    }
+
+    // 날짜·숫자 형식이 틀리거나 JSON이 깨진 요청. 본문 내용은 로그에 남기지 않는다(주민번호 등이 섞일 수 있음).
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleNotReadable(
+            HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest().body(ApiResponseDTO.of("요청 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(AppException.class)

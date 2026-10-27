@@ -11,6 +11,9 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-batchtest.sql
+  jpa:
+    hibernate:
+      ddl-auto: none
   cache:
     type: simple
   batch:

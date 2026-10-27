@@ -6,6 +6,7 @@ import com.app.maria.domain.account.mapper.AccountBenefitLogMapper;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.domain.document.mapper.DocumentIssueMapper;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalDTO;
@@ -34,6 +35,7 @@ public class WithdrawalProcessor {
     private final AccountMapper accountMapper;
     private final WithdrawalMapper withdrawalMapper;
     private final AccountBenefitLogMapper accountBenefitLogMapper;
+    private final DocumentIssueMapper documentIssueMapper;
     private final ClosureWithdrawalContextHolder closureWithdrawalContextHolder;
 
     @Transactional
@@ -190,6 +192,8 @@ public class WithdrawalProcessor {
                     throw new AppException(
                             ErrorType.ACCOUNT_BENEFIT_LOG_SAVE_FAILED, account.getAccountId());
                 }
+                // 혜택이 취소되는 순간 이미 발급한 증빙서류도 무효로 한다(추징 계산 저장을 기다리지 않는다).
+                documentIssueMapper.revokeIssuedByAccountId(accountId, currentDatetime);
             }
         }
         // 인출 저장

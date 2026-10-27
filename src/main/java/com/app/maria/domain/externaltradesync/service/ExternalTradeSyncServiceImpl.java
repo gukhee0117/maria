@@ -53,7 +53,7 @@ public class ExternalTradeSyncServiceImpl implements ExternalTradeSyncService {
 
     @Override
     public ExternalTradeSyncResultDTO syncAll() {
-        List<CustomerCiHashDTO> customers = customerMapper.selectActiveRiaCustomers();
+        List<CustomerCiHashDTO> customers = customerMapper.selectRiaMonitoringCustomers();
         int failedCustomerCount = 0;
         int skippedJudgementCount = 0;
         int permanentlyFailedJudgementCount = 0;

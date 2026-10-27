@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.document.mapper.DocumentIssueMapper">
+
+    <sql id="summaryColumns">
+        document_issue_id, account_id, calc_id, doc_type, issue_no, status,
+        file_hash, issued_by_type, issued_by_id, issued_at, revoked_at
+    </sql>
+
+    <insert id="insert" parameterType="DocumentIssueDTO"
+            useGeneratedKeys="true" keyProperty="documentIssueId">
+        insert into document_issue
+        (account_id, calc_id, doc_type, issue_no, status, file_content, file_hash,
+         issued_by_type, issued_by_id, issued_at)
+        values
+        (#{accountId}, #{calcId}, #{docType}, #{issueNo}, #{status}, #{fileContent}, #{fileHash},
+         #{issuedByType}, #{issuedById}, #{issuedAt})
+    </insert>
+
+    <select id="selectByAccountId" resultType="DocumentIssueDTO">
+        select <include refid="summaryColumns"/>
+        from document_issue
+        where account_id = #{accountId}
+        order by issued_at desc, document_issue_id desc
+    </select>
+
+    <select id="selectIssuedByAccountId" resultType="DocumentIssueDTO">
+        select <include refid="summaryColumns"/>
+        from document_issue
+        where account_id = #{accountId} and status = 'ISSUED'
+        order by document_issue_id desc
+        limit 1
+    </select>
+
+    <select id="selectWithFileById" resultType="DocumentIssueDTO">
+        select <include refid="summaryColumns"/>, file_content
+        from document_issue
+        where document_issue_id = #{documentIssueId}
+    </select>
+
+    <select id="existsByIssueNo" resultType="boolean">
+        select exists(select 1 from document_issue where issue_no = #{issueNo})
+    </select>
+
+    <update id="revokeIssuedByAccountId">
+        update document_issue
+        set status = 'REVOKED', revoked_at = #{revokedAt}
+        where account_id = #{accountId} and status = 'ISSUED'
+    </update>
+
+    <select id="selectHolderName" resultType="string">
+        select c.name
+        from account a
+        join customer c on c.customer_id = a.customer_id
+        where a.account_id = #{accountId}
+    </select>
+
+</mapper>

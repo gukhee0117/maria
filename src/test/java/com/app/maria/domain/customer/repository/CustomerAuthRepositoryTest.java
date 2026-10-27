@@ -3,9 +3,12 @@ package com.app.maria.domain.customer.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
+import com.app.maria.domain.customer.entity.CustomerEntity;
+import com.app.maria.domain.customer.entity.InvestorType;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.domain.customer.service.CustomerAuthServiceImpl;
 import com.app.maria.global.config.JpaConfig;
@@ -25,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -42,7 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
     JpaConfig.class,
     TransactionConfig.class,
     CustomerAuthServiceImpl.class,
-    PasswordEncoderConfig.class
+    PasswordEncoderConfig.class,
+    CustomerAuthTestBeans.class
 })
 @Transactional(transactionManager = "jpaTransactionManager")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -64,6 +69,10 @@ class CustomerAuthRepositoryTest {
     @BeforeAll
     void createTestSchema() {
         // 테스트 전용 H2에 기존 DDL의 컬럼·관계를 구성한다. 실제 MariaDB는 사용하지 않는다.
+        // 같은 H2를 다른 테스트 클래스와 공유하므로 먼저 지운다.
+        jdbc.execute("DROP TABLE IF EXISTS customer_auth_password");
+        jdbc.execute("DROP TABLE IF EXISTS customer_auth");
+        jdbc.execute("DROP TABLE IF EXISTS customer");
         jdbc.execute(
                 """
                 CREATE TABLE customer (
@@ -77,7 +86,8 @@ class CustomerAuthRepositoryTest {
                 """
                 CREATE TABLE customer_auth (
                     auth_id BIGINT PRIMARY KEY, customer_id BIGINT NOT NULL REFERENCES customer(customer_id),
-                    login_id VARCHAR(50) NOT NULL, type VARCHAR(10) NOT NULL, last_login_at TIMESTAMP
+                    login_id VARCHAR(50) NOT NULL, type VARCHAR(10) NOT NULL, last_login_at TIMESTAMP,
+                    UNIQUE (type, login_id)
                 )
                 """);
         jdbc.execute(
@@ -110,10 +120,48 @@ class CustomerAuthRepositoryTest {
     }
 
     @Test
+    @DisplayName("로그인에 성공하면 마지막 로그인 시각을 실제 시각으로 갱신한다")
+    void updatesLastLoginAtOnSuccess() {
+        insertAuth(10, "customer1", "LOCAL", true);
+
+        service.authenticate(login("customer1", "test-password"));
+        entityManager.flush();
+
+        assertThat(
+                        jdbc.queryForObject(
+                                        "SELECT last_login_at FROM customer_auth WHERE auth_id = 10",
+                                        java.sql.Timestamp.class)
+                                .toLocalDateTime())
+                .isEqualTo(java.time.LocalDateTime.of(2026, 10, 25, 12, 0, 0));
+    }
+
+    @Test
+    @DisplayName("로그인에 실패하면 마지막 로그인 시각을 바꾸지 않는다")
+    void keepsLastLoginAtOnFailure() {
+        insertAuth(10, "customer1", "LOCAL", true);
+
+        assertLoginFailed("customer1", "wrong-password");
+        entityManager.flush();
+
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT last_login_at FROM customer_auth WHERE auth_id = 10",
+                                java.sql.Timestamp.class))
+                .isNull();
+    }
+
+    @Test
     @DisplayName("비밀번호가 틀리면 고객 로그인 실패로 응답한다")
     void rejectsIncorrectPassword() {
         insertAuth(10, "customer1", "LOCAL", true);
         assertLoginFailed("customer1", "wrong-password");
+    }
+
+    @Test
+    @DisplayName("72바이트를 넘는 비밀번호는 500이 아니라 로그인 실패로 처리한다")
+    void rejectsPasswordOver72Bytes() {
+        insertAuth(10, "customer1", "LOCAL", true);
+        assertLoginFailed("customer1", "가".repeat(30));
     }
 
     @Test
@@ -141,22 +189,23 @@ class CustomerAuthRepositoryTest {
     }
 
     @Test
-    @DisplayName("중복 LOCAL 계정은 비밀번호 누락 행도 포함해 감지하고 거절한다")
-    void rejectsAmbiguousLocalAccounts() {
-        insertAuth(10, "customer1", "LOCAL", true);
-        insertAuth(11, "customer1", "LOCAL", false);
-        assertLoginFailed("customer1", "test-password");
+    @DisplayName("같은 종류의 인증수단은 아이디가 중복될 수 없고, 종류가 다르면 같은 아이디를 허용한다")
+    void rejectsDuplicateLoginIdPerType() {
+        insertAuth(10, "customer1", "LOCAL", false);
+
+        assertThatThrownBy(() -> insertAuth(11, "customer1", "LOCAL", false))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        insertAuth(12, "customer1", "GOOGLE", false);
     }
 
     @Test
-    @DisplayName("중복 계정 조회는 두 건까지만 반환한다")
-    void limitsDuplicateLookupToTwoRows() {
-        insertAuth(10, "customer1", "LOCAL", false);
-        insertAuth(11, "customer1", "LOCAL", false);
-        insertAuth(12, "customer1", "LOCAL", false);
-        assertThat(repository.findTop2ByLoginIdAndTypeOrderByAuthIdAsc("customer1", AuthType.LOCAL))
-                .extracting(CustomerAuthEntity::getAuthId)
-                .containsExactly(10L, 11L);
+    @DisplayName("미진단(UNASSIGNED) 투자성향을 JPA로 읽는다")
+    void readsUnassignedInvestorType() {
+        jdbc.update("UPDATE customer SET investor_type = 'UNASSIGNED' WHERE customer_id = 1");
+        entityManager.clear();
+
+        assertThat(entityManager.find(CustomerEntity.class, 1L).getInvestorType())
+                .isEqualTo(InvestorType.UNASSIGNED);
     }
 
     @Test

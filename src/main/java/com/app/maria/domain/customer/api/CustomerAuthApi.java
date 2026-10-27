@@ -1,6 +1,7 @@
 package com.app.maria.domain.customer.api;
 
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
+import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerMeResponseDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -10,6 +11,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
@@ -36,10 +39,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/customer")
 @SecurityRequirements
 public class CustomerAuthApi {
+    // 유휴 30분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
+    private static final int SESSION_TIMEOUT_SECONDS = 30 * 60;
+
     private final CustomerAuthService customerAuthService;
     private final SecurityContextRepository contextRepository;
     private final SessionAuthenticationStrategy sessionStrategy;
     private final CookieCsrfTokenRepository csrfRepository;
+    private final Clock clock;
 
     public CustomerAuthApi(
             CustomerAuthService customerAuthService,
@@ -47,11 +54,13 @@ public class CustomerAuthApi {
                     SecurityContextRepository contextRepository,
             @Qualifier("customerSessionAuthenticationStrategy")
                     SessionAuthenticationStrategy sessionStrategy,
-            CookieCsrfTokenRepository customerCsrfTokenRepository) {
+            CookieCsrfTokenRepository customerCsrfTokenRepository,
+            Clock clock) {
         this.customerAuthService = customerAuthService;
         this.contextRepository = contextRepository;
         this.sessionStrategy = sessionStrategy;
         this.csrfRepository = customerCsrfTokenRepository;
+        this.clock = clock;
     }
 
     @GetMapping("/csrf")
@@ -68,6 +77,30 @@ public class CustomerAuthApi {
             HttpServletRequest request,
             HttpServletResponse response) {
         CustomerPrincipal principal = customerAuthService.authenticate(body);
+        establishSession(principal, request, response);
+        return ApiResponseDTO.of(
+                "로그인 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+    }
+
+    @PostMapping("/auth/signup")
+    @Operation(summary = "고객 회원가입 + 자동 로그인 (CSRF 필수)")
+    public ApiResponseDTO<CustomerMeResponseDTO> signup(
+            @Valid @RequestBody CustomerSignupRequestDTO body,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        CustomerPrincipal principal = customerAuthService.signup(body);
+        establishSession(principal, request, response);
+        return ApiResponseDTO.of("가입 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+    }
+
+    // 이 요청이 세션을 접근한 시점부터 유휴 시간이 다시 시작되므로 만료 시각 = 지금 + 유휴 허용 시간.
+    private Instant expiresAt(HttpServletRequest request) {
+        return Instant.now(clock).plusSeconds(request.getSession().getMaxInactiveInterval());
+    }
+
+    // 로그인·가입 공통: 세션 ID를 교체하고 인증 정보를 세션에 저장한다.
+    private void establishSession(
+            CustomerPrincipal principal, HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication =
                 UsernamePasswordAuthenticationToken.authenticated(
                         principal, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
@@ -76,14 +109,25 @@ public class CustomerAuthApi {
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
-        return ApiResponseDTO.of("로그인 성공", new CustomerMeResponseDTO(principal));
+        request.getSession().setMaxInactiveInterval(SESSION_TIMEOUT_SECONDS);
     }
 
     @GetMapping("/auth/me")
-    @Operation(summary = "현재 고객 세션 확인")
+    @Operation(summary = "현재 고객 세션 확인 (만료 시각 포함)")
     public ApiResponseDTO<CustomerMeResponseDTO> me(
-            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
-        return ApiResponseDTO.of("고객 정보 조회 성공", new CustomerMeResponseDTO(principal));
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
+            HttpServletRequest request) {
+        return ApiResponseDTO.of(
+                "고객 정보 조회 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+    }
+
+    @PostMapping("/auth/extend")
+    @Operation(summary = "세션 연장 (인증·CSRF 필수). 이 요청이 세션을 접근하는 순간 유휴 시간이 다시 30분이 된다")
+    public ApiResponseDTO<CustomerMeResponseDTO> extend(
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
+            HttpServletRequest request) {
+        return ApiResponseDTO.of(
+                "세션을 연장했습니다.", new CustomerMeResponseDTO(principal, expiresAt(request)));
     }
 
     @PostMapping("/auth/logout")
