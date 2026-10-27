@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
+import com.app.maria.domain.settlement.event.SettlementBatchCompletedEvent;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.BatchStatus;
@@ -17,11 +18,13 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementBatchStatusUpdaterTest {
@@ -29,6 +32,7 @@ class SettlementBatchStatusUpdaterTest {
     @Mock private SettlementBatchMapper settlementBatchMapper;
     @Mock private SettlementItemMapper settlementItemMapper;
     @Mock private BusinessClockService systemClock;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @Test
     void marksRemainingPendingItemsAsFailedBeforeFailingBatch() {
@@ -38,7 +42,7 @@ class SettlementBatchStatusUpdaterTest {
                 .thenReturn(1);
         SettlementBatchStatusUpdater updater =
                 new SettlementBatchStatusUpdater(
-                        settlementBatchMapper, settlementItemMapper, systemClock);
+                        settlementBatchMapper, settlementItemMapper, systemClock, eventPublisher);
 
         updater.markFailedIfRunning(1L, "Job 실행 실패");
 
@@ -78,7 +82,7 @@ class SettlementBatchStatusUpdaterTest {
                                         .build()));
         SettlementBatchStatusUpdater updater =
                 new SettlementBatchStatusUpdater(
-                        settlementBatchMapper, settlementItemMapper, systemClock);
+                        settlementBatchMapper, settlementItemMapper, systemClock, eventPublisher);
 
         updater.markFailedIfRunning(1L, "Job 실행 실패");
 
@@ -91,10 +95,54 @@ class SettlementBatchStatusUpdaterTest {
         when(settlementBatchMapper.refreshBatchStatusAfterRetry(1L)).thenReturn(0);
         SettlementBatchStatusUpdater updater =
                 new SettlementBatchStatusUpdater(
-                        settlementBatchMapper, settlementItemMapper, systemClock);
+                        settlementBatchMapper, settlementItemMapper, systemClock, eventPublisher);
 
         assertThatThrownBy(() -> updater.completeFromLatestItems(1L))
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.SETTLEMENT_STATE_CONFLICT);
+    }
+
+    @Test
+    void publishesOneEventWhenTheWholeBatchCompletes() {
+        LocalDateTime completedAt = LocalDateTime.of(2026, 10, 27, 17, 0);
+        when(settlementBatchMapper.refreshBatchStatusAfterRetry(1L)).thenReturn(1);
+        when(settlementBatchMapper.selectBatchById(1L))
+                .thenReturn(
+                        Optional.of(
+                                SettlementBatchDTO.builder()
+                                        .batchId(1L)
+                                        .status(BatchStatus.COMPLETED)
+                                        .build()));
+        when(systemClock.now()).thenReturn(completedAt);
+        SettlementBatchStatusUpdater updater =
+                new SettlementBatchStatusUpdater(
+                        settlementBatchMapper, settlementItemMapper, systemClock, eventPublisher);
+
+        updater.completeFromLatestItems(1L);
+
+        ArgumentCaptor<SettlementBatchCompletedEvent> eventCaptor =
+                ArgumentCaptor.forClass(SettlementBatchCompletedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().batchId()).isEqualTo(1L);
+        assertThat(eventCaptor.getValue().completedAt()).isEqualTo(completedAt);
+    }
+
+    @Test
+    void doesNotPublishCompletionWhenLatestItemsLeaveBatchFailed() {
+        when(settlementBatchMapper.refreshBatchStatusAfterRetry(1L)).thenReturn(1);
+        when(settlementBatchMapper.selectBatchById(1L))
+                .thenReturn(
+                        Optional.of(
+                                SettlementBatchDTO.builder()
+                                        .batchId(1L)
+                                        .status(BatchStatus.FAILED)
+                                        .build()));
+        SettlementBatchStatusUpdater updater =
+                new SettlementBatchStatusUpdater(
+                        settlementBatchMapper, settlementItemMapper, systemClock, eventPublisher);
+
+        updater.completeFromLatestItems(1L);
+
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.any());
     }
 }

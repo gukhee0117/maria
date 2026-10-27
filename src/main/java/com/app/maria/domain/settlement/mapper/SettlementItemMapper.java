@@ -5,6 +5,7 @@ import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface SettlementItemMapper {
@@ -34,4 +35,7 @@ public interface SettlementItemMapper {
     int countPendingItems(Long batchId);
 
     int countFailedItems(Long batchId);
+
+    boolean isAccountSettlementCompleted(
+            @Param("batchId") Long batchId, @Param("accountId") Long accountId);
 }
