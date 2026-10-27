@@ -29,8 +29,8 @@
     </environments>
 
     <mappers>
-        <mapper resource="mappers/account/accountMapper.xml"/>
-        <mapper resource="mappers/accountclosure/accountClosureMapper.xml"/>
-        <mapper resource="mappers/sellorder/sellLimitMapper.xml"/>
+        <mapper resource="mappers/account/AccountMapper.xml"/>
+        <mapper resource="mappers/accountclosure/AccountClosureMapper.xml"/>
+        <mapper resource="mappers/sellorder/SellLimitMapper.xml"/>
     </mappers>
 </configuration>
