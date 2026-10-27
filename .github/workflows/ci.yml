@@ -17,6 +17,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      - name: Spotless
+        run: |
+          chmod +x gradlew
+          ./gradlew spotlessCheck --no-daemon
+
       - name: Test
         run: |
           chmod +x gradlew
