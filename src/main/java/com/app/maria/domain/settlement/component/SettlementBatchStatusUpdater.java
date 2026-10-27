@@ -2,6 +2,7 @@ package com.app.maria.domain.settlement.component;
 
 import com.app.maria.domain.settlement.dto.SettlementBatchDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
+import com.app.maria.domain.settlement.event.SettlementBatchCompletedEvent;
 import com.app.maria.domain.settlement.mapper.SettlementBatchMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.BatchStatus;
@@ -11,6 +12,7 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ public class SettlementBatchStatusUpdater {
     private final SettlementBatchMapper settlementBatchMapper;
     private final SettlementItemMapper settlementItemMapper;
     private final BusinessClockService systemClock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(
             transactionManager = "transactionManager",
@@ -70,10 +73,25 @@ public class SettlementBatchStatusUpdater {
         updateRetryRunning(batchId, null);
     }
 
+    @Transactional(
+            transactionManager = "transactionManager",
+            propagation = Propagation.REQUIRES_NEW)
     public void completeFromLatestItems(Long batchId) {
         if (settlementBatchMapper.refreshBatchStatusAfterRetry(batchId) != 1) {
             throw new AppException(
                     ErrorType.SETTLEMENT_STATE_CONFLICT, "Batch 최종 상태 변경 실패 batchId=" + batchId);
+        }
+        SettlementBatchDTO completedBatch =
+                settlementBatchMapper
+                        .selectBatchById(batchId)
+                        .orElseThrow(
+                                () ->
+                                        new AppException(
+                                                ErrorType.SETTLEMENT_BATCH_NOT_FOUND,
+                                                "완료된 Batch를 찾을 수 없습니다. batchId=" + batchId));
+        if (completedBatch.getStatus() == BatchStatus.COMPLETED) {
+            eventPublisher.publishEvent(
+                    new SettlementBatchCompletedEvent(batchId, systemClock.now()));
         }
     }
 

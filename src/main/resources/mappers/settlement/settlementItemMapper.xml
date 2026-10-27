@@ -153,4 +153,24 @@
           AND result = 'FAILED'
     </select>
 
+    <select id="isAccountSettlementCompleted" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM settlement_item latest
+            INNER JOIN krw_exchange ke
+                ON ke.exchange_id = latest.exchange_id
+            WHERE latest.batch_id = #{batchId}
+              AND ke.account_id = #{accountId}
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM settlement_item newer
+                  WHERE newer.batch_id = latest.batch_id
+                    AND newer.exchange_id = latest.exchange_id
+                    AND newer.item_id &gt; latest.item_id
+              )
+            GROUP BY ke.account_id
+            HAVING SUM(CASE WHEN latest.result = 'SUCCESS' THEN 1 ELSE 0 END) = COUNT(*)
+        )
+    </select>
+
 </mapper>

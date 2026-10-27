@@ -178,6 +178,8 @@ class SettlementMapperTest {
                 settlementItemMapper
                         .selectPendingItems(pendingCursor(batch.getBatchId(), 0L))
                         .get(0);
+        assertThat(settlementItemMapper.isAccountSettlementCompleted(batch.getBatchId(), 1L))
+                .isFalse();
 
         KrwExchangeDTO exchange = krwExchangeMapper.selectExchangeById(1L).orElseThrow();
         assertThat(krwExchangeMapper.selectExchangeById(999L)).isEmpty();
@@ -207,6 +209,8 @@ class SettlementMapperTest {
         item.setResult(SettlementItemResult.SUCCESS);
         item.setProcessedAt(finalizedAt);
         assertThat(settlementItemMapper.updateItemResult(item)).isOne();
+        assertThat(settlementItemMapper.isAccountSettlementCompleted(batch.getBatchId(), 1L))
+                .isTrue();
         assertThat(settlementJoinMapper.selectTargetByItemId(targetQuery)).isEmpty();
         assertThat(settlementJoinMapper.selectItemDetail(targetQuery))
                 .get()
@@ -251,6 +255,8 @@ class SettlementMapperTest {
         item.setResult(SettlementItemResult.FAILED);
         item.setProcessedAt(processedAt);
         assertThat(settlementItemMapper.updateItemResult(item)).isOne();
+        assertThat(settlementItemMapper.isAccountSettlementCompleted(batch.getBatchId(), 1L))
+                .isFalse();
         item.setResult(SettlementItemResult.SUCCESS);
         item.setProcessedAt(processedAt.plusMinutes(1));
         assertThat(settlementItemMapper.updateItemResult(item)).isZero();
