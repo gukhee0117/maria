@@ -1,5 +1,8 @@
 package com.app.maria.domain.chat.api;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.app.maria.domain.chat.service.KkiruChatService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,19 +12,14 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 @WebMvcTest(
         controllers = KkiruChatController.class,
         excludeAutoConfiguration = SecurityAutoConfiguration.class)
 class KkiruChatControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @MockBean
-    private KkiruChatService kkiruChatService;
+    @MockBean private KkiruChatService kkiruChatService;
 
     @Test
     void question이_blank면_400_반환() throws Exception {

@@ -14,9 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChatRequestDTO {
 
-    @NotNull
-    @Valid
-    private List<MessageDTO> messages;
+    @NotNull @Valid private List<MessageDTO> messages;
 
     @NotBlank
     @Size(max = 1000)

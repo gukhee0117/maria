@@ -1,5 +1,8 @@
 package com.app.maria.domain.chat.loader;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,14 +11,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.verifyNoInteractions;
-
 @ExtendWith(MockitoExtension.class)
 class KkiruKnowledgeLoaderTest {
 
-    @Mock
-    private VectorStore vectorStore;
+    @Mock private VectorStore vectorStore;
 
     private KkiruKnowledgeLoader loader;
 

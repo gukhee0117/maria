@@ -1,5 +1,7 @@
 package com.app.maria.domain.chat.dto.request;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -7,8 +9,6 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class ChatRequestDTOTest {
 
@@ -52,9 +52,7 @@ class ChatRequestDTOTest {
     void 정상_요청은_유효성검사_통과() {
         ChatRequestDTO dto =
                 new ChatRequestDTO(
-                        List.of(
-                                new MessageDTO("user", "안녕"),
-                                new MessageDTO("assistant", "안녕하세요")),
+                        List.of(new MessageDTO("user", "안녕"), new MessageDTO("assistant", "안녕하세요")),
                         "RIA 한도가 얼마예요?");
         Set<ConstraintViolation<ChatRequestDTO>> violations = validator.validate(dto);
         assertThat(violations).isEmpty();

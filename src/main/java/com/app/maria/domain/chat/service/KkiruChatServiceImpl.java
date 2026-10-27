@@ -21,15 +21,9 @@ public class KkiruChatServiceImpl implements KkiruChatService {
 
     @Override
     public Flux<String> stream(ChatRequestDTO request) {
-        List<Message> history =
-                request.getMessages().stream().map(this::toMessage).toList();
+        List<Message> history = request.getMessages().stream().map(this::toMessage).toList();
 
-        return chatClient
-                .prompt()
-                .messages(history)
-                .user(request.getQuestion())
-                .stream()
-                .content();
+        return chatClient.prompt().messages(history).user(request.getQuestion()).stream().content();
     }
 
     private Message toMessage(MessageDTO dto) {

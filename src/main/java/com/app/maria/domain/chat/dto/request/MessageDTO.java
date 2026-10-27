@@ -15,6 +15,5 @@ public class MessageDTO {
     @Pattern(regexp = "user|assistant", message = "role은 user 또는 assistant여야 합니다.")
     private String role;
 
-    @NotBlank
-    private String content;
+    @NotBlank private String content;
 }

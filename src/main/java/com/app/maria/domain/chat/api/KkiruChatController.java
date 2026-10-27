@@ -28,8 +28,7 @@ public class KkiruChatController {
     public SseEmitter stream(@Valid @RequestBody ChatRequestDTO request) {
         SseEmitter emitter = new SseEmitter(180_000L);
 
-        kkiruChatService
-                .stream(request)
+        kkiruChatService.stream(request)
                 .subscribe(
                         token -> sendEvent(emitter, Map.of("type", "token", "content", token)),
                         error -> {

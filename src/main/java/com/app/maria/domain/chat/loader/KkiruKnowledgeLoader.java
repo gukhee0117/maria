@@ -48,10 +48,7 @@ public class KkiruKnowledgeLoader {
                 TextReader reader = new TextReader(resource);
                 List<Document> chunks = splitter.apply(reader.get());
                 vectorStore.add(chunks);
-                log.info(
-                        "끼루 지식베이스 로딩 완료: {} ({} 청크)",
-                        resource.getFilename(),
-                        chunks.size());
+                log.info("끼루 지식베이스 로딩 완료: {} ({} 청크)", resource.getFilename(), chunks.size());
             } catch (Exception e) {
                 log.error("끼루 지식베이스 로딩 실패: {}", resource.getFilename(), e);
             }
