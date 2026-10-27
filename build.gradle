@@ -34,6 +34,14 @@ tasks.withType(Test).configureEach {
 
 repositories {
     mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
+    maven { url 'https://repo.spring.io/release' }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0'
+    }
 }
 
 dependencies {
@@ -83,6 +91,12 @@ dependencies {
 
     // PDF 생성 (증빙서류: Thymeleaf HTML -> PDF)
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
+
+    // Spring AI — 끼루 AI 챗봇
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-pdf-document-reader'
+    implementation 'org.springframework.ai:spring-ai-vector-store'
+    implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
 
     // AOP
     //Aspect사용
