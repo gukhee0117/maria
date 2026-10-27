@@ -8,9 +8,13 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.settlement.dto.response.SettlementNotificationResponseDTO;
+import com.app.maria.domain.settlement.event.SettlementItemCompletedEvent;
+import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.notification.SettlementSseService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +28,8 @@ class SettlementNotificationServiceTest {
 
     @Mock private AccountMapper accountMapper;
     @Mock private SettlementSseService settlementSseService;
-    @InjectMocks private SettlementNotificationService service;
+    @Mock private SettlementItemMapper settlementItemMapper;
+    @InjectMocks private SettlementNotificationServiceImpl service;
 
     @Test
     void subscribesOnlyTheAccountOwnedByTheLoggedInCustomer() {
@@ -49,5 +54,32 @@ class SettlementNotificationServiceTest {
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.ACCOUNT_NOT_FOUND);
 
         verify(settlementSseService, never()).subscribeAccount(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void notifiesCustomerOnceTheAccountsLatestItemsAreAllSuccessful() {
+        LocalDateTime completedAt = LocalDateTime.of(2026, 10, 27, 17, 30);
+        SettlementItemCompletedEvent event = new SettlementItemCompletedEvent(1L, 7L, completedAt);
+        when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(true);
+
+        service.notifyAccountIfCompleted(event);
+
+        verify(settlementSseService)
+                .sendAccountBatchCompleted(
+                        7L, new SettlementNotificationResponseDTO(1L, completedAt));
+    }
+
+    @Test
+    void waitsWhileTheAccountStillHasPendingOrFailedLatestItems() {
+        SettlementItemCompletedEvent event =
+                new SettlementItemCompletedEvent(1L, 7L, LocalDateTime.of(2026, 10, 27, 17, 30));
+        when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(false);
+
+        service.notifyAccountIfCompleted(event);
+
+        verify(settlementSseService, never())
+                .sendAccountBatchCompleted(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any(SettlementNotificationResponseDTO.class));
     }
 }

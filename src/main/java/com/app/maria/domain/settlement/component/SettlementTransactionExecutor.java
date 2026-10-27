@@ -4,7 +4,7 @@ import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementItemDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.event.SettlementCompletedEvent;
+import com.app.maria.domain.settlement.event.SettlementItemCompletedEvent;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementItemResult;
@@ -47,7 +47,9 @@ public class SettlementTransactionExecutor {
                                 });
 
         if (exchange.getSettlementStatus() == SettlementStatus.FINALIZED) {
-            markItemSuccess(target.getItemId());
+            LocalDateTime completedAt = businessClockService.now();
+            markItemSuccess(target.getItemId(), completedAt);
+            publishItemCompleted(target, exchange.getAccountId(), completedAt);
             return;
         }
         if (exchange.getSettlementStatus() != SettlementStatus.PROVISIONAL) {
@@ -87,14 +89,13 @@ public class SettlementTransactionExecutor {
 
         markItemSuccess(target.getItemId(), settledAt);
 
+        publishItemCompleted(target, exchange.getAccountId(), settledAt);
+    }
+
+    private void publishItemCompleted(
+            SettlementJoinDTO target, Long accountId, LocalDateTime completedAt) {
         eventPublisher.publishEvent(
-                new SettlementCompletedEvent(
-                        target.getBatchId(),
-                        target.getItemId(),
-                        exchange.getAccountId(),
-                        exchange.getExchangeId(),
-                        finalAmount,
-                        settledAt));
+                new SettlementItemCompletedEvent(target.getBatchId(), accountId, completedAt));
     }
 
     private void validateTarget(SettlementJoinDTO target) {
@@ -104,10 +105,6 @@ public class SettlementTransactionExecutor {
                 || target.getAccountId() == null) {
             throw new AppException(ErrorType.SETTLEMENT_INVALID_REQUEST, "확정산 대상 정보가 올바르지 않습니다.");
         }
-    }
-
-    private void markItemSuccess(Long itemId) {
-        markItemSuccess(itemId, businessClockService.now());
     }
 
     private void markItemSuccess(Long itemId, LocalDateTime processedAt) {

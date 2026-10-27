@@ -6,13 +6,12 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.domain.settlement.dto.KrwExchangeDTO;
 import com.app.maria.domain.settlement.dto.SettlementJoinDTO;
-import com.app.maria.domain.settlement.event.SettlementCompletedEvent;
+import com.app.maria.domain.settlement.event.SettlementItemCompletedEvent;
 import com.app.maria.domain.settlement.mapper.KrwExchangeMapper;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
 import com.app.maria.domain.settlement.type.SettlementStatus;
@@ -92,18 +91,12 @@ class SettlementTransactionExecutorTest {
         org.assertj.core.api.Assertions.assertThat(exchangeCaptor.getValue().getFinalAt())
                 .isEqualTo(originalFinalAt);
 
-        ArgumentCaptor<SettlementCompletedEvent> eventCaptor =
-                ArgumentCaptor.forClass(SettlementCompletedEvent.class);
+        ArgumentCaptor<SettlementItemCompletedEvent> eventCaptor =
+                ArgumentCaptor.forClass(SettlementItemCompletedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
-        SettlementCompletedEvent event = eventCaptor.getValue();
-        org.assertj.core.api.Assertions.assertThat(event.batchId()).isEqualTo(40L);
-        org.assertj.core.api.Assertions.assertThat(event.itemId()).isEqualTo(30L);
-        org.assertj.core.api.Assertions.assertThat(event.accountId()).isEqualTo(20L);
-        org.assertj.core.api.Assertions.assertThat(event.exchangeId()).isEqualTo(10L);
-        org.assertj.core.api.Assertions.assertThat(event.finalAmount())
-                .isEqualByComparingTo("2800000.00");
-        org.assertj.core.api.Assertions.assertThat(event.settledAt())
-                .isEqualTo(LocalDateTime.of(2026, 8, 9, 9, 0));
+        org.assertj.core.api.Assertions.assertThat(eventCaptor.getValue().batchId()).isEqualTo(40L);
+        org.assertj.core.api.Assertions.assertThat(eventCaptor.getValue().accountId())
+                .isEqualTo(20L);
     }
 
     @Test
@@ -120,7 +113,7 @@ class SettlementTransactionExecutorTest {
         verify(krwExchangeMapper, never()).selectAccountAmountForUpdate(any());
         verify(krwExchangeMapper, never()).replaceAccountAmount(any());
         verify(krwExchangeMapper, never()).insertLeftAmount(any());
-        verifyNoInteractions(eventPublisher);
+        verify(eventPublisher).publishEvent(any(SettlementItemCompletedEvent.class));
     }
 
     @Test
