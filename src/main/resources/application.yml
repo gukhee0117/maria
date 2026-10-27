@@ -41,6 +41,16 @@ spring:
       timeout: 60000
   cache:
     type: redis
+  # Spring AI — 끼루 챗봇
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+      embedding:
+        options:
+          model: text-embedding-3-small
 # MyBatis
 mybatis:
   # Mapper XML 위치
@@ -108,17 +118,6 @@ management:
   health:
     redis:
       enabled: false
-# Spring AI — 끼루 챗봇
-spring:
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      chat:
-        options:
-          model: gpt-4o-mini
-      embedding:
-        options:
-          model: text-embedding-3-small
 kkiru:
   docs:
     path: classpath:kkiru/docs/*.pdf
