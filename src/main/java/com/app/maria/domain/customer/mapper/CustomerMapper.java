@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface CustomerMapper {
 
-    List<CustomerCiHashDTO> selectActiveRiaCustomers();
+    List<CustomerCiHashDTO> selectRiaMonitoringCustomers();
 
     List<CustomerSearchDTO> searchEligibleCustomersByName(
             @Param("name") String name, @Param("limit") int limit);

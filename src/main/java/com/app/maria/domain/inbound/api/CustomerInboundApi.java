@@ -1,13 +1,13 @@
-package com.app.maria.domain.customer.api;
+package com.app.maria.domain.inbound.api;
 
-import com.app.maria.domain.customer.dto.request.CustomerInboundSubmitRequestDTO;
-import com.app.maria.domain.customer.dto.response.CustomerForeignProductResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundCandidatesResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundDetailResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundHistoryResponseDTO;
-import com.app.maria.domain.customer.dto.response.CustomerInboundSubmitResponseDTO;
-import com.app.maria.domain.customer.service.CustomerInboundQueryService;
-import com.app.maria.domain.customer.service.CustomerInboundService;
+import com.app.maria.domain.inbound.dto.request.CustomerInboundSubmitRequestDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerForeignProductResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundCandidatesResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundDetailResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundHistoryResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundSubmitResponseDTO;
+import com.app.maria.domain.inbound.service.CustomerInboundQueryService;
+import com.app.maria.domain.inbound.service.CustomerInboundService;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
