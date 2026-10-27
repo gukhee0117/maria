@@ -30,7 +30,7 @@
     </environments>
 
     <mappers>
-        <mapper resource="mappers/statistics/statisticsMapper.xml"/>
-        <mapper resource="mappers/sellorder/sellLimitMapper.xml"/>
+        <mapper resource="mappers/statistics/StatisticsMapper.xml"/>
+        <mapper resource="mappers/sellorder/SellLimitMapper.xml"/>
     </mappers>
 </configuration>

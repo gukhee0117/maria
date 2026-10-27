@@ -59,8 +59,8 @@ class SystemClockIntegrationTest {
         configuration.addMapper(SystemClockMapper.class);
         configuration.addMapper(AuditLogMapper.class);
 
-        loadMapperXml(configuration, "mappers/clock/systemClockMapper.xml");
-        loadMapperXml(configuration, "mappers/audit/auditLogMapper.xml");
+        loadMapperXml(configuration, "mappers/clock/SystemClockMapper.xml");
+        loadMapperXml(configuration, "mappers/audit/AuditLogMapper.xml");
 
         sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
     }
