@@ -27,6 +27,6 @@
     </environments>
 
     <mappers>
-        <mapper resource="mappers/sellorder/SellOrderMapper.xml"/>
+        <mapper resource="mappers/sellorder/sellOrderMapper.xml"/>
     </mappers>
 </configuration>
