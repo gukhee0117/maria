@@ -38,3 +38,7 @@ out/
 !**/src/test/**/out/
 .omc
 db/dummy_local_seed.sql
+
+# kkiru 지식 문서는 로컬 docs/ 제외 규칙에서 복원
+!src/main/resources/kkiru/docs/
+!src/main/resources/kkiru/docs/**

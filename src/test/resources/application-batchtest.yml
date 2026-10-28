@@ -21,3 +21,7 @@ spring:
       enabled: false
     jdbc:
       initialize-schema: always
+
+kkiru:
+  docs:
+    enabled: false
