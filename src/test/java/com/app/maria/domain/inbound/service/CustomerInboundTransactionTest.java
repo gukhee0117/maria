@@ -216,26 +216,76 @@ class CustomerInboundTransactionTest {
     }
 
     @Test
-    @DisplayName("기존 입고 이력이 있으면 재입고 가용 수량을 차감해 부분 승인하고 모두 커밋한다")
-    void existingHistoryReducesAvailableQtyAndPartialApprovalCommits() {
-        // 기존: sourceAccount=201에서 10주 입고 (registrableStockId=300, source_general_account_id=201)
-        // 요청: sourceAccount=200에서 15주 신청 (lot300=10, lot301=10, generalAccountId=200)
-        // netLocked = sumApproved(10) - sumOutbound(0) = 10
-        // available = snapshotQty(20) - netLocked(10) = 10 → approvedQty = min(15,10) = 10
-        // lot300: sumApprovedByRegistrableStockId(300) = 10 → lotAvailable=0 → skip
-        // lot301: sumApprovedByRegistrableStockId(301) = 0 → lotAvailable=10 → approve 10
+    @DisplayName("일부 상세·근거 저장 후 배분 불일치가 발견되면 새 행만 모두 롤백한다")
+    void allocationFailureRollsBackAllNewRowsAndPreservesExistingHistory() {
+        // 기존: sourceAccount=201, registrableStockId=300에서 10주 입고
+        // 요청: sourceAccount=200, lot300(stockId=300,10주), lot301(stockId=301,10주), qty=15
+        // 계좌 레벨: alreadyInbounded(source=200)=0, available=20, approvedQty=15
+        // lot 레벨: lot300의 lotAlreadyApproved(registrableStockId=300)=10 → skip
+        //           lot301은 10주 → remaining=5 소진 불가 → INTEGRITY_FAILED
         seedInconsistentHistory();
+        List<List<Integer>> beforeRollback = new CopyOnWriteArrayList<>();
         when(registrableStockClient.findCustomerLots(CI_HASH))
-                .thenReturn(List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD")));
+                .thenAnswer(
+                        invocation -> {
+                            observeRowsBeforeCompletion(beforeRollback);
+                            return List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD"));
+                        });
 
-        CustomerInboundSubmitResponseDTO result = service.submit(1L, request("15"));
+        assertThatThrownBy(() -> service.submit(1L, request("15")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        exception ->
+                                assertThat(exception.getErrorType())
+                                        .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
 
-        assertThat(result.getApprovedQty()).isEqualByComparingTo("10");
-        assertThat(result.getPartialReason()).isEqualTo("BELOW_REQUEST");
-        // 기존 1행 + 신규 1행 (lot301만 배분됨)
-        assertThat(rowCounts()).containsExactly(2, 2, 2);
+        assertThat(beforeRollback).containsExactly(List.of(2, 2, 2));
+        assertThat(rowCounts()).containsExactly(1, 1, 1);
         assertThat(jdbc.queryForObject("SELECT SUM(qty) FROM inbound_detail", BigDecimal.class))
-                .isEqualByComparingTo("20");
+                .isEqualByComparingTo("10");
+    }
+
+    @Test
+    @DisplayName("출고 이력이 있으면 출고 수량만큼 재입고할 수 있고, 스냅샷 전량을 소진하면 추가 입고가 거절된다")
+    void reinboundSucceedsAfterOutboundAndIsBlockedWhenSnapshotExhausted() {
+        // Step 1: 5주 입고
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO first = service.submit(1L, request("5"));
+        assertThat(first.getApprovedQty()).isEqualByComparingTo("5");
+
+        // Step 2: 3주 출고 직접 삽입 (current_qty 차감 + outbound 기록)
+        Long detailId =
+                jdbc.queryForObject(
+                        "SELECT inbound_detail_id FROM inbound_detail"
+                                + " WHERE registrable_stock_id = 300",
+                        Long.class);
+        jdbc.update(
+                "UPDATE inbound_detail SET current_qty = current_qty - 3"
+                        + " WHERE inbound_detail_id = ?",
+                detailId);
+        jdbc.update(
+                "INSERT INTO outbound (inbound_detail_id, qty, reason, processed_at)"
+                        + " VALUES (?, 3, 'WITHDRAWAL_OF_INTENT', '2026-10-22 10:00:00')",
+                detailId);
+
+        // Step 3: 3주 재입고 — netLocked = 5-3 = 2, available = 5-2 = 3 → 승인
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO reinbound = service.submit(1L, request("3"));
+        assertThat(reinbound.getApprovedQty()).isEqualByComparingTo("3");
+        assertThat(reinbound.getPartialReason()).isNull();
+        assertThat(rowCounts()).containsExactly(2, 2, 2);
+
+        // Step 4: 추가 입고 거절 — netLocked = (5+3)-3 = 5, available = 0
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        assertThatThrownBy(() -> service.submit(1L, request("1")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        ex ->
+                                assertThat(ex.getErrorType())
+                                        .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
     }
 
     @Test

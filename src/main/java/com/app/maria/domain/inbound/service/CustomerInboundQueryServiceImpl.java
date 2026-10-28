@@ -102,12 +102,20 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
                                     Long sourceAccountId = entry.getKey();
                                     BigDecimal snapshotQty = entry.getValue();
                                     // 재입고를 지원하기 위해 net locked 기준으로 가용 수량을 계산한다.
+                                    // snapshotQty는 출처 계좌(sourceAccountId) 기준이므로
+                                    // 입출고 합계도 동일 출처 계좌로 스코프를 맞춘다.
                                     BigDecimal alreadyInbounded =
-                                            inboundMapper.sumApprovedQtyByAccountAndProduct(
-                                                    account.getAccountId(), foreignProductId);
+                                            inboundMapper
+                                                    .sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+                                                            account.getAccountId(),
+                                                            foreignProductId,
+                                                            sourceAccountId);
                                     BigDecimal alreadyOutbounded =
-                                            inboundMapper.sumOutboundQtyByAccountAndProduct(
-                                                    account.getAccountId(), foreignProductId);
+                                            inboundMapper
+                                                    .sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                                                            account.getAccountId(),
+                                                            foreignProductId,
+                                                            sourceAccountId);
                                     BigDecimal available =
                                             snapshotQty
                                                     .subtract(

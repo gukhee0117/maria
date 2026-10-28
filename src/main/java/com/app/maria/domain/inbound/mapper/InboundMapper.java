@@ -76,4 +76,13 @@ public interface InboundMapper {
 
     BigDecimal sumOutboundQtyByAccountAndProduct(
             @Param("accountId") Long accountId, @Param("foreignProductId") Long foreignProductId);
+
+    BigDecimal sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+            @Param("accountId") Long accountId,
+            @Param("foreignProductId") Long foreignProductId,
+            @Param("sourceGeneralAccountId") Long sourceGeneralAccountId);
+
+    BigDecimal sumOutboundQtyByAccountAndRegistrableStock(
+            @Param("accountId") Long accountId,
+            @Param("registrableStockId") Long registrableStockId);
 }

@@ -89,15 +89,19 @@ class CustomerInboundServiceImplTest {
     }
 
     private void stubApprovedQty(BigDecimal approvedQty) {
-        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(approvedQty);
-        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(BigDecimal.ZERO);
     }
 
     private void stubLotApprovedQty(Long stockId, BigDecimal approvedQty) {
         when(inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(ACCOUNT_ID, stockId))
                 .thenReturn(approvedQty);
+        when(inboundMapper.sumOutboundQtyByAccountAndRegistrableStock(ACCOUNT_ID, stockId))
+                .thenReturn(BigDecimal.ZERO);
     }
 
     // ── helpers ────────────────────────────────────────────────────────────
@@ -166,9 +170,11 @@ class CustomerInboundServiceImplTest {
         stubLotApprovedQty(STOCK_ID, new BigDecimal("30"));
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(new BigDecimal("30"));
-        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -285,9 +291,11 @@ class CustomerInboundServiceImplTest {
         stubProduct();
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(new BigDecimal("50"));
-        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+        when(inboundMapper.sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -316,6 +324,8 @@ class CustomerInboundServiceImplTest {
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("10"))));
         when(inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(ACCOUNT_ID, STOCK_ID))
                 .thenReturn(new BigDecimal("10"));
+        when(inboundMapper.sumOutboundQtyByAccountAndRegistrableStock(ACCOUNT_ID, STOCK_ID))
+                .thenReturn(BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(false);
