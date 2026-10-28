@@ -97,11 +97,18 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                         .map(RegistrableStockResponseDTO::getHeldQty)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal alreadyApproved =
-                inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
-                        account.getAccountId(), foreignProductId, sourceGeneralAccountId);
+        // 재입고를 지원하기 위해 net locked 기준으로 가용 수량을 계산한다.
+        // netLocked = 총 입고 - 총 출고 = RIA에 실제로 묶인 수량
+        // available  = snapshotQty - netLocked
+        BigDecimal alreadyInbounded =
+                inboundMapper.sumApprovedQtyByAccountAndProduct(
+                        account.getAccountId(), foreignProductId);
+        BigDecimal alreadyOutbounded =
+                inboundMapper.sumOutboundQtyByAccountAndProduct(
+                        account.getAccountId(), foreignProductId);
+        BigDecimal netLocked = alreadyInbounded.subtract(alreadyOutbounded);
 
-        BigDecimal available = snapshotQty.subtract(alreadyApproved).max(BigDecimal.ZERO);
+        BigDecimal available = snapshotQty.subtract(netLocked).max(BigDecimal.ZERO);
         BigDecimal approvedQty = requestedQty.min(available);
 
         if (approvedQty.compareTo(BigDecimal.ZERO) == 0) {

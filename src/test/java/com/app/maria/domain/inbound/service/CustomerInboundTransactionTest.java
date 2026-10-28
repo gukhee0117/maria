@@ -132,10 +132,21 @@ class CustomerInboundTransactionTest {
                     snapshot_qty DECIMAL(15,4) NOT NULL
                 )
                 """);
+        jdbc.execute(
+                """
+                CREATE TABLE IF NOT EXISTS outbound (
+                    outbound_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    inbound_detail_id BIGINT NOT NULL REFERENCES inbound_detail(inbound_detail_id),
+                    qty DECIMAL(15,4) NOT NULL,
+                    reason VARCHAR(50),
+                    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
     }
 
     @BeforeEach
     void seedCommittedData() {
+        jdbc.update("DELETE FROM outbound");
         jdbc.update("DELETE FROM inbound_min");
         jdbc.update("DELETE FROM inbound_detail");
         jdbc.update("DELETE FROM inbound");
@@ -205,28 +216,26 @@ class CustomerInboundTransactionTest {
     }
 
     @Test
-    @DisplayName("일부 상세·근거 저장 후 배분 불일치가 발견되면 새 행만 모두 롤백한다")
-    void allocationFailureRollsBackAllNewRowsAndPreservesExistingHistory() {
+    @DisplayName("기존 입고 이력이 있으면 재입고 가용 수량을 차감해 부분 승인하고 모두 커밋한다")
+    void existingHistoryReducesAvailableQtyAndPartialApprovalCommits() {
+        // 기존: sourceAccount=201에서 10주 입고 (registrableStockId=300, source_general_account_id=201)
+        // 요청: sourceAccount=200에서 15주 신청 (lot300=10, lot301=10, generalAccountId=200)
+        // netLocked = sumApproved(10) - sumOutbound(0) = 10
+        // available = snapshotQty(20) - netLocked(10) = 10 → approvedQty = min(15,10) = 10
+        // lot300: sumApprovedByRegistrableStockId(300) = 10 → lotAvailable=0 → skip
+        // lot301: sumApprovedByRegistrableStockId(301) = 0 → lotAvailable=10 → approve 10
         seedInconsistentHistory();
-        List<List<Integer>> beforeRollback = new CopyOnWriteArrayList<>();
         when(registrableStockClient.findCustomerLots(CI_HASH))
-                .thenAnswer(
-                        invocation -> {
-                            observeRowsBeforeCompletion(beforeRollback);
-                            return List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD"));
-                        });
+                .thenReturn(List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD")));
 
-        assertThatThrownBy(() -> service.submit(1L, request("15")))
-                .isInstanceOfSatisfying(
-                        AppException.class,
-                        exception ->
-                                assertThat(exception.getErrorType())
-                                        .isEqualTo(ErrorType.INBOUND_ALLOCATION_INTEGRITY_FAILED));
+        CustomerInboundSubmitResponseDTO result = service.submit(1L, request("15"));
 
-        assertThat(beforeRollback).containsExactly(List.of(2, 2, 2));
-        assertThat(rowCounts()).containsExactly(1, 1, 1);
+        assertThat(result.getApprovedQty()).isEqualByComparingTo("10");
+        assertThat(result.getPartialReason()).isEqualTo("BELOW_REQUEST");
+        // 기존 1행 + 신규 1행 (lot301만 배분됨)
+        assertThat(rowCounts()).containsExactly(2, 2, 2);
         assertThat(jdbc.queryForObject("SELECT SUM(qty) FROM inbound_detail", BigDecimal.class))
-                .isEqualByComparingTo("10");
+                .isEqualByComparingTo("20");
     }
 
     @Test

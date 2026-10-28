@@ -89,9 +89,10 @@ class CustomerInboundServiceImplTest {
     }
 
     private void stubApprovedQty(BigDecimal approvedQty) {
-        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
-                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
                 .thenReturn(approvedQty);
+        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
     }
 
     private void stubLotApprovedQty(Long stockId, BigDecimal approvedQty) {
@@ -160,13 +161,14 @@ class CustomerInboundServiceImplTest {
         stubEligibleAccount();
         stubProduct();
         stubPersistence();
-        // snapshotQty=50, alreadyApproved=30 → available=20, requested=100 → approved=20
+        // snapshotQty=50, alreadyInbounded=30, alreadyOutbounded=0 → netLocked=30 → available=20, requested=100 → approved=20
         stubLotApprovedQty(STOCK_ID, new BigDecimal("30"));
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
-                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
                 .thenReturn(new BigDecimal("30"));
+        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(false);
@@ -282,9 +284,10 @@ class CustomerInboundServiceImplTest {
         stubProduct();
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
-        when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
-                        ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
+        when(inboundMapper.sumApprovedQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
                 .thenReturn(new BigDecimal("50"));
+        when(inboundMapper.sumOutboundQtyByAccountAndProduct(ACCOUNT_ID, FOREIGN_PRODUCT_ID))
+                .thenReturn(BigDecimal.ZERO);
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
                 .thenReturn(false);

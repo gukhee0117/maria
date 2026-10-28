@@ -101,15 +101,18 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
                                 entry -> {
                                     Long sourceAccountId = entry.getKey();
                                     BigDecimal snapshotQty = entry.getValue();
-                                    BigDecimal alreadyApproved =
-                                            inboundMapper
-                                                    .sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
-                                                            account.getAccountId(),
-                                                            foreignProductId,
-                                                            sourceAccountId);
+                                    // 재입고를 지원하기 위해 net locked 기준으로 가용 수량을 계산한다.
+                                    BigDecimal alreadyInbounded =
+                                            inboundMapper.sumApprovedQtyByAccountAndProduct(
+                                                    account.getAccountId(), foreignProductId);
+                                    BigDecimal alreadyOutbounded =
+                                            inboundMapper.sumOutboundQtyByAccountAndProduct(
+                                                    account.getAccountId(), foreignProductId);
                                     BigDecimal available =
                                             snapshotQty
-                                                    .subtract(alreadyApproved)
+                                                    .subtract(
+                                                            alreadyInbounded.subtract(
+                                                                    alreadyOutbounded))
                                                     .max(BigDecimal.ZERO);
                                     RegistrableStockResponseDTO rep =
                                             firstLotByAccount.get(sourceAccountId);
@@ -118,7 +121,8 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
                                             .accountNo(rep.getAccountNo())
                                             .brokerName(rep.getSourceBroker())
                                             .snapshotQty(snapshotQty)
-                                            .alreadyApprovedQty(alreadyApproved)
+                                            .alreadyApprovedQty(
+                                                    alreadyInbounded.subtract(alreadyOutbounded))
                                             .estimatedAvailableQty(available)
                                             .build();
                                 })
