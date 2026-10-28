@@ -199,7 +199,10 @@ public enum ErrorType {
             "기존 입고 이력의 원본 계좌를 확인할 수 없어 신청을 처리할 수 없습니다. 관리자에게 문의해 주세요.",
             LogLevel.WARN),
     INBOUND_ALLOCATION_INTEGRITY_FAILED(
-            HttpStatus.INTERNAL_SERVER_ERROR, "입고 수량 배분 중 오류가 발생했습니다.", LogLevel.ERROR);
+            HttpStatus.INTERNAL_SERVER_ERROR, "입고 수량 배분 중 오류가 발생했습니다.", LogLevel.ERROR),
+
+    // 출고
+    OUTBOUND_NO_AVAILABLE_QTY(HttpStatus.BAD_REQUEST, "출고 가능한 수량이 없습니다.", LogLevel.WARN);
 
     private final HttpStatus status;
     private final String message;

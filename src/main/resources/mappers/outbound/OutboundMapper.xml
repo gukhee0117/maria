@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.outbound.mapper.OutboundMapper">
+
+    <insert id="insertOutbound" parameterType="OutboundDTO"
+            useGeneratedKeys="true" keyProperty="outboundId">
+        INSERT INTO outbound (inbound_detail_id, qty, reason, processed_at)
+        VALUES (#{inboundDetailId}, #{qty}, #{reason}, #{processedAt})
+    </insert>
+
+    <select id="sumOutboundQtyByInboundDetail" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(qty), 0)
+        FROM outbound
+        WHERE inbound_detail_id = #{inboundDetailId}
+    </select>
+
+</mapper>

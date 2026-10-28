@@ -290,4 +290,32 @@
         ORDER BY inbound_detail_id ASC
     </select>
 
+    <select id="sumOutboundQtyByAccountAndProduct" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(o.qty), 0)
+        FROM outbound o
+        JOIN inbound_detail id ON id.inbound_detail_id = o.inbound_detail_id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.foreign_product_id = #{foreignProductId}
+    </select>
+
+    <select id="sumOutboundQtyByAccountAndProductAndSourceGeneralAccount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(o.qty), 0)
+        FROM outbound o
+        JOIN inbound_detail id ON id.inbound_detail_id = o.inbound_detail_id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.foreign_product_id = #{foreignProductId}
+        AND id.source_general_account_id = #{sourceGeneralAccountId}
+    </select>
+
+    <select id="sumOutboundQtyByAccountAndRegistrableStock" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(o.qty), 0)
+        FROM outbound o
+        JOIN inbound_detail id ON id.inbound_detail_id = o.inbound_detail_id
+        JOIN inbound i ON i.inbound_id = id.inbound_id
+        WHERE i.account_id = #{accountId}
+        AND id.registrable_stock_id = #{registrableStockId}
+    </select>
+
 </mapper>

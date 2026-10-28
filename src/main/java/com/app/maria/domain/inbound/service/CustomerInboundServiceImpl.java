@@ -97,11 +97,19 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                         .map(RegistrableStockResponseDTO::getHeldQty)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal alreadyApproved =
+        // 재입고를 지원하기 위해 net locked 기준으로 가용 수량을 계산한다.
+        // snapshotQty는 선택한 출처 계좌 기준이므로 입출고 합계도 동일 출처 계좌로 스코프를 맞춘다.
+        // netLocked = 해당 출처 계좌에서 입고된 수량 - 출고된 수량
+        // available  = snapshotQty - netLocked
+        BigDecimal alreadyInbounded =
                 inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         account.getAccountId(), foreignProductId, sourceGeneralAccountId);
+        BigDecimal alreadyOutbounded =
+                inboundMapper.sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                        account.getAccountId(), foreignProductId, sourceGeneralAccountId);
+        BigDecimal netLocked = alreadyInbounded.subtract(alreadyOutbounded);
 
-        BigDecimal available = snapshotQty.subtract(alreadyApproved).max(BigDecimal.ZERO);
+        BigDecimal available = snapshotQty.subtract(netLocked).max(BigDecimal.ZERO);
         BigDecimal approvedQty = requestedQty.min(available);
 
         if (approvedQty.compareTo(BigDecimal.ZERO) == 0) {
@@ -129,8 +137,11 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
             BigDecimal lotAlreadyApproved =
                     inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(
                             account.getAccountId(), lot.getRegistrableStockId());
-            BigDecimal lotAvailable =
-                    lot.getHeldQty().subtract(lotAlreadyApproved).max(BigDecimal.ZERO);
+            BigDecimal lotAlreadyOutbounded =
+                    inboundMapper.sumOutboundQtyByAccountAndRegistrableStock(
+                            account.getAccountId(), lot.getRegistrableStockId());
+            BigDecimal lotNetLocked = lotAlreadyApproved.subtract(lotAlreadyOutbounded);
+            BigDecimal lotAvailable = lot.getHeldQty().subtract(lotNetLocked).max(BigDecimal.ZERO);
 
             if (lotAvailable.compareTo(BigDecimal.ZERO) == 0) continue;
 

@@ -101,15 +101,26 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
                                 entry -> {
                                     Long sourceAccountId = entry.getKey();
                                     BigDecimal snapshotQty = entry.getValue();
-                                    BigDecimal alreadyApproved =
+                                    // 재입고를 지원하기 위해 net locked 기준으로 가용 수량을 계산한다.
+                                    // snapshotQty는 출처 계좌(sourceAccountId) 기준이므로
+                                    // 입출고 합계도 동일 출처 계좌로 스코프를 맞춘다.
+                                    BigDecimal alreadyInbounded =
                                             inboundMapper
                                                     .sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                                                             account.getAccountId(),
                                                             foreignProductId,
                                                             sourceAccountId);
+                                    BigDecimal alreadyOutbounded =
+                                            inboundMapper
+                                                    .sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+                                                            account.getAccountId(),
+                                                            foreignProductId,
+                                                            sourceAccountId);
                                     BigDecimal available =
                                             snapshotQty
-                                                    .subtract(alreadyApproved)
+                                                    .subtract(
+                                                            alreadyInbounded.subtract(
+                                                                    alreadyOutbounded))
                                                     .max(BigDecimal.ZERO);
                                     RegistrableStockResponseDTO rep =
                                             firstLotByAccount.get(sourceAccountId);
@@ -118,7 +129,8 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
                                             .accountNo(rep.getAccountNo())
                                             .brokerName(rep.getSourceBroker())
                                             .snapshotQty(snapshotQty)
-                                            .alreadyApprovedQty(alreadyApproved)
+                                            .alreadyApprovedQty(
+                                                    alreadyInbounded.subtract(alreadyOutbounded))
                                             .estimatedAvailableQty(available)
                                             .build();
                                 })

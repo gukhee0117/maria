@@ -73,4 +73,16 @@ public interface InboundMapper {
             @Param("inboundId") Long inboundId, @Param("accountId") Long accountId);
 
     List<InboundDetailDTO> selectDetailsByInboundId(@Param("inboundId") Long inboundId);
+
+    BigDecimal sumOutboundQtyByAccountAndProduct(
+            @Param("accountId") Long accountId, @Param("foreignProductId") Long foreignProductId);
+
+    BigDecimal sumOutboundQtyByAccountAndProductAndSourceGeneralAccount(
+            @Param("accountId") Long accountId,
+            @Param("foreignProductId") Long foreignProductId,
+            @Param("sourceGeneralAccountId") Long sourceGeneralAccountId);
+
+    BigDecimal sumOutboundQtyByAccountAndRegistrableStock(
+            @Param("accountId") Long accountId,
+            @Param("registrableStockId") Long registrableStockId);
 }
