@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 public class TaxBriefingResponseValidator {
 
     private static final Pattern MONEY_PATTERN =
-            Pattern.compile("(?<![\\d,])-?\\d[\\d,]*(?:\\.\\d+)?\\s*원");
+            Pattern.compile("(?<![\\d,])-?(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?\\s*원");
     private static final Pattern ISO_DATE_PATTERN =
             Pattern.compile("(?<!\\d)(\\d{4})-(\\d{1,2})-(\\d{1,2})(?!\\d)");
     private static final Pattern KOREAN_DATE_PATTERN =
