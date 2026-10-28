@@ -1,0 +1,88 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: '롤백할 이미지 태그 (전체 커밋 SHA). 비우면 현재 커밋을 빌드해서 배포'
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SERVICE: maria
+  IMAGE: ghcr.io/returns-7/maria
+
+jobs:
+  build:
+    if: ${{!inputs.sha}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Test
+        run: |
+          chmod +x gradlew 
+          ./gradlew test --no-daemon
+        env:
+          DB_URL: jdbc:mariadb://localhost:1/ci
+          DB_USERNAME: ci
+          DB_PASSWORD: ci
+          REDIS_HOST: localhost
+          REDIS_PASSWORD: ci
+          JWT_SECRET: Y2ktb25seS1mYWtlLXNlY3JldC0zMi1ieXRlcy1sb25nISE=
+          EXIM_API_KEY: ci
+          KIS_APP_KEY: ci
+          KIS_APP_SECRET: ci
+          RETURNS_SECURITY_URL: http://localhost:1
+          MYDATA_URL: http://localhost:1
+          CI_PEPPER: ci
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          TAG: ${{ inputs.sha || github.sha }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+        run: | 
+          [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "SHA 형식이 아닙니다 : $TAG"; exit 1; }
+          
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          
+          ssh -i ~/.ssh/deploy_key "$SSH_TARGET" "/opt/maria-deploy/app/deploy.sh $SERVICE $TAG"

@@ -22,6 +22,6 @@
         </environment>
     </environments>
     <mappers>
-        <mapper resource="mappers/audit/auditLogMapper.xml"/>
+        <mapper resource="mappers/audit/AuditLogMapper.xml"/>
     </mappers>
 </configuration>
