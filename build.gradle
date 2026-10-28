@@ -36,6 +36,12 @@ repositories {
     mavenCentral()
 }
 
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0'
+    }
+}
+
 dependencies {
     // Spring Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -83,6 +89,11 @@ dependencies {
 
     // PDF 생성 (증빙서류: Thymeleaf HTML -> PDF)
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
+
+    // Spring AI — 끼루 AI 챗봇 (지식베이스는 .txt 파일로 관리)
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-vector-store'
+    implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
 
     // AOP
     //Aspect사용

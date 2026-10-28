@@ -41,3 +41,7 @@ jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci10ZXN0LXB1cnBvc2Vz
   expiration-minute: 20
   refresh-expiration-day: 7
+
+kkiru:
+  docs:
+    enabled: false
