@@ -15,6 +15,7 @@ import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
@@ -186,6 +187,57 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId) {
+        AccountDTO account =
+                accountMapper
+                        .selectByCustomerId(customerId)
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
+        Long accountId = account.getAccountId();
+        LocalDateTime calculatedAt = clockService.now();
+        List<Long> accountIds = List.of(accountId);
+
+        List<TaxRuleDTO> taxRules = taxMapper.selectTaxRules();
+        List<ExternalBuyDTO> externalTrades =
+                taxMapper.selectExternalBuysByAccountIdsAndYear(
+                        accountIds, riaTaxProperties.getYear(), calculatedAt);
+        List<SellLotDTO> finalizedLots =
+                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
+                        accountIds, riaTaxProperties.getYear(), calculatedAt);
+
+        CustomerTaxBriefingResponseDTO.TaxScenario current =
+                calculateBriefingScenario(account, finalizedLots, taxRules, externalTrades);
+
+        LocalDate expectedFinalAt =
+                settlementBusinessDayCalculator.calculateFinalAt(calculatedAt).toLocalDate();
+        List<SellLotDTO> projectedLots = new ArrayList<>(finalizedLots);
+        projectedLots.addAll(
+                buildHypotheticalSellLots(
+                        accountId,
+                        taxMapper.selectHeldLotsByAccountId(accountId),
+                        expectedFinalAt));
+
+        CustomerTaxBriefingResponseDTO.TaxScenario projected =
+                calculateBriefingScenario(account, projectedLots, taxRules, externalTrades);
+        BigDecimal additionalRelief =
+                projected
+                        .getReliefAmount()
+                        .subtract(current.getReliefAmount())
+                        .max(BigDecimal.ZERO);
+
+        CustomerTaxBriefingResponseDTO.ExpectedTaxScenario expected =
+                CustomerTaxBriefingResponseDTO.ExpectedTaxScenario.of(
+                        projected.getGeneralTax(),
+                        projected.getRiaTax(),
+                        projected.getReliefAmount(),
+                        additionalRelief,
+                        expectedFinalAt);
+
+        return CustomerTaxBriefingResponseDTO.of(accountId, current, expected, calculatedAt);
+    }
+
     // 아직 안 판 보유 lot을 "오늘 결제 기준(T+2)"에 판다고 가정해 SellLotDTO로 만든다.
     // 같은 종목이 여러 lot으로 흩어져 있어도 현재가/환율 조회는 종목당 한 번만 한다.
     private List<SellLotDTO> buildHypotheticalSellLots(
@@ -236,6 +288,26 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                     ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS, accountId);
         }
         return TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK;
+    }
+
+    private CustomerTaxBriefingResponseDTO.TaxScenario calculateBriefingScenario(
+            AccountDTO account,
+            List<SellLotDTO> sellLots,
+            List<TaxRuleDTO> taxRules,
+            List<ExternalBuyDTO> externalTrades) {
+        TaxCalculationResultDTO generalResult =
+                taxCalculator.calculate(sellLots, taxRules, externalTrades, true);
+        TaxCalculationResultDTO riaResult =
+                taxCalculator.calculate(
+                        sellLots,
+                        taxRules,
+                        externalTrades,
+                        BenefitType.isReliefExcluded(account.getBenefit()));
+        BigDecimal reliefAmount =
+                generalResult.getFinalTax().subtract(riaResult.getFinalTax()).max(BigDecimal.ZERO);
+
+        return CustomerTaxBriefingResponseDTO.TaxScenario.of(
+                generalResult.getFinalTax(), riaResult.getFinalTax(), reliefAmount);
     }
 
     private ErrorType alreadyExistsErrorType(TaxBasisType basisType) {

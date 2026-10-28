@@ -1,5 +1,6 @@
 package com.app.maria.domain.tax.service;
 
+import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
@@ -23,4 +24,6 @@ public interface TaxCalculationService {
     TaxExpectedReliefResponseDTO previewExpectedRelief(Long accountId);
 
     TaxActionSummaryResponseDTO getActionSummary();
+
+    CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId);
 }
