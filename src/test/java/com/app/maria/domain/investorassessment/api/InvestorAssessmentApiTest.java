@@ -26,8 +26,12 @@ import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -233,6 +237,30 @@ class InvestorAssessmentApiTest {
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(contradictory))
+                .andExpect(status().isBadRequest());
+
+        verify(service, never()).submit(any(), any());
+    }
+
+    static Stream<Arguments> invalidChoiceBodies() {
+        return Stream.of(
+                Arguments.of("보기를 숫자로 보냄", "\"age\":\"FROM_30_TO_64\"", "\"age\":2"),
+                Arguments.of("보기를 숫자 문자열로 보냄", "\"age\":\"FROM_30_TO_64\"", "\"age\":\"2\""),
+                Arguments.of("투자경험 원소를 숫자로 보냄", "[\"DEPOSITS\"]", "[4]"),
+                Arguments.of("투자경험 원소를 숫자 문자열로 보냄", "[\"DEPOSITS\"]", "[\"4\"]"),
+                Arguments.of("투자경험을 중복해서 보냄", "[\"DEPOSITS\"]", "[\"DEPOSITS\",\"DEPOSITS\"]"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidChoiceBodies")
+    @DisplayName("보기 이름이 아닌 값이나 중복 선택은 400이고 서비스를 부르지 않는다")
+    void invalidChoicesAreRejected(String name, String from, String to) throws Exception {
+        mockMvc.perform(
+                        post(BASE)
+                                .with(customerAuth())
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(VALID_BODY.replace(from, to)))
                 .andExpect(status().isBadRequest());
 
         verify(service, never()).submit(any(), any());

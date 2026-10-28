@@ -224,6 +224,7 @@ class InvestorAssessmentServiceTest {
                         "\"experience\":[\"HIGH_RISK_PRODUCTS\",\"STOCKS_AND_EQUITY_FUNDS\",\"DEPOSITS\"]");
         assertThat(jsonA).contains("\"age\":\"FROM_30_TO_64\"");
         assertThat(jsonA).doesNotContain("experienceConsistent");
+        assertThat(jsonA).doesNotContain("experienceUnique");
     }
 
     @Test

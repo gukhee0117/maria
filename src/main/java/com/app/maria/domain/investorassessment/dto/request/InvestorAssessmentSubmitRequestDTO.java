@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import java.util.SortedSet;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -34,7 +34,7 @@ public class InvestorAssessmentSubmitRequestDTO {
     private FinancialAssetRatioChoice financialAssetRatio;
 
     @NotEmpty(message = "투자 경험을 하나 이상 선택해 주세요.")
-    private SortedSet<ExperienceChoice> experience;
+    private List<@NotNull ExperienceChoice> experience;
 
     @NotNull(message = "금융 지식 수준을 선택해 주세요.")
     private KnowledgeChoice knowledge;
@@ -47,6 +47,18 @@ public class InvestorAssessmentSubmitRequestDTO {
 
     @NotNull(message = "파생상품 투자 경험을 선택해 주세요.")
     private DerivativeExperienceChoice derivativeExperience;
+
+    /** 저장과 점수 계산은 enum 순서로 정렬한 값을 쓴다. 같은 응답이면 같은 JSON이 된다. */
+    public List<ExperienceChoice> getExperience() {
+        return experience == null ? null : experience.stream().sorted().toList();
+    }
+
+    /** 같은 보기를 두 번 보낸 요청은 거절한다. 검증은 보낸 그대로(정렬·중복 제거 전)의 값으로 한다. */
+    @JsonIgnore
+    @AssertTrue(message = "투자 경험에 같은 보기를 두 번 선택할 수 없습니다.")
+    public boolean isExperienceUnique() {
+        return experience == null || experience.stream().distinct().count() == experience.size();
+    }
 
     /** "투자 경험이 없어요"는 다른 보기와 함께 고를 수 없다. 응답 JSON에 속성으로 들어가지 않게 무시한다. */
     @JsonIgnore

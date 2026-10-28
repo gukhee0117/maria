@@ -11,8 +11,7 @@ import com.app.maria.domain.investorassessment.entity.choice.KnowledgeChoice;
 import com.app.maria.domain.investorassessment.entity.choice.LossToleranceChoice;
 import com.app.maria.domain.investorassessment.entity.choice.PurposeChoice;
 import java.util.Arrays;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -20,9 +19,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class InvestorAssessmentTestData {
 
-    /** 투자경험 응답. 요청 DTO가 enum 순서로 정렬된 집합을 받는다. */
-    public static SortedSet<ExperienceChoice> experience(ExperienceChoice... choices) {
-        return new TreeSet<>(Arrays.asList(choices));
+    /** 투자경험 응답. 보낸 순서 그대로 담는다(정렬은 요청 DTO가 한다). */
+    public static List<ExperienceChoice> experience(ExperienceChoice... choices) {
+        return Arrays.asList(choices);
     }
 
     /** 합계 50점: 공격투자형. */

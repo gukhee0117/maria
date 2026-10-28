@@ -75,4 +75,30 @@ class InvestorAssessmentSubmitRequestDTOTest {
 
         assertThat(validator.validate(a)).isEmpty();
     }
+
+    @Test
+    @DisplayName("같은 투자경험 보기를 두 번 보내면 검증에 걸린다")
+    void duplicateExperienceFails() {
+        InvestorAssessmentSubmitRequestDTO a = validRequest();
+        a.setExperience(experience(ExperienceChoice.DEPOSITS, ExperienceChoice.DEPOSITS));
+
+        assertThat(validator.validate(a)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("투자경험은 보낸 순서와 상관없이 enum 순서로 꺼낸다")
+    void experienceComesOutSorted() {
+        InvestorAssessmentSubmitRequestDTO a = validRequest();
+        a.setExperience(
+                experience(
+                        ExperienceChoice.DEPOSITS,
+                        ExperienceChoice.HIGH_RISK_PRODUCTS,
+                        ExperienceChoice.ELB_AND_BOND_FUNDS));
+
+        assertThat(a.getExperience())
+                .containsExactly(
+                        ExperienceChoice.HIGH_RISK_PRODUCTS,
+                        ExperienceChoice.ELB_AND_BOND_FUNDS,
+                        ExperienceChoice.DEPOSITS);
+    }
 }
