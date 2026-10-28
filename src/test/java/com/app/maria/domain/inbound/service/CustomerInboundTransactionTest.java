@@ -6,7 +6,12 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.inbound.dto.request.CustomerInboundSubmitRequestDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundCandidateResponseDTO;
+import com.app.maria.domain.inbound.dto.response.CustomerInboundCandidatesResponseDTO;
 import com.app.maria.domain.inbound.dto.response.CustomerInboundSubmitResponseDTO;
+import com.app.maria.domain.outbound.dto.request.CustomerOutboundRequestDTO;
+import com.app.maria.domain.outbound.dto.response.CustomerOutboundResponseDTO;
+import com.app.maria.domain.outbound.service.CustomerOutboundService;
 import com.app.maria.domain.registrablestock.dto.RegistrableStockResponseDTO;
 import com.app.maria.domain.registrablestock.type.GeneralAccountType;
 import com.app.maria.global.client.registrablestock.RegistrableStockClient;
@@ -57,6 +62,8 @@ class CustomerInboundTransactionTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 22, 9, 0);
 
     @Autowired private CustomerInboundService service;
+    @Autowired private CustomerOutboundService outboundService;
+    @Autowired private CustomerInboundQueryService queryService;
     @Autowired private JdbcTemplate jdbc;
     @MockitoBean private RegistrableStockClient registrableStockClient;
     @MockitoBean private BusinessClockService businessClockService;
@@ -314,6 +321,114 @@ class CustomerInboundTransactionTest {
         assertThat(rowCounts()).containsExactly(1, 2, 2);
     }
 
+    @Test
+    @DisplayName("5주 입고·2주 매도 시뮬레이션·3주 출고·3주 재입고 후 최종 보유량은 3주다")
+    void fullFlowInboundSimulateSellOutboundReinbound() {
+        // Step 1: 5주 입고
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO first = service.submit(1L, request("5"));
+        assertThat(first.getApprovedQty()).isEqualByComparingTo("5");
+
+        // Step 2: 2주 매도 시뮬레이션 — sell_order/krw_exchange 없이 current_qty만 차감
+        jdbc.update(
+                "UPDATE inbound_detail SET current_qty = current_qty - 2"
+                        + " WHERE registrable_stock_id = 300");
+
+        // Step 3: 3주 출고 (실제 서비스) — FIFO, current_qty=3에서 3주 전부
+        CustomerOutboundResponseDTO outbound = outboundService.submit(1L, outboundRequest("3"));
+        assertThat(outbound.getTotalOutboundQty()).isEqualByComparingTo("3");
+        assertThat(outbound.getLotCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbound", Integer.class))
+                .isEqualTo(1);
+
+        // Step 4: 3주 재입고 — netLocked = 5-3 = 2, available = 5-2 = 3 → 전량 승인
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO reinbound = service.submit(1L, request("3"));
+        assertThat(reinbound.getApprovedQty()).isEqualByComparingTo("3");
+        assertThat(reinbound.getPartialReason()).isNull();
+
+        // 최종: inbound 2건, detail 2건, outbound 1건
+        assertThat(rowCounts()).containsExactly(2, 2, 2);
+        // 첫 detail current_qty = 0 (매도 2 + 출고 3), 재입고 detail current_qty = 3
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT SUM(current_qty) FROM inbound_detail", BigDecimal.class))
+                .isEqualByComparingTo("3");
+    }
+
+    @Test
+    @DisplayName("출고·재입고를 반복해도 스냅샷 기준 가용 수량이 정확히 누적 관리된다")
+    void repeatedOutboundAndReinboundCyclesAreTrackedCorrectly() {
+        // 1. 5주 입고
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        service.submit(1L, request("5"));
+
+        // 2. 3주 출고 → netLocked = 5-3 = 2, available = 3
+        CustomerOutboundResponseDTO out1 = outboundService.submit(1L, outboundRequest("3"));
+        assertThat(out1.getTotalOutboundQty()).isEqualByComparingTo("3");
+
+        // 3. 3주 재입고 → netLocked = (5+3)-3 = 5, available = 0
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO reinbound1 = service.submit(1L, request("3"));
+        assertThat(reinbound1.getApprovedQty()).isEqualByComparingTo("3");
+
+        // 4. 2주 출고 → FIFO는 첫 detail(current_qty=2) 우선, netLocked = (8-5)=3, available=2
+        CustomerOutboundResponseDTO out2 = outboundService.submit(1L, outboundRequest("2"));
+        assertThat(out2.getTotalOutboundQty()).isEqualByComparingTo("2");
+
+        // 5. 2주 재입고 → netLocked = (8+2)-(3+2) = 5, available = 5-3 = 2 → 전량 승인
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        CustomerInboundSubmitResponseDTO reinbound2 = service.submit(1L, request("2"));
+        assertThat(reinbound2.getApprovedQty()).isEqualByComparingTo("2");
+
+        // 6. 스냅샷(5주) 전량 소진 — 추가 입고 거절
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lot(300L, "5", "USD")));
+        assertThatThrownBy(() -> service.submit(1L, request("1")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        ex ->
+                                assertThat(ex.getErrorType())
+                                        .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
+
+        // 총 outbound qty = 5 (3+2), inbound 3건
+        assertThat(rowCounts()).containsExactly(3, 3, 3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbound", Integer.class))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT SUM(qty) FROM outbound", BigDecimal.class))
+                .isEqualByComparingTo("5");
+    }
+
+    @Test
+    @DisplayName("서로 다른 출처 계좌의 입고 이력이 있으면 후보 조회에서 수량이 독립적으로 계산된다")
+    void candidatesShowIndependentAvailabilityPerSourceAccount() {
+        // source=200에서 5주 입고 (lot300 사용)
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lotFromAccount(300L, "5", 200L)));
+        service.submit(1L, requestFromAccount("5", 200L));
+
+        // 후보 조회 시 source=200(5주 소진)과 source=201(5주 미사용) 두 계좌를 반환
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(
+                        List.of(
+                                lotFromAccount(300L, "5", 200L),
+                                lotFromAccount(400L, "5", 201L)));
+        CustomerInboundCandidatesResponseDTO candidates = queryService.getCandidates(1L, 100L);
+
+        // source=200은 available=0으로 필터 제외, source=201만 남음
+        assertThat(candidates.getCandidates()).hasSize(1);
+        CustomerInboundCandidateResponseDTO candidate = candidates.getCandidates().get(0);
+        assertThat(candidate.getSourceGeneralAccountId()).isEqualTo(201L);
+        assertThat(candidate.getEstimatedAvailableQty()).isEqualByComparingTo("5");
+        assertThat(candidate.getSnapshotQty()).isEqualByComparingTo("5");
+        assertThat(candidate.getAlreadyApprovedQty()).isEqualByComparingTo("0");
+    }
+
     private void runCompetingRequests(String requestedQty, boolean secondMustFail)
             throws Exception {
         CountDownLatch firstHasLock = new CountDownLatch(1);
@@ -450,5 +565,38 @@ class CustomerInboundTransactionTest {
                 .purchaseCurrency(currency)
                 .purchaseFxRate(new BigDecimal("1350.0000"))
                 .build();
+    }
+
+    private RegistrableStockResponseDTO lotFromAccount(
+            Long stockId, String heldQty, Long sourceAccountId) {
+        return RegistrableStockResponseDTO.builder()
+                .registrableStockId(stockId)
+                .foreignProductId(100L)
+                .generalAccountId(sourceAccountId)
+                .accountNo(String.format("%010d", sourceAccountId))
+                .accountType(GeneralAccountType.BROKERAGE)
+                .heldQty(new BigDecimal(heldQty))
+                .sourceBroker("원출처증권")
+                .purchaseDate(LocalDateTime.of(2025, 11, stockId == 300L ? 1 : 2, 9, 0))
+                .purchasePrice(new BigDecimal("150.0000"))
+                .purchaseCurrency("USD")
+                .purchaseFxRate(new BigDecimal("1350.0000"))
+                .build();
+    }
+
+    private CustomerInboundSubmitRequestDTO requestFromAccount(
+            String qty, Long sourceAccountId) {
+        CustomerInboundSubmitRequestDTO req = new CustomerInboundSubmitRequestDTO();
+        ReflectionTestUtils.setField(req, "foreignProductId", 100L);
+        ReflectionTestUtils.setField(req, "sourceGeneralAccountId", sourceAccountId);
+        ReflectionTestUtils.setField(req, "requestedQty", new BigDecimal(qty));
+        return req;
+    }
+
+    private CustomerOutboundRequestDTO outboundRequest(String qty) {
+        CustomerOutboundRequestDTO req = new CustomerOutboundRequestDTO();
+        ReflectionTestUtils.setField(req, "foreignProductId", 100L);
+        ReflectionTestUtils.setField(req, "qty", new BigDecimal(qty));
+        return req;
     }
 }
