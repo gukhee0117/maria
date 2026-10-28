@@ -14,7 +14,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChatRequestDTO {
 
-    @NotNull @Valid private List<MessageDTO> messages;
+    @NotNull
+    @Valid
+    @Size(max = 20, message = "대화 이력은 최대 20개까지 허용됩니다.")
+    private List<MessageDTO> messages;
 
     @NotBlank
     @Size(max = 1000)

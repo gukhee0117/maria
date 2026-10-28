@@ -15,5 +15,7 @@ public class MessageDTO {
     @Pattern(regexp = "user|assistant", message = "role은 user 또는 assistant여야 합니다.")
     private String role;
 
-    @NotBlank private String content;
+    @NotBlank
+    @Size(max = 2000, message = "메시지 내용은 최대 2000자까지 허용됩니다.")
+    private String content;
 }

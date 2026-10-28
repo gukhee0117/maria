@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.Disposable;
 
 @Slf4j
 @RestController
@@ -28,20 +29,33 @@ public class KkiruChatController {
     public SseEmitter stream(@Valid @RequestBody ChatRequestDTO request) {
         SseEmitter emitter = new SseEmitter(180_000L);
 
-        kkiruChatService.stream(request)
-                .subscribe(
-                        token -> sendEvent(emitter, Map.of("type", "token", "content", token)),
-                        error -> {
-                            log.error("끼루 챗봇 스트리밍 오류", error);
-                            sendEvent(
-                                    emitter,
-                                    Map.of("type", "error", "content", "요청 처리 중 오류가 발생했어요."));
-                            emitter.completeWithError(error);
-                        },
-                        () -> {
-                            sendEvent(emitter, Map.of("type", "done"));
-                            emitter.complete();
-                        });
+        Disposable subscription =
+                kkiruChatService
+                        .stream(request)
+                        .subscribe(
+                                token ->
+                                        sendEvent(
+                                                emitter,
+                                                Map.of("type", "token", "content", token)),
+                                error -> {
+                                    log.error("끼루 챗봇 스트리밍 오류", error);
+                                    sendEvent(
+                                            emitter,
+                                            Map.of(
+                                                    "type",
+                                                    "error",
+                                                    "content",
+                                                    "요청 처리 중 오류가 발생했어요."));
+                                    emitter.complete();
+                                },
+                                () -> {
+                                    sendEvent(emitter, Map.of("type", "done"));
+                                    emitter.complete();
+                                });
+
+        emitter.onCompletion(subscription::dispose);
+        emitter.onTimeout(subscription::dispose);
+        emitter.onError(e -> subscription.dispose());
 
         return emitter;
     }
