@@ -3,7 +3,8 @@
 -- ERDCloud export를 실행 가능한 DDL로 변환
 -- 시스템 경계(§8-8): myData/증권사 참조는 값만 저장, FK 없음
 -- 변경: domestic_stock_balance를 증권사 -> RIA로 이동(account/domestic_product FK 복구)
--- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes-2026-10-22.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
+-- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
+-- 변경(2차, 10-28): customer.investor_type_public 추가, customer_login_history 신규, news_item에 category·picked_slot 추가 + ticker NULL 허용 + (ticker, picked_date) UNIQUE 삭제
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -57,6 +58,7 @@ DROP TABLE IF EXISTS system_clock;
 DROP TABLE IF EXISTS account_benefit_log;
 DROP TABLE IF EXISTS account_status_log;
 DROP TABLE IF EXISTS account;
+DROP TABLE IF EXISTS customer_login_history;
 DROP TABLE IF EXISTS customer_auth_password;
 DROP TABLE IF EXISTS customer_auth;
 DROP TABLE IF EXISTS customer;
@@ -74,6 +76,7 @@ CREATE TABLE customer (
     phone         VARCHAR(20) NULL     COMMENT '연락처',
     email         VARCHAR(100) NULL    COMMENT '이메일',
     investor_type VARCHAR(20) NOT NULL COMMENT '투자자유형',
+    investor_type_public BOOLEAN NOT NULL DEFAULT 0 COMMENT '채팅방에 투자성향 공개 여부(기본 비공개)',
     ci_hash       VARCHAR(64) NOT NULL COMMENT 'HMAC-SHA256(정규화 주민번호 13자리, 공유 PEPPER). 원본 미저장. 3개 시스템 공유키(CI 역할)',
     created_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '가입일시',
     PRIMARY KEY (customer_id),
@@ -641,7 +644,8 @@ CREATE TABLE stock_recommendation (
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE news_item (
     news_item_id  BIGINT        NOT NULL AUTO_INCREMENT,
-    ticker        VARCHAR(20)   NOT NULL,
+    ticker        VARCHAR(20)   NULL     COMMENT 'RIA·세제 기사는 종목이 없어 NULL',
+    category      VARCHAR(10)   NOT NULL COMMENT 'MY_STOCK(내 종목)/RIA_TAX(RIA·세제)',
     title         VARCHAR(300)  NOT NULL,
     description   VARCHAR(1000) NOT NULL COMMENT '발췌문(본문 저장 안 함)',
     link          VARCHAR(500)  NOT NULL,
@@ -649,14 +653,18 @@ CREATE TABLE news_item (
     published_at  DATETIME      NOT NULL,
     related_count INT           NOT NULL DEFAULT 1 COMMENT '같은 사건 기사 수(이슈 점수)',
     picked_date   DATE          NULL     COMMENT '대표 기사로 뽑힌 날',
+    picked_slot   VARCHAR(2)    NULL     COMMENT '뽑힌 회차 AM(오전)/PM(오후). picked_date와 함께 채우거나 함께 비움',
     summary       VARCHAR(1000) NULL     COMMENT '검증 통과한 AI 요약',
     summary_model VARCHAR(50)   NULL,
     collected_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (news_item_id),
     UNIQUE KEY uk_news_item_link (link),
-    UNIQUE KEY uk_news_item_pick (ticker, picked_date),
-    CONSTRAINT chk_ni_related CHECK (related_count >= 1)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='보유 종목 뉴스·기사 요약';
+    CONSTRAINT chk_ni_related  CHECK (related_count >= 1),
+    CONSTRAINT chk_ni_category CHECK (category IN ('MY_STOCK','RIA_TAX')),
+    CONSTRAINT chk_ni_slot     CHECK (picked_slot IS NULL OR picked_slot IN ('AM','PM')),
+    CONSTRAINT chk_ni_pick     CHECK ((picked_date IS NULL) = (picked_slot IS NULL)),
+    CONSTRAINT chk_ni_ticker   CHECK (category <> 'MY_STOCK' OR ticker IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='뉴스·기사 요약(내 종목/RIA·세제)';
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE community_post (
@@ -764,6 +772,20 @@ CREATE TABLE investor_assessment (
     CONSTRAINT chk_ia_type  CHECK (investor_type IN ('STABLE','CONSERVATIVE','NEUTRAL','ACTIVE','AGGRESSIVE'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='투자성향 진단 이력';
 
+-- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관. 시각은 업무시계가 아니라 실제 시각.
+CREATE TABLE customer_login_history (
+    customer_login_history_id BIGINT       NOT NULL AUTO_INCREMENT,
+    customer_id               BIGINT       NULL     COMMENT '실패했고 누구인지 모르면 NULL',
+    succeeded                 BOOLEAN      NOT NULL,
+    fail_reason               VARCHAR(30)  NULL     COMMENT '실패 사유 코드(성공이면 NULL). 시도한 아이디는 저장하지 않는다',
+    ip_address                VARCHAR(45)  NULL,
+    user_agent                VARCHAR(300) NULL     COMMENT '기기·브라우저',
+    attempted_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '시도 시각(실제)',
+    PRIMARY KEY (customer_login_history_id),
+    CONSTRAINT chk_clh_reason CHECK (succeeded = (fail_reason IS NULL)),
+    CONSTRAINT chk_clh_known  CHECK (succeeded = 0 OR customer_id IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='고객 로그인 이력';
+
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE document_issue (
     document_issue_id BIGINT       NOT NULL AUTO_INCREMENT,
@@ -868,6 +890,7 @@ ALTER TABLE community_report        ADD CONSTRAINT fk_cr__reporter        FOREIG
 ALTER TABLE community_report        ADD CONSTRAINT fk_cr__admin           FOREIGN KEY (processed_by)         REFERENCES admin_user (admin_id);
 ALTER TABLE customer_consent        ADD CONSTRAINT fk_ccs__customer       FOREIGN KEY (customer_id)          REFERENCES customer (customer_id);
 ALTER TABLE investor_assessment     ADD CONSTRAINT fk_ia__customer        FOREIGN KEY (customer_id)          REFERENCES customer (customer_id);
+ALTER TABLE customer_login_history  ADD CONSTRAINT fk_clh__customer       FOREIGN KEY (customer_id)          REFERENCES customer (customer_id);
 ALTER TABLE document_issue          ADD CONSTRAINT fk_di__account         FOREIGN KEY (account_id)           REFERENCES account (account_id);
 ALTER TABLE document_issue          ADD CONSTRAINT fk_di__tax_calculation FOREIGN KEY (calc_id)              REFERENCES tax_calculation (calc_id);
 ALTER TABLE fund_flow_monthly       ADD CONSTRAINT fk_ffm__account        FOREIGN KEY (account_id)           REFERENCES account (account_id);
