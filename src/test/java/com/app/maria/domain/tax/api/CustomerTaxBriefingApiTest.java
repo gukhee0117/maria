@@ -1,5 +1,6 @@
 package com.app.maria.domain.tax.api;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,6 +75,27 @@ class CustomerTaxBriefingApiTest {
                 .andExpect(jsonPath("$.data.expected.additionalReliefAmount").value(1347500.00))
                 .andExpect(jsonPath("$.data.expected.expectedFinalAt").value("2026-10-30"))
                 .andExpect(jsonPath("$.data.calculatedAt").value("2026-10-28T10:30:00"));
+
+        verify(taxCalculationService).getCustomerTaxBriefing(CUSTOMER_ID);
+    }
+
+    @Test
+    void 예상_세액을_계산하지_못해도_현재_세액을_응답한다() throws Exception {
+        CustomerTaxBriefingResponseDTO response =
+                CustomerTaxBriefingResponseDTO.of(
+                        11L,
+                        CustomerTaxBriefingResponseDTO.TaxScenario.of(
+                                new BigDecimal("3850000.00"),
+                                BigDecimal.ZERO,
+                                new BigDecimal("3850000.00")),
+                        null,
+                        LocalDateTime.of(2026, 10, 28, 10, 30));
+        when(taxCalculationService.getCustomerTaxBriefing(CUSTOMER_ID)).thenReturn(response);
+
+        mockMvc.perform(get("/api/customer/tax/briefing").with(customerAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.current.reliefAmount").value(3850000.00))
+                .andExpect(jsonPath("$.data.expected").value(nullValue()));
 
         verify(taxCalculationService).getCustomerTaxBriefing(CUSTOMER_ID);
     }

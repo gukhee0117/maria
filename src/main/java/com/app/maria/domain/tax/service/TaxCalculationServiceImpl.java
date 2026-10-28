@@ -47,11 +47,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TaxCalculationServiceImpl implements TaxCalculationService {
     private final TaxMapper taxMapper;
@@ -188,7 +190,6 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId) {
         AccountDTO account =
                 accountMapper
@@ -206,18 +207,32 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
         List<SellLotDTO> finalizedLots =
                 taxMapper.selectFinalizedLotsByAccountIdsAndYear(
                         accountIds, riaTaxProperties.getYear(), calculatedAt);
+        List<SellLotDTO> provisionalLots =
+                taxMapper.selectProvisionalLotsByAccountIdsAndYear(
+                        accountIds, riaTaxProperties.getYear(), calculatedAt);
 
         CustomerTaxBriefingResponseDTO.TaxScenario current =
                 calculateBriefingScenario(account, finalizedLots, taxRules, externalTrades);
 
         LocalDate expectedFinalAt =
                 settlementBusinessDayCalculator.calculateFinalAt(calculatedAt).toLocalDate();
+        expectedFinalAt = latestFinalAt(expectedFinalAt, provisionalLots);
+
+        List<HeldLotDTO> heldLots = taxMapper.selectHeldLotsByAccountId(accountId);
+        List<SellLotDTO> hypotheticalLots;
+        try {
+            hypotheticalLots = buildHypotheticalSellLots(accountId, heldLots, expectedFinalAt);
+        } catch (RuntimeException e) {
+            log.warn(
+                    "절세 브리핑 예상 세액 계산을 위한 외부 시세 조회에 실패했습니다. accountId={}, cause={}",
+                    accountId,
+                    e.getClass().getSimpleName());
+            return CustomerTaxBriefingResponseDTO.of(accountId, current, null, calculatedAt);
+        }
+
         List<SellLotDTO> projectedLots = new ArrayList<>(finalizedLots);
-        projectedLots.addAll(
-                buildHypotheticalSellLots(
-                        accountId,
-                        taxMapper.selectHeldLotsByAccountId(accountId),
-                        expectedFinalAt));
+        projectedLots.addAll(provisionalLots);
+        projectedLots.addAll(hypotheticalLots);
 
         CustomerTaxBriefingResponseDTO.TaxScenario projected =
                 calculateBriefingScenario(account, projectedLots, taxRules, externalTrades);
@@ -225,6 +240,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                 projected
                         .getReliefAmount()
                         .subtract(current.getReliefAmount())
+                        // 예상 감면액이 현재보다 작더라도 "추가 감면"을 음수로 표시하지 않는다.
                         .max(BigDecimal.ZERO);
 
         CustomerTaxBriefingResponseDTO.ExpectedTaxScenario expected =
@@ -236,6 +252,13 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                         expectedFinalAt);
 
         return CustomerTaxBriefingResponseDTO.of(accountId, current, expected, calculatedAt);
+    }
+
+    private LocalDate latestFinalAt(LocalDate expectedFinalAt, List<SellLotDTO> provisionalLots) {
+        return provisionalLots.stream()
+                .map(SellLotDTO::getFinalAt)
+                .filter(java.util.Objects::nonNull)
+                .reduce(expectedFinalAt, (latest, date) -> date.isAfter(latest) ? date : latest);
     }
 
     // 아직 안 판 보유 lot을 "오늘 결제 기준(T+2)"에 판다고 가정해 SellLotDTO로 만든다.

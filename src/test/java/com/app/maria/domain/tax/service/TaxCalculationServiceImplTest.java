@@ -704,6 +704,49 @@ class TaxCalculationServiceImplTest {
     }
 
     @Test
+    @DisplayName("가환전 매도 lot은 현재 세액에서는 제외하고 예상 세액에는 포함한다")
+    void 고객_절세브리핑_가환전매도_예상포함() {
+        Long customerId = 7L;
+        stubCustomerBriefing(customerId, BenefitType.POSSIBLE, List.of(), List.of(), List.of());
+        when(taxMapper.selectProvisionalLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(
+                        List.of(lot(LocalDate.of(2026, 8, 8), "30000000", "100", "1000", "100")));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("0.00");
+        assertThat(result.getExpected().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        // 8월 매도결제분은 50% 공제율이므로 일반세액 385만원 중 220만원이 감면된다.
+        assertThat(result.getExpected().getReliefAmount()).isEqualByComparingTo("2200000.00");
+        assertThat(result.getExpected().getAdditionalReliefAmount())
+                .isEqualByComparingTo("2200000.00");
+        assertThat(result.getExpected().getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 8));
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    @DisplayName("외부 시세 조회에 실패해도 현재 세액은 반환하고 예상 세액만 생략한다")
+    void 고객_절세브리핑_외부시세실패_현재세액유지() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "100")),
+                List.of());
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL"))
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getExpected()).isNull();
+    }
+
+    @Test
     @DisplayName("고객 계좌가 없으면 절세 브리핑을 계산하지 않는다")
     void 고객_절세브리핑_계좌없음() {
         Long customerId = 404L;
@@ -836,6 +879,8 @@ class TaxCalculationServiceImplTest {
                 .thenReturn(externalBuys);
         when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
                 .thenReturn(finalizedLots);
+        when(taxMapper.selectProvisionalLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
         when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID)).thenReturn(heldLots);
         when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
                 .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));

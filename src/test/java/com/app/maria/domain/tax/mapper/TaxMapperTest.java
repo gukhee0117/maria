@@ -173,6 +173,36 @@ class TaxMapperTest {
     }
 
     @Test
+    @DisplayName("가환전 매도 lot은 가환전액과 예정 확정일로 조회된다")
+    void findProvisionalLots_컬럼매핑() {
+        Long lotId = fixture.insertLot(ACCOUNT_ID, "150.0000", "1300.0000", "100.0000");
+        Long orderId =
+                fixture.insertSellOrder(
+                        lotId, "EXECUTED", LocalDateTime.of(2026, 3, 10, 10, 0), "100.0000");
+        fixture.insertKrwExchange(
+                ACCOUNT_ID,
+                orderId,
+                "PROVISIONAL",
+                "23000000.00",
+                LocalDateTime.of(2026, 3, 12, 0, 0));
+
+        List<SellLotDTO> lots =
+                taxMapper.selectProvisionalLotsByAccountIdsAndYear(
+                        List.of(ACCOUNT_ID), TAX_YEAR, CALC_BASE);
+
+        assertThat(lots)
+                .singleElement()
+                .satisfies(
+                        lot -> {
+                            assertThat(lot.getOrderId()).isEqualTo(orderId);
+                            assertThat(lot.getInboundDetailId()).isEqualTo(lotId);
+                            assertThat(lot.getFinalAt()).isEqualTo(LocalDate.of(2026, 3, 12));
+                            assertThat(lot.getFinalAmount()).isEqualByComparingTo("23000000");
+                            assertThat(lot.getSellQty()).isEqualByComparingTo("100");
+                        });
+    }
+
+    @Test
     @DisplayName("가정산(PROVISIONAL) 건은 조회되지 않는다")
     void findLots_가정산_제외() {
         Long lotId = fixture.insertLot(ACCOUNT_ID, "150.0000", "1300.0000", "100.0000");
