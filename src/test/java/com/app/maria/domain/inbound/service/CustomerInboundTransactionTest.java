@@ -417,9 +417,7 @@ class CustomerInboundTransactionTest {
         // 후보 조회 시 source=200(5주 소진)과 source=201(5주 미사용) 두 계좌를 반환
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(
-                        List.of(
-                                lotFromAccount(300L, "5", 200L),
-                                lotFromAccount(400L, "5", 201L)));
+                        List.of(lotFromAccount(300L, "5", 200L), lotFromAccount(400L, "5", 201L)));
         CustomerInboundCandidatesResponseDTO candidates = queryService.getCandidates(1L, 100L);
 
         // source=200은 available=0으로 필터 제외, source=201만 남음
@@ -594,8 +592,7 @@ class CustomerInboundTransactionTest {
                 .build();
     }
 
-    private CustomerInboundSubmitRequestDTO requestFromAccount(
-            String qty, Long sourceAccountId) {
+    private CustomerInboundSubmitRequestDTO requestFromAccount(String qty, Long sourceAccountId) {
         CustomerInboundSubmitRequestDTO req = new CustomerInboundSubmitRequestDTO();
         ReflectionTestUtils.setField(req, "foreignProductId", 100L);
         ReflectionTestUtils.setField(req, "sourceGeneralAccountId", sourceAccountId);

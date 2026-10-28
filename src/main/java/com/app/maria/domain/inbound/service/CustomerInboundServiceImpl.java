@@ -141,8 +141,7 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                     inboundMapper.sumOutboundQtyByAccountAndRegistrableStock(
                             account.getAccountId(), lot.getRegistrableStockId());
             BigDecimal lotNetLocked = lotAlreadyApproved.subtract(lotAlreadyOutbounded);
-            BigDecimal lotAvailable =
-                    lot.getHeldQty().subtract(lotNetLocked).max(BigDecimal.ZERO);
+            BigDecimal lotAvailable = lot.getHeldQty().subtract(lotNetLocked).max(BigDecimal.ZERO);
 
             if (lotAvailable.compareTo(BigDecimal.ZERO) == 0) continue;
 
