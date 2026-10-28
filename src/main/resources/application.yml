@@ -120,4 +120,4 @@ management:
       enabled: false
 kkiru:
   docs:
-    path: classpath:kkiru/docs/*.txt
+    path: classpath:kkiru/docs/RIA_RAG_지식문서*.txt
