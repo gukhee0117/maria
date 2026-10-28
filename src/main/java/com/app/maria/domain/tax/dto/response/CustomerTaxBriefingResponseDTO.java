@@ -16,7 +16,6 @@ public class CustomerTaxBriefingResponseDTO {
     private Long accountId;
     private TaxScenario current;
     private ExpectedTaxScenario expected;
-    private String explanation;
     private LocalDateTime calculatedAt;
 
     public static CustomerTaxBriefingResponseDTO of(
@@ -28,16 +27,6 @@ public class CustomerTaxBriefingResponseDTO {
                 .accountId(accountId)
                 .current(current)
                 .expected(expected)
-                .calculatedAt(calculatedAt)
-                .build();
-    }
-
-    public CustomerTaxBriefingResponseDTO withExplanation(String explanation) {
-        return CustomerTaxBriefingResponseDTO.builder()
-                .accountId(accountId)
-                .current(current)
-                .expected(expected)
-                .explanation(explanation)
                 .calculatedAt(calculatedAt)
                 .build();
     }
