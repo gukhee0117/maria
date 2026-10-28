@@ -90,9 +90,8 @@ public class InvestorAssessmentServiceImpl implements InvestorAssessmentService 
             return InvestorAssessmentStatusResponseDTO.unassigned();
         }
         Optional<InvestorAssessmentEntity> latest =
-                assessmentRepository
-                        .findFirstByCustomerIdOrderByAssessedAtDescInvestorAssessmentIdDesc(
-                                customerId);
+                assessmentRepository.findFirstByCustomerIdOrderByInvestorAssessmentIdDesc(
+                        customerId);
         if (latest.isEmpty()) {
             return InvestorAssessmentStatusResponseDTO.withoutRecord(customer.getInvestorType());
         }

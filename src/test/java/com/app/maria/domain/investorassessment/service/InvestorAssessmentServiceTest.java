@@ -299,6 +299,23 @@ class InvestorAssessmentServiceTest {
     }
 
     @Test
+    @DisplayName("업무시계를 되돌려 재진단해도 나중에 저장한 진단이 현재 기준이다")
+    void latestSavedAssessmentWinsEvenIfClockWasRewound() {
+        long customerId = insertCustomer("UNASSIGNED");
+        when(clock.now()).thenReturn(NOW);
+        service.submit(customerId, aggressiveAnswers());
+        LocalDateTime rewound = NOW.minusMonths(3);
+        when(clock.now()).thenReturn(rewound);
+        service.submit(customerId, stableAnswers());
+
+        when(clock.now()).thenReturn(rewound.plusDays(1));
+        InvestorAssessmentStatusResponseDTO status = service.getMine(customerId);
+
+        assertThat(status.getInvestorType()).isEqualTo(InvestorType.STABLE);
+        assertThat(status.getAssessedAt()).isEqualTo(rewound);
+    }
+
+    @Test
     @DisplayName("없는 고객의 상태 조회는 거절한다")
     void statusOfUnknownCustomerIsRejected() {
         assertThatThrownBy(() -> service.getMine(999_999L))
