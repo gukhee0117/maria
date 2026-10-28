@@ -27,10 +27,12 @@ import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator;
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
+import com.app.maria.domain.tax.dto.HeldLotDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
+import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxExpectedReliefResponseDTO;
@@ -662,5 +664,225 @@ class TaxCalculationServiceImplTest {
         assertThat(response.getUnconfirmedFinalReportCount()).isEqualTo(10419);
         assertThat(response.getUnprocessedClawbackCount()).isEqualTo(3);
         assertThat(response.getBenefitChangedTodayCount()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("고객 절세 브리핑은 현재 확정분과 보유자산 예상분을 합산한다")
+    void 고객_절세브리핑_현재와예상() {
+        Long customerId = 7L;
+        AccountDTO account = account(BenefitType.POSSIBLE);
+        when(accountMapper.selectByCustomerId(customerId)).thenReturn(Optional.of(account));
+        when(clockService.now()).thenReturn(NOW);
+        when(riaTaxProperties.getYear()).thenReturn(TAX_YEAR);
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(
+                        List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "100")));
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
+        when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("1350"));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(result.getCalculatedAt()).isEqualTo(NOW);
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getRiaTax()).isEqualByComparingTo("0.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getExpected().getGeneralTax()).isEqualByComparingTo("5445000.00");
+        assertThat(result.getExpected().getRiaTax()).isEqualByComparingTo("247500.00");
+        assertThat(result.getExpected().getReliefAmount()).isEqualByComparingTo("5197500.00");
+        assertThat(result.getExpected().getAdditionalReliefAmount())
+                .isEqualByComparingTo("1347500.00");
+        assertThat(result.getExpected().getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
+    }
+
+    @Test
+    @DisplayName("가환전 매도 lot은 현재 세액에서는 제외하고 예상 세액에는 포함한다")
+    void 고객_절세브리핑_가환전매도_예상포함() {
+        Long customerId = 7L;
+        stubCustomerBriefing(customerId, BenefitType.POSSIBLE, List.of(), List.of(), List.of());
+        when(taxMapper.selectProvisionalLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(
+                        List.of(lot(LocalDate.of(2026, 8, 8), "30000000", "100", "1000", "100")));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("0.00");
+        assertThat(result.getExpected().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        // 8월 매도결제분은 50% 공제율이므로 일반세액 385만원 중 220만원이 감면된다.
+        assertThat(result.getExpected().getReliefAmount()).isEqualByComparingTo("2200000.00");
+        assertThat(result.getExpected().getAdditionalReliefAmount())
+                .isEqualByComparingTo("2200000.00");
+        assertThat(result.getExpected().getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 8));
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    @DisplayName("외부 시세 조회에 실패해도 현재 세액은 반환하고 예상 세액만 생략한다")
+    void 고객_절세브리핑_외부시세실패_현재세액유지() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "100")),
+                List.of());
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL"))
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getExpected()).isNull();
+    }
+
+    @Test
+    @DisplayName("고객 계좌가 없으면 절세 브리핑을 계산하지 않는다")
+    void 고객_절세브리핑_계좌없음() {
+        Long customerId = 404L;
+        when(accountMapper.selectByCustomerId(customerId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> taxCalculationService.getCustomerTaxBriefing(customerId))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
+
+        verifyNoInteractions(taxCalculator);
+    }
+
+    @Test
+    @DisplayName("세제혜택이 불가능하면 일반계좌와 RIA 세액이 같고 감면액은 0이다")
+    void 고객_절세브리핑_혜택불가능() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.IMPOSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(),
+                List.of());
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getRiaTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("0.00");
+        assertThat(result.getExpected().getReliefAmount()).isEqualByComparingTo("0.00");
+        assertThat(result.getExpected().getAdditionalReliefAmount()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    @DisplayName("보유자산이 없으면 예상 세액은 현재 세액과 같고 추가 감면액은 0이다")
+    void 고객_절세브리핑_보유자산없음() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(),
+                List.of());
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getExpected().getGeneralTax())
+                .isEqualByComparingTo(result.getCurrent().getGeneralTax());
+        assertThat(result.getExpected().getRiaTax())
+                .isEqualByComparingTo(result.getCurrent().getRiaTax());
+        assertThat(result.getExpected().getReliefAmount())
+                .isEqualByComparingTo(result.getCurrent().getReliefAmount());
+        assertThat(result.getExpected().getAdditionalReliefAmount()).isEqualByComparingTo("0.00");
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    @DisplayName("양도차익이 기본공제 이하이면 일반계좌와 RIA 세액은 모두 0이다")
+    void 고객_절세브리핑_기본공제이하() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "3000000", "100", "1000", "20")),
+                List.of(),
+                List.of());
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("0.00");
+        assertThat(result.getCurrent().getRiaTax()).isEqualByComparingTo("0.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    @DisplayName("외부 순매수가 있으면 조정비율만큼 감면액이 감소한다")
+    void 고객_절세브리핑_외부순매수() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(),
+                List.of(externalBuy(LocalDate.of(2026, 3, 10), "10000000")));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getCurrent().getGeneralTax()).isEqualByComparingTo("3850000.00");
+        assertThat(result.getCurrent().getRiaTax()).isEqualByComparingTo("916520.00");
+        assertThat(result.getCurrent().getReliefAmount()).isEqualByComparingTo("2933480.00");
+        assertThat(result.getCurrent().getReliefAmount()).isLessThan(new BigDecimal("3850000.00"));
+    }
+
+    @Test
+    @DisplayName("예상 감면액이 현재보다 작아져도 추가 감면액은 음수가 되지 않는다")
+    void 고객_절세브리핑_추가감면액_하한0() {
+        Long customerId = 7L;
+        stubCustomerBriefing(
+                customerId,
+                BenefitType.POSSIBLE,
+                List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                List.of(heldLot("AAPL", "NASDAQ", "USD", "100", "1300", "100")),
+                List.of());
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("50"));
+        when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("1350"));
+
+        CustomerTaxBriefingResponseDTO result =
+                taxCalculationService.getCustomerTaxBriefing(customerId);
+
+        assertThat(result.getExpected().getReliefAmount())
+                .isLessThan(result.getCurrent().getReliefAmount());
+        assertThat(result.getExpected().getAdditionalReliefAmount()).isEqualByComparingTo("0.00");
+    }
+
+    private void stubCustomerBriefing(
+            Long customerId,
+            BenefitType benefit,
+            List<SellLotDTO> finalizedLots,
+            List<HeldLotDTO> heldLots,
+            List<ExternalBuyDTO> externalBuys) {
+        when(accountMapper.selectByCustomerId(customerId))
+                .thenReturn(Optional.of(account(benefit)));
+        when(clockService.now()).thenReturn(NOW);
+        when(riaTaxProperties.getYear()).thenReturn(TAX_YEAR);
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(externalBuys);
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(finalizedLots);
+        when(taxMapper.selectProvisionalLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID)).thenReturn(heldLots);
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
     }
 }

@@ -27,6 +27,31 @@
             and #{calcBaseTime} >= ke.final_at
     </select>
 
+    <select id="selectProvisionalLotsByAccountIdsAndYear" resultType="SellLotDTO">
+        select
+            ke.account_id,
+            so.order_id,
+            so.inbound_detail_id,
+            ke.provisional_amount as final_amount,
+            ke.final_at,
+            so.sell_qty,
+            id.purchase_fx_rate,
+            id.purchase_price,
+            concat(fp.ticker, ' ', fp.name) as product_label
+        from krw_exchange ke
+        join sell_order so on so.order_id = ke.order_id
+        join inbound_detail id on id.inbound_detail_id = so.inbound_detail_id
+        join foreign_product fp on fp.foreign_product_id = id.foreign_product_id
+        where ke.account_id in
+        <foreach collection="accountIds" item="accountId" open="(" close=")" separator=",">
+            #{accountId}
+        </foreach>
+            and ke.settlement_status = 'PROVISIONAL'
+            and so.status = 'EXECUTED'
+            and YEAR(ke.final_at) = #{year}
+            and #{calcBaseTime} &gt;= ke.provisional_at
+    </select>
+
     <select id="selectTaxRules" resultType="TaxRuleDTO">
         select
             rule_id,

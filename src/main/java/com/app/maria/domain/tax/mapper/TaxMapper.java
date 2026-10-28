@@ -19,6 +19,11 @@ public interface TaxMapper {
             @Param("year") int year,
             @Param("calcBaseTime") LocalDateTime calcBaseTime);
 
+    List<SellLotDTO> selectProvisionalLotsByAccountIdsAndYear(
+            @Param("accountIds") List<Long> accountIds,
+            @Param("year") int year,
+            @Param("calcBaseTime") LocalDateTime calcBaseTime);
+
     List<TaxRuleDTO> selectTaxRules();
 
     List<ExternalBuyDTO> selectExternalBuysByAccountIdsAndYear(
