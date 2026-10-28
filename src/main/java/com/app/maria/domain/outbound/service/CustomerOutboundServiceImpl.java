@@ -30,8 +30,7 @@ public class CustomerOutboundServiceImpl implements CustomerOutboundService {
     private final BusinessClockService businessClockService;
 
     @Override
-    public CustomerOutboundResponseDTO submit(
-            Long customerId, CustomerOutboundRequestDTO request) {
+    public CustomerOutboundResponseDTO submit(Long customerId, CustomerOutboundRequestDTO request) {
         // 계좌 FOR UPDATE 락 — 매도·출고 동시 요청 직렬화
         AccountDTO account =
                 accountMapper

@@ -7,8 +7,7 @@ import lombok.Getter;
 
 @Getter
 public class CustomerOutboundRequestDTO {
-    @NotNull
-    private Long foreignProductId;
+    @NotNull private Long foreignProductId;
 
     @NotNull
     @DecimalMin(value = "0.0001")
