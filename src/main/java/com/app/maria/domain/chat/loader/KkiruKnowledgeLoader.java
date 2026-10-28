@@ -9,17 +9,19 @@ import org.springframework.ai.reader.TextReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "kkiru.docs.enabled", matchIfMissing = true)
 public class KkiruKnowledgeLoader {
 
     private final VectorStore vectorStore;
 
-    @Value("${kkiru.docs.path:classpath:kkiru/docs/*.txt}")
+    @Value("${kkiru.docs.path:classpath:kkiru/docs/RIA_RAG_지식문서*.txt}")
     private String docsPath;
 
     public KkiruKnowledgeLoader(VectorStore vectorStore) {
@@ -50,7 +52,7 @@ public class KkiruKnowledgeLoader {
                 vectorStore.add(chunks);
                 log.info("끼루 지식베이스 로딩 완료: {} ({} 청크)", resource.getFilename(), chunks.size());
             } catch (Exception e) {
-                log.error("끼루 지식베이스 로딩 실패: {}", resource.getFilename(), e);
+                throw new IllegalStateException("끼루 지식베이스 로딩 실패: " + resource.getFilename(), e);
             }
         }
     }
