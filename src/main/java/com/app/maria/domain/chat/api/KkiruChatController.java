@@ -30,13 +30,11 @@ public class KkiruChatController {
         SseEmitter emitter = new SseEmitter(180_000L);
 
         Disposable subscription =
-                kkiruChatService
-                        .stream(request)
+                kkiruChatService.stream(request)
                         .subscribe(
                                 token ->
                                         sendEvent(
-                                                emitter,
-                                                Map.of("type", "token", "content", token)),
+                                                emitter, Map.of("type", "token", "content", token)),
                                 error -> {
                                     log.error("끼루 챗봇 스트리밍 오류", error);
                                     sendEvent(

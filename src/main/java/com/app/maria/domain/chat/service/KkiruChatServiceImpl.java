@@ -33,7 +33,8 @@ public class KkiruChatServiceImpl implements KkiruChatService {
         messages.add(new SystemMessage("오늘 날짜: " + businessClockService.now().toLocalDate()));
         request.getMessages().stream().map(this::toMessage).forEach(messages::add);
 
-        return chatClient.prompt().messages(messages).user(request.getQuestion()).stream().content();
+        return chatClient.prompt().messages(messages).user(request.getQuestion()).stream()
+                .content();
     }
 
     private Message toMessage(MessageDTO dto) {
