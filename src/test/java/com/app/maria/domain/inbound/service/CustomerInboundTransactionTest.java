@@ -376,17 +376,19 @@ class CustomerInboundTransactionTest {
         CustomerInboundSubmitResponseDTO reinbound1 = service.submit(1L, request("3"));
         assertThat(reinbound1.getApprovedQty()).isEqualByComparingTo("3");
 
-        // 4. 2주 출고 → FIFO는 첫 detail(current_qty=2) 우선, netLocked = (8-5)=3, available=2
-        CustomerOutboundResponseDTO out2 = outboundService.submit(1L, outboundRequest("2"));
-        assertThat(out2.getTotalOutboundQty()).isEqualByComparingTo("2");
+        // 4. 3주 출고 → FIFO: 첫 detail(current_qty=2) 소진 후 재입고 detail에서 1주 추가
+        //    lotCount=2로 두 상세에 걸쳐 처리됨을 검증
+        CustomerOutboundResponseDTO out2 = outboundService.submit(1L, outboundRequest("3"));
+        assertThat(out2.getTotalOutboundQty()).isEqualByComparingTo("3");
+        assertThat(out2.getLotCount()).isEqualTo(2);
 
-        // 5. 2주 재입고 → netLocked = (8+2)-(3+2) = 5, available = 5-3 = 2 → 전량 승인
+        // 5. 3주 재입고 → alreadyInbounded=8, alreadyOutbounded=6, netLocked=2, available=3 → 전량 승인
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
-        CustomerInboundSubmitResponseDTO reinbound2 = service.submit(1L, request("2"));
-        assertThat(reinbound2.getApprovedQty()).isEqualByComparingTo("2");
+        CustomerInboundSubmitResponseDTO reinbound2 = service.submit(1L, request("3"));
+        assertThat(reinbound2.getApprovedQty()).isEqualByComparingTo("3");
 
-        // 6. 스냅샷(5주) 전량 소진 — 추가 입고 거절
+        // 6. 스냅샷(5주) 전량 소진 — netLocked = (5+3+3)-(3+3) = 5 → available=0 → 거절
         when(registrableStockClient.findCustomerLots(CI_HASH))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         assertThatThrownBy(() -> service.submit(1L, request("1")))
@@ -396,12 +398,12 @@ class CustomerInboundTransactionTest {
                                 assertThat(ex.getErrorType())
                                         .isEqualTo(ErrorType.CUSTOMER_INBOUND_QTY_ZERO));
 
-        // 총 outbound qty = 5 (3+2), inbound 3건
+        // 총 outbound qty = 6 (3+3), outbound 행 3건 (out1×1 + out2×2 상세)
         assertThat(rowCounts()).containsExactly(3, 3, 3);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbound", Integer.class))
-                .isEqualTo(2);
+                .isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT SUM(qty) FROM outbound", BigDecimal.class))
-                .isEqualByComparingTo("5");
+                .isEqualByComparingTo("6");
     }
 
     @Test
@@ -427,6 +429,14 @@ class CustomerInboundTransactionTest {
         assertThat(candidate.getEstimatedAvailableQty()).isEqualByComparingTo("5");
         assertThat(candidate.getSnapshotQty()).isEqualByComparingTo("5");
         assertThat(candidate.getAlreadyApprovedQty()).isEqualByComparingTo("0");
+
+        // source=201로 실제 입고 — source=200 이력과 무관하게 5주 전량 승인 (계좌 독립성 직접 검증)
+        when(registrableStockClient.findCustomerLots(CI_HASH))
+                .thenReturn(List.of(lotFromAccount(400L, "5", 201L)));
+        CustomerInboundSubmitResponseDTO inbound201 =
+                service.submit(1L, requestFromAccount("5", 201L));
+        assertThat(inbound201.getApprovedQty()).isEqualByComparingTo("5");
+        assertThat(inbound201.getPartialReason()).isNull();
     }
 
     private void runCompetingRequests(String requestedQty, boolean secondMustFail)
