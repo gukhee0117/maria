@@ -13,8 +13,7 @@ public class TaxBriefingAiConfig {
 
     @Bean("taxBriefingChatClient")
     public ChatClient taxBriefingChatClient(ChatModel chatModel) throws IOException {
-        ClassPathResource promptResource =
-                new ClassPathResource("tax/briefing-system-prompt.txt");
+        ClassPathResource promptResource = new ClassPathResource("tax/briefing-system-prompt.txt");
         String systemPrompt = promptResource.getContentAsString(StandardCharsets.UTF_8);
 
         return ChatClient.builder(chatModel).defaultSystem(systemPrompt).build();
