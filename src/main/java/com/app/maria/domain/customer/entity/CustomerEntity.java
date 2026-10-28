@@ -55,4 +55,12 @@ public class CustomerEntity {
         customer.investorType = InvestorType.UNASSIGNED;
         return customer;
     }
+
+    /** 설문 진단 결과를 반영한다. 미진단(UNASSIGNED)은 진단 결과가 될 수 없다. */
+    public void applyInvestorType(InvestorType diagnosed) {
+        if (diagnosed == InvestorType.UNASSIGNED) {
+            throw new IllegalArgumentException("미진단은 진단 결과로 반영할 수 없습니다.");
+        }
+        this.investorType = diagnosed;
+    }
 }

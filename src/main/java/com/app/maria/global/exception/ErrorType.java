@@ -31,6 +31,7 @@ public enum ErrorType {
     // 회원가입 (이미 가입됨과 정보 불일치를 구분해 노출하지 않는다.)
     CUSTOMER_SIGNUP_FAILED(HttpStatus.BAD_REQUEST, "가입 정보를 확인해 주세요.", LogLevel.WARN),
     CUSTOMER_LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.", LogLevel.WARN),
+    CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),
 
     // 계좌
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 정보를 찾을 수 없습니다.", LogLevel.WARN),
