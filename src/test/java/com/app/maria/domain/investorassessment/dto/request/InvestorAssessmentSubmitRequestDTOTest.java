@@ -57,4 +57,22 @@ class InvestorAssessmentSubmitRequestDTOTest {
 
         assertThat(validator.validate(a)).hasSize(1);
     }
+
+    @Test
+    @DisplayName("'투자 경험이 없어요'를 다른 보기와 같이 고르면 검증에 걸린다")
+    void noneWithOtherExperienceFails() {
+        InvestorAssessmentSubmitRequestDTO a = validRequest();
+        a.setExperience(experience(ExperienceChoice.NONE, ExperienceChoice.DEPOSITS));
+
+        assertThat(validator.validate(a)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("'투자 경험이 없어요'만 고르면 통과한다")
+    void noneAloneIsAllowed() {
+        InvestorAssessmentSubmitRequestDTO a = validRequest();
+        a.setExperience(experience(ExperienceChoice.NONE));
+
+        assertThat(validator.validate(a)).isEmpty();
+    }
 }

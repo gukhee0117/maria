@@ -194,14 +194,14 @@ class InvestorAssessmentServiceTest {
         InvestorAssessmentSubmitRequestDTO a = aggressiveAnswers();
         a.setExperience(
                 InvestorAssessmentTestData.experience(
-                        ExperienceChoice.NONE,
+                        ExperienceChoice.STOCKS_AND_EQUITY_FUNDS,
                         ExperienceChoice.HIGH_RISK_PRODUCTS,
                         ExperienceChoice.DEPOSITS));
         InvestorAssessmentSubmitRequestDTO b = aggressiveAnswers();
         b.setExperience(
                 InvestorAssessmentTestData.experience(
                         ExperienceChoice.DEPOSITS,
-                        ExperienceChoice.NONE,
+                        ExperienceChoice.STOCKS_AND_EQUITY_FUNDS,
                         ExperienceChoice.HIGH_RISK_PRODUCTS));
 
         service.submit(first, a);
@@ -219,8 +219,11 @@ class InvestorAssessmentServiceTest {
                         String.class,
                         second);
         assertThat(jsonA).isEqualTo(jsonB);
-        assertThat(jsonA).contains("\"experience\":[\"HIGH_RISK_PRODUCTS\",\"DEPOSITS\",\"NONE\"]");
+        assertThat(jsonA)
+                .contains(
+                        "\"experience\":[\"HIGH_RISK_PRODUCTS\",\"STOCKS_AND_EQUITY_FUNDS\",\"DEPOSITS\"]");
         assertThat(jsonA).contains("\"age\":\"FROM_30_TO_64\"");
+        assertThat(jsonA).doesNotContain("experienceConsistent");
     }
 
     @Test

@@ -201,7 +201,8 @@ class InvestorAssessmentApiTest {
                                 33, InvestorType.ACTIVE, AT, AT.plusMonths(24)));
         String shuffled =
                 VALID_BODY.replace(
-                        "[\"DEPOSITS\"]", "[\"NONE\",\"DEPOSITS\",\"HIGH_RISK_PRODUCTS\"]");
+                        "[\"DEPOSITS\"]",
+                        "[\"ELB_AND_BOND_FUNDS\",\"DEPOSITS\",\"HIGH_RISK_PRODUCTS\"]");
 
         mockMvc.perform(
                         post(BASE)
@@ -217,8 +218,24 @@ class InvestorAssessmentApiTest {
         assertThat(captor.getValue().getExperience())
                 .containsExactly(
                         ExperienceChoice.HIGH_RISK_PRODUCTS,
-                        ExperienceChoice.DEPOSITS,
-                        ExperienceChoice.NONE);
+                        ExperienceChoice.ELB_AND_BOND_FUNDS,
+                        ExperienceChoice.DEPOSITS);
+    }
+
+    @Test
+    @DisplayName("'투자 경험이 없어요'를 다른 보기와 같이 보내면 400이다")
+    void noneWithOtherExperienceIsRejected() throws Exception {
+        String contradictory = VALID_BODY.replace("[\"DEPOSITS\"]", "[\"NONE\",\"DEPOSITS\"]");
+
+        mockMvc.perform(
+                        post(BASE)
+                                .with(customerAuth())
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(contradictory))
+                .andExpect(status().isBadRequest());
+
+        verify(service, never()).submit(any(), any());
     }
 
     @Test

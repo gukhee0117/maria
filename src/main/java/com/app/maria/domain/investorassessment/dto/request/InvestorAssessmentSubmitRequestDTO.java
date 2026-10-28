@@ -9,6 +9,8 @@ import com.app.maria.domain.investorassessment.entity.choice.InvestmentPeriodCho
 import com.app.maria.domain.investorassessment.entity.choice.KnowledgeChoice;
 import com.app.maria.domain.investorassessment.entity.choice.LossToleranceChoice;
 import com.app.maria.domain.investorassessment.entity.choice.PurposeChoice;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.util.SortedSet;
@@ -45,4 +47,13 @@ public class InvestorAssessmentSubmitRequestDTO {
 
     @NotNull(message = "파생상품 투자 경험을 선택해 주세요.")
     private DerivativeExperienceChoice derivativeExperience;
+
+    /** "투자 경험이 없어요"는 다른 보기와 함께 고를 수 없다. 응답 JSON에 속성으로 들어가지 않게 무시한다. */
+    @JsonIgnore
+    @AssertTrue(message = "'투자 경험이 없어요'는 다른 보기와 함께 선택할 수 없습니다.")
+    public boolean isExperienceConsistent() {
+        return experience == null
+                || !experience.contains(ExperienceChoice.NONE)
+                || experience.size() == 1;
+    }
 }

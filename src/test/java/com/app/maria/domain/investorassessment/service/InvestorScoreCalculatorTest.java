@@ -68,7 +68,7 @@ class InvestorScoreCalculatorTest {
                 InvestorAssessmentTestData.experience(
                         ExperienceChoice.DEPOSITS,
                         ExperienceChoice.STOCKS_AND_EQUITY_FUNDS,
-                        ExperienceChoice.NONE));
+                        ExperienceChoice.ELB_AND_BOND_FUNDS));
 
         // 최저 응답 -1점에서 투자경험만 0점 → 8점으로 바뀌므로 7점. 2+8을 더하면 9점이 된다.
         assertThat(InvestorScoreCalculator.totalScore(a)).isEqualTo(7);
