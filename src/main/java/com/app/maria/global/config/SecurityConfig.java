@@ -82,6 +82,9 @@ public class SecurityConfig {
                                         // 인증 엔드포인트
                                         .requestMatchers("/api/auth/**")
                                         .permitAll()
+                                        // 컨테이너 헬스체크 (nginx가 /actuator/ 외부 접근을 막는다)
+                                        .requestMatchers("/actuator/health")
+                                        .permitAll()
                                         // 정적 리소스
                                         .requestMatchers(
                                                 "/",

@@ -45,11 +45,11 @@ class WithdrawalMapperTest {
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.addMapper(WithdrawalMapper.class);
         try (InputStream xml =
-                Resources.getResourceAsStream("mappers/withdrawal/withdrawalMapper.xml")) {
+                Resources.getResourceAsStream("mappers/withdrawal/WithdrawalMapper.xml")) {
             new XMLMapperBuilder(
                             xml,
                             configuration,
-                            "mappers/withdrawal/withdrawalMapper.xml",
+                            "mappers/withdrawal/WithdrawalMapper.xml",
                             configuration.getSqlFragments())
                     .parse();
         }

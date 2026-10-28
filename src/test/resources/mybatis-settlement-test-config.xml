@@ -25,10 +25,10 @@
     </environments>
 
     <mappers>
-        <mapper resource="mappers/settlement/krwExchangeMapper.xml"/>
-        <mapper resource="mappers/settlement/settlementBatchMapper.xml"/>
-        <mapper resource="mappers/settlement/settlementBatchGuardMapper.xml"/>
-        <mapper resource="mappers/settlement/settlementItemMapper.xml"/>
-        <mapper resource="mappers/settlement/settlementJoinMapper.xml"/>
+        <mapper resource="mappers/settlement/KrwExchangeMapper.xml"/>
+        <mapper resource="mappers/settlement/SettlementBatchMapper.xml"/>
+        <mapper resource="mappers/settlement/SettlementBatchGuardMapper.xml"/>
+        <mapper resource="mappers/settlement/SettlementItemMapper.xml"/>
+        <mapper resource="mappers/settlement/SettlementJoinMapper.xml"/>
     </mappers>
 </configuration>
