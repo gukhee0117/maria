@@ -1,0 +1,30 @@
+﻿date,is_open,regular_close_at,available_at,source_ref
+2026-10-19,1,2026-10-19T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-20,1,2026-10-20T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-21,1,2026-10-21T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-22,1,2026-10-22T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-23,1,2026-10-23T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-24,0,,,
+2026-10-25,0,,,
+2026-10-26,1,2026-10-26T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-27,0,,,
+2026-10-28,1,2026-10-28T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-29,1,2026-10-29T16:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-30,1,2026-10-30T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-10-31,0,,,
+2026-11-01,0,,,
+2026-11-02,1,2026-11-02T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-11-03,1,2026-11-03T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"
+2026-11-04,1,2026-11-04T15:30:00+09:00,,"synthetic,test
+not an actual KRX schedule"

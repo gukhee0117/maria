@@ -1,0 +1,84 @@
+{
+  "calendarVersion": "76f61ead305f389df5c476b70d4f04e92879c05495d272569b2cba3b46b6021c",
+  "synthetic": true,
+  "cases": [
+    {
+      "now": "2026-10-28T15:29:59+09:00",
+      "referenceDate": "2026-10-26",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-28T15:30:00+09:00",
+      "referenceDate": "2026-10-28",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-28T15:39:59+09:00",
+      "referenceDate": "2026-10-28",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-28T15:40:00+09:00",
+      "referenceDate": "2026-10-28",
+      "batchDue": true,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-29T16:29:59+09:00",
+      "referenceDate": "2026-10-28",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-29T16:30:00+09:00",
+      "referenceDate": "2026-10-29",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-29T16:39:59+09:00",
+      "referenceDate": "2026-10-29",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-29T16:40:00+09:00",
+      "referenceDate": "2026-10-29",
+      "batchDue": true,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-27T17:00:00+09:00",
+      "referenceDate": "2026-10-26",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-31T17:00:00+09:00",
+      "referenceDate": "2026-10-30",
+      "batchDue": false,
+      "state": "EXPIRED"
+    },
+    {
+      "now": "2026-11-01T17:00:00+09:00",
+      "referenceDate": "2026-10-30",
+      "batchDue": false,
+      "state": "EXPIRED"
+    },
+    {
+      "now": "2026-10-30T15:29:59+09:00",
+      "referenceDate": "2026-10-29",
+      "batchDue": false,
+      "state": "STALE"
+    },
+    {
+      "now": "2026-10-30T15:30:00+09:00",
+      "referenceDate": "2026-10-30",
+      "batchDue": false,
+      "state": "EXPIRED"
+    }
+  ]
+}
