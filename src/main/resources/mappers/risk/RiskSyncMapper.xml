@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.risk.mapper.RiskSyncMapper">
+    <select id="acquireLock" resultType="integer">SELECT GET_LOCK('maria.risk-grade.pull',0)</select>
+    <select id="releaseLock" resultType="integer">SELECT RELEASE_LOCK('maria.risk-grade.pull')</select>
+    <select id="findState" resultType="com.app.maria.domain.risk.dto.RiskSyncStateDTO">
+        SELECT next_poll_at,next_retry_at,retry_count,last_attempt_at,last_success_at,last_error_code,last_run_kind
+        FROM risk_grade_sync_state WHERE state_id=1
+    </select>
+    <update id="saveState">
+        UPDATE risk_grade_sync_state SET next_poll_at=#{nextPollAt},next_retry_at=#{nextRetryAt},
+            retry_count=#{retryCount},last_attempt_at=#{lastAttemptAt},last_success_at=#{lastSuccessAt},
+            last_error_code=#{lastErrorCode},last_run_kind=#{lastRunKind} WHERE state_id=1
+    </update>
+</mapper>
