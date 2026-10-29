@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.risk.mapper.StockRiskGradeMapper">
+    <select id="sessionUtcOffsetSeconds" resultType="integer">
+        SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), CURRENT_TIMESTAMP)
+    </select>
+    <sql id="columns">domestic_product_id, var_975, risk_grade, volatility, price_from, price_to, calculated_at, synced_at, analysis_version</sql>
+    <!-- Lock the parent even when the grade row does not exist yet. -->
+    <select id="lockProductsByTicker" resultType="long">
+        SELECT domestic_product_id FROM domestic_product WHERE ticker=#{ticker} ORDER BY domestic_product_id FOR UPDATE
+    </select>
+    <select id="findForUpdate" resultType="com.app.maria.domain.risk.dto.StockRiskGradeDTO">
+        SELECT <include refid="columns"/> FROM stock_risk_grade WHERE domestic_product_id=#{id} FOR UPDATE
+    </select>
+    <select id="findAll" resultType="com.app.maria.domain.risk.dto.StockRiskGradeDTO">
+        SELECT g.domestic_product_id, p.ticker, g.var_975, g.risk_grade, g.volatility,
+            g.price_from, g.price_to, g.calculated_at, g.synced_at, g.analysis_version
+        FROM stock_risk_grade g JOIN domestic_product p ON p.domestic_product_id=g.domestic_product_id
+        ORDER BY g.domestic_product_id
+    </select>
+    <insert id="insert">
+        INSERT INTO stock_risk_grade (<include refid="columns"/>)
+        VALUES (#{domesticProductId}, #{var975}, #{riskGrade}, #{volatility}, #{priceFrom}, #{priceTo},
+            #{calculatedAt}, #{syncedAt}, #{analysisVersion})
+    </insert>
+    <update id="updateIfNewer">
+        UPDATE stock_risk_grade SET var_975=#{var975}, risk_grade=#{riskGrade}, volatility=#{volatility},
+            price_from=#{priceFrom}, price_to=#{priceTo}, calculated_at=#{calculatedAt},
+            synced_at=#{syncedAt}, analysis_version=#{analysisVersion}
+        WHERE domestic_product_id=#{domesticProductId}
+        AND (price_to &lt; #{priceTo} OR (price_to=#{priceTo} AND analysis_version &lt; #{analysisVersion}))
+    </update>
+</mapper>

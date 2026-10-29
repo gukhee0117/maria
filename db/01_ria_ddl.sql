@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS community_post_reaction;
 DROP TABLE IF EXISTS community_comment;
 DROP TABLE IF EXISTS community_post;
 DROP TABLE IF EXISTS stock_recommendation;
+DROP TABLE IF EXISTS risk_grade_sync_state;
 DROP TABLE IF EXISTS stock_risk_grade;
 DROP TABLE IF EXISTS domestic_product_theme;
 DROP TABLE IF EXISTS stock_theme;
@@ -616,9 +617,25 @@ CREATE TABLE stock_risk_grade (
     price_to            DATE         NOT NULL,
     calculated_at       DATETIME     NOT NULL COMMENT 'Python 계산 시각',
     synced_at           DATETIME     NOT NULL COMMENT 'maria 저장 시각',
+    analysis_version    BIGINT       NOT NULL DEFAULT 0 COMMENT '0=이관된 미확인 버전, 1 이상=Python 검증 게시 버전',
     PRIMARY KEY (domestic_product_id),
+    CONSTRAINT chk_srg_analysis_version CHECK (analysis_version >= 0),
     CONSTRAINT chk_srg_grade CHECK (risk_grade BETWEEN 1 AND 6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='종목 위험등급(Python risk 사본)';
+
+CREATE TABLE risk_grade_sync_state (
+    state_id TINYINT NOT NULL PRIMARY KEY,
+    next_poll_at DATETIME NULL,
+    next_retry_at DATETIME NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    last_attempt_at DATETIME NULL,
+    last_success_at DATETIME NULL,
+    last_error_code VARCHAR(80) NULL,
+    last_run_kind VARCHAR(10) NULL,
+    CONSTRAINT chk_rgss_singleton CHECK (state_id = 1),
+    CONSTRAINT chk_rgss_retry CHECK (retry_count >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='위험등급 Pull 주기 및 장애 재시도 상태';
+INSERT INTO risk_grade_sync_state(state_id) VALUES (1);
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE stock_recommendation (
