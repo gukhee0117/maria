@@ -85,6 +85,19 @@ jwt:
   refresh-blacklist-prefix: "refresh:"
 # api
 custom:
+  risk:
+    url: ${RISK_URL:http://risk:8000}
+    calendar-path: ${RISK_CALENDAR_PATH:}
+    trading-hours-path: ${RISK_TRADING_HOURS_PATH:}
+    # Must match Python calendar-status.calendarVersion for the identical bytes.
+    expected-calendar-version: ${RISK_CALENDAR_VERSION:}
+    sync-enabled: ${RISK_SYNC_ENABLED:false}
+    poll-interval: ${RISK_POLL_INTERVAL:PT5M}
+    retry-delay: ${RISK_RETRY_DELAY:PT1M}
+    max-retries: ${RISK_MAX_RETRIES:3}
+    # 0 = until midnight KST; e.g. PT1H stops one hour after the actual close.
+    cutoff-after-close: ${RISK_CUTOFF_AFTER_CLOSE:PT0S}
+    tick-millis: ${RISK_TICK_MILLIS:30000}
   exchange:
     name: exchange-money
     url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON

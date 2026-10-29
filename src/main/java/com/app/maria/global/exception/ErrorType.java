@@ -26,6 +26,14 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    RISK_TIMEZONE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "위험등급 DB 연결 시간대를 확인할 수 없습니다.", LogLevel.WARN),
+    RISK_CALENDAR_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "위험등급 거래일·거래시간 정보를 확인할 수 없습니다.", LogLevel.WARN),
+    RISK_UPSTREAM_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "위험등급 서비스에 연결할 수 없습니다.", LogLevel.WARN),
+    RISK_INVALID_RESPONSE(HttpStatus.BAD_GATEWAY, "위험등급 응답을 검증할 수 없습니다.", LogLevel.WARN),
+    RISK_PRODUCT_UNRESOLVED(HttpStatus.CONFLICT, "위험등급 종목 매핑을 확인할 수 없습니다.", LogLevel.WARN),
+    RISK_SYNC_CONFLICT(HttpStatus.CONFLICT, "위험등급 동기화 상태를 확인할 수 없습니다.", LogLevel.WARN),
     // 고객 로그인 (아이디 존재 여부와 비밀번호 오류를 구분해 노출하지 않는다.)
     CUSTOMER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
     // 회원가입 (이미 가입됨과 정보 불일치를 구분해 노출하지 않는다.)
