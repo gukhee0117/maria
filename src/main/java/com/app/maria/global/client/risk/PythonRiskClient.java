@@ -1,5 +1,6 @@
 package com.app.maria.global.client.risk;
 
+import com.app.maria.domain.risk.config.RiskProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.util.HashSet;
@@ -14,17 +15,26 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class PythonRiskClient {
     private final RestClient client;
+    private final RiskProperties properties;
 
-    public PythonRiskClient(@Qualifier("pythonRiskRestClient") RestClient client) {
+    public PythonRiskClient(
+            @Qualifier("pythonRiskRestClient") RestClient client, RiskProperties properties) {
         this.client = client;
+        this.properties = properties;
     }
 
     public List<PythonGradeResponseDTO> fetch() {
+        String key = properties.getServiceKey();
+        if (key == null || key.isBlank() || key.indexOf('\r') >= 0 || key.indexOf('\n') >= 0) {
+            // Configuration errors must not make an unauthenticated upstream request.
+            throw new AppException(ErrorType.RISK_INVALID_RESPONSE);
+        }
         List<PythonGradeResponseDTO> rows;
         try {
             rows =
                     client.get()
                             .uri("/grades")
+                            .header("X-Risk-Service-Key", key)
                             .retrieve()
                             .body(
                                     new ParameterizedTypeReference<

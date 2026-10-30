@@ -87,6 +87,7 @@ jwt:
 custom:
   risk:
     url: ${RISK_URL:http://risk:8000}
+    service-key: ${RISK_SERVICE_KEY:}
     calendar-path: ${RISK_CALENDAR_PATH:}
     trading-hours-path: ${RISK_TRADING_HOURS_PATH:}
     # Must match Python calendar-status.calendarVersion for the identical bytes.

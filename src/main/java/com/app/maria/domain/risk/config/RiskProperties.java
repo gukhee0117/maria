@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties("custom.risk")
 public class RiskProperties {
     private String url = "http://risk:8000";
+    private String serviceKey = "";
     private String calendarPath = "";
     private String tradingHoursPath = "";
     private String expectedCalendarVersion = "";

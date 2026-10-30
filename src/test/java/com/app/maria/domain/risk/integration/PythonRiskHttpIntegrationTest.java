@@ -38,7 +38,8 @@ import org.springframework.web.client.RestClient;
 
 /** Opt-in: real Uvicorn/FastAPI + production Java client/services + disposable MariaDB. */
 class PythonRiskHttpIntegrationTest {
-    static final String URL = "jdbc:mariadb://127.0.0.1:33379/risk_test";
+    static final String URL = "jdbc:mariadb://127.0.0.1:33380/risk_test";
+    static final String TEST_KEY = "synthetic-http-integration-key";
     @TempDir Path temporary;
     Path riskRoot, python, fixture, directory;
     Process server;
@@ -99,7 +100,7 @@ class PythonRiskHttpIntegrationTest {
             try {
                 var response =
                         http.send(
-                                HttpRequest.newBuilder(URI.create(baseUrl + "/grades"))
+                                HttpRequest.newBuilder(URI.create(baseUrl + "/health"))
                                         .timeout(Duration.ofSeconds(1))
                                         .build(),
                                 HttpResponse.BodyHandlers.ofString());
@@ -118,10 +119,11 @@ class PythonRiskHttpIntegrationTest {
                 .isTrue();
         var manifest = new ObjectMapper().readTree(directory.resolve("manifest.json").toFile());
         properties = new RiskProperties();
+        properties.setServiceKey(TEST_KEY);
         properties.setCalendarPath(directory.resolve("calendar.csv").toString());
         properties.setExpectedCalendarVersion(manifest.get("calendarVersion").asText());
         calendar = new KrxTradingCalendar(properties);
-        client = new PythonRiskClient(RestClient.builder().baseUrl(baseUrl).build());
+        client = new PythonRiskClient(RestClient.builder().baseUrl(baseUrl).build(), properties);
         instant =
                 new AtomicReference<>(ZonedDateTime.parse("2026-10-28T17:10:00+09:00").toInstant());
         clock =
@@ -222,9 +224,14 @@ class PythonRiskHttpIntegrationTest {
 
     static void stop(Process process) throws Exception {
         // Windows venv launcher can have a different PID from Uvicorn.
-        process.descendants().forEach(p -> p.destroyForcibly());
+        var children = process.descendants().toList();
+        children.forEach(p -> p.destroyForcibly());
         process.destroyForcibly();
-        process.waitFor(5, TimeUnit.SECONDS);
+        assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+        for (var child : children) {
+            // Parent exit alone does not release log handles owned by its children.
+            child.onExit().get(5, TimeUnit.SECONDS);
+        }
     }
 
     @AfterEach
@@ -250,7 +257,8 @@ class PythonRiskHttpIntegrationTest {
         var wire =
                 HttpClient.newHttpClient()
                         .send(
-                                HttpRequest.newBuilder(URI.create(baseUrl + "/grades")).build(),
+                                HttpRequest.newBuilder(URI.create(baseUrl + "/grades"))
+                                        .header("X-Risk-Service-Key", TEST_KEY).build(),
                                 HttpResponse.BodyHandlers.ofString());
         assertThat(new ObjectMapper().readTree(wire.body()).get(0).get("asOf").asText())
                 .endsWith("+09:00");
@@ -276,6 +284,29 @@ class PythonRiskHttpIntegrationTest {
         assertThat(partial.changed()).isEqualTo(1);
         assertThat(partial.duplicates()).isEqualTo(1);
         assertThat(reader().findUsable()).hasSize(2);
+    }
+
+    @Test
+    void authenticationFailurePreservesStoredGradeAndDoesNotScheduleFailureRetry() throws Exception {
+        var http = HttpClient.newHttpClient();
+        var missing = http.send(HttpRequest.newBuilder(URI.create(baseUrl + "/grades")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(missing.statusCode()).isEqualTo(401);
+        assertThat(pull().changed()).isEqualTo(1);
+        var old = jdbc.queryForMap("SELECT * FROM stock_risk_grade");
+        properties.setServiceKey("wrong-synthetic-key");
+        assertThatThrownBy(client::fetch).isInstanceOfSatisfying(AppException.class,
+                e -> assertThat(e.getErrorType()).isEqualTo(
+                        com.app.maria.global.exception.ErrorType.RISK_INVALID_RESPONSE));
+        var coordinator = new RiskSyncCoordinator(properties, clock, calendar,
+                new MariaDbRiskSyncLease(factory), syncMapper,
+                new RiskGradeSyncServiceImpl(client, store));
+        coordinator.tick();
+        assertThat(syncMapper.findState().getNextRetryAt()).isNull();
+        assertThat(syncMapper.findState().getLastErrorCode()).isEqualTo("RISK_INVALID_RESPONSE");
+        assertThat(jdbc.queryForMap("SELECT * FROM stock_risk_grade")).isEqualTo(old);
+        properties.setServiceKey(TEST_KEY);
+        assertThat(pull().duplicates()).isEqualTo(1);
     }
 
     @Test
