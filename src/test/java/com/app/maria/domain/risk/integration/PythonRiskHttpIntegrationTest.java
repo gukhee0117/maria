@@ -258,7 +258,8 @@ class PythonRiskHttpIntegrationTest {
                 HttpClient.newHttpClient()
                         .send(
                                 HttpRequest.newBuilder(URI.create(baseUrl + "/grades"))
-                                        .header("X-Risk-Service-Key", TEST_KEY).build(),
+                                        .header("X-Risk-Service-Key", TEST_KEY)
+                                        .build(),
                                 HttpResponse.BodyHandlers.ofString());
         assertThat(new ObjectMapper().readTree(wire.body()).get(0).get("asOf").asText())
                 .endsWith("+09:00");
@@ -287,20 +288,33 @@ class PythonRiskHttpIntegrationTest {
     }
 
     @Test
-    void authenticationFailurePreservesStoredGradeAndDoesNotScheduleFailureRetry() throws Exception {
+    void authenticationFailurePreservesStoredGradeAndDoesNotScheduleFailureRetry()
+            throws Exception {
         var http = HttpClient.newHttpClient();
-        var missing = http.send(HttpRequest.newBuilder(URI.create(baseUrl + "/grades")).build(),
-                HttpResponse.BodyHandlers.ofString());
+        var missing =
+                http.send(
+                        HttpRequest.newBuilder(URI.create(baseUrl + "/grades")).build(),
+                        HttpResponse.BodyHandlers.ofString());
         assertThat(missing.statusCode()).isEqualTo(401);
         assertThat(pull().changed()).isEqualTo(1);
         var old = jdbc.queryForMap("SELECT * FROM stock_risk_grade");
         properties.setServiceKey("wrong-synthetic-key");
-        assertThatThrownBy(client::fetch).isInstanceOfSatisfying(AppException.class,
-                e -> assertThat(e.getErrorType()).isEqualTo(
-                        com.app.maria.global.exception.ErrorType.RISK_INVALID_RESPONSE));
-        var coordinator = new RiskSyncCoordinator(properties, clock, calendar,
-                new MariaDbRiskSyncLease(factory), syncMapper,
-                new RiskGradeSyncServiceImpl(client, store));
+        assertThatThrownBy(client::fetch)
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(
+                                                com.app.maria.global.exception.ErrorType
+                                                        .RISK_INVALID_RESPONSE));
+        var coordinator =
+                new RiskSyncCoordinator(
+                        properties,
+                        clock,
+                        calendar,
+                        new MariaDbRiskSyncLease(factory),
+                        syncMapper,
+                        new RiskGradeSyncServiceImpl(client, store));
         coordinator.tick();
         assertThat(syncMapper.findState().getNextRetryAt()).isNull();
         assertThat(syncMapper.findState().getLastErrorCode()).isEqualTo("RISK_INVALID_RESPONSE");

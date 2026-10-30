@@ -9,7 +9,9 @@ Python은 자체 SQLite만 사용하며 MARIA DB·고객 정보에 접근하지 
 - Python 환경변수는 **RISK_SERVICE_KEY**다. MARIA에도 같은 값을 주입하고 헤더를 보내야 한다.
 - Python 미설정은 503 AUTH_CONFIGURATION, 요청 키 누락·불일치는 401 UNAUTHORIZED다.
 - 내부 GET /health는 인증 없이 200이며 상태·마지막 성공 계산 시각·배치 상태·batch_running을 제공한다.
-- Python 인증은 구현됐다. MARIA 기존 클라이언트의 인증 반영과 양쪽 통합 재검증은 후속 작업이다.
+- MARIA GET /grades 클라이언트도 RISK_SERVICE_KEY를 읽어 같은 헤더를 보낸다. 키 미설정·공백·개행은 요청 전에 차단한다.
+- 인증 401·403은 기존 RISK_INVALID_RESPONSE로 기록하고 장애 재시도를 예약하지 않는다. 기존 주기적 Pull은 유지한다.
+- 인증 포함 실제 HTTP 통합 4개와 위험등급 테스트 총 20개를 임시 MariaDB에서 검증했다. 운영 키 주입·활성화는 별도 단계다.
 
 ## 데이터·버전
 

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
-import com.app.maria.global.client.risk.PythonRiskClient;
 import com.app.maria.domain.risk.config.RiskProperties;
+import com.app.maria.global.client.risk.PythonRiskClient;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import org.junit.jupiter.api.Test;
@@ -22,6 +22,7 @@ class PythonRiskClientTest {
         properties.setServiceKey(TEST_KEY);
         return new PythonRiskClient(client, properties);
     }
+
     static final String ROW =
             """
         {"ticker":"005930","var975":0.3125,"riskGrade":2,"volatility":0.2410,
@@ -61,8 +62,12 @@ class PythonRiskClientTest {
     @Test
     void distinguishesTransientFromPermanentHttpFailureWithoutEchoingBody() {
         for (HttpStatus status :
-                java.util.List.of(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.BAD_REQUEST,
-                        HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.TOO_MANY_REQUESTS)) {
+                java.util.List.of(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        HttpStatus.BAD_REQUEST,
+                        HttpStatus.UNAUTHORIZED,
+                        HttpStatus.FORBIDDEN,
+                        HttpStatus.TOO_MANY_REQUESTS)) {
             var b = RestClient.builder().baseUrl("http://risk.test");
             var server = MockRestServiceServer.bindTo(b).build();
             server.expect(anything()).andRespond(withStatus(status).body("private-test-payload"));
@@ -89,8 +94,11 @@ class PythonRiskClientTest {
             properties.setServiceKey(key);
             var client = new PythonRiskClient(builder.build(), properties);
             assertThatThrownBy(client::fetch)
-                    .isInstanceOfSatisfying(AppException.class,
-                            e -> assertThat(e.getErrorType()).isEqualTo(ErrorType.RISK_INVALID_RESPONSE));
+                    .isInstanceOfSatisfying(
+                            AppException.class,
+                            e ->
+                                    assertThat(e.getErrorType())
+                                            .isEqualTo(ErrorType.RISK_INVALID_RESPONSE));
             server.verify();
         }
     }
