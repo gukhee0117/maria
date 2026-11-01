@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.asset.mapper.AssetBriefingMapper">
+    <select id="sumHoldingCost" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(qty * avg_purchase_price), 0)
+        FROM domestic_stock_balance
+        WHERE account_id = #{accountId}
+          AND qty &gt; 0
+          AND status IN ('HOLDING', 'PARTIALLY_SOLD', 'TRADE_RESTRICTED', 'TRADE_SUSPENDED')
+    </select>
+
+    <select id="selectHoldings" resultType="com.app.maria.domain.asset.dto.AssetHoldingDTO">
+        SELECT dp.ticker, dsb.qty
+        FROM domestic_stock_balance dsb
+        JOIN domestic_product dp ON dp.domestic_product_id = dsb.domestic_product_id
+        WHERE dsb.account_id = #{accountId}
+          AND dsb.qty &gt; 0
+          AND dsb.status IN ('HOLDING', 'PARTIALLY_SOLD', 'TRADE_RESTRICTED', 'TRADE_SUSPENDED')
+        ORDER BY dsb.domestic_stock_balance_id
+    </select>
+
+    <select id="sumFinalizedInflow" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(final_amount), 0)
+        FROM krw_exchange
+        WHERE account_id = #{accountId}
+          AND settlement_status = 'FINALIZED'
+          AND final_at &lt;= #{asOf}
+    </select>
+
+    <select id="selectMonthlyPurchases"
+            resultType="com.app.maria.domain.asset.dto.AssetMonthlyPurchaseDTO">
+        SELECT YEAR(processed_at) AS purchaseYear,
+               MONTH(processed_at) AS purchaseMonth,
+               SUM(ABS(amount)) AS buyAmount
+        FROM domestic_order
+        WHERE account_id = #{accountId}
+          AND side = 'BUY'
+          AND status = 'EXECUTED'
+          AND processed_at &lt;= #{asOf}
+        GROUP BY YEAR(processed_at), MONTH(processed_at)
+        ORDER BY YEAR(processed_at), MONTH(processed_at)
+    </select>
+</mapper>
