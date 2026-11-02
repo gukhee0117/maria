@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.asset.mapper.AssetBriefingMapper">
+    <sql id="holdingFilter">
+        dsb.account_id = #{accountId}
+        AND dsb.qty &gt; 0
+        AND dsb.status IN
+        <foreach collection="holdingStatuses" item="holdingStatus" open="(" separator="," close=")">
+            #{holdingStatus}
+        </foreach>
+    </sql>
+    <select id="sumHoldingCostByStatuses" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(dsb.qty * dsb.avg_purchase_price), 0)
+        FROM domestic_stock_balance dsb
+        WHERE <include refid="holdingFilter"/>
+    </select>
+
+    <select id="selectHoldingsByStatuses" resultType="com.app.maria.domain.asset.dto.AssetHoldingDTO">
+        SELECT dp.ticker, dsb.qty
+        FROM domestic_stock_balance dsb
+        JOIN domestic_product dp ON dp.domestic_product_id = dsb.domestic_product_id
+        WHERE <include refid="holdingFilter"/>
+        ORDER BY dsb.domestic_stock_balance_id
+    </select>
+
+    <select id="sumInflowByStatus" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(final_amount), 0)
+        FROM krw_exchange
+        WHERE account_id = #{accountId}
+          AND settlement_status = #{settlementStatus}
+          AND final_at &lt;= #{asOf}
+    </select>
+
+    <select id="selectMonthlyPurchasesByStatus"
+            resultType="com.app.maria.domain.asset.dto.AssetMonthlyPurchaseDTO">
+        SELECT YEAR(processed_at) AS purchaseYear,
+               MONTH(processed_at) AS purchaseMonth,
+               SUM(ABS(amount)) AS buyAmount
+        FROM domestic_order
+        WHERE account_id = #{accountId}
+          AND side = #{side}
+          AND status = #{orderStatus}
+          AND processed_at &lt;= #{asOf}
+        GROUP BY YEAR(processed_at), MONTH(processed_at)
+        ORDER BY YEAR(processed_at), MONTH(processed_at)
+    </select>
+</mapper>
