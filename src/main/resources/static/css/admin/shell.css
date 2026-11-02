@@ -1,0 +1,909 @@
+/* 관리자 공통 셸 (A-3): 사이드바 · 상단 · 상태바 · 토스트
+   원본: customer-web/_design/Returns_프론트_최종/admin.dc.html 의 셸 부분 (치수·글자 크기는 원본 값 그대로).
+   - 색·그림자는 tokens.css 의 --adm- 변수만 사용한다 (HEX 직접 사용 없음).
+   - 본문(.adm-main)은 A-4부터 화면별로 바꾸므로, 지금은 기존 layout.css 의 본문 규칙(.content)을 그대로 쓴다.
+     셸 쪽 요소는 모두 새 클래스(adm-*)라서 layout.css 의 옛 셸 규칙(.app-shell .sidebar .topbar …)과 겹치지 않는다.
+   - 글자 크기: #admShell 의 --font-scale (0.9 / 1 / 1.15 / 1.3)을 zoom 으로 적용. layout.js 가 설정. */
+
+html,
+body {
+    overflow: hidden;
+}
+
+.adm-shell {
+    --font-scale: 1;
+    zoom: var(--font-scale);
+    height: calc(100vh / var(--font-scale));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.15s ease;
+}
+
+/* 로그인 확인(/me)이 끝나기 전에는 화면 전체를 숨긴다 */
+.adm-shell.is-pending {
+    visibility: hidden;
+}
+
+.adm-shell.is-fading {
+    opacity: 0.3;
+}
+
+.adm-shell [hidden] {
+    display: none !important;
+}
+
+.adm-shell-row {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.adm-col {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 셸 요소 공통 글꼴 (본문 .adm-main 은 건드리지 않는다) */
+.adm-side,
+.adm-side-fly,
+.adm-top,
+.adm-status,
+.adm-modal-backdrop,
+.toast-container {
+    color: var(--adm-text);
+    font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-side button,
+.adm-side-fly a,
+.adm-top button,
+.adm-status button,
+.adm-modal-backdrop button {
+    font-family: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+}
+
+.adm-side :focus-visible,
+.adm-side-fly :focus-visible,
+.adm-top :focus-visible,
+.adm-modal-backdrop :focus-visible {
+    outline: 2px solid var(--adm-focus-ring);
+    outline-offset: 1px;
+}
+
+/* ---------- 사이드바 ---------- */
+.adm-side {
+    flex: 0 0 auto;
+    width: calc(min(240px * var(--font-scale), 280px) / var(--font-scale));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--adm-side);
+    transition: width 0.2s ease;
+}
+
+.is-collapsed .adm-side {
+    width: 64px;
+}
+
+.adm-side-brand {
+    box-sizing: content-box; /* 원본은 높이 64px + 아래 선 1px */
+    height: 64px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--adm-side-wash-10);
+}
+
+.adm-side-brand-full {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.adm-side-brand-full img {
+    height: 32px;
+    display: block;
+}
+
+.adm-side-tag {
+    padding: 2px 5px;
+    border: 1px solid var(--adm-side-tag-bd);
+    border-radius: 2px;
+    color: var(--adm-side-tag);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    white-space: nowrap;
+}
+
+.adm-side-brand-symbol {
+    display: none;
+    width: 34px;
+    margin-left: -8px;
+}
+
+.is-collapsed .adm-side-brand {
+    padding: 0 23px;
+}
+
+.is-collapsed .adm-side-brand-full {
+    display: none;
+}
+
+.is-collapsed .adm-side-brand-symbol {
+    display: block;
+}
+
+/* 검색 */
+.adm-side-search {
+    flex: 0 0 auto;
+    position: relative;
+    padding: 8px 12px 7px;
+    border-bottom: 1px solid var(--adm-side-wash-08);
+}
+
+.is-collapsed .adm-side-search {
+    display: none;
+}
+
+.adm-side-search-box {
+    position: relative;
+}
+
+.adm-side-search-icon {
+    position: absolute;
+    left: 8px;
+    top: 7px;
+    width: 14px;
+    height: 14px;
+    color: var(--adm-side-icon);
+    pointer-events: none;
+}
+
+.adm-side-search input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 28px;
+    padding: 0 46px 0 28px;
+    border: 1px solid var(--adm-side-wash-18);
+    border-radius: 2px;
+    background: var(--adm-side-wash-07);
+    color: var(--adm-side-on);
+    font: inherit;
+    font-size: 12.5px;
+}
+
+.adm-side-search input::placeholder {
+    color: var(--adm-placeholder);
+}
+
+.adm-side-search-key {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    padding: 0 4px;
+    border: 1px solid var(--adm-side-wash-22);
+    border-radius: 2px;
+    color: var(--adm-side-icon);
+    font-size: 10px;
+    line-height: 14px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.adm-side-results {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 38px;
+    z-index: 30;
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd2);
+    box-shadow: var(--adm-shadow-pop);
+}
+
+.adm-side-result {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--adm-line);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.adm-side-result.is-on {
+    background: var(--adm-sel);
+    box-shadow: inset 3px 0 0 var(--adm-side-accent);
+}
+
+.adm-side-result-no,
+.adm-side-fly-no {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+}
+
+.adm-side-result-no {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--adm-navy-fg);
+}
+
+.adm-side-result-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-side-result-group {
+    font-size: 11px;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+.adm-side-result-none {
+    padding: 10px;
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+/* 메뉴 */
+.adm-side-nav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 0 10px;
+}
+
+.adm-side-group {
+    padding-top: 2px;
+}
+
+.adm-side-group:first-child {
+    padding-top: 4px;
+}
+
+.adm-side-grouphead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 30px;
+    padding: 0 14px 0 18px;
+    border: 0;
+    background: transparent;
+    color: var(--adm-side-group-fg);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+    cursor: pointer;
+}
+
+.adm-side-grouphead:hover {
+    color: var(--adm-side-on);
+    background: var(--adm-side-wash-04);
+}
+
+.adm-side-grouplabel {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-side-groupsum,
+.adm-side-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: 2px;
+    background: var(--adm-badge-bg);
+    color: var(--adm-badge-fg);
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+}
+
+.adm-side-group.is-open .adm-side-groupsum {
+    display: none;
+}
+
+.adm-side-caret {
+    width: 10px;
+    flex: 0 0 auto;
+    font-size: 10px;
+    color: var(--adm-side-caret);
+    text-align: center;
+}
+
+.adm-side-groupbody {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.2s ease;
+}
+
+.adm-side-group.is-open .adm-side-groupbody {
+    grid-template-rows: 1fr;
+}
+
+.adm-side-groupinner {
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.adm-side-group.is-open .adm-side-groupinner {
+    opacity: 1;
+}
+
+.adm-side-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    height: 32px;
+    padding: 0 14px 0 30px;
+    background: transparent;
+    color: var(--adm-side-fg);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.adm-side-item:hover {
+    background: var(--adm-side-wash-07);
+    text-decoration: none;
+}
+
+.adm-side-item.is-active {
+    background: var(--adm-side-sel);
+    color: var(--adm-side-on);
+    font-weight: 700;
+}
+
+.adm-side-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--adm-side-accent);
+    opacity: 0;
+}
+
+.adm-side-item.is-active .adm-side-bar,
+.adm-side-fly-item.is-active .adm-side-bar,
+.is-current > .adm-side-groupicon .adm-side-bar {
+    opacity: 1;
+}
+
+.adm-side-ico {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    display: block;
+    color: var(--adm-side-icon);
+}
+
+.adm-side-item.is-active .adm-side-ico {
+    color: var(--adm-side-on);
+}
+
+.adm-side-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 접힌 사이드바: 그룹 아이콘만 보인다 */
+.adm-side-groupicon {
+    display: none;
+    position: relative;
+    place-items: center;
+    width: 100%;
+    height: 40px;
+    border: 0;
+    background: transparent;
+    color: var(--adm-side-icon);
+    cursor: pointer;
+}
+
+.adm-side-groupicon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.adm-side-groupicon:hover {
+    background: var(--adm-side-wash-07);
+}
+
+.adm-side-group.is-current > .adm-side-groupicon {
+    background: var(--adm-side-sel);
+    color: var(--adm-side-on);
+}
+
+.adm-side-dot {
+    position: absolute;
+    left: 38px;
+    top: 9px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--adm-badge-bg);
+}
+
+.is-collapsed .adm-side-grouphead,
+.is-collapsed .adm-side-groupbody {
+    display: none;
+}
+
+.is-collapsed .adm-side-groupicon {
+    display: grid;
+}
+
+.is-collapsed .adm-side-group {
+    padding-top: 2px;
+}
+
+/* 접기/펼치기 버튼 */
+.adm-side-toggle {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 20px;
+    border: 0;
+    border-top: 1px solid var(--adm-side-wash-10);
+    background: transparent;
+    color: var(--adm-side-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.adm-side-toggle:hover {
+    color: var(--adm-side-on);
+}
+
+.adm-side-toggle-ico {
+    width: 17px;
+    height: 17px;
+    display: block;
+}
+
+.adm-side-toggle-ico.is-right {
+    display: none;
+}
+
+.adm-side-toggle-text {
+    white-space: nowrap;
+}
+
+.is-collapsed .adm-side-toggle {
+    padding: 0 23px;
+}
+
+.is-collapsed .adm-side-toggle-ico.is-left {
+    display: none;
+}
+
+.is-collapsed .adm-side-toggle-ico.is-right {
+    display: block;
+}
+
+.is-collapsed .adm-side-toggle-text {
+    display: none;
+}
+
+/* 접힌 사이드바의 그룹 메뉴 (마우스를 올리면) */
+.adm-side-fly {
+    position: fixed;
+    left: 64px;
+    z-index: 46;
+    min-width: 210px;
+    max-width: 260px;
+    padding-bottom: 4px;
+    background: var(--adm-side);
+    border: 1px solid var(--adm-side-wash-16);
+    box-shadow: var(--adm-shadow-fly);
+}
+
+.adm-side-fly-head {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--adm-side-wash-10);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--adm-side-group-fg);
+    white-space: nowrap;
+}
+
+.adm-side-fly-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    height: 32px;
+    padding: 0 12px;
+    color: var(--adm-side-fg);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.adm-side-fly-item:hover {
+    background: var(--adm-side-wash-07);
+    text-decoration: none;
+}
+
+.adm-side-fly-item.is-active {
+    background: var(--adm-side-sel);
+    color: var(--adm-side-on);
+    font-weight: 700;
+}
+
+.adm-side-fly-no {
+    font-size: 11px;
+    color: var(--adm-side-icon);
+}
+
+.adm-side-fly-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---------- 상단 ---------- */
+.adm-top {
+    box-sizing: content-box; /* 원본은 높이 36px + 아래 선 1px */
+    height: 36px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px 0 14px;
+    background: var(--adm-panel);
+    border-bottom: 1px solid var(--adm-bd);
+    color: var(--adm-text);
+}
+
+.adm-top-spacer {
+    flex: 1;
+}
+
+.adm-crumb {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--adm-text);
+    white-space: nowrap;
+}
+
+.adm-crumb-sep {
+    color: var(--adm-sub);
+}
+
+.adm-crumb .breadcrumb-current {
+    color: var(--adm-text);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.adm-crumb .breadcrumb-current:hover {
+    color: var(--adm-navy-fg);
+    text-decoration: underline;
+}
+
+.is-compact .adm-crumb-root,
+.is-compact .adm-crumb-sep {
+    display: none;
+}
+
+.adm-top-clock {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    background: var(--adm-head);
+    color: var(--adm-text);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.adm-top-clock:disabled {
+    opacity: 1;
+}
+
+.adm-top-clock.is-editable {
+    cursor: pointer;
+}
+
+.adm-top-clock.is-editable:hover {
+    border-color: var(--adm-side-accent);
+}
+
+.adm-top-clock-mark {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    background: var(--adm-badge-bg);
+}
+
+.adm-top-clock-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-top-admin {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.adm-top-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.adm-top-role {
+    padding: 0 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    background: var(--adm-info-bg);
+    color: var(--adm-info-fg);
+    border: 1px solid var(--adm-info-bd);
+    white-space: nowrap;
+}
+
+.adm-fontsize {
+    flex: 0 0 auto;
+    display: flex;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.adm-fontsize button {
+    height: 24px;
+    min-width: 26px;
+    padding: 0 6px;
+    border: 0;
+    border-right: 1px solid var(--adm-bd2);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.adm-fontsize button[data-fs-step="-1"] { font-size: 11px; }
+.adm-fontsize button[data-fs-step="reset"] { font-size: 12.5px; }
+.adm-fontsize button[data-fs-step="1"] { font-size: 14px; }
+
+.adm-fontsize button.is-active {
+    background: var(--adm-navy-btn);
+    color: var(--adm-on-navy);
+}
+
+.adm-fontsize button.is-dim {
+    opacity: 0.4;
+}
+
+.adm-top-theme {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.adm-top-theme:hover {
+    border-color: var(--adm-side-accent);
+}
+
+.adm-top-theme svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+/* 라이트일 때 달(다크로 전환), 다크일 때 해(라이트로 전환) — 원본과 같음 */
+.adm-top-theme-sun {
+    display: none !important;
+}
+
+[data-theme="dark"] .adm-top-theme-sun {
+    display: block !important;
+}
+
+[data-theme="dark"] .adm-top-theme-moon {
+    display: none !important;
+}
+
+.adm-top-logout {
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--adm-sub);
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.adm-top-logout:hover {
+    color: var(--adm-navy-fg);
+    text-decoration: underline;
+}
+
+/* ---------- 본문 영역 ----------
+   .content 의 여백·스크롤은 layout.css 규칙을 그대로 쓴다 (페이지 CSS 가 .content:has(...) 에 기대고 있음). */
+.adm-main {
+    min-width: 0;
+}
+
+/* 기존 화면 6개는 본문 높이를 calc(100vh - 92px) 로 고정해 두었다 (옛 셸의 상단 높이 기준).
+   새 셸은 상단·상태바 높이가 다르고 글자 크기(zoom)를 쓰므로 100vh 로는 맞지 않는다.
+   페이지 CSS 는 건드리지 않고, 셸 쪽에서 본문 영역을 채우도록 덮어쓴다 (A-4에서 각 화면 CSS 가 새 틀로 바뀌면 제거). */
+.adm-shell .adm-main .account-management,
+.adm-shell .adm-main .settlement-management,
+.adm-shell .adm-main #diBody,
+.adm-shell .adm-main #ibBody,
+.adm-shell .adm-main #tpBody,
+.adm-shell .adm-main #taxBody,
+.adm-shell .adm-main > div:has(> #diBody),
+.adm-shell .adm-main > div:has(> #ibBody),
+.adm-shell .adm-main > div:has(> #tpBody),
+.adm-shell .adm-main > div:has(> #taxBody) {
+    height: 100%;
+}
+
+/* ---------- 상태바 ---------- */
+.adm-status {
+    position: relative;
+    height: 26px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    background: var(--adm-status);
+    color: var(--adm-status-fg);
+    font-size: 11.5px;
+    white-space: nowrap;
+    z-index: 35;
+}
+
+.adm-status-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    padding: 0 12px;
+    border-right: 1px solid var(--adm-side-wash-14);
+}
+
+.adm-status-msg {
+    flex: 1;
+    min-width: 0;
+    padding: 0 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--adm-side-on);
+}
+
+/* ---------- 토스트 (MARIA.ui.showError 가 .toast 를 만든다) ---------- */
+.toast-container {
+    position: fixed;
+    right: 12px;
+    bottom: 34px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast-container .toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: min(360px, calc(100vw - 40px));
+    padding: 9px 14px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--adm-tip-bg);
+    color: var(--adm-tip-fg);
+    box-shadow: var(--adm-shadow-toast);
+    font: inherit;
+    font-size: 12.5px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.22s, transform 0.22s;
+}
+
+.toast-container .toast::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    background: var(--adm-badge-bg);
+}
+
+.toast-container .toast.is-ok::before {
+    background: var(--adm-toast-dot);
+}
+
+.toast-container .toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media print {
+    .adm-side,
+    .adm-side-fly,
+    .adm-top {
+        display: none !important;
+    }
+}

@@ -58,6 +58,37 @@
   --adm-login-input-bd: #D5DDE8;    /* 로그인 입력창 테두리 */
   --adm-login-err-fg: #C26A1C;      /* 로그인 오류 문구 */
   --adm-login-err-bd: #F2994A;      /* 로그인 오류 시 입력창 테두리 */
+
+  /* ----- 원본 셸(사이드바·상단·상태바·모달·토스트)에 변수 없이 직접 쓰인 값 (A-3에서 추가, 승인된 목록).
+           원본에 다크 값이 없고, 사이드바·상태바는 두 테마 모두 남색 바탕이라 라이트 값만 정의 ----- */
+  --adm-side-accent: var(--adm-focus-ring);     /* 활성 메뉴 왼쪽 막대 (#6FA8FF, --adm-focus-ring과 같은 값의 별칭) */
+  --adm-side-tag: var(--adm-login-eyebrow);     /* 사이드바 "RIA ADMIN" 태그 글자 (#9FB6D9, --adm-login-eyebrow와 같은 값의 별칭) */
+  --adm-side-tag-bd: rgba(159,182,217,.45);     /* 사이드바 "RIA ADMIN" 태그 테두리 */
+  --adm-side-icon: #9FB2CF;                     /* 사이드바 메뉴·검색 아이콘, Ctrl K 글자 */
+  --adm-side-muted: #8FA3C2;                    /* "메뉴 접기" 글자, 안내문 */
+  --adm-side-group-fg: rgba(255,255,255,.7);    /* 그룹 이름 글자 */
+  --adm-side-caret: rgba(255,255,255,.55);      /* 그룹 펼침 화살표 */
+  --adm-side-on: #FFFFFF;                       /* 남색 사이드바·상태바 위 흰 글자 (두 테마 모두 흰색) */
+  --adm-side-wash-04: rgba(255,255,255,.04);    /* 흰색 투명도: 그룹 머리글 hover */
+  --adm-side-wash-07: rgba(255,255,255,.07);    /* 메뉴 hover, 검색 입력 배경 */
+  --adm-side-wash-08: rgba(255,255,255,.08);    /* 검색 영역 아래 선 */
+  --adm-side-wash-10: rgba(255,255,255,.10);    /* 로고 아래 선, 메뉴 접기 위 선 */
+  --adm-side-wash-14: rgba(255,255,255,.14);    /* 상태바 칸 구분선 */
+  --adm-side-wash-16: rgba(255,255,255,.16);    /* 접힌 사이드바 팝업 테두리 */
+  --adm-side-wash-18: rgba(255,255,255,.18);    /* 검색 입력 테두리 */
+  --adm-side-wash-22: rgba(255,255,255,.22);    /* Ctrl K 키 표시 테두리 */
+  --adm-badge-bg: #D8A94E;                      /* 알림 배지, 접힌 사이드바 점 */
+  --adm-badge-fg: #1A2233;                      /* 알림 배지 글자 */
+  --adm-status-fg: #D6E2F3;                     /* 상태바 글자 */
+  --adm-scrim: rgba(10,20,38,.22);              /* 상세 패널 뒤 어둡게 */
+  --adm-scrim-modal: rgba(10,20,38,.42);        /* 확인/사유 모달 뒤 어둡게 */
+  --adm-tip-bg: #1A2233;                        /* 툴팁·토스트 바탕 */
+  --adm-tip-fg: #FFFFFF;                        /* 툴팁·토스트 글자 */
+  --adm-shadow-pop: 0 10px 24px -10px rgba(0,0,0,.55);  /* 검색 결과 드롭다운 그림자 */
+  --adm-shadow-modal: 0 20px 50px -20px rgba(10,20,38,.5);  /* 모달 그림자 */
+  --adm-shadow-toast: 0 10px 24px -12px rgba(10,20,38,.5);  /* 토스트 그림자 */
+  --adm-toast-dot: #00B386;                     /* 토스트 앞 점 */
+  --adm-shadow-fly: 8px 10px 24px -12px rgba(0,0,0,.5);  /* 접힌 사이드바 그룹 메뉴 그림자 */
 }
 
 [data-theme="dark"] {
