@@ -7,8 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.app.maria.domain.asset.dto.response.CustomerAssetBriefingResponseDTO;
-import com.app.maria.domain.asset.dto.response.CustomerAssetBriefingResponseDTO.MonthlyPurchase;
 import com.app.maria.domain.asset.service.AssetBriefingService;
+import com.app.maria.domain.asset.vo.AssetBriefingVO;
+import com.app.maria.domain.asset.vo.AssetBriefingVO.MonthlyPurchase;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -58,22 +59,25 @@ class CustomerAssetBriefingApiTest {
     @Test
     void usesAuthenticatedCustomerNotClientSuppliedIdsAndPreservesUnknownValues() throws Exception {
         var response =
-                CustomerAssetBriefingResponseDTO.builder()
-                        .accountId(11L)
-                        .cashAmount(new BigDecimal("12345"))
-                        .investmentCostAmount(new BigDecimal("1980.75"))
-                        .cumulativeInflowAmount(new BigDecimal("5000"))
-                        .investmentRatio(new BigDecimal("39.62"))
-                        .monthlyPurchases(
-                                List.of(new MonthlyPurchase("2026-03", new BigDecimal("700"))))
-                        .unavailableFields(
-                                List.of(
-                                        "domesticValuationAmount",
-                                        "valuationProfit",
-                                        "valuationReturnRate",
-                                        "packageDeviation"))
-                        .calculatedAt(LocalDateTime.of(2026, 11, 2, 10, 30))
-                        .build();
+                new CustomerAssetBriefingResponseDTO(
+                        AssetBriefingVO.builder()
+                                .accountId(11L)
+                                .cashAmount(new BigDecimal("12345"))
+                                .investmentCostAmount(new BigDecimal("1980.75"))
+                                .cumulativeInflowAmount(new BigDecimal("5000"))
+                                .investmentRatio(new BigDecimal("39.62"))
+                                .monthlyPurchases(
+                                        List.of(
+                                                new MonthlyPurchase(
+                                                        "2026-03", new BigDecimal("700"))))
+                                .unavailableFields(
+                                        List.of(
+                                                "domesticValuationAmount",
+                                                "valuationProfit",
+                                                "valuationReturnRate",
+                                                "packageDeviation"))
+                                .calculatedAt(LocalDateTime.of(2026, 11, 2, 10, 30))
+                                .build());
         when(service.getBriefing(7L)).thenReturn(response);
         mockMvc.perform(
                         get(URL).param("customerId", "999")
@@ -110,15 +114,16 @@ class CustomerAssetBriefingApiTest {
     void serializesValuationWithItsPriceTimestampsWhenPricesAreAvailable() throws Exception {
         when(service.getBriefing(7L))
                 .thenReturn(
-                        CustomerAssetBriefingResponseDTO.builder()
-                                .accountId(11L)
-                                .domesticValuationAmount(new BigDecimal("920"))
-                                .valuationProfit(new BigDecimal("120"))
-                                .valuationReturnRate(new BigDecimal("15.00"))
-                                .valuationPriceFrom(LocalDateTime.of(2026, 11, 2, 10, 28))
-                                .valuationPriceTo(LocalDateTime.of(2026, 11, 2, 10, 29))
-                                .unavailableFields(List.of("packageDeviation"))
-                                .build());
+                        new CustomerAssetBriefingResponseDTO(
+                                AssetBriefingVO.builder()
+                                        .accountId(11L)
+                                        .domesticValuationAmount(new BigDecimal("920"))
+                                        .valuationProfit(new BigDecimal("120"))
+                                        .valuationReturnRate(new BigDecimal("15.00"))
+                                        .valuationPriceFrom(LocalDateTime.of(2026, 11, 2, 10, 28))
+                                        .valuationPriceTo(LocalDateTime.of(2026, 11, 2, 10, 29))
+                                        .unavailableFields(List.of("packageDeviation"))
+                                        .build()));
         mockMvc.perform(get(URL).with(auth("ROLE_CUSTOMER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.domesticValuationAmount").value(920))

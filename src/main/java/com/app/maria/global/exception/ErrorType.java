@@ -184,6 +184,9 @@ public enum ErrorType {
     DOMESTIC_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 정보를 찾을 수 없습니다.", LogLevel.WARN),
     DOMESTIC_INVESTMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌를 찾을 수 없습니다.", LogLevel.WARN),
 
+    // 자산 브리핑의 선택적 현재가 연동. 이 오류만 평가값 unavailable로 처리한다.
+    ASSET_PRICE_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "현재가를 조회할 수 없습니다.", LogLevel.WARN),
+
     // Foreign product / Member
     FOREIGN_PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "종목 정보를 찾을 수 없습니다.", LogLevel.WARN),
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없습니다.", LogLevel.WARN),

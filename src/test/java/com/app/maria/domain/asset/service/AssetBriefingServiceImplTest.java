@@ -30,6 +30,11 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 @ExtendWith(MockitoExtension.class)
 class AssetBriefingServiceImplTest {
@@ -300,5 +305,63 @@ class AssetBriefingServiceImplTest {
         assertThat(result.getValuationProfit()).isEqualByComparingTo("50");
         assertThat(result.getValuationReturnRate()).isNull();
         assertThat(result.getUnavailableFields()).contains("valuationReturnRate");
+    }
+
+    static Stream<RuntimeException> expectedPriceFailures() {
+        return Stream.of(
+                new ResourceAccessException("SECRET_TEST", new java.net.SocketTimeoutException()),
+                new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE, "SECRET_TEST"),
+                new AppException(ErrorType.ASSET_PRICE_UNAVAILABLE));
+    }
+
+    @ParameterizedTest
+    @MethodSource("expectedPriceFailures")
+    @ExtendWith(OutputCaptureExtension.class)
+    void priceFailuresPreserveBaseBriefingAndDoNotLeakUpstreamDetails(
+            RuntimeException error, CapturedOutput output) {
+        stubAmounts("800", "2000");
+        AssetMonthlyPurchaseDTO month = new AssetMonthlyPurchaseDTO();
+        month.setPurchaseYear(2026);
+        month.setPurchaseMonth(10);
+        month.setBuyAmount(new BigDecimal("800"));
+        when(mapper.selectMonthlyPurchases(11L, NOW)).thenReturn(List.of(month));
+        when(priceProvider.getPrices(anySet())).thenThrow(error);
+        var result = service.getBriefing(7L);
+        assertThat(result.getCashAmount()).isEqualByComparingTo("12345");
+        assertThat(result.getInvestmentCostAmount()).isEqualByComparingTo("800");
+        assertThat(result.getCumulativeInflowAmount()).isEqualByComparingTo("2000");
+        assertThat(result.getInvestmentRatio()).isEqualByComparingTo("40");
+        assertThat(result.getMonthlyPurchases())
+                .singleElement()
+                .satisfies(value -> assertThat(value.buyAmount()).isEqualByComparingTo("800"));
+        assertThat(result.getCalculatedAt()).isEqualTo(NOW);
+        assertThat(result.getDomesticValuationAmount()).isNull();
+        assertThat(result.getValuationProfit()).isNull();
+        assertThat(result.getValuationReturnRate()).isNull();
+        assertThat(result.getValuationPriceFrom()).isNull();
+        assertThat(result.getValuationPriceTo()).isNull();
+        assertThat(result.getUnavailableFields())
+                .containsExactly(
+                        "domesticValuationAmount",
+                        "valuationProfit",
+                        "valuationReturnRate",
+                        "packageDeviation");
+        assertThat(output.getAll()).doesNotContain("SECRET_TEST");
+    }
+
+    @Test
+    void programmingErrorsAreNotHiddenAsPriceOutages() {
+        stubAmounts("100", "2000");
+        var error = new IllegalArgumentException("bug");
+        when(priceProvider.getPrices(anySet())).thenThrow(error);
+        assertThatThrownBy(() -> service.getBriefing(7L)).isSameAs(error);
+    }
+
+    @Test
+    void unrelatedApplicationErrorsAreNotHiddenAsPriceOutages() {
+        stubAmounts("100", "2000");
+        var error = new AppException(ErrorType.ACCOUNT_NOT_FOUND);
+        when(priceProvider.getPrices(anySet())).thenThrow(error);
+        assertThatThrownBy(() -> service.getBriefing(7L)).isSameAs(error);
     }
 }

@@ -2,21 +2,28 @@ package com.app.maria.domain.asset.service;
 
 import com.app.maria.domain.asset.dto.AssetHoldingDTO;
 import com.app.maria.domain.asset.dto.response.CustomerAssetBriefingResponseDTO;
-import com.app.maria.domain.asset.dto.response.CustomerAssetBriefingResponseDTO.MonthlyPurchase;
 import com.app.maria.domain.asset.price.AssetPriceProvider;
+import com.app.maria.domain.asset.vo.AssetBriefingVO;
+import com.app.maria.domain.asset.vo.AssetBriefingVO.MonthlyPurchase;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AssetBriefingServiceImpl implements AssetBriefingService {
     private final AssetBriefingSnapshotReader snapshotReader;
     private final AssetPriceProvider assetPriceProvider;
@@ -51,21 +58,23 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
                                                         .toString(),
                                                 row.getBuyAmount()))
                         .toList();
-        return CustomerAssetBriefingResponseDTO.builder()
-                .accountId(snapshot.accountId())
-                .cashAmount(snapshot.cash())
-                .investmentCostAmount(cost)
-                .cumulativeInflowAmount(inflow)
-                .investmentRatio(ratio)
-                .domesticValuationAmount(valuation.amount())
-                .valuationProfit(valuation.profit())
-                .valuationReturnRate(valuation.rate())
-                .valuationPriceFrom(valuation.priceFrom())
-                .valuationPriceTo(valuation.priceTo())
-                .monthlyPurchases(monthly)
-                .unavailableFields(List.copyOf(unavailable))
-                .calculatedAt(snapshot.calculatedAt())
-                .build();
+        AssetBriefingVO result =
+                AssetBriefingVO.builder()
+                        .accountId(snapshot.accountId())
+                        .cashAmount(snapshot.cash())
+                        .investmentCostAmount(cost)
+                        .cumulativeInflowAmount(inflow)
+                        .investmentRatio(ratio)
+                        .domesticValuationAmount(valuation.amount())
+                        .valuationProfit(valuation.profit())
+                        .valuationReturnRate(valuation.rate())
+                        .valuationPriceFrom(valuation.priceFrom())
+                        .valuationPriceTo(valuation.priceTo())
+                        .monthlyPurchases(monthly)
+                        .unavailableFields(List.copyOf(unavailable))
+                        .calculatedAt(snapshot.calculatedAt())
+                        .build();
+        return new CustomerAssetBriefingResponseDTO(result);
     }
 
     private Valuation calculateValuation(List<AssetHoldingDTO> holdings, BigDecimal cost) {
@@ -78,7 +87,18 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
                 holdings.stream()
                         .map(holding -> holding.getTicker())
                         .collect(Collectors.toUnmodifiableSet());
-        var quotes = assetPriceProvider.getPrices(tickers);
+        Map<String, AssetPriceProvider.Quote> quotes;
+        try {
+            quotes = assetPriceProvider.getPrices(tickers);
+        } catch (AppException e) {
+            if (e.getErrorType() != ErrorType.ASSET_PRICE_UNAVAILABLE) throw e;
+            log.warn("자산 브리핑 현재가 조회 불가: 평가값 없이 반환합니다.");
+            return Valuation.unavailable();
+        } catch (RestClientException e) {
+            // 토큰·URL이 포함될 수 있는 원본 예외 메시지/응답은 로그에 남기지 않는다.
+            log.warn("자산 브리핑 현재가 통신 실패: 평가값 없이 반환합니다.");
+            return Valuation.unavailable();
+        }
         if (quotes == null) return Valuation.unavailable();
         BigDecimal amount = BigDecimal.ZERO;
         LocalDateTime priceFrom = null;
