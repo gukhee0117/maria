@@ -1,0 +1,326 @@
+/* 관리자 로그인 화면 (A-2)
+   원본: customer-web/_design/Returns_프론트_최종/admin-login.dc.html
+   - 색은 tokens.css의 --adm- 변수만 사용 (HEX 직접 사용 없음).
+   - 원본 로그인 화면은 테마를 따르지 않고 항상 밝은 모습이므로, 이 페이지에는 data-theme를 두지 않는다
+     (tokens.css의 라이트 값이 항상 적용됨).
+   - 글자 크기: .adm-login 의 --font-scale (0.9 / 1 / 1.15 / 1.3) 을 zoom 으로 적용. login-ui.js 가 설정.
+   - 1열 전환: 원본처럼 "화면 폭 / 글자 배율 < 860px" 일 때 login-ui.js 가 .is-narrow 를 붙임. */
+
+html,
+body.adm-login-body {
+    margin: 0;
+    background: var(--adm-panel);
+}
+
+body.adm-login-body {
+    font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+}
+
+.adm-login {
+    --font-scale: 1;
+    position: relative;
+    zoom: var(--font-scale);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: calc(100vh / var(--font-scale));
+    height: calc(100vh / var(--font-scale));
+    overflow: hidden;
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font-size: 14px;
+    line-height: 1.5;
+    transition: opacity 0.15s ease;
+}
+
+.adm-login.is-fading {
+    opacity: 0.3;
+}
+
+.adm-login.is-narrow {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+}
+
+/* ---------- 왼쪽 브랜드 패널 ---------- */
+.adm-login-brand {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: clamp(28px, 4vh, 44px) clamp(32px, 4vw, 64px);
+    background: var(--adm-side);
+    color: var(--adm-on-navy);
+}
+
+.is-narrow .adm-login-brand {
+    min-height: 240px;
+    padding: 24px 24px 28px;
+}
+
+.adm-login-wordmark {
+    display: block;
+    height: 40px;
+    width: auto;
+    align-self: flex-start;
+}
+
+.adm-login-brand-body {
+    position: relative;
+    z-index: 1;
+    margin-top: auto;
+}
+
+.adm-login-brand-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--adm-login-eyebrow);
+}
+
+.adm-login-brand-title {
+    margin-top: 10px;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+.adm-login-brand-desc {
+    margin-top: 10px;
+    max-width: 340px;
+    font-size: 15px;
+    color: var(--adm-side-fg);
+}
+
+.adm-login-character {
+    position: absolute;
+    right: clamp(24px, 5vw, 72px);
+    bottom: clamp(24px, 6vh, 64px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.adm-login-character img {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: clamp(110px, 11vw, 150px);
+}
+
+.is-narrow .adm-login-character img {
+    width: 84px;
+}
+
+.adm-login-character-shadow {
+    width: 70%;
+    height: 12px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--adm-text) 22%, transparent);
+    filter: blur(4px);
+}
+
+/* ---------- 글자 크기 버튼 ---------- */
+.adm-login-fontsize {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    z-index: 5;
+    display: flex;
+    overflow: hidden;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    background: var(--adm-panel);
+}
+
+.adm-login-fontsize button {
+    height: 26px;
+    min-width: 28px;
+    padding: 0 6px;
+    border: 0;
+    border-right: 1px solid var(--adm-bd2);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.adm-login-fontsize button[data-fs-step="-1"] { font-size: 11px; }
+.adm-login-fontsize button[data-fs-step="reset"] { font-size: 12.5px; }
+.adm-login-fontsize button[data-fs-step="1"] { font-size: 14px; }
+
+.adm-login-fontsize button.is-active {
+    background: var(--adm-side);
+    color: var(--adm-on-navy);
+}
+
+.adm-login-fontsize button.is-dim {
+    opacity: 0.4;
+}
+
+/* ---------- 오른쪽 폼 ---------- */
+.adm-login-form-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+}
+
+.adm-login-form {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+}
+
+.adm-login-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--adm-sub);
+}
+
+.adm-login-heading {
+    margin: 8px 0 0;
+    font-size: 28px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+.adm-login-heading span {
+    color: var(--adm-side);
+}
+
+.adm-login-lead {
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--adm-sub);
+}
+
+.adm-login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.adm-login-field-first {
+    margin-top: 28px;
+}
+
+.adm-login-field input {
+    height: 46px;
+    padding: 0 12px;
+    border: 1px solid var(--adm-login-input-bd);
+    border-radius: 3px;
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.adm-login-field input::placeholder {
+    color: var(--adm-placeholder);
+}
+
+.adm-login-form.is-error .adm-login-field input {
+    border-color: var(--adm-login-err-bd);
+}
+
+.adm-login input:focus-visible,
+.adm-login button:focus-visible,
+.adm-login a:focus-visible {
+    outline: 2px solid var(--adm-focus-ring);
+    outline-offset: 2px;
+}
+
+.adm-login-error-slot {
+    min-height: 22px;
+    margin-top: 8px;
+}
+
+.adm-login-error {
+    font-size: 13px;
+    color: var(--adm-login-err-fg);
+}
+
+.adm-login-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 52px;
+    margin-top: 10px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--adm-side);
+    color: var(--adm-on-navy);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.adm-login-submit:hover {
+    background: var(--adm-navy-btn-hover);
+}
+
+.adm-login-submit:disabled {
+    cursor: default;
+}
+
+.adm-login-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--adm-on-navy) 35%, transparent);
+    border-top-color: var(--adm-on-navy);
+    animation: adm-login-spin 0.7s linear infinite;
+}
+
+.adm-login-spinner[hidden] {
+    display: none;
+}
+
+@keyframes adm-login-spin {
+    to { transform: rotate(360deg); }
+}
+
+.adm-login-notice {
+    margin-top: 10px;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--adm-sub);
+}
+
+.adm-login-links {
+    margin-top: 18px;
+    display: flex;
+    gap: 14px;
+    font-size: 13px;
+}
+
+.adm-login-links[hidden] {
+    display: none;
+}
+
+.adm-login-links a {
+    color: var(--adm-sub);
+    text-decoration: none;
+}
+
+.adm-login-links a:hover {
+    text-decoration: underline;
+}
