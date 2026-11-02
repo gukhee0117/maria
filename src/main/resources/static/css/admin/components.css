@@ -295,6 +295,11 @@
     overflow-wrap: anywhere;
 }
 
+/* 새 디자인 화면의 본문 바탕색 (원본 --bg). layout.css 의 .content 배경(--pageBg) 대신 쓴다. */
+.content.adm-main:has(.adm-page) {
+    background: var(--adm-bg);
+}
+
 /* ---------- 화면 공통 바탕: 새 디자인 본문은 이 클래스를 화면 맨 바깥에 붙인다 (원본 루트의 글꼴·색) ---------- */
 .adm-page {
     display: flex;
@@ -1007,4 +1012,75 @@ input[type="datetime-local"].adm-input {
     background: var(--adm-tip-bg);
     color: var(--adm-tip-fg);
     font-size: 11.5px;
+}
+
+/* ---------- 카드 (제목 줄 30px + 본문) : 통계보드 등 카드형 화면 공통 (A-5) ---------- */
+.adm-card {
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.adm-card[hidden] {
+    display: none;
+}
+
+.adm-card-head {
+    box-sizing: content-box; /* 원본은 높이 30px + 아래 선 1px */
+    height: 30px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    overflow: hidden;
+    padding: 0 10px;
+    background: var(--adm-head);
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-card-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.adm-card-sub {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--adm-sub);
+}
+
+/* 카드 안 데이터 없음 (캐릭터 + 안내 문구) */
+.adm-card-empty {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--adm-sub);
+}
+
+.adm-card-empty[hidden] {
+    display: none;
+}
+
+.adm-card-empty img {
+    width: 36px;
+    display: block;
+}
+
+/* 표 칸 오른쪽 정렬 (원본 AdminTable 의 숫자 칸) */
+.adm-gtable th.is-r,
+.adm-gtable td.is-r {
+    justify-content: flex-end;
 }

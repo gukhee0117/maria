@@ -89,9 +89,20 @@
   --adm-shadow-toast: 0 10px 24px -12px rgba(10,20,38,.5);  /* 토스트 그림자 */
   --adm-toast-dot: #00B386;                     /* 토스트 앞 점 */
   --adm-shadow-fly: 8px 10px 24px -12px rgba(0,0,0,.5);  /* 접힌 사이드바 그룹 메뉴 그림자 */
+  /* ----- 원본 통계보드(9001)의 차트 색 (A-5에서 추가). 원본 마크업/스크립트에 직접 쓰인 값 그대로.
+           상태 도넛 = 1·4·5·회색, 종목 막대 = 1~5 (기타는 --adm-bd2), 나이대 막대 = chart-bar (최대값만 gold) ----- */
+  --adm-chart-1: #183A6B;           /* 상태 도넛 1번째 조각, 종목 막대 1위 */
+  --adm-chart-2: #2F5C9E;           /* 종목 막대 2위 */
+  --adm-chart-3: #4E83D6;           /* 종목 막대 3위 */
+  --adm-chart-4: #6FA8FF;           /* 상태 도넛 2번째 조각, 종목 막대 4위 */
+  --adm-chart-5: #A9CBFF;           /* 상태 도넛 3번째 조각, 종목 막대 5위 */
+  --adm-chart-gray: #CBD3DE;        /* 상태 도넛 4번째 조각 */
+  --adm-chart-gold: #D8A94E;        /* 나이대 막대 중 가장 큰 값 */
+  --adm-chart-bar: #183A6B;         /* 나이대 막대 기본색 (다크는 #6FA8FF) */
 }
 
 [data-theme="dark"] {
+  --adm-chart-bar: #6FA8FF;
   --adm-bg: #0D192C;
   --adm-panel: #13233D;
   --adm-bd: #26395A;
