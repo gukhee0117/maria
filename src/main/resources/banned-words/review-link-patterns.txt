@@ -1,0 +1,3 @@
+# 보류(REVIEW) 링크 — 목적지를 숨기는 단축 URL, 전화번호
+(^|[^a-z])(bit\.ly|han\.gl|me2\.kr|vo\.la|url\.kr|buly\.kr|tinyurl\.com|naver\.me|goo\.gl|is\.gd)/
+01[016789][\s.\-]?\d{3,4}[\s.\-]?\d{4}
