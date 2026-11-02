@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
 @RestControllerAdvice
@@ -61,6 +62,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponseDTO<Void>> handleNotReadable(
             HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest().body(ApiResponseDTO.of("요청 형식이 올바르지 않습니다."));
+    }
+
+    // 경로·쿼리 값의 형식이 틀린 요청(숫자 자리에 글자, 없는 enum 값 등). 처리하지 않으면 폴백이 500으로 바꿔 버린다.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponseDTO<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest().body(ApiResponseDTO.of("요청값이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(AppException.class)

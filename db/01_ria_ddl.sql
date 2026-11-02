@@ -72,7 +72,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE customer (
     customer_id   BIGINT      NOT NULL AUTO_INCREMENT,
     name          VARCHAR(50) NOT NULL COMMENT '이름(표시/감사용, 해시 입력 아님)',
-    nickname      VARCHAR(20) NULL     COMMENT '채팅방 닉네임',
+    nickname      VARCHAR(20) NULL     COMMENT '커뮤니티 닉네임(시드가 채우고 앱은 조회만 함. 새로 가입한 고객은 NULL)',
     birth_date    DATE        NOT NULL COMMENT '생년월일',
     phone         VARCHAR(20) NULL     COMMENT '연락처',
     email         VARCHAR(100) NULL    COMMENT '이메일',
