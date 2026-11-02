@@ -1,7 +1,7 @@
 /* 관리자 공통 부품 (A-3에서 미리 만듦, 화면에는 A-4부터 적용)
-   원본: admin.dc.html 의 버튼 · 모달 · 상세 패널 · 표 · 요약 카드 · 배지 스타일 (치수는 원본 값 그대로).
+   원본: admin.dc.html 의 버튼 · 모달 · 화면 틀(제목·요약·조회조건) · 표 영역 · 상세 패널 · 배지 스타일 (치수는 원본 값 그대로).
    - 색·그림자는 tokens.css 의 --adm- 변수만 사용한다.
-   - 지금 실제로 쓰는 것은 .adm-btn 과 .adm-modal* (업무시각 모달) 뿐이다. 나머지는 A-4부터 페이지에 붙인다. */
+   - 감사 로그(9002)가 첫 적용 화면이고, 이후 화면도 이 부품을 그대로 쓴다. 화면 전용 규칙은 화면별 CSS(예: audit-log.css)에 둔다. */
 
 /* ---------- 버튼 ---------- */
 .adm-btn {
@@ -200,6 +200,7 @@
 }
 
 .adm-panel {
+    box-sizing: content-box; /* 원본은 너비 520px + 왼쪽 선 1px */
     position: fixed;
     top: 0;
     right: 0;
@@ -220,6 +221,7 @@
 }
 
 .adm-panel-head {
+    box-sizing: content-box;
     flex: 0 0 auto;
     height: 40px;
     display: flex;
@@ -262,6 +264,13 @@
     border-bottom: 0;
 }
 
+.adm-kv-k,
+.adm-kv-v,
+.adm-diff-row,
+.adm-diff-row > span {
+    box-sizing: content-box;
+}
+
 .adm-kv-k {
     padding: 0 10px;
     min-height: 30px;
@@ -286,59 +295,689 @@
     overflow-wrap: anywhere;
 }
 
-/* ---------- 요약 카드 ---------- */
-.adm-summary {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
+/* ---------- 화면 공통 바탕: 새 디자인 본문은 이 클래스를 화면 맨 바깥에 붙인다 (원본 루트의 글꼴·색) ---------- */
+.adm-page {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    height: 100%;
+    min-height: 0;
+    color: var(--adm-text);
+    font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-page button,
+.adm-page input,
+.adm-page select {
+    font-family: inherit;
+    letter-spacing: inherit;
+}
+
+/* ---------- 화면 틀: 제목 줄 + 요약 + 조회조건 (원본 admin.dc.html 의 화면 위쪽 section) ---------- */
+.adm-screen {
+    flex: 0 0 auto;
     background: var(--adm-panel);
     border: 1px solid var(--adm-bd);
 }
 
-.adm-summary-card {
+.adm-screen-head {
+    box-sizing: content-box; /* 원본은 높이 30px + 아래 선 1px */
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    background: var(--adm-head);
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-screen-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.adm-screen-no {
+    color: var(--adm-navy-fg);
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-screen-path {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+/* 요약 (한 줄) */
+.adm-summary {
+    min-height: 36px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0 4px;
+}
+
+.adm-summary-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 0 12px;
+    border-left: 1px solid var(--adm-bd);
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+.adm-summary-item:first-child {
+    border-left: 0;
+}
+
+.adm-summary-label {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-summary-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--adm-navy-fg);
+}
+
+.adm-summary-unit {
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+/* 조회조건 */
+.adm-qbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    background: var(--adm-qbox);
+    border-top: 1px solid var(--adm-bd);
+}
+
+.adm-qgrid {
+    flex: 1;
     min-width: 0;
-    padding: 6px 12px;
-    border-right: 1px solid var(--adm-bd);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 4px 14px;
 }
 
-.adm-summary-card:last-child {
-    border-right: 0;
+.adm-qfield {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--adm-sub);
 }
 
-/* ---------- 표 ---------- */
-.adm-table {
-    width: 100%;
-    border-collapse: collapse;
+.adm-qfield-range {
+    grid-template-columns: 72px minmax(0, 176px) 10px minmax(0, 176px);
+    grid-column: span 2;
+    min-width: 0;
+}
+
+.adm-qfield-range .adm-qsep {
+    text-align: center;
+}
+
+.adm-qbtns {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    align-self: flex-start;
+}
+
+.adm-input {
+    height: 26px;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    background: var(--adm-field);
+    color: var(--adm-text);
+    font: inherit;
     font-size: 12.5px;
 }
 
-.adm-table th {
-    height: 28px;
-    padding: 0 8px;
+.adm-input::placeholder {
+    color: var(--adm-placeholder);
+}
+
+input[type="datetime-local"].adm-input {
+    padding: 0 4px;
+    font-size: 12px;
+}
+
+.adm-select-wrap {
+    position: relative;
+    min-width: 0;
+}
+
+.adm-select-wrap::after {
+    content: "▼";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--adm-sub);
+    pointer-events: none;
+}
+
+.adm-select {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 22px;
+    cursor: pointer;
+}
+
+.adm-select option {
+    background: var(--adm-panel);
+    color: var(--adm-text);
+}
+
+.adm-btn.adm-btn-md {
+    height: 26px;
+    padding: 0 12px;
+}
+
+.adm-btn-primary.adm-btn-md {
+    padding: 0 14px;
+}
+
+.adm-btn-primary.adm-btn-md:hover:not(:disabled) {
+    border-color: var(--adm-navy-btn);
+    filter: brightness(1.15);
+}
+
+/* ---------- 표 영역 (제목 줄 + 쪽 이동 + 표) ---------- */
+.adm-grid {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-grid-head {
+    box-sizing: content-box; /* 원본은 높이 30px + 아래 선 1px */
+    height: 30px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 10px;
+    background: var(--adm-head);
+    border-bottom: 1px solid var(--adm-bd);
+    white-space: nowrap;
+}
+
+.adm-grid-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.adm-grid-total {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-grid-total b {
+    color: var(--adm-text);
+}
+
+.adm-pager {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 10px;
+}
+
+.adm-page-btn {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px;
+    border-radius: 2px;
+    border: 1px solid var(--adm-bd2);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.adm-page-btn.is-nav {
+    padding: 0 7px;
+    font-weight: 400;
+}
+
+.adm-page-btn.is-active {
+    border-color: var(--adm-navy-btn);
+    background: var(--adm-navy-btn);
+    color: var(--adm-on-navy);
+    font-weight: 700;
+    cursor: default;
+}
+
+.adm-page-btn:disabled:not(.is-active) {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.adm-per {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    font-size: 11.5px;
+    color: var(--adm-sub);
+}
+
+.adm-seg {
+    display: flex;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.adm-seg button {
+    height: 20px;
+    padding: 0 7px;
+    border: 0;
+    border-right: 1px solid var(--adm-bd2);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.adm-seg button.is-on {
+    background: var(--adm-navy-btn);
+    color: var(--adm-on-navy);
+    font-weight: 700;
+}
+
+.adm-grid-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 표: <table> 이지만 원본 AdminTable 처럼 grid 로 칸 너비를 계산한다.
+   칸 너비는 표에 --adm-cols (grid-template-columns), --adm-cols-min (최소 너비) 로 준다. */
+.adm-grid-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background-color: var(--adm-panel);
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 29px, var(--adm-line) 29px, var(--adm-line) 30px);
+    background-position: 0 28px;
+    background-attachment: local;
+}
+
+.adm-gtable {
+    display: block;
+    min-width: var(--adm-cols-min);
+    height: 100%;
+    margin: 0;
+    border-collapse: collapse;
+}
+
+.adm-gtable thead,
+.adm-gtable tbody {
+    display: block;
+}
+
+.adm-gtable tbody {
+    display: flex;
+    flex-direction: column;
+}
+
+.adm-gtable thead {
+    position: sticky;
+    top: 0;
+    z-index: 4;
     background: var(--adm-grid-head);
     border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-gtable tr {
+    display: grid;
+    grid-template-columns: var(--adm-cols);
+    box-sizing: content-box;
+}
+
+.adm-gtable th {
+    box-sizing: content-box;
+    height: 28px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border-right: 1px solid var(--adm-bd);
     font-size: 12px;
     font-weight: 700;
+    color: var(--adm-text);
     text-align: left;
     white-space: nowrap;
 }
 
-.adm-table td {
-    height: 28px;
-    padding: 0 8px;
+.adm-gtable tbody tr {
+    height: 30px;
     border-bottom: 1px solid var(--adm-line);
 }
 
-.adm-table tbody tr:nth-child(even) td {
+.adm-gtable tbody tr.is-clickable {
+    cursor: pointer;
+}
+
+.adm-gtable tbody tr.is-clickable:nth-child(even) {
     background: var(--adm-zebra);
 }
 
-.adm-table tbody tr:hover td {
+.adm-gtable tbody tr.is-clickable:hover {
     background: var(--adm-hover);
 }
 
-.adm-table tbody tr.is-selected td {
+.adm-gtable tbody tr.is-selected {
     background: var(--adm-sel);
+    box-shadow: inset 3px 0 0 var(--adm-side-accent);
+}
+
+.adm-gtable td {
+    min-width: 0;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid var(--adm-line);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--adm-text);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.adm-gtable td > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-gtable .adm-col-no {
+    justify-content: center;
+}
+
+.adm-gtable td.adm-col-no {
+    font-size: 11.5px;
+    color: var(--adm-sub);
+}
+
+/* 불러오는 중 · 오류 · 빈 결과 행 (표 한 줄을 통째로 차지) */
+.adm-gtable tbody tr.is-state {
+    display: block;
+    height: auto;
+    border-bottom: 0;
+    background: transparent;
+}
+
+.adm-gtable tbody tr.is-state > td {
+    display: block;
+    padding: 0;
+    border-right: 0;
+    overflow: visible;
+}
+
+.adm-gtable tbody tr.is-state-fill {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.adm-gtable tbody tr.is-state-fill > td {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.adm-grid-scroll:has(.adm-state-empty),
+.adm-grid-scroll:has(.adm-state-error) {
+    background-image: none;
+}
+
+.adm-gtable:has(.adm-state-empty) thead,
+.adm-gtable:has(.adm-state-error) thead {
+    display: none;
+}
+
+.adm-skel-row {
+    display: grid;
+    grid-template-columns: var(--adm-cols);
+    height: 30px;
+    border-bottom: 1px solid var(--adm-line);
+}
+
+.adm-skel-cell {
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+}
+
+.adm-skel-cell > span {
+    display: block;
+    height: 10px;
+    background: var(--adm-skel);
+    animation: adm-skel 1.3s ease-in-out infinite;
+}
+
+@keyframes adm-skel {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.45;
+    }
+}
+
+.adm-state-error {
+    margin: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--adm-warn-bd);
+    background: var(--adm-warn-bg);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.adm-state-error-text {
+    flex: 1;
+    min-width: 200px;
+}
+
+.adm-state-error-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--adm-warn-fg);
+}
+
+.adm-state-error-desc {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-state-error .adm-btn {
+    height: 26px;
+    padding: 0 12px;
+    border-color: var(--adm-login-err-bd);
+    color: var(--adm-warn-fg);
+    font-weight: 600;
+}
+
+.adm-state-empty {
+    flex: 1;
+    padding: 36px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.adm-state-empty img {
+    width: 60px;
+    display: block;
+}
+
+.adm-state-empty-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.adm-state-empty-desc {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-state-empty .adm-btn {
+    margin-top: 4px;
+    height: 26px;
+    padding: 0 12px;
+}
+
+/* 상세 패널 머리 / 닫기 / 구역 제목 / 변경 전·후 비교표 */
+.adm-panel-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-panel-no {
+    font-size: 12px;
+    color: var(--adm-navy-fg);
+    font-weight: 700;
+}
+
+.adm-panel-name {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.adm-panel-sub {
+    font-size: 12px;
+    color: var(--adm-sub);
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* layout.css 의 button[id*="Close"] (28px, 20px 글자) 규칙보다 우선하도록 선택자를 한 단계 높인다 */
+.adm-panel .adm-panel-close {
+    font-size: 13.3333px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--adm-bd2);
+    border-radius: 2px;
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+
+.adm-panel .adm-panel-close svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+}
+
+.adm-section-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.adm-diff {
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-diff-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 1fr;
+    min-height: 30px;
+    border-bottom: 1px solid var(--adm-line);
+    font-size: 12px;
+}
+
+.adm-diff-head {
+    height: 28px;
+    min-height: 0;
+    background: var(--adm-grid-head);
+    border-bottom: 1px solid var(--adm-bd);
+    font-weight: 700;
+}
+
+.adm-diff-row > span {
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    border-right: 1px solid var(--adm-line);
+}
+
+.adm-diff-head > span {
+    border-right-color: var(--adm-bd);
+}
+
+.adm-diff-row > span:last-child {
+    border-right: 0;
+}
+
+.adm-diff-f {
+    background: var(--adm-head);
+    color: var(--adm-sub);
+}
+
+.adm-diff-b {
+    color: var(--adm-sub);
+    text-decoration: line-through;
+}
+
+.adm-diff-a {
+    background: var(--adm-info-bg);
+    color: var(--adm-info-fg);
+    font-weight: 700;
+}
+
+.adm-diff-head > span {
+    background: transparent;
+    color: var(--adm-text);
+    text-decoration: none;
 }
 
 /* ---------- 상태 배지 (ok / info / warn / fail / off) ---------- */

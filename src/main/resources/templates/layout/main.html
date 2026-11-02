@@ -152,7 +152,10 @@
                             <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                             <span class="adm-side-label">인출 관리</span>
                         </a>
-                        <a class="adm-side-item" th:href="@{/admin/account-closures}" data-no="1403" data-label="계좌 해지 관리" title="[1403] 계좌 해지 관리"
+                        <!-- 계좌 해지 자동 처리 전환으로 관리자 메뉴에서는 해지관리 화면을 노출하지 않는다. (팀 결정)
+                             화면(/admin/account-closures)과 컨트롤러는 그대로 두고 링크만 숨긴다.
+                             hidden 이면 Ctrl K 검색·접힌 사이드바 팝업·그룹 배지 합산에서도 빠진다 (layout.js 가 [hidden] 항목을 건너뜀). -->
+                        <a class="adm-side-item" hidden th:href="@{/admin/account-closures}" data-no="1403" data-label="계좌 해지 관리" title="[1403] 계좌 해지 관리"
                            th:classappend="${activePath == '/admin/account-closures'} ? ' is-active' : ''">
                             <span class="adm-side-bar"></span>
                             <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/></svg>

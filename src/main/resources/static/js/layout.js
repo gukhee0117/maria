@@ -162,7 +162,7 @@ $(function () {
         $groups.each(function () {
             var $group = $(this);
             var sum = 0;
-            $group.find(".adm-side-badge").each(function () {
+            $group.find(".adm-side-item:not([hidden]) .adm-side-badge").each(function () {
                 if ($(this).css("display") !== "none") { sum += parseInt($(this).text(), 10) || 0; }
             });
             $group.find(".adm-side-groupsum").text(sum).prop("hidden", sum <= 0);
@@ -176,7 +176,7 @@ $(function () {
         var $group = $(this).closest(".adm-side-group");
         var rect = this.getBoundingClientRect();
         var zoom = currentZoom();
-        var $items = $group.find(".adm-side-item");
+        var $items = $group.find(".adm-side-item:not([hidden])");
         $fly.empty().append($("<div>", { "class": "adm-side-fly-head", text: $group.data("group") }));
         $items.each(function () {
             var $item = $(this);
@@ -207,7 +207,7 @@ $(function () {
     // ---------- 메뉴 검색 (화면번호 · 이름 · 그룹) ----------
     var $search = $("#admSideSearch");
     var $results = $("#admSideResults");
-    var searchItems = $side.find(".adm-side-item").map(function () {
+    var searchItems = $side.find(".adm-side-item:not([hidden])").map(function () {
         var $item = $(this);
         return {
             no: String($item.data("no")),
