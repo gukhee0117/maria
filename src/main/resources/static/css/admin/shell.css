@@ -811,11 +811,9 @@ body {
 .adm-shell .adm-main .settlement-management,
 .adm-shell .adm-main #diBody,
 .adm-shell .adm-main #ibBody,
-.adm-shell .adm-main #tpBody,
 .adm-shell .adm-main #taxBody,
 .adm-shell .adm-main > div:has(> #diBody),
 .adm-shell .adm-main > div:has(> #ibBody),
-.adm-shell .adm-main > div:has(> #tpBody),
 .adm-shell .adm-main > div:has(> #taxBody) {
     height: 100%;
 }

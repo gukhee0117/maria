@@ -1,0 +1,58 @@
+/* 외부 감시 (1301) 화면 전용 규칙 (A-6)
+   원본: admin.dc.html 의 외부 감시 화면. 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/target-products.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.target-products) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.target-products {
+    /* 칸 너비: 원본 칸 너비(No 40 · 130 · 80 · 84 · 190 · 74 · 110 · 110 · 100)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 */
+    --adm-cols: 40px minmax(116px, 1fr) minmax(66px, 1fr) minmax(70px, 1fr) minmax(176px, 1fr) minmax(60px, 1fr) minmax(96px, 1fr) minmax(96px, 1fr) minmax(86px, 1fr);
+    --adm-cols-min: 806px;
+}
+
+/* 배치 수동 실행 결과 글 */
+.tp-batch-result {
+    font-size: 11.5px;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+.tp-batch-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tp-batch-group[hidden] {
+    display: none;
+}
+
+/* 방금 배치로 들어온 판정 */
+.target-products .adm-gtable tbody tr.tp-new-row {
+    background: var(--adm-info-bg);
+}
+
+.tp-new-badge {
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 2px;
+    background: var(--adm-navy-btn);
+    color: var(--adm-on-navy);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 14px;
+}
+
+/* 순매수금액이 음수일 때 */
+.tp-negative {
+    color: var(--adm-fail-fg);
+}
+
+/* 확인 창 안의 값 */
+.target-products .adm-modal-desc + .adm-modal-help {
+    margin-top: 6px;
+}
