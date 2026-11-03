@@ -62,7 +62,7 @@ class CustomerSignupConcurrencyTest {
                 """
                 CREATE TABLE customer (
                     customer_id BIGINT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50) NOT NULL,
-                    birth_date DATE NOT NULL, phone VARCHAR(20), investor_type VARCHAR(20) NOT NULL,
+                    birth_date DATE NOT NULL, phone VARCHAR(20), email VARCHAR(100), investor_type VARCHAR(20) NOT NULL,
                     ci_hash VARCHAR(64) NOT NULL UNIQUE,
                     nickname VARCHAR(20) UNIQUE,
                     investor_type_public BOOLEAN NOT NULL DEFAULT FALSE,
@@ -144,6 +144,8 @@ class CustomerSignupConcurrencyTest {
         request.setRrn(RRN);
         request.setName("홍길동");
         request.setBirthDate(LocalDate.of(1990, 1, 1));
+        request.setPhone("010-1234-5678");
+        request.setEmail("hong@example.com");
         return request;
     }
 }

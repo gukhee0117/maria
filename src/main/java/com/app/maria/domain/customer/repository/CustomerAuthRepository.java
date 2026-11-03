@@ -3,6 +3,7 @@ package com.app.maria.domain.customer.repository;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.repository.Repository;
 
@@ -11,6 +12,10 @@ public interface CustomerAuthRepository extends Repository<CustomerAuthEntity, L
     @EntityGraph(attributePaths = {"customer", "password"})
     List<CustomerAuthEntity> findTop2ByLoginIdAndTypeOrderByAuthIdAsc(
             String loginId, AuthType type);
+
+    /** 비밀번호 변경용. 소셜 로그인만 있는 고객은 LOCAL 계정이 없다. */
+    @EntityGraph(attributePaths = {"password"})
+    Optional<CustomerAuthEntity> findByCustomerCustomerIdAndType(Long customerId, AuthType type);
 
     boolean existsByCustomerCustomerId(Long customerId);
 

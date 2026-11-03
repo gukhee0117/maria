@@ -31,6 +31,10 @@ public class CustomerAuthPasswordEntity {
     @Column(name = "password", nullable = false, length = 255)
     private String passwordHash;
 
+    public void changeHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public static CustomerAuthPasswordEntity of(CustomerAuthEntity auth, String passwordHash) {
         CustomerAuthPasswordEntity password = new CustomerAuthPasswordEntity();
         password.auth = auth;

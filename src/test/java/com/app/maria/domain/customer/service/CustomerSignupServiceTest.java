@@ -69,7 +69,7 @@ class CustomerSignupServiceTest {
                 """
                 CREATE TABLE customer (
                     customer_id BIGINT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50) NOT NULL,
-                    birth_date DATE NOT NULL, phone VARCHAR(20), investor_type VARCHAR(20) NOT NULL,
+                    birth_date DATE NOT NULL, phone VARCHAR(20), email VARCHAR(100), investor_type VARCHAR(20) NOT NULL,
                     ci_hash VARCHAR(64) NOT NULL UNIQUE,
                     nickname VARCHAR(20) UNIQUE,
                     investor_type_public BOOLEAN NOT NULL DEFAULT FALSE,
@@ -116,6 +116,50 @@ class CustomerSignupServiceTest {
         assertThat(row.get("INVESTOR_TYPE")).isEqualTo("UNASSIGNED");
         assertThat(row.get("CI_HASH")).isEqualTo(ciHasher.of(RRN));
         assertThat(row.get("CREATED_AT").toString()).startsWith("2026-10-25 12:00:00");
+    }
+
+    @Test
+    @DisplayName("가입 때 적은 휴대폰(하이픈 정규화)과 이메일을 저장한다")
+    void storesContact() {
+        service.signup(request("hong1234", "홍길동", BIRTH));
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT phone, email FROM customer");
+        assertThat(row.get("PHONE")).isEqualTo("010-1234-5678");
+        assertThat(row.get("EMAIL")).isEqualTo("hong@example.com");
+    }
+
+    @Test
+    @DisplayName("이미 있는 더미 고객의 연락처는 가입 때 적은 값으로 바뀐다")
+    void overwritesDummyCustomerContact() {
+        insertDummyCustomer("홍길동", BIRTH);
+        jdbc.update("UPDATE customer SET phone = '010-9000-0001'");
+
+        service.signup(request("hong1234", "홍길동", BIRTH));
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT phone, email FROM customer");
+        assertThat(row.get("PHONE")).isEqualTo("010-1234-5678");
+        assertThat(row.get("EMAIL")).isEqualTo("hong@example.com");
+    }
+
+    @Test
+    @DisplayName("닉네임이 없는 고객에게는 가입할 때 무작위 닉네임을 붙인다")
+    void assignsRandomNicknameWhenMissing() {
+        service.signup(request("hong1234", "홍길동", BIRTH));
+
+        String nickname = jdbc.queryForObject("SELECT nickname FROM customer", String.class);
+        assertThat(nickname).matches("[가-힣]+\\d{3,4}");
+    }
+
+    @Test
+    @DisplayName("이미 닉네임이 있는 고객의 닉네임은 가입해도 바뀌지 않는다")
+    void keepsExistingNickname() {
+        insertDummyCustomer("홍길동", BIRTH);
+        jdbc.update("UPDATE customer SET nickname = '재빠른수달5588'");
+
+        service.signup(request("hong1234", "홍길동", BIRTH));
+
+        assertThat(jdbc.queryForObject("SELECT nickname FROM customer", String.class))
+                .isEqualTo("재빠른수달5588");
     }
 
     @Test
@@ -203,6 +247,8 @@ class CustomerSignupServiceTest {
         request.setRrn(RRN);
         request.setName(name);
         request.setBirthDate(birth);
+        request.setPhone("01012345678");
+        request.setEmail("hong@example.com");
         return request;
     }
 

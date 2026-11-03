@@ -24,6 +24,8 @@ public interface CustomerRepository extends Repository<CustomerEntity, Long> {
 
     Optional<CustomerEntity> findById(Long customerId);
 
+    boolean existsByNickname(String nickname);
+
     CustomerEntity saveAndFlush(CustomerEntity customer);
 
     /** 글·댓글 목록에 작성자 닉네임과 성향 공개 여부를 한 번에 붙이기 위한 조회. */

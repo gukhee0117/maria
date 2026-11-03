@@ -34,6 +34,9 @@ public class CustomerEntity {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "email", length = 100)
+    private String email;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "investor_type", nullable = false, length = 20)
     private InvestorType investorType;
@@ -62,6 +65,21 @@ public class CustomerEntity {
         customer.createdAt = createdAt;
         customer.investorType = InvestorType.UNASSIGNED;
         return customer;
+    }
+
+    /** 닉네임이 없는 고객에게 처음 닉네임을 붙인다. 변경은 지원하지 않는다. */
+    public void assignNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    /** 연락처를 바꾼다. null인 항목은 그대로 둔다. 형식 검사와 정규화는 호출하는 쪽이 한다. */
+    public void changeContact(String phone, String email) {
+        if (phone != null) {
+            this.phone = phone;
+        }
+        if (email != null) {
+            this.email = email;
+        }
     }
 
     public void changeInvestorTypePublic(boolean investorTypePublic) {
