@@ -33,7 +33,7 @@ public class KkiruCallPlanner {
                     KkiruStatus.FAILED);
 
     // 고객·글 한도에 세는 상태. 남용 방지라 범위 밖도 세고 후속 질문만 뺀다.
-    // 상태를 새로 만들면 여기 넣을지 정해야 한다(IsNotNull로 세면 새 상태가 조용히 한도에 들어간다).
+    // 상태를 새로 만들면 여기 넣을지 정해야 한다. 글·댓글 모두 이 목록으로 센다.
     private static final List<KkiruStatus> LIMITED_STATUSES =
             List.of(
                     KkiruStatus.PENDING,
@@ -51,6 +51,11 @@ public class KkiruCallPlanner {
     /** 커뮤니티 전체가 하루에 쓸 수 있는 답변 수(LLM·외부 호출 비용 상한). */
     @Value("${maria.community.kkiru.daily-answer-limit:300}")
     private int dailyAnswerLimit = 300;
+
+    /** 다시 묻기 검사: 글을 고친 뒤라 본문이 아직 호출 조건(멘션 있음, 범위 안)인지 본다. 한도는 처음 호출 때 셌으므로 다시 세지 않는다. */
+    public boolean canRetry(String content) {
+        return KkiruMention.in(content) && !questionClassifier.isOutOfScope(content);
+    }
 
     /**
      * 한도 확인과 호출 예약(PENDING 저장)이 원자적이도록 고객 행과 전체 잠금 행을 잠근다. lock 순서는 글 → 고객 → 전체로 고정한다. 호출하는 트랜잭션은
@@ -70,8 +75,8 @@ public class KkiruCallPlanner {
                 .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
         LocalDateTime dayStart = clock.now().toLocalDate().atStartOfDay();
         long usedToday =
-                postRepository.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                                customerId, dayStart) // 글에는 FOLLOW_UP이 생기지 않는다
+                postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                customerId, LIMITED_STATUSES, dayStart)
                         + commentRepository
                                 .countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
                                         customerId, LIMITED_STATUSES, dayStart);
@@ -82,7 +87,8 @@ public class KkiruCallPlanner {
             long usedOnPost =
                     commentRepository.countByCommunityPostIdAndKkiruStatusIn(
                                     postId, LIMITED_STATUSES)
-                            + (postRepository.existsByCommunityPostIdAndKkiruStatusIsNotNull(postId)
+                            + (postRepository.existsByCommunityPostIdAndKkiruStatusIn(
+                                            postId, LIMITED_STATUSES)
                                     ? 1
                                     : 0);
             if (usedOnPost >= maxCallsPerPost) {

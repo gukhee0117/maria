@@ -407,8 +407,8 @@ class CommunityRepositoryTest {
         assertThat(comments.countByCommunityPostIdAndKkiruStatusIn(p.getCommunityPostId(), counted))
                 .isEqualTo(1);
         assertThat(
-                        posts.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                                7L, NOW.toLocalDate().atStartOfDay()))
+                        posts.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                7L, counted, NOW.toLocalDate().atStartOfDay()))
                 .isEqualTo(1);
         assertThat(
                         comments.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(

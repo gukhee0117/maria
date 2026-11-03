@@ -98,7 +98,10 @@ public class CommunityPostServiceImpl implements CommunityPostService {
         if (!post.getCustomerId().equals(customerId)) {
             throw new AppException(ErrorType.COMMUNITY_NOT_AUTHOR, postId);
         }
-        if (post.getKkiruStatus() != KkiruStatus.FAILED || !post.isVisible()) {
+        // FAILED 글은 고칠 수 있어서, 고친 본문이 멘션을 잃었거나 범위 밖이 됐으면 다시 묻기로 우회하지 못하게 한다.
+        if (post.getKkiruStatus() != KkiruStatus.FAILED
+                || !post.isVisible()
+                || !kkiruCallPlanner.canRetry(post.getContent())) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED, postId);
         }
         post.moveKkiruStatus(KkiruStatus.PENDING);

@@ -53,8 +53,8 @@ class KkiruCallPlannerTest {
         when(clock.now()).thenReturn(NOW);
         when(customerRepository.findByIdForUpdate(7L))
                 .thenReturn(Optional.of(mock(CustomerEntity.class)));
-        when(postRepository.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                        7L, DAY_START))
+        when(postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        eq(7L), any(), eq(DAY_START)))
                 .thenReturn(posts);
         when(commentRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
                         eq(7L), any(), eq(DAY_START)))
@@ -100,7 +100,8 @@ class KkiruCallPlannerTest {
         usedToday(0, 0);
         when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any()))
                 .thenReturn(1L);
-        when(postRepository.existsByCommunityPostIdAndKkiruStatusIsNotNull(5L)).thenReturn(true);
+        when(postRepository.existsByCommunityPostIdAndKkiruStatusIn(eq(5L), any()))
+                .thenReturn(true);
         assertThat(planner.plan("@끼루 질문", 7L, 5L)).isEqualTo(KkiruStatus.PENDING);
 
         when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any()))
@@ -121,7 +122,7 @@ class KkiruCallPlannerTest {
         planner.plan("@끼루 질문", 7L, null);
 
         verify(commentRepository, never()).countByCommunityPostIdAndKkiruStatusIn(anyLong(), any());
-        verify(postRepository, never()).existsByCommunityPostIdAndKkiruStatusIsNotNull(any());
+        verify(postRepository, never()).existsByCommunityPostIdAndKkiruStatusIn(any(), any());
     }
 
     @Test
@@ -221,8 +222,8 @@ class KkiruCallPlannerTest {
         InOrder order = inOrder(customerRepository, postRepository, callGate);
         order.verify(customerRepository).findByIdForUpdate(7L);
         order.verify(postRepository)
-                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                        7L, DAY_START);
+                .countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        eq(7L), any(), eq(DAY_START));
         order.verify(callGate).lockDailyLimit();
         order.verify(postRepository)
                 .countByKkiruStatusInAndCreatedAtGreaterThanEqual(any(), eq(DAY_START));

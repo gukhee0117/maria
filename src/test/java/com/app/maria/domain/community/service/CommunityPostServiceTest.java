@@ -697,6 +697,23 @@ class CommunityPostServiceTest {
     }
 
     @Test
+    @DisplayName("FAILED 글을 고쳐 멘션을 지우거나 범위 밖 질문으로 바꾸면 다시 물을 수 없다")
+    void retryKkiruRechecksEditedContent() {
+        CommunityPostEntity noMention = failedPost(me);
+        service.edit(me, noMention.getCommunityPostId(), new PostUpdateRequestDTO("그냥 한마디"));
+        CommunityPostEntity outOfScope = failedPost(me);
+        service.edit(me, outOfScope.getCommunityPostId(), new PostUpdateRequestDTO("@끼루 사도 돼요?"));
+
+        assertError(
+                () -> service.retryKkiru(me, noMention.getCommunityPostId()),
+                ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED);
+        assertError(
+                () -> service.retryKkiru(me, outOfScope.getCommunityPostId()),
+                ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED);
+        assertThat(events.stream(KkiruCallRequestedEvent.class).count()).isZero();
+    }
+
+    @Test
     @DisplayName("다시 묻기는 호출 한도를 쓰지 않는다(하루 한도에 걸린 상태에서도 된다)")
     void retryKkiruIgnoresDailyLimit() {
         CommunityPostEntity failed = failedPost(me);
