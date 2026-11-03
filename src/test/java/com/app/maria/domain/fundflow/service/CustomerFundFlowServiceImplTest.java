@@ -1,6 +1,10 @@
 package com.app.maria.domain.fundflow.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerReliefDTO;
@@ -41,7 +45,7 @@ class CustomerFundFlowServiceImplTest {
 
     @BeforeEach
     void stubClock() {
-        when(businessClockService.now()).thenReturn(NOW);
+        lenient().when(businessClockService.now()).thenReturn(NOW);
     }
 
     @Test
@@ -97,19 +101,51 @@ class CustomerFundFlowServiceImplTest {
     }
 
     @Test
-    @DisplayName("월별: 본인 계좌 월 목록을 기준일과 함께 내린다")
-    void monthlyReturnsOwnMonths() {
-        when(fundFlowMapper.selectCustomerMonthly(CUSTOMER_ID))
+    @DisplayName("월별: 완료된 달 뒤에 진행 중인 달을 partial=true 로 붙이고 기준일을 함께 내린다")
+    void monthlyAppendsPartialMonthMidMonth() {
+        LocalDate monthStart = LocalDate.of(2026, 11, 1);
+        when(fundFlowMapper.selectCustomerMonthly(CUSTOMER_ID, monthStart))
                 .thenReturn(
                         List.of(
                                 FundFlowMonthDTO.builder()
-                                        .flowMonth(LocalDate.of(2026, 4, 1))
+                                        .flowMonth(LocalDate.of(2026, 10, 1))
                                         .build()));
+        when(fundFlowMapper.selectCustomerMonthlyPartial(CUSTOMER_ID, monthStart, CLOCK_DATE))
+                .thenReturn(
+                        FundFlowMonthDTO.builder()
+                                .domesticBuyAmount(new BigDecimal("500"))
+                                .build());
 
         FundFlowMonthlyResponseDTO result = service.getMonthly(CUSTOMER_ID);
 
         assertThat(result.getAsOfDate()).isEqualTo(AS_OF_DATE);
-        assertThat(result.getMonths()).hasSize(1);
+        assertThat(result.getMonths()).hasSize(2);
+        assertThat(result.getMonths().get(0).isPartial()).isFalse();
+        assertThat(result.getMonths().get(1).isPartial()).isTrue();
+        assertThat(result.getMonths().get(1).getFlowMonth()).isEqualTo(monthStart);
+    }
+
+    @Test
+    @DisplayName("월별: 월초(업무시계가 1일)에는 진행 중인 달을 만들지 않는다")
+    void monthlyOmitsPartialMonthOnFirstDay() {
+        when(businessClockService.now()).thenReturn(LocalDateTime.of(2026, 11, 1, 0, 0));
+        when(fundFlowMapper.selectCustomerMonthly(CUSTOMER_ID, LocalDate.of(2026, 11, 1)))
+                .thenReturn(List.of());
+
+        FundFlowMonthlyResponseDTO result = service.getMonthly(CUSTOMER_ID);
+
+        assertThat(result.getMonths()).isEmpty();
+        verify(fundFlowMapper, never()).selectCustomerMonthlyPartial(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("월별: 개설된 계좌가 없으면 진행 중인 달도 없다")
+    void monthlyHasNoPartialMonthWithoutAccount() {
+        when(fundFlowMapper.selectCustomerMonthly(CUSTOMER_ID, LocalDate.of(2026, 11, 1)))
+                .thenReturn(List.of());
+        when(fundFlowMapper.selectCustomerMonthlyPartial(any(), any(), any())).thenReturn(null);
+
+        assertThat(service.getMonthly(CUSTOMER_ID).getMonths()).isEmpty();
     }
 
     @Test

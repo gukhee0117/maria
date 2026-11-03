@@ -7,6 +7,7 @@ import com.app.maria.domain.fundflow.dto.FundFlowCustomerAllocationDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerReliefDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerSummaryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthlyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerAllocationResponseDTO;
@@ -17,6 +18,7 @@ import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
 import com.app.maria.domain.fundflow.type.LeakageCategory;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,11 +58,22 @@ public class CustomerFundFlowServiceImpl implements CustomerFundFlowService {
     @Override
     public FundFlowMonthlyResponseDTO getMonthly(Long customerId) {
         FundFlowFilterDTO filter = buildFilter();
+        List<FundFlowMonthDTO> months =
+                new ArrayList<>(
+                        fundFlowMapper.selectCustomerMonthly(customerId, filter.getMonthStart()));
+        // 월초(업무시계 == 1일)에는 집계할 하루가 아직 없어 진행 중인 달을 내지 않는다.
+        if (filter.getClockDate().isAfter(filter.getMonthStart())) {
+            FundFlowMonthDTO partial =
+                    fundFlowMapper.selectCustomerMonthlyPartial(
+                            customerId, filter.getMonthStart(), filter.getClockDate());
+            if (partial != null) {
+                partial.setFlowMonth(filter.getMonthStart());
+                partial.setPartial(true);
+                months.add(partial);
+            }
+        }
         return new FundFlowMonthlyResponseDTO(
-                FundFlowMonthlyDTO.builder()
-                        .asOfDate(filter.getAsOfDate())
-                        .months(fundFlowMapper.selectCustomerMonthly(customerId))
-                        .build());
+                FundFlowMonthlyDTO.builder().asOfDate(filter.getAsOfDate()).months(months).build());
     }
 
     @Override

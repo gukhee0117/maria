@@ -46,7 +46,15 @@ public interface FundFlowMapper {
     FundFlowCustomerSummaryDTO selectCustomerSummary(
             @Param("customerId") Long customerId, @Param("clockDate") LocalDate clockDate);
 
-    List<FundFlowMonthDTO> selectCustomerMonthly(@Param("customerId") Long customerId);
+    /** 고객 본인 계좌의 완료된 달(monthStart 이전)만 낸다. */
+    List<FundFlowMonthDTO> selectCustomerMonthly(
+            @Param("customerId") Long customerId, @Param("monthStart") LocalDate monthStart);
+
+    /** 고객 본인 계좌의 진행 중인 달 집계. 개설된 계좌가 없으면 null. */
+    FundFlowMonthDTO selectCustomerMonthlyPartial(
+            @Param("customerId") Long customerId,
+            @Param("monthStart") LocalDate monthStart,
+            @Param("clockDate") LocalDate clockDate);
 
     /** 고객 본인 계좌의 보유 종목별 매입금액 */
     List<FundFlowProductCostDTO> selectCustomerProductCosts(@Param("customerId") Long customerId);

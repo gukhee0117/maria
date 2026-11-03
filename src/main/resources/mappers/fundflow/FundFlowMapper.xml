@@ -248,7 +248,7 @@
         SUM(b.qty * b.avg_purchase_price) AS purchaseCost
         FROM domestic_stock_balance b
         JOIN domestic_product p ON p.domestic_product_id = b.domestic_product_id
-        WHERE b.qty &gt; 0
+        WHERE b.qty &gt; 0 AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
         GROUP BY p.domestic_product_id, p.name, p.type, p.sector_name
     </select>
 
@@ -263,6 +263,7 @@
         JOIN account a ON a.account_id = b.account_id
         JOIN domestic_product p ON p.domestic_product_id = b.domestic_product_id
         WHERE a.customer_id = #{customerId} AND a.status = 'OPENED' AND b.qty &gt; 0
+        AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
         GROUP BY p.domestic_product_id, p.name, p.type, p.sector_name
     </select>
 
@@ -315,8 +316,31 @@
         f.cash_balance_end AS cashBalanceEnd
         FROM fund_flow_monthly f
         JOIN account a ON a.account_id = f.account_id
-        WHERE a.customer_id = #{customerId}
+        WHERE a.customer_id = #{customerId} AND f.flow_month &lt; #{monthStart}
         ORDER BY f.flow_month
+    </select>
+
+    <!-- 고객: 진행 중인 달(monthStart ~ 업무시계 전일)을 본인 계좌 원천 테이블에서 직접 집계한다.
+         개설된 계좌가 없으면 행이 없다. 계산 기준은 관리자 selectMonthlyPartial 과 같다 -->
+    <select id="selectCustomerMonthlyPartial" resultType="FundFlowMonthDTO">
+        SELECT
+        COALESCE((SELECT SUM(s.sell_qty * s.base_price) FROM sell_order s
+        WHERE s.account_id = a.account_id AND s.status = 'EXECUTED'
+        AND s.processed_at &gt;= #{monthStart} AND s.processed_at &lt; #{clockDate}), 0) AS foreignSellAmount,
+        COALESCE((SELECT SUM(k.final_amount) FROM krw_exchange k
+        WHERE k.account_id = a.account_id AND k.settlement_status = 'FINALIZED'
+        AND k.final_at &gt;= #{monthStart} AND k.final_at &lt; #{clockDate}), 0) AS krwInflowAmount,
+        COALESCE((SELECT SUM(ABS(o.amount)) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'BUY' AND o.status = 'EXECUTED'
+        AND o.processed_at &gt;= #{monthStart} AND o.processed_at &lt; #{clockDate}), 0) AS domesticBuyAmount,
+        COALESCE((SELECT SUM(o.amount) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'SELL' AND o.status = 'EXECUTED'
+        AND o.processed_at &gt;= #{monthStart} AND o.processed_at &lt; #{clockDate}), 0) AS domesticSellAmount,
+        COALESCE((SELECT SUM(w.requested_amount) FROM withdrawal w
+        WHERE w.account_id = a.account_id AND w.status = 'COMPLETED'
+        AND w.processed_at &gt;= #{monthStart} AND w.processed_at &lt; #{clockDate}), 0) AS withdrawalAmount
+        FROM account a
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
     </select>
 
     <!-- 고객: 내 예상 세금 혜택. tax_snapshot 은 표시용 캐시 -->

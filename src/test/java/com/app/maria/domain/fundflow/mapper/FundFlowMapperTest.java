@@ -6,11 +6,18 @@ import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelStageDTO;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.SqlSession;
@@ -293,14 +300,18 @@ class FundFlowMapperTest {
     }
 
     @Test
-    @DisplayName("운용처: 보유 중인 종목만 매입금액으로, 순매수는 상위 10종목을 내림차순으로 낸다")
+    @DisplayName("운용처: 보유 중인 종목만(종료 상태는 수량이 남아도 제외) 매입금액으로, 순매수는 상위 10종목을 내림차순으로 낸다")
     void selectProductCostsAndTopNetBuy() throws SQLException {
         execute(
-                "INSERT INTO domestic_product VALUES (1, '삼성전자', 'STOCK', '전기전자'),"
-                        + " (2, 'KODEX 200', 'FUND', NULL), (3, '카카오', 'STOCK', 'IT서비스')");
+                "INSERT INTO domestic_product (domestic_product_id, name, type, sector_name) VALUES"
+                        + " (1, '삼성전자', 'STOCK', '전기전자'), (2, 'KODEX 200', 'FUND', NULL),"
+                        + " (3, '카카오', 'STOCK', 'IT서비스')");
         execute(
-                "INSERT INTO domestic_stock_balance VALUES (1, 1, 10, 70000), (2, 1, 5, 80000),"
-                        + " (1, 2, 100, 30000), (1, 3, 0, 50000)");
+                "INSERT INTO domestic_stock_balance (account_id, domestic_product_id, qty,"
+                        + " avg_purchase_price, status) VALUES (1, 1, 10, 70000, 'HOLDING'),"
+                        + " (2, 1, 5, 80000, 'PARTIALLY_SOLD'), (1, 2, 100, 30000, 'HOLDING'),"
+                        + " (1, 3, 0, 50000, 'SOLD_OUT'),"
+                        + " (3, 1, 7, 90000, 'SOLD_OUT'), (3, 3, 4, 90000, 'TERMINATED')");
         insertOrderFor(1L, 1L, "BUY", -10000, 0, 0);
         insertOrderFor(1L, 2L, "BUY", -50000, 0, 0);
         insertOrderFor(1L, 2L, "SELL", 20000, 0, 0);
@@ -344,21 +355,91 @@ class FundFlowMapperTest {
     }
 
     @Test
-    @DisplayName("고객: 월별 흐름은 본인 계좌만 월 오름차순으로 낸다")
-    void selectCustomerMonthlyReturnsOnlyOwnAccountInOrder() throws SQLException {
+    @DisplayName("고객: 월별 흐름은 본인 계좌의 완료된 달만 월 오름차순으로 내고 업무시계 달 이후는 제외한다")
+    void selectCustomerMonthlyReturnsOnlyOwnClosedMonthsInOrder() throws SQLException {
         insertCustomer(1L);
         insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
         insertCustomer(2L);
         insertAccount(2L, 2L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
         execute(
-                "INSERT INTO fund_flow_monthly (account_id, flow_month, foreign_sell_amount) VALUES"
-                        + " (1, '2026-05-01', 2), (1, '2026-04-01', 1), (2, '2026-04-01', 99)");
+                "INSERT INTO fund_flow_monthly (account_id, flow_month, foreign_sell_amount,"
+                        + " calculated_at, run_id) VALUES"
+                        + " (1, '2026-05-01', 2, '2026-06-01 00:00:00', 'r'),"
+                        + " (1, '2026-04-01', 1, '2026-05-01 00:00:00', 'r'),"
+                        + " (1, '2026-11-01', 5, '2026-11-02 00:00:00', 'r'),"
+                        + " (1, '2026-12-01', 7, '2026-12-02 00:00:00', 'r'),"
+                        + " (2, '2026-04-01', 99, '2026-05-01 00:00:00', 'r')");
 
-        var months = fundFlowMapper.selectCustomerMonthly(1L);
+        var months = fundFlowMapper.selectCustomerMonthly(1L, LocalDate.of(2026, 11, 1));
 
         assertThat(months)
                 .extracting(m -> m.getFlowMonth().toString())
                 .containsExactly("2026-04-01", "2026-05-01");
+    }
+
+    @Test
+    @DisplayName("고객: 진행 중인 달은 본인 계좌의 월초~업무시계 전일 원천 거래만 집계하고, 개설 계좌가 없으면 null이다")
+    void selectCustomerMonthlyPartialAggregatesOwnAccountOnly() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(3L);
+        insertAccount(3L, 3L, "2026-04-01 10:00:00", null);
+        insertOrder(1L, "BUY", "EXECUTED", -1000, 10, 0, "2026-11-05 10:00:00");
+        insertOrder(1L, "SELL", "EXECUTED", 400, 5, 5, "2026-11-06 10:00:00");
+        insertOrder(1L, "BUY", "EXECUTED", -5000, 0, 0, "2026-10-30 10:00:00"); // 지난달
+        insertOrder(1L, "BUY", "EXECUTED", -7000, 0, 0, "2026-11-18 09:00:00"); // 업무시계 당일
+        insertOrder(2L, "BUY", "EXECUTED", -9000, 0, 0, "2026-11-05 10:00:00"); // 남의 계좌
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at)"
+                        + " VALUES (1, 'FINALIZED', 2000, '2026-11-03 00:00:00'),"
+                        + " (1, 'PROVISIONAL', 3000, NULL)");
+        execute(
+                "INSERT INTO withdrawal (account_id, requested_amount, status, processed_at)"
+                        + " VALUES (1, 70, 'COMPLETED', '2026-11-10 10:00:00'),"
+                        + " (1, 80, 'CANCELLED', '2026-11-10 10:00:00')");
+
+        var mine =
+                fundFlowMapper.selectCustomerMonthlyPartial(
+                        1L, CLOCK_DATE.withDayOfMonth(1), CLOCK_DATE);
+
+        assertThat(mine.getDomesticBuyAmount()).isEqualByComparingTo("1000");
+        assertThat(mine.getDomesticSellAmount()).isEqualByComparingTo("400");
+        assertThat(mine.getKrwInflowAmount()).isEqualByComparingTo("2000");
+        assertThat(mine.getWithdrawalAmount()).isEqualByComparingTo("70");
+        assertThat(
+                        fundFlowMapper.selectCustomerMonthlyPartial(
+                                3L, CLOCK_DATE.withDayOfMonth(1), CLOCK_DATE))
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("고객 운용처: 본인 개설 계좌의 보유 종목만, 종료 상태는 수량이 남아도 제외한다")
+    void selectCustomerProductCostsExcludesEndedStatuses() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        execute("UPDATE account SET status = 'OPENED' WHERE account_id = 1");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        execute("UPDATE account SET status = 'OPENED' WHERE account_id = 2");
+        execute(
+                "INSERT INTO domestic_product (domestic_product_id, ticker, name, type, sector_name)"
+                        + " VALUES (1, 'A', '삼성전자', 'STOCK', '전기전자'),"
+                        + " (2, 'B', '카카오', 'STOCK', 'IT서비스')");
+        execute(
+                "INSERT INTO domestic_stock_balance (account_id, domestic_product_id, qty,"
+                        + " avg_purchase_price, status, last_purchase_date) VALUES"
+                        + " (1, 1, 10, 70000, 'HOLDING', '2026-06-01 00:00:00'),"
+                        + " (1, 2, 4, 50000, 'SOLD_OUT', '2026-06-01 00:00:00'),"
+                        + " (1, 2, 3, 50000, 'TERMINATED', '2026-06-01 00:00:00'),"
+                        + " (2, 1, 99, 70000, 'HOLDING', '2026-06-01 00:00:00')");
+
+        var costs = fundFlowMapper.selectCustomerProductCosts(1L);
+
+        assertThat(costs).hasSize(1);
+        assertThat(costs.get(0).getName()).isEqualTo("삼성전자");
+        assertThat(costs.get(0).getPurchaseCost()).isEqualByComparingTo("700000");
     }
 
     @Test
@@ -388,7 +469,64 @@ class FundFlowMapperTest {
         assertThat(fundFlowMapper.selectCustomerRelief(99L, LocalDate.of(2026, 11, 17))).isNull();
     }
 
+    @Test
+    @DisplayName("스키마: 테스트용 테이블의 모든 컬럼이 db/01_ria_ddl.sql 에 같은 타입으로 있다")
+    void fixtureSchemaMatchesCheckedInDdl() throws Exception {
+        String ddl = Files.readString(Path.of("db/01_ria_ddl.sql"));
+        String url = "jdbc:h2:mem:fundflow_ddl_check;MODE=MySQL;DATABASE_TO_LOWER=TRUE";
+        try (Connection real = DriverManager.getConnection(url, "sa", "")) {
+            for (String table : FIXTURE_TABLES) {
+                var matcher =
+                        Pattern.compile("(?ms)^CREATE TABLE " + table + " \\(.*?^\\) ENGINE=.*?;")
+                                .matcher(ddl);
+                assertThat(matcher.find()).as("원본 DDL 테이블: %s", table).isTrue();
+                try (Statement statement = real.createStatement()) {
+                    statement.execute("DROP TABLE IF EXISTS " + table);
+                    statement.execute(matcher.group().replaceFirst("(?s)\\s+ENGINE=.*$", ";"));
+                }
+            }
+            String query =
+                    "SELECT table_name, column_name, data_type FROM information_schema.columns"
+                            + " WHERE table_schema = 'public' AND table_name IN (%s)"
+                                    .formatted(
+                                            FIXTURE_TABLES.stream()
+                                                    .map(t -> "'" + t + "'")
+                                                    .collect(Collectors.joining(",")));
+            Set<String> ddlColumns = columnSet(real, query);
+            try (Connection fixture = dataSource.getConnection()) {
+                Set<String> fixtureColumns = columnSet(fixture, query);
+                assertThat(ddlColumns).containsAll(fixtureColumns);
+            }
+        }
+    }
+
+    private static Set<String> columnSet(Connection connection, String query) throws SQLException {
+        Set<String> columns = new HashSet<>();
+        try (Statement statement = connection.createStatement();
+                var rs = statement.executeQuery(query)) {
+            while (rs.next()) {
+                columns.add(rs.getString(1) + "." + rs.getString(2) + ":" + rs.getString(3));
+            }
+        }
+        return columns;
+    }
+
     // ---- schema / fixtures ----
+
+    private static final List<String> FIXTURE_TABLES =
+            List.of(
+                    "customer",
+                    "customer_consent",
+                    "account",
+                    "sell_order",
+                    "domestic_order",
+                    "krw_exchange",
+                    "withdrawal",
+                    "fund_flow_monthly",
+                    "tax_snapshot",
+                    "tax_rule",
+                    "domestic_product",
+                    "domestic_stock_balance");
 
     private FundFlowFilterDTO filterWithMonthStart() {
         return filter().toBuilder().monthStart(CLOCK_DATE.withDayOfMonth(1)).build();
@@ -532,7 +670,8 @@ class FundFlowMapperTest {
                         created_at DATETIME NOT NULL,
                         opened_at DATETIME NULL,
                         amount DECIMAL(15,0) NOT NULL DEFAULT 0,
-                        benefit VARCHAR(12) NULL
+                        benefit VARCHAR(12) NULL,
+                        status VARCHAR(20) NULL
                     )
                     """);
             statement.execute(
@@ -591,7 +730,9 @@ class FundFlowMapperTest {
                         domestic_sell_amount DECIMAL(15,0) NOT NULL DEFAULT 0,
                         withdrawal_amount DECIMAL(15,0) NOT NULL DEFAULT 0,
                         cash_balance_begin DECIMAL(15,0) NOT NULL DEFAULT 0,
-                        cash_balance_end DECIMAL(15,0) NOT NULL DEFAULT 0
+                        cash_balance_end DECIMAL(15,0) NOT NULL DEFAULT 0,
+                        calculated_at DATETIME NOT NULL DEFAULT '2026-01-01 00:00:00',
+                        run_id VARCHAR(50) NOT NULL DEFAULT 'test'
                     )
                     """);
             statement.execute(
@@ -620,6 +761,7 @@ class FundFlowMapperTest {
                     """
                     CREATE TABLE domestic_product (
                         domestic_product_id BIGINT PRIMARY KEY,
+                        ticker VARCHAR(20) NOT NULL DEFAULT 'T',
                         name VARCHAR(100) NOT NULL,
                         type VARCHAR(15) NOT NULL,
                         sector_name VARCHAR(50) NULL
@@ -631,7 +773,9 @@ class FundFlowMapperTest {
                         account_id BIGINT NOT NULL,
                         domestic_product_id BIGINT NOT NULL,
                         qty DECIMAL(15,4) NOT NULL,
-                        avg_purchase_price DECIMAL(15,4) NOT NULL
+                        avg_purchase_price DECIMAL(15,4) NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'HOLDING',
+                        last_purchase_date DATETIME NOT NULL DEFAULT '2026-01-01 00:00:00'
                     )
                     """);
         }
