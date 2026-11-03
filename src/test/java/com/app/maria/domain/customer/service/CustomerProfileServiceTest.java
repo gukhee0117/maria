@@ -2,11 +2,19 @@ package com.app.maria.domain.customer.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.request.CustomerPasswordChangeRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerProfileUpdateRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerProfileResponseDTO;
+import com.app.maria.domain.customer.entity.InvestorType;
+import com.app.maria.domain.investorassessment.dto.response.InvestorAssessmentStatusResponseDTO;
+import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.global.config.JpaConfig;
 import com.app.maria.global.config.PasswordEncoderConfig;
 import com.app.maria.global.config.TransactionConfig;
@@ -14,7 +22,11 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -23,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @DataJpaTest(
@@ -41,6 +54,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(transactionManager = "jpaTransactionManager")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CustomerProfileServiceTest {
+    @MockitoBean private InvestorAssessmentService investorAssessmentService;
+    @MockitoBean private AccountMapper accountMapper;
+
     private static final String CURRENT = "password-1234";
 
     @Autowired private JdbcTemplate jdbc;
@@ -50,6 +66,17 @@ class CustomerProfileServiceTest {
 
     @BeforeAll
     void createTestSchema() {
+        jdbc.execute("DROP TABLE IF EXISTS investor_assessment");
+        jdbc.execute(
+                """
+                CREATE TABLE investor_assessment (
+                    investor_assessment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id BIGINT NOT NULL, total_score INT NOT NULL,
+                    investor_type VARCHAR(20) NOT NULL, answers_json VARCHAR(4000) NOT NULL,
+                    assessed_at TIMESTAMP NOT NULL,
+                    recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
         jdbc.execute("DROP TABLE IF EXISTS customer_auth_password");
         jdbc.execute("DROP TABLE IF EXISTS customer_auth");
         jdbc.execute("DROP TABLE IF EXISTS customer");
@@ -81,6 +108,17 @@ class CustomerProfileServiceTest {
                     password VARCHAR(255) NOT NULL
                 )
                 """);
+    }
+
+    @AfterAll
+    void dropTestSchema() {
+        jdbc.execute("DROP TABLE IF EXISTS investor_assessment");
+    }
+
+    @BeforeEach
+    void stubCollaborators() {
+        when(investorAssessmentService.getMine(any()))
+                .thenReturn(InvestorAssessmentStatusResponseDTO.unassigned());
     }
 
     private long customer(String authType) {
@@ -136,6 +174,79 @@ class CustomerProfileServiceTest {
         assertThat(profile.phone()).isEqualTo("010-1111-2222");
         assertThat(profile.email()).isEqualTo("old@example.com");
         assertThat(profile.nickname()).isNull();
+    }
+
+    @Test
+    @DisplayName("내 정보 조회: 투자성향 상태·점수·최근 3건 이력(최신순)·성향 공개를 함께 준다")
+    void includesAssessmentAndPublicFlag() {
+        long id = customer("LOCAL");
+        for (int score : new int[] {30, 40, 50, 60}) {
+            jdbc.update(
+                    "INSERT INTO investor_assessment (customer_id, total_score, investor_type,"
+                            + " answers_json, assessed_at) VALUES (?, ?, 'NEUTRAL', '{}', ?)",
+                    id,
+                    score,
+                    LocalDateTime.of(2026, 3, 1, 10, 0).plusDays(score));
+        }
+        jdbc.update("UPDATE customer SET investor_type_public = TRUE WHERE customer_id = ?", id);
+        LocalDateTime assessedAt = LocalDateTime.of(2026, 3, 31, 10, 0);
+        when(investorAssessmentService.getMine(id))
+                .thenReturn(
+                        InvestorAssessmentStatusResponseDTO.of(
+                                InvestorType.NEUTRAL,
+                                assessedAt,
+                                assessedAt.plusMonths(24),
+                                false));
+
+        CustomerProfileResponseDTO profile = service.get(id);
+
+        assertThat(profile.investorType()).isEqualTo(InvestorType.NEUTRAL);
+        assertThat(profile.assessed()).isTrue();
+        assertThat(profile.assessedAt()).isEqualTo(assessedAt);
+        assertThat(profile.totalScore()).isEqualTo(60);
+        assertThat(profile.investorTypePublic()).isTrue();
+        assertThat(profile.assessmentHistory())
+                .extracting(CustomerProfileResponseDTO.AssessmentHistoryItem::totalScore)
+                .containsExactly(60, 50, 40);
+    }
+
+    @Test
+    @DisplayName("진단 기록이 없으면 점수는 null이고 이력은 비어 있다")
+    void noAssessmentRecords() {
+        long id = customer("LOCAL");
+
+        CustomerProfileResponseDTO profile = service.get(id);
+
+        assertThat(profile.totalScore()).isNull();
+        assertThat(profile.assessmentHistory()).isEmpty();
+        assertThat(profile.assessed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("내 정보 조회: RIA 계좌가 있으면 번호·상태·개설일·신청일을 주고 없으면 null이다")
+    void includesAccountOrNull() {
+        long id = customer("LOCAL");
+        assertThat(service.get(id).account()).isNull();
+
+        LocalDateTime applied = LocalDateTime.of(2026, 3, 30, 9, 0);
+        when(accountMapper.selectByCustomerId(id))
+                .thenReturn(
+                        Optional.of(
+                                AccountDTO.builder()
+                                        .accountId(1L)
+                                        .customerId(id)
+                                        .status(Status.CLOSED)
+                                        .accountNo("7319000024")
+                                        .openedAt(applied.plusHours(1))
+                                        .createdAt(applied)
+                                        .build()));
+
+        CustomerProfileResponseDTO.AccountSummary account = service.get(id).account();
+
+        assertThat(account.accountNo()).isEqualTo("7319000024");
+        assertThat(account.status()).isEqualTo(Status.CLOSED);
+        assertThat(account.openedAt()).isEqualTo(applied.plusHours(1));
+        assertThat(account.appliedAt()).isEqualTo(applied);
     }
 
     @Test
