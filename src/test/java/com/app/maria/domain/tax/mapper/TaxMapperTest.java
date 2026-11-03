@@ -97,6 +97,31 @@ class TaxMapperTest {
     }
 
     @Test
+    void selectTaxRulesMapsCommissionAndTransactionTaxFromNewSeed() throws SQLException {
+        fixture.insertSeedTaxRules();
+        try (var connection = dataSource.getConnection();
+                var statement = connection.createStatement()) {
+            statement.executeUpdate(
+                    """
+                    INSERT INTO tax_rule (rule_type, rule_value, valid_from, valid_to) VALUES
+                    ('COMMISSION_BASE', 0.0025, '2026-01-01', '9999-12-31'),
+                    ('COMMISSION_RIA', 0.0000, '2026-01-01', '9999-12-31'),
+                    ('COMMISSION_RIA_YEARS', 3.0000, '2026-01-01', '9999-12-31'),
+                    ('SEC_TX_TAX_STOCK', 0.0015, '2026-01-01', '9999-12-31')
+                    """);
+        }
+
+        assertThat(taxMapper.selectTaxRules())
+                .hasSize(11)
+                .extracting(TaxRuleDTO::getRuleType)
+                .contains(
+                        TaxRuleType.COMMISSION_BASE,
+                        TaxRuleType.COMMISSION_RIA,
+                        TaxRuleType.COMMISSION_RIA_YEARS,
+                        TaxRuleType.SEC_TX_TAX_STOCK);
+    }
+
+    @Test
     @DisplayName("valid_to가 9999-12-31인 규칙도 누락 없이 조회된다")
     void selectTaxRules_열린구간규칙도_조회된다() {
         fixture.insertSeedTaxRules();
