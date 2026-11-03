@@ -3,6 +3,7 @@ package com.app.maria.domain.customer.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -257,6 +258,64 @@ class CustomerAuthApiTest {
                                         org.hamcrest.Matchers.not(
                                                 org.hamcrest.Matchers.containsString(
                                                         "9001011234567"))));
+    }
+
+    @Test
+    @DisplayName("가입이 동시 충돌(UNIQUE 위반)로 취소되면 한 번 다시 시도해 성공한다")
+    void signupRetriesOnceOnConflict() throws Exception {
+        when(customerAuthService.signup(any()))
+                .thenThrow(
+                        new AppException(
+                                ErrorType.CUSTOMER_SIGNUP_FAILED,
+                                null,
+                                new org.springframework.dao.DataIntegrityViolationException("dup")))
+                .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
+
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isOk());
+
+        verify(customerAuthService, times(2)).signup(any());
+    }
+
+    @Test
+    @DisplayName("가입 실패가 동시 충돌 때문이 아니면 다시 시도하지 않는다")
+    void signupDoesNotRetryOtherFailures() throws Exception {
+        when(customerAuthService.signup(any()))
+                .thenThrow(new AppException(ErrorType.CUSTOMER_SIGNUP_FAILED));
+
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isBadRequest());
+
+        verify(customerAuthService, times(1)).signup(any());
+    }
+
+    @Test
+    @DisplayName("동시 충돌이 두 번 연속이면 두 번째 오류를 그대로 돌려준다(무한 반복 없음)")
+    void signupRetriesOnlyOnce() throws Exception {
+        when(customerAuthService.signup(any()))
+                .thenThrow(
+                        new AppException(
+                                ErrorType.CUSTOMER_SIGNUP_FAILED,
+                                null,
+                                new org.springframework.dao.DataIntegrityViolationException(
+                                        "dup")));
+
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isBadRequest());
+
+        verify(customerAuthService, times(2)).signup(any());
     }
 
     private void assertBadRequest(String json) throws Exception {
