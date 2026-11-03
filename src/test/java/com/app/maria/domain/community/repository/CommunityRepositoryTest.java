@@ -375,8 +375,14 @@ class CommunityRepositoryTest {
     }
 
     @Test
-    @DisplayName("끼루 호출 횟수는 글 단위, 사용자 단위(글+댓글)로 센다")
+    @DisplayName("끼루 호출 횟수는 글 단위, 사용자 단위(글+댓글)로 세고, 후속 질문·범위 밖은 세지 않는다")
     void kkiruCallCounts() {
+        List<KkiruStatus> counted =
+                List.of(
+                        KkiruStatus.PENDING,
+                        KkiruStatus.ANSWERED,
+                        KkiruStatus.NO_SOURCE,
+                        KkiruStatus.FAILED);
         CommunityPostEntity p =
                 posts.saveAndFlush(
                         CommunityPostEntity.write(
@@ -384,23 +390,33 @@ class CommunityRepositoryTest {
         comments.saveAndFlush(
                 CommunityCommentEntity.ofCustomer(
                         p.getCommunityPostId(), null, 7L, "@끼루 또", KkiruStatus.PENDING, NOW));
+        // 한도에 세지 않는 호출: 후속 질문(끼루 댓글에 다시 물음)과 범위 밖 질문
+        comments.saveAndFlush(
+                CommunityCommentEntity.ofCustomer(
+                        p.getCommunityPostId(), null, 7L, "@끼루 후속", KkiruStatus.FOLLOW_UP, NOW));
+        comments.saveAndFlush(
+                CommunityCommentEntity.ofCustomer(
+                        p.getCommunityPostId(),
+                        null,
+                        7L,
+                        "@끼루 사도 돼요?",
+                        KkiruStatus.OUT_OF_SCOPE,
+                        NOW));
         comment(p, 7);
 
-        assertThat(comments.countByCommunityPostIdAndKkiruStatusIsNotNull(p.getCommunityPostId()))
+        assertThat(comments.countByCommunityPostIdAndKkiruStatusIn(p.getCommunityPostId(), counted))
                 .isEqualTo(1);
         assertThat(
                         posts.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
                                 7L, NOW.toLocalDate().atStartOfDay()))
                 .isEqualTo(1);
         assertThat(
-                        comments
-                                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                                        7L, NOW.toLocalDate().atStartOfDay()))
+                        comments.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                7L, counted, NOW.toLocalDate().atStartOfDay()))
                 .isEqualTo(1);
         assertThat(
-                        comments
-                                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                                        7L, NOW.toLocalDate().plusDays(1).atStartOfDay()))
+                        comments.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                7L, counted, NOW.toLocalDate().plusDays(1).atStartOfDay()))
                 .isZero();
     }
 
