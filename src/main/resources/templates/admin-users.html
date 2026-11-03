@@ -4,42 +4,139 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/admin-users.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/admin-users.css}">
     </th:block>
 </head>
 <body>
-<div layout:fragment="breadcrumb">관리자</div>
+<div layout:fragment="breadcrumb">관리자 계정 관리</div>
 
-<div layout:fragment="content" class="admin-users">
-    <div class="admin-users-header">
-        <div>
-            <h1 class="admin-users-title">관리자 계정 관리</h1>
+<div layout:fragment="content" class="adm-page admin-users">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[9003]</span> 관리자 계정 관리</h1>
+            <span class="adm-screen-path">시스템 &gt; 관리자 계정 관리</span>
         </div>
-        <span class="admin-users-count" id="adminUserCount">-</span>
-    </div>
 
-    <section class="card admin-users-list-card">
-        <div class="admin-users-table-wrap">
-            <table class="admin-users-table">
-                <thead>
-                <tr>
-                    <th>이름</th>
-                    <th>아이디</th>
-                    <th>현재 역할</th>
-                    <th>역할 변경</th>
-                </tr>
-                </thead>
-                <tbody id="adminUserListBody">
-                <tr>
-                    <td colspan="4" class="admin-users-loading">불러오는 중...</td>
-                </tr>
-                </tbody>
-            </table>
+        <!-- 요약: 목록(GET /api/admin/admins) 전체로 센다. 이번 달 역할 변경은 API 가 없어 "-" -->
+        <div class="adm-summary" id="adminUserSummary">
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">전체 관리자</span>
+                <span class="adm-summary-value" id="adminSummaryTotal">-</span>
+                <span class="adm-summary-unit">명</span>
+            </div>
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">최고관리자</span>
+                <span class="adm-summary-value" id="adminSummaryAdmin">-</span>
+                <span class="adm-summary-unit">명</span>
+            </div>
+            <div class="adm-summary-item" title="준비 중">
+                <span class="adm-summary-label">이번 달 역할 변경</span>
+                <span class="adm-summary-value" id="adminSummaryChanges">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+        </div>
+
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="adminUserFilterName">검색어
+                    <input id="adminUserFilterName" class="adm-input" type="text"
+                           placeholder="이름, 아이디로 검색" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="adminUserFilterRole">현재 역할
+                    <span class="adm-select-wrap">
+                        <select id="adminUserFilterRole" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+            </div>
+            <div class="adm-qbtns">
+                <button type="button" id="adminUserFilterSearch" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="adminUserFilterReset" class="adm-btn adm-btn-md">초기화</button>
+            </div>
         </div>
     </section>
+
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">관리자 계정</span>
+            <span class="adm-grid-total">총 <b id="adminUserCount">-</b>명</span>
+            <div class="adm-pager" id="adminUserPagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="adminUserPageSize" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable admin-users-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>이름</th>
+                        <th class="admin-users-col-id">아이디</th>
+                        <th class="is-c">현재 역할</th>
+                    </tr>
+                    </thead>
+                    <tbody id="adminUserListBody">
+                    <tr class="is-state admin-users-loading">
+                        <td colspan="4">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="adminDetailScrim"></div>
+    <aside class="adm-panel" id="adminDetailPanel" aria-label="관리자 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[9003]</span>
+                <span class="adm-panel-name" id="adminDetailTitle">-</span>
+                <span class="adm-panel-sub" id="adminDetailSub"></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="adminDetailClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div>
+                <div class="adm-section-title">역할 변경</div>
+                <div class="adm-radio-list" id="adminRoleList" role="radiogroup" aria-label="역할"></div>
+                <div class="adm-notice is-box" id="adminRoleNotice">역할을 바꾸면 변경 전·후 역할, 처리 관리자, 처리시각이 감사 로그에 기록됩니다.</div>
+            </div>
+        </div>
+        <div class="adm-panel-foot" id="adminDetailFoot" hidden>
+            <button type="button" class="adm-btn adm-btn-primary adm-btn-foot" id="adminRoleSubmit" disabled>역할 변경</button>
+        </div>
+    </aside>
+
+    <!-- 역할 변경 확인 창 -->
+    <div class="adm-modal-backdrop" id="adminRoleModal" hidden>
+        <section class="adm-modal" role="dialog" aria-modal="true" aria-labelledby="adminRoleModalTitle">
+            <div class="adm-modal-head">
+                <h2 id="adminRoleModalTitle">역할을 변경할까요?</h2>
+                <button type="button" class="adm-modal-close" id="adminRoleModalClose" aria-label="닫기">&times;</button>
+            </div>
+            <div class="adm-modal-body">
+                <p class="adm-modal-desc" id="adminRoleModalDesc"></p>
+            </div>
+            <div class="adm-modal-actions">
+                <button type="button" class="adm-btn" id="adminRoleModalCancel">취소</button>
+                <button type="button" class="adm-btn adm-btn-primary" id="adminRoleModalConfirm">역할 변경</button>
+            </div>
+        </section>
+    </div>
 </div>
 
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
+    <script th:src="@{/js/admin/ui-helpers.js}"></script>
     <script th:src="@{/js/admin-users.js}"></script>
 </th:block>
 </body>

@@ -1279,3 +1279,88 @@ input[type="datetime-local"].adm-input {
 .adm-kv[hidden] {
     display: none;
 }
+
+/* 상세 패널의 선택 목록 (라디오 줄: 이름 · 설명 · 현재 표시) — A-8 */
+.adm-radio-list {
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-radio-row {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 22px 110px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--adm-line);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    cursor: pointer;
+}
+
+.adm-radio-row.is-on {
+    background: var(--adm-sel);
+}
+
+.adm-radio-row.is-disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.adm-radio-row input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.adm-radio-row::before {
+    content: "";
+    box-sizing: border-box;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1.5px solid var(--adm-bd2);
+    background: radial-gradient(circle, transparent 0 0);
+}
+
+.adm-radio-row.is-on::before {
+    border-color: var(--adm-chart-1);
+    background: radial-gradient(circle, var(--adm-chart-1) 0 3.5px, transparent 3.6px);
+}
+
+.adm-radio-row:focus-within::before {
+    outline: 2px solid var(--adm-focus-ring);
+    outline-offset: 1px;
+}
+
+.adm-radio-name {
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.adm-radio-desc {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-radio-tag {
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+/* 안내 줄을 상자 모양으로 (원본: 위 6px · 안쪽 7px 10px · 테두리) — A-8 */
+.adm-notice.is-box {
+    margin-top: 6px;
+    padding: 7px 10px;
+    border: 1px solid var(--adm-info-bd);
+    line-height: inherit;
+}
+
+/* 패널 아래 처리 버튼 (원본: 높이 30 · 글자 12.5 · 굵게 600) — A-8 */
+.adm-btn.adm-btn-foot {
+    height: 30px;
+    padding: 0 14px;
+    font-weight: 600;
+}

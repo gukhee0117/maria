@@ -132,8 +132,37 @@ MARIA.status = (function () {
         return has("TRADE_SUSPENDED") ? "SUSPENDED" : has("TRADE_RESTRICTED") ? "RESTRICTED" : "AVAILABLE";
     }
 
+    // 관리자 역할 (AdminRole). 설명은 원본 "역할 변경" 화면 글.
+    var ADMIN_ROLE_LABEL = {
+        VIEWER: "조회전용",
+        REVIEWER: "심사담당",
+        SETTLEMENT: "정산담당",
+        ADMIN: "최고관리자"
+    };
+    var ADMIN_ROLE_TONE = {
+        VIEWER: "off",
+        REVIEWER: "info",
+        SETTLEMENT: "info",
+        ADMIN: "ok"
+    };
+    var ADMIN_ROLE_DESC = {
+        VIEWER: "전 화면 조회만 가능",
+        REVIEWER: "계좌·입고·해지 승인/반려",
+        SETTLEMENT: "정산·세액 배치 실행/확정",
+        ADMIN: "전체 + 업무시각·역할 변경"
+    };
+
     return {
         BENEFIT_LABEL: BENEFIT_LABEL,
+        ADMIN_ROLE_LABEL: ADMIN_ROLE_LABEL,
+        ADMIN_ROLE_TONE: ADMIN_ROLE_TONE,
+        ADMIN_ROLE_DESC: ADMIN_ROLE_DESC,
+        adminRoleLabel: function (role) {
+            return pick(ADMIN_ROLE_LABEL, role, "-");
+        },
+        adminRoleTone: function (role) {
+            return ADMIN_ROLE_TONE[String(role).toUpperCase()] || "off";
+        },
         BUYABLE_LABEL: BUYABLE_LABEL,
         BUYABLE_TONE: BUYABLE_TONE,
         domesticBuyable: domesticBuyable,
