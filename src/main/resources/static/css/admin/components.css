@@ -1358,6 +1358,101 @@ input[type="datetime-local"].adm-input {
     line-height: inherit;
 }
 
+/* 안내 상자의 경고 색 (원본 인출 관리 상세: 안쪽 7px 10px · 글자 12 · warn 색) — A-9 */
+.adm-notice.is-box.is-warn {
+    margin-top: 0;
+    border-color: var(--adm-warn-bd);
+    background: var(--adm-warn-bg);
+    color: var(--adm-warn-fg);
+}
+
+/* 납입건별 배분 바 (원본 인출 관리 상세: 칸 안쪽 8px 10px · 바 높이 20 · 채움은 왼쪽에서 scaleX) — A-9 */
+.adm-alloc {
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-alloc-item {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--adm-line);
+}
+
+.adm-alloc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.adm-alloc-name {
+    font-weight: 700;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.adm-alloc-name small {
+    font-size: inherit;
+    font-weight: 500;
+    color: var(--adm-sub);
+}
+
+.adm-alloc-avail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    color: var(--adm-sub);
+}
+
+/* 배분 바 오른쪽 배지는 원본에서 표 배지보다 작다 (안쪽 5px · 글자 11 · 줄 높이 17) */
+.adm-alloc-avail .adm-chip {
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 17px;
+}
+
+.adm-alloc-bar {
+    position: relative;
+    box-sizing: content-box;
+    margin-top: 5px;
+    height: 20px;
+    background: var(--adm-head);
+    border: 1px solid var(--adm-line);
+    overflow: hidden;
+}
+
+.adm-alloc-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--adm-alloc-ok);
+    transform-origin: left center;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.adm-alloc-item.is-early .adm-alloc-fill {
+    background: var(--adm-alloc-early);
+}
+
+.adm-alloc-amt {
+    position: absolute;
+    right: 8px;
+    top: 1px;
+    font-size: 11.5px;
+    font-weight: 700;
+}
+
+.adm-alloc-amt small {
+    font-size: inherit;
+    font-weight: 500;
+    color: var(--adm-sub);
+}
+
+.adm-alloc-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
 /* 패널 아래 처리 버튼 (원본: 높이 30 · 글자 12.5 · 굵게 600) — A-8 */
 .adm-btn.adm-btn-foot {
     height: 30px;

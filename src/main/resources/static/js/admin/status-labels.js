@@ -152,7 +152,93 @@ MARIA.status = (function () {
         ADMIN: "전체 + 업무시각·역할 변경"
     };
 
+    // 인출 처리 상태 (WithdrawalStatus). CANCELLED 는 목록에서 빼지만 매핑은 둔다.
+    var WITHDRAWAL_STATUS_LABEL = {
+        REQUESTED: "처리 중",
+        COMPLETED: "완료",
+        CANCELLED: "취소",
+        FAILED: "실패"
+    };
+    var WITHDRAWAL_STATUS_TONE = {
+        REQUESTED: "info",
+        COMPLETED: "ok",
+        CANCELLED: "off",
+        FAILED: "fail"
+    };
+
+    // 인출 구분 (WithdrawalType = 납입건 배분 하나의 구분).
+    // 표·상세의 "인출 구분" 배지는 원본대로 정상 인출 / 조기 인출 두 가지이고, 아래 긴 이름은 배지 툴팁과 배분 바 이름에 쓴다.
+    var WITHDRAWAL_TYPE_LABEL = {
+        EARNINGS_ONLY: "수익금",
+        MATURED_PRINCIPAL_INCLUDED: "만기 원금 포함",
+        IMMATURE_PRINCIPAL_INCLUDED: "조기 인출(미경과 원금 포함)"
+    };
+    // 배분 바 오른쪽 배지 (원본: 인출 가능 / 조기)
+    var WITHDRAWAL_ALLOC_LABEL = {
+        EARNINGS_ONLY: "수익금",
+        MATURED_PRINCIPAL_INCLUDED: "인출 가능",
+        IMMATURE_PRINCIPAL_INCLUDED: "조기"
+    };
+    var WITHDRAWAL_TYPE_TONE = {
+        EARNINGS_ONLY: "ok",
+        MATURED_PRINCIPAL_INCLUDED: "ok",
+        IMMATURE_PRINCIPAL_INCLUDED: "warn"
+    };
+    var WITHDRAWAL_KIND_LABEL = {
+        NORMAL: "정상 인출",
+        EARLY: "조기 인출"
+    };
+    var WITHDRAWAL_KIND_TONE = {
+        NORMAL: "ok",
+        EARLY: "warn"
+    };
+
+    // 인출 한 건의 구분 정하기 (목록 응답에는 배분 구분별 금액·건수만 있다):
+    // 미경과 원금이 있으면 조기(IMMATURE), 아니면 배분이 있을 때 정상(만기 원금 있으면 MATURED, 없으면 수익금만),
+    // 배분이 하나도 없으면(처리 중·실패) 알 수 없어 null.
+    function withdrawalType(item) {
+        var immature = Number(item.immaturePrincipalAmount || 0);
+        var matured = Number(item.maturedPrincipalAmount || 0);
+        if (immature > 0 || Number(item.earlyAllocationCount || 0) > 0) {
+            return "IMMATURE_PRINCIPAL_INCLUDED";
+        }
+        if (Number(item.allocationCount || 0) <= 0 && Number(item.earningsAmount || 0) <= 0 && matured <= 0) {
+            return null;
+        }
+        return matured > 0 ? "MATURED_PRINCIPAL_INCLUDED" : "EARNINGS_ONLY";
+    }
+    function withdrawalKind(item) {
+        var type = withdrawalType(item);
+        return type === null ? null : type === "IMMATURE_PRINCIPAL_INCLUDED" ? "EARLY" : "NORMAL";
+    }
+
     return {
+        WITHDRAWAL_STATUS_LABEL: WITHDRAWAL_STATUS_LABEL,
+        WITHDRAWAL_TYPE_LABEL: WITHDRAWAL_TYPE_LABEL,
+        WITHDRAWAL_KIND_LABEL: WITHDRAWAL_KIND_LABEL,
+        withdrawalType: withdrawalType,
+        withdrawalKind: withdrawalKind,
+        withdrawalStatusLabel: function (status) {
+            return pick(WITHDRAWAL_STATUS_LABEL, status, "-");
+        },
+        withdrawalStatusTone: function (status) {
+            return WITHDRAWAL_STATUS_TONE[String(status).toUpperCase()] || "off";
+        },
+        withdrawalTypeLabel: function (type) {
+            return pick(WITHDRAWAL_TYPE_LABEL, type, "-");
+        },
+        withdrawalTypeTone: function (type) {
+            return WITHDRAWAL_TYPE_TONE[String(type).toUpperCase()] || "off";
+        },
+        withdrawalAllocLabel: function (type) {
+            return pick(WITHDRAWAL_ALLOC_LABEL, type, "-");
+        },
+        withdrawalKindLabel: function (kind) {
+            return WITHDRAWAL_KIND_LABEL[kind] || "-";
+        },
+        withdrawalKindTone: function (kind) {
+            return WITHDRAWAL_KIND_TONE[kind] || "off";
+        },
         BENEFIT_LABEL: BENEFIT_LABEL,
         ADMIN_ROLE_LABEL: ADMIN_ROLE_LABEL,
         ADMIN_ROLE_TONE: ADMIN_ROLE_TONE,

@@ -3,153 +3,176 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/main}">
 <head>
-    <meta charset="UTF-8">
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/withdrawals.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/withdrawals.css}">
     </th:block>
 </head>
 <body>
-<a layout:fragment="breadcrumb"
-   class="breadcrumb-current withdrawal-breadcrumb-link"
-   th:href="@{/admin/withdrawals}">인출 관리</a>
+<div layout:fragment="breadcrumb">인출 관리</div>
 
-<div layout:fragment="content" class="withdrawals-page">
-    <div class="withdrawal-filter">
-        <label for="withdrawal-keyword">고객 검색</label>
-        <input id="withdrawal-keyword" type="search"
-               placeholder="고객명 또는 RIA 계좌번호">
-        <button type="button" id="withdrawal-search-button">검색</button>
-    </div>
+<div layout:fragment="content" class="adm-page withdrawals">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1402]</span> 인출 관리</h1>
+            <span class="adm-screen-path">자산 · 인출 &gt; 인출 관리</span>
+        </div>
 
-    <div class="withdrawal-type-tabs" role="tablist" aria-label="인출 구분">
-        <button type="button" class="withdrawal-type-tab active" data-withdrawal-type="ALL">
-            전체 계좌 <span id="withdrawal-all-count">0</span>
-        </button>
-        <button type="button" class="withdrawal-type-tab" data-withdrawal-type="NORMAL">
-            정상 인출 <span id="withdrawal-normal-count">0</span>
-        </button>
-        <button type="button" class="withdrawal-type-tab" data-withdrawal-type="EARLY">
-            조기 인출 <span id="withdrawal-early-count">0</span>
-        </button>
-        <button type="button" class="withdrawal-type-tab" data-withdrawal-type="FAILED">
-            실패 <span id="withdrawal-failed-count">0</span>
-        </button>
-    </div>
-
-    <div class="withdrawal-workspace">
-        <section class="withdrawal-list-card">
-            <div class="withdrawal-list-table-header" aria-hidden="true">
-                <span>계좌번호 / 고객명</span>
-                <span>인출 건수</span>
-                <span>총 요청금액</span>
-                <span>최근 인출시각</span>
+        <!-- 요약: 인출 내역 목록(GET /api/admin/withdrawals) 전체를 화면에서 센다. 처리 상태 조건을 바꿔도 요약은 조건 없는 목록 기준 -->
+        <div class="adm-summary" id="withdrawal-summary">
+            <div class="adm-summary-item" id="withdrawal-summary-today-item" title="업무일자 당일에 신청된 인출 건수 (인출 내역 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">오늘 인출 신청</span>
+                <span class="adm-summary-value" id="withdrawal-summary-today">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div id="withdrawal-list" class="withdrawal-list">
-                <div class="withdrawal-empty">인출 내역을 조회하고 있습니다.</div>
+            <div class="adm-summary-item" title="1년이 지나지 않은 원금이 포함된 인출 건수 (인출 내역 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">조기 인출</span>
+                <span class="adm-summary-value" id="withdrawal-summary-early">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div id="withdrawal-pagination" class="withdrawal-pagination" hidden></div>
-        </section>
-
-        <section id="withdrawal-detail" class="withdrawal-detail-card is-empty">
-            <div id="withdrawal-detail-empty" class="withdrawal-detail-empty">
-                왼쪽 목록에서 계좌를 선택해 주세요.
+            <div class="adm-summary-item" title="처리 상태가 실패인 인출 건수 (인출 내역 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">실패</span>
+                <span class="adm-summary-value" id="withdrawal-summary-failed">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
+        </div>
 
-            <div id="withdrawal-detail-content" hidden>
-                <div id="withdrawal-account-benefit-warning"
-                     class="withdrawal-warning withdrawal-account-warning" hidden>
-                    이 계좌는 조기인출로 인해 세제혜택 전체 취소 상태입니다.
-                </div>
-                <section class="withdrawal-allocation-section account-allocation-section">
-                    <div class="withdrawal-section-header">
-                        <div>
-                            <span class="withdrawal-section-label">선택 계좌</span>
-                            <h3 id="withdrawal-allocation-title">납입건별 인출 배분</h3>
-                        </div>
-                    </div>
-                    <div class="withdrawal-allocation-sort" aria-label="배분 내역 날짜 정렬">
-                        <button type="button" class="allocation-sort-option active"
-                                data-allocation-sort="DESC">날짜 내림차순</button>
-                        <span aria-hidden="true">·</span>
-                        <button type="button" class="allocation-sort-option"
-                                data-allocation-sort="ASC">날짜 오름차순</button>
-                    </div>
-                    <div id="withdrawal-allocations" class="withdrawal-allocations"></div>
-                    <div id="withdrawal-allocation-pagination"
-                         class="withdrawal-pagination allocation-pagination" hidden></div>
-                </section>
-
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="withdrawal-keyword">검색어
+                    <input id="withdrawal-keyword" class="adm-input" type="text"
+                           placeholder="계좌번호, 고객명으로 검색" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="withdrawal-filter-status">처리 상태
+                    <span class="adm-select-wrap">
+                        <select id="withdrawal-filter-status" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+                <label class="adm-qfield" for="withdrawal-filter-kind">계좌 구분
+                    <span class="adm-select-wrap">
+                        <select id="withdrawal-filter-kind" class="adm-input adm-select">
+                            <option value="">전체 계좌</option>
+                        </select>
+                    </span>
+                </label>
             </div>
-        </section>
-    </div>
+            <div class="adm-qbtns">
+                <button type="button" id="withdrawal-search-button" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="withdrawal-filter-reset" class="adm-btn adm-btn-md">초기화</button>
+            </div>
+        </div>
+    </section>
 
-    <div id="withdrawal-drawer-backdrop" class="withdrawal-drawer-backdrop" hidden></div>
-    <aside id="withdrawal-detail-drawer" class="withdrawal-detail-drawer"
-           aria-labelledby="withdrawal-detail-title" aria-hidden="true">
-        <div class="withdrawal-card-header withdrawal-drawer-header">
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">인출 내역</span>
+            <span class="adm-grid-total">총 <b id="withdrawal-count">-</b>건</span>
+            <div class="adm-pager" id="withdrawal-pagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="withdrawal-page-size" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable withdrawals-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>계좌번호</th>
+                        <th class="withdrawals-col-name">고객명</th>
+                        <th class="is-c">인출 구분</th>
+                        <th class="is-r">인출 금액</th>
+                        <th>신청 일시</th>
+                        <th class="is-c">처리 상태</th>
+                    </tr>
+                    </thead>
+                    <tbody id="withdrawal-list">
+                    <tr class="is-state withdrawals-loading">
+                        <td colspan="7">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="withdrawal-drawer-backdrop"></div>
+    <aside class="adm-panel" id="withdrawal-detail-drawer" aria-label="인출 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1402]</span>
+                <span class="adm-panel-name" id="withdrawal-detail-title">-</span>
+                <span class="adm-panel-sub" id="withdrawal-account-no">-</span>
+            </div>
+            <button type="button" class="adm-panel-close" id="withdrawal-drawer-close" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
             <div>
-                <span class="withdrawal-section-label">인출 상세</span>
-                <h2 id="withdrawal-detail-title">인출 내역</h2>
-            </div>
-            <div class="withdrawal-drawer-actions">
-                <span id="withdrawal-detail-status" class="withdrawal-status-badge"></span>
-                <button type="button" id="withdrawal-drawer-close" aria-label="인출 상세 닫기">×</button>
-            </div>
-        </div>
-
-        <div id="withdrawal-early-warning" class="withdrawal-warning withdrawal-drawer-warning" hidden>
-            이 계좌는 조기인출로 인해 세제혜택 전체 취소 상태입니다.
-        </div>
-
-        <section id="withdrawal-selected-allocation" class="withdrawal-selected-allocation">
-            <div class="withdrawal-card-header">
-                <div>
-                    <span class="withdrawal-section-label">선택한 배분</span>
-                    <h3 id="selected-allocation-title">배분 상세</h3>
+                <div class="adm-section-title">기본 정보</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">인출 구분</div>
+                    <div class="adm-kv-v"><span id="withdrawal-detail-kind">-</span></div>
+                    <div class="adm-kv-k">처리 상태</div>
+                    <div class="adm-kv-v"><span id="withdrawal-detail-status">-</span></div>
+                    <div class="adm-kv-k">인출 금액</div>
+                    <div class="adm-kv-v" id="withdrawal-requested-amount">-</div>
+                    <div class="adm-kv-k">신청 일시</div>
+                    <div class="adm-kv-v" id="withdrawal-processed-at">-</div>
                 </div>
-                <span id="selected-allocation-type" class="allocation-type-badge"></span>
             </div>
-            <dl class="withdrawal-detail-grid selected-allocation-grid">
-                <div><dt>배분 금액</dt><dd id="selected-allocation-amount">-</dd></div>
-                <div><dt>환전 건</dt><dd id="selected-allocation-exchange">-</dd></div>
-                <div><dt>T+2 결제일</dt><dd id="selected-allocation-final-at">-</dd></div>
-                <div><dt>1년 경과일</dt><dd id="selected-allocation-maturity-at">-</dd></div>
-                <div><dt>인출 시각</dt><dd id="selected-allocation-withdrawal-at">-</dd></div>
-                <div><dt>의무유지기간</dt><dd id="selected-allocation-progress">-</dd></div>
-            </dl>
-        </section>
 
-        <div class="withdrawal-drawer-section-title">인출 전체 정보</div>
-        <dl class="withdrawal-detail-grid">
-            <div><dt>고객명</dt><dd id="withdrawal-customer-name">-</dd></div>
-            <div><dt>RIA 계좌번호</dt><dd id="withdrawal-account-no">-</dd></div>
-            <div><dt>계좌 개설 시각</dt><dd id="withdrawal-account-opened-at">-</dd></div>
-            <div><dt>현재 계좌 잔액</dt><dd id="withdrawal-current-balance">-</dd></div>
-            <div><dt>요청 금액</dt><dd id="withdrawal-requested-amount">-</dd></div>
-            <div><dt>목적지 일반계좌</dt><dd id="withdrawal-destination-account">-</dd></div>
-            <div><dt>처리 시각</dt><dd id="withdrawal-processed-at">-</dd></div>
-            <div><dt>조기인출 발생</dt><dd id="withdrawal-early-result">-</dd></div>
-        </dl>
+            <div>
+                <div class="adm-section-title">납입건별 인출 배분 <span class="adm-section-sub">· 먼저 납입한 순서</span></div>
+                <div id="withdrawal-allocations"></div>
+            </div>
 
-        <div class="withdrawal-allocation-summary">
-            <article class="allocation-summary earnings">
-                <span>수익금</span>
-                <strong id="withdrawal-earnings-amount">0원</strong>
-            </article>
-            <article class="allocation-summary matured">
-                <span>1년 경과 원금</span>
-                <strong id="withdrawal-matured-amount">0원</strong>
-            </article>
-            <article class="allocation-summary immature">
-                <span>1년 미경과 원금</span>
-                <strong id="withdrawal-immature-amount">0원</strong>
-            </article>
+            <!-- 조기 인출이면 세제 혜택 경고 (원본 문구). 계좌 세제혜택이 "제외"면 옛 화면의 계좌 경고도 같이 보인다 -->
+            <div id="withdrawal-early-warning" class="adm-notice is-box is-warn" hidden>
+                1년 인출가능일 전 납입건에서 배분된 금액은 감면세액과 이자상당가산액 추징 대상이에요.
+            </div>
+            <div id="withdrawal-account-benefit-warning" class="adm-notice is-box is-warn" hidden>
+                이 계좌는 조기인출로 인해 세제혜택 전체 취소 상태입니다.
+            </div>
+
+            <!-- 원본에 없는 기존 요소(계좌·목적지·배분 구분별 합계): 지우지 않고 접어 둔다. 처음엔 접힘 -->
+            <div>
+                <button type="button" class="adm-fold" id="withdrawal-fold-toggle" aria-expanded="false" aria-controls="withdrawal-fold-body">
+                    <span class="adm-section-title">인출 상세</span>
+                    <svg class="adm-fold-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="adm-kv" id="withdrawal-fold-body" hidden>
+                    <div class="adm-kv-k">고객명</div>
+                    <div class="adm-kv-v" id="withdrawal-customer-name">-</div>
+                    <div class="adm-kv-k">계좌 개설 시각</div>
+                    <div class="adm-kv-v" id="withdrawal-account-opened-at">-</div>
+                    <div class="adm-kv-k">현재 계좌 잔액</div>
+                    <div class="adm-kv-v" id="withdrawal-current-balance">-</div>
+                    <div class="adm-kv-k">목적지 일반계좌</div>
+                    <div class="adm-kv-v" id="withdrawal-destination-account">-</div>
+                    <div class="adm-kv-k">조기인출 발생</div>
+                    <div class="adm-kv-v" id="withdrawal-early-result">-</div>
+                    <div class="adm-kv-k">수익금</div>
+                    <div class="adm-kv-v" id="withdrawal-earnings-amount">-</div>
+                    <div class="adm-kv-k">1년 경과 원금</div>
+                    <div class="adm-kv-v" id="withdrawal-matured-amount">-</div>
+                    <div class="adm-kv-k">1년 미경과 원금</div>
+                    <div class="adm-kv-v" id="withdrawal-immature-amount">-</div>
+                </div>
+            </div>
         </div>
-
     </aside>
 </div>
 
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/withdrawals.js}"></script>
 </th:block>
 </body>

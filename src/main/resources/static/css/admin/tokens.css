@@ -100,6 +100,9 @@
   --adm-chart-gray: #CBD3DE;        /* 상태 도넛 4번째 조각 */
   --adm-chart-gold: #D8A94E;        /* 나이대 막대 중 가장 큰 값 */
   --adm-chart-bar: #183A6B;         /* 나이대 막대 기본색 (다크는 #6FA8FF) */
+  /* ----- 원본 인출 관리(1402) 납입건별 배분 바 채움색 (A-9). 원본 데이터의 color(#6FA8FF / #F2994A)에 투명도 .5 ----- */
+  --adm-alloc-ok: rgba(111,168,255,.5);         /* 인출 가능 배분 바 */
+  --adm-alloc-early: rgba(242,153,74,.5);       /* 조기(1년 미경과) 배분 바 */
 }
 
 [data-theme="dark"] {
