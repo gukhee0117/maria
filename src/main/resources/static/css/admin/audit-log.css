@@ -1,0 +1,32 @@
+/* 감사 로그 (9002) 화면 전용 규칙 (A-4)
+   원본: admin.dc.html 의 감사 로그 화면. 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/audit-log.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙(16px 20px)보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.audit-log) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.audit-log {
+    /* 칸 너비: 원본 최종 화면의 칸 너비(No 40 · 150 · 150 · 72 · 110 · 140 · 170 · 220)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 (행위자 칸은 뺌) */
+    --adm-cols: 40px minmax(136px, 1fr) minmax(136px, 1fr) minmax(58px, 1fr) minmax(96px, 1fr) minmax(126px, 1fr) minmax(156px, 1fr) minmax(206px, 1fr);
+    --adm-cols-min: 954px;
+}
+
+/* 변경 내용 칸: "전 → 후" 한 줄 */
+.audit-log-change-arrow {
+    margin: 0 4px;
+    color: var(--adm-sub);
+}
+
+.audit-log-reason-code {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+}
+
+/* 상세 패널 안 값(원문 그대로 보이는 경우 줄바꿈 허용) */
+.audit-log-raw {
+    white-space: pre-wrap;
+    word-break: break-all;
+}

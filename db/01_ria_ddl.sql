@@ -202,6 +202,7 @@ CREATE TABLE domestic_product (
     type                VARCHAR(15)  NOT NULL COMMENT 'STOCK/FUND',
     domestic_stock_ratio DECIMAL(5,2) NULL COMMENT '국내주식 비중%(FUND만). RIA 편입 80% 판정. STOCK은 NULL',
     inception_date       DATE         NULL COMMENT '설정일(FUND만). 1개월 경과 판정. STOCK은 NULL',
+    sector_name          VARCHAR(50)  NULL COMMENT '업종(STOCK만). 자금 환류 운용처 업종 집중도. FUND는 NULL',
     PRIMARY KEY (domestic_product_id),
     CONSTRAINT chk_domestic_product_type CHECK (type IN ('STOCK','FUND'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='국내 종목 마스터';
@@ -548,6 +549,8 @@ CREATE TABLE domestic_order (
     qty                 DECIMAL(15,4) NOT NULL COMMENT '정수 주만',
     price               DECIMAL(15,4) NULL     COMMENT '체결가(증권사 현재가)',
     amount              DECIMAL(15,0) NULL     COMMENT '예수금 변동액(원)',
+    fee_amount          DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '수수료(원). 매수 체결금액 = ABS(amount) - fee_amount',
+    tax_amount          DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '거래세(원, 매도만). 매도 체결금액 = amount + fee_amount + tax_amount',
     channel             VARCHAR(10)   NOT NULL COMMENT 'GENERATOR/CUSTOMER',
     idempotency_key     VARCHAR(64)   NOT NULL COMMENT '증권사 주문번호 또는 화면 UUID',
     status              VARCHAR(10)   NOT NULL COMMENT 'EXECUTED/REJECTED',
@@ -774,7 +777,7 @@ CREATE TABLE customer_consent (
     agreed              BOOLEAN     NOT NULL,
     changed_at          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (customer_consent_id),
-    CONSTRAINT chk_ccs_type CHECK (consent_type IN ('MARKETING_SMS','MARKETING_EMAIL','MARKETING_PUSH','NOTIFY_SETTLEMENT','NOTIFY_COMMENT'))
+    CONSTRAINT chk_ccs_type CHECK (consent_type IN ('MARKETING_SMS','MARKETING_EMAIL','MARKETING_PUSH','NOTIFY_SETTLEMENT','NOTIFY_COMMENT','MYDATA_PROVISION'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='수신동의·알림 설정 이력';
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
@@ -837,7 +840,9 @@ CREATE TABLE fund_flow_monthly (
     domestic_buy_amount  DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '국내 매수',
     domestic_sell_amount DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '국내 매도',
     withdrawal_amount    DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '인출',
-    calculated_at        DATETIME      NOT NULL COMMENT '집계 시각',
+    cash_balance_begin   DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '월초 예수금(전월 말, 첫 달 0)',
+    cash_balance_end     DECIMAL(15,0) NOT NULL DEFAULT 0 COMMENT '월말 예수금 = begin + 납입 + 국내매도 - 국내매수 - 인출',
+    calculated_at       DATETIME      NOT NULL COMMENT '집계 시각',
     run_id               VARCHAR(50)   NOT NULL COMMENT '배치 실행 id',
     PRIMARY KEY (fund_flow_monthly_id),
     UNIQUE KEY uk_ffm_account_month (account_id, flow_month),

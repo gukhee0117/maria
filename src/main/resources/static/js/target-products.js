@@ -1,43 +1,40 @@
 $(function () {
-    var STOCK_TYPE_LABEL = {
-        FOREIGN_STOCK: "해외주식",
-        ETF: "ETF",
-        ETN: "ETN",
-        FUND: "펀드"
-        };
-    var TRADE_TYPE_LABEL = {
-        BUY: "매수",
-        SELL: "매도",
-        INHERITANCE: "상속",
-        GIFT: "증여"
-    };
+    var STATUS = MARIA.status; // 구분 한글 표기는 js/admin/status-labels.js 의 공통 매핑
     var PAGE_SIZE = 20;
-    var activeKpiFilter = null;
+    var currentPage = 0;
     var newJudgementIds = [];
+    var SKELETON_ROWS = 8;
+    var SKELETON_WIDTHS = ["62%", "70%", "48%", "54%", "66%", "78%", "56%", "40%"];
 
     var KRW_FORMATTER = new Intl.NumberFormat("ko-KR");
-    var DATETIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit"
-    });
 
+    function pad(n) {
+        return String(n).padStart(2, "0");
+    }
     function formatDateTime(isoString) {
-        if (!isoString) {
+        var date = isoString ? new Date(isoString) : null;
+        if (!date || isNaN(date.getTime())) {
             return "-";
         }
-        return DATETIME_FORMATTER.format(new Date(isoString)).replace(/\. /g, "-").replace(".", "");
+        return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+            " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
     }
+    // 금액은 숫자만 (단위 "원"은 열 이름·요약 단위가 말해 준다). 음수는 앞에 -.
     function formatAmount(amount) {
-        var value = amount || 0;
-        var sign = value < 0 ? "-" : "";
-        return sign + "₩" + KRW_FORMATTER.format(Math.abs(value));
+        var value = Number(amount) || 0;
+        return (value < 0 ? "-" : "") + KRW_FORMATTER.format(Math.abs(value));
     }
     function escapeHtml(value) {
-        return $("<div>").text(value).html();
+        return $("<div>").text(value == null ? "" : value).html();
+    }
+    function chip(tone, label, title) {
+        return '<span class="adm-chip adm-chip-' + tone + '"' + (title ? ' title="' + escapeHtml(title) + '"' : "") + ">" +
+            escapeHtml(label) + "</span>";
     }
     function canTriggerBatch() {
+        // 배치 실행 API(POST /api/admin/external-trade-sync/jobs)는 SETTLEMENT 권한만 열려 있다
         var admin = MARIA.auth.currentAdmin();
-        return !!admin && (admin.role === "ADMIN" || admin.role === "SETTLEMENT");
+        return !!admin && admin.role === "SETTLEMENT";
     }
     function assetLabel(item) {
         if (item.stockType === "FUND") {
@@ -73,31 +70,66 @@ $(function () {
         );
     }
 
+    // ---------- 조회조건의 선택 목록: 공통 매핑에서 채운다 ----------
+    function fillOptions(selector, labels) {
+        var $select = $(selector);
+        Object.keys(labels).forEach(function (value) {
+            $select.append($("<option>", { value: value, text: labels[value] }));
+        });
+    }
+    fillOptions("#tpFilterStockType", STATUS.STOCK_TYPE_LABEL);
+    fillOptions("#tpFilterTradeType", STATUS.TRADE_TYPE_LABEL);
+
+    // ---------- 표 ----------
+    function stateRow(className, innerHtml, fill) {
+        return '<tr class="is-state ' + (fill ? "is-state-fill " : "") + className + '"><td colspan="9">' + innerHtml + "</td></tr>";
+    }
+
+    function renderLoading() {
+        var html = "";
+        for (var r = 0; r < SKELETON_ROWS; r++) {
+            html += '<tr class="is-state tp-loading" aria-label="불러오는 중"><td colspan="9"><div class="adm-skel-row">' +
+                '<div class="adm-skel-cell"></div>';
+            for (var c = 0; c < 8; c++) {
+                html += '<div class="adm-skel-cell"><span style="width:' + SKELETON_WIDTHS[(c + r) % SKELETON_WIDTHS.length] +
+                    ';animation-delay:' + ((c + r) % 5) * 0.06 + 's"></span></div>';
+            }
+            html += "</div></td></tr>";
+        }
+        $("#tpTableBody").html(html);
+    }
+
     function renderTable(items) {
         var $body = $("#tpTableBody").empty();
         if (!items || items.length === 0) {
-            $body.append('<tr><td colspan="8" class="dash-empty">탐지된 이벤트가 없습니다.</td></tr>');
+            $body.append(stateRow("tp-empty",
+                '<div class="adm-state-empty">' +
+                '<img src="/images/admin/char-front.png" alt="">' +
+                '<div class="adm-state-empty-title">탐지된 이벤트가 없습니다.</div>' +
+                '<div class="adm-state-empty-desc">조회조건을 바꾸거나 초기화한 뒤 다시 조회해 주세요.</div>' +
+                '<button type="button" class="adm-btn tp-empty-reset">조건 초기화</button>' +
+                "</div>", true));
             return;
         }
-        items.forEach(function (item) {
-            var netBuyClass = Number(item.netBuyAmount) < 0 ? ' style="color:var(--danger)"' : "";
-            var targetBadge = item.isTarget
-                ? '<span class="status-badge completed" title="' + escapeHtml(judgementReason(item)) + '">대상</span>'
-                : '<span class="status-badge failed" title="' + escapeHtml(judgementReason(item)) + '">비대상</span>';
+        items.forEach(function (item, index) {
+            var reason = judgementReason(item);
+            var targetBadge = item.isTarget ? chip("ok", "대상", reason) : chip("off", "비대상", reason);
             var isNew = newJudgementIds.indexOf(item.judgementId) !== -1;
-            var newBadge = isNew ? '<span class="tp-new-badge">NEW</span> ' : "";
-            var row =
+            var newBadge = isNew ? '<span class="tp-new-badge">NEW</span>' : "";
+            var netBuyClass = Number(item.netBuyAmount) < 0 ? " tp-negative" : "";
+            $body.append(
                 "<tr" + (isNew ? ' class="tp-new-row"' : "") + ">" +
-                "<td>" + newBadge + formatDateTime(item.judgedAt) + "</td>" +
-                "<td>" + escapeHtml(item.customerName || "-") + "</td>" +
-                "<td>" + (STOCK_TYPE_LABEL[item.stockType] || item.stockType) + "</td>" +
-                "<td>" + assetLabel(item) + "</td>" +
-                "<td>" + (TRADE_TYPE_LABEL[item.tradeType] || item.tradeType) + "</td>" +
-                "<td>" + formatAmount(item.amount) + "</td>" +
-                "<td" + netBuyClass + ">" + formatAmount(item.netBuyAmount) + "</td>" +
-                "<td>" + targetBadge + "</td>" +
-                "</tr>";
-            $body.append(row);
+                '<td class="adm-col-no">' + (currentPage * PAGE_SIZE + index + 1) + "</td>" +
+                "<td><span>" + formatDateTime(item.judgedAt) + "</span></td>" +
+                "<td><span>" + escapeHtml(item.customerName || "-") + newBadge + "</span></td>" +
+                "<td><span>" + escapeHtml(STATUS.stockTypeLabel(item.stockType)) + "</span></td>" +
+                "<td><span>" + assetLabel(item) + "</span></td>" +
+                '<td class="is-c">' + chip(STATUS.tradeTypeTone(item.tradeType), STATUS.tradeTypeLabel(item.tradeType)) + "</td>" +
+                '<td class="is-r"><span>' + formatAmount(item.amount) + "</span></td>" +
+                '<td class="is-r"><span class="' + netBuyClass.trim() + '">' + formatAmount(item.netBuyAmount) + "</span></td>" +
+                '<td class="is-c">' + targetBadge + "</td>" +
+                "</tr>"
+            );
         });
     }
 
@@ -114,7 +146,7 @@ $(function () {
         var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
 
         function addButton(label, targetPage, isDisabled, isActive) {
-            var classes = "page-btn" + (isActive ? " active" : "");
+            var classes = "adm-page-btn" + (isActive ? " is-active" : "") + (/^[0-9]+$/.test(label) ? "" : " is-nav");
             var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
             $btn.prop("disabled", isDisabled || isActive);
             if (!isDisabled && !isActive) {
@@ -125,21 +157,20 @@ $(function () {
             $pagination.append($btn);
         }
 
-        addButton("이전", blockStart - 1, blockStart === 0, false);
-
+        if (blockStart > 0) {
+            addButton("이전", blockStart - 1, false, false);
+        }
         for (var i = blockStart; i <= blockEnd; i++) {
             addButton(String(i + 1), i, false, i === current);
         }
-
         addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
     }
 
+    // ---------- 요약 ----------
     function renderSummary(summary) {
-        $("#kpiTodayJudgement").text(summary.todayJudgementCount + " 건");
-        $("#kpiTodayTarget").text(summary.todayTargetCount + " 건");
+        $("#kpiTodayJudgement").text(KRW_FORMATTER.format(summary.todayJudgementCount));
+        $("#kpiTodayTarget").text(KRW_FORMATTER.format(summary.todayTargetCount));
         $("#kpiTodayTargetAmount").text(formatAmount(summary.todayTargetNetBuyAmount));
-        $("#kpiTotalJudgement").text(summary.totalJudgementCount + " 건");
-        $("#kpiTodayInheritanceGift").text(summary.todayInheritanceGiftCount + " 건");
     }
 
     function loadSummary() {
@@ -157,6 +188,7 @@ $(function () {
             });
     }
 
+    // ---------- 조회 ----------
     function getFilterParams() {
         var params = {};
         var customerName = $("#tpFilterCustomerName").val();
@@ -178,92 +210,122 @@ $(function () {
         return params;
     }
 
+    // 체크 칸: 옛 요약 카드(오늘 판정 / 오늘 상속·증여)가 보내던 파라미터를 그대로 보낸다
     function getCardFilterParams() {
-        if (activeKpiFilter === "today") {
-            return { todayOnly: true };
+        var params = {};
+        var todayOnly = $("#tpFilterTodayOnly").prop("checked");
+        var giftOnly = $("#tpFilterGiftOnly").prop("checked");
+        if (todayOnly) {
+            params.todayOnly = true;
         }
-        if (activeKpiFilter === "todayTarget") {
-            return { todayOnly: true, isTarget: true };
+        if (giftOnly) {
+            params.inheritanceGiftOnly = true;
         }
-        if (activeKpiFilter === "todayInheritanceGift") {
-            return { todayOnly: true, inheritanceGiftOnly: true };
-        }
-        return {};
-    }
-
-    function clearKpiFilter() {
-        activeKpiFilter = null;
-        $(".kpi-filter-card").removeClass("active");
+        return params;
     }
 
     function loadTargetProducts(page) {
         var targetPage = page || 0;
         var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams(), getCardFilterParams());
+        renderLoading();
         MARIA.auth.ajax({
             url: "/api/admin/target-products",
             method: "GET",
             data: requestData
         })
             .done(function (res) {
+                currentPage = res.data.page || 0;
+                $("#tpTotalCount").text(KRW_FORMATTER.format(res.data.totalElements || 0));
                 renderTable(res.data.content);
                 renderPagination(res.data);
-                $("#tpLoading").hide();
-                $("#tpBody").css("display", "flex");
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
                     return;
                 }
-                $("#tpLoading").hide();
                 var message = "목록을 불러오지 못했습니다.";
                 if (xhr.responseJSON && xhr.responseJSON.message) {
                     message = xhr.responseJSON.message;
                 }
-                $("#tpError").text(message).show();
+                $("#tpTotalCount").text("-");
+                $("#tpPagination").empty();
+                $("#tpTableBody").html(stateRow("tp-error",
+                    '<div class="adm-state-error">' +
+                    '<div class="adm-state-error-text">' +
+                    '<div class="adm-state-error-title">' + escapeHtml(message) + "</div>" +
+                    '<div class="adm-state-error-desc">잠시 후 다시 시도해 주세요.</div>' +
+                    "</div>" +
+                    '<button type="button" class="adm-btn tp-retry" data-page="' + targetPage + '">다시 시도</button>' +
+                    "</div>", true));
             });
     }
 
-    $("#tpFilterSubmit").on("click", function () {
-        clearKpiFilter();
-        loadTargetProducts(0);
-    });
-    $("#tpFilterReset").on("click", function () {
-        clearKpiFilter();
+    function resetFilters() {
         $("#tpFilterCustomerName").val("");
         $("#tpFilterStockType").val("");
         $("#tpFilterIsTarget").val("");
         $("#tpFilterTradeType").val("");
+        $("#tpFilterTodayOnly, #tpFilterGiftOnly").prop("checked", false);
         loadTargetProducts(0);
+    }
+
+    $("#tpFilterSubmit").on("click", function () {
+        loadTargetProducts(0);
+    });
+    $("#tpFilterReset").on("click", resetFilters);
+    $("#tpTableBody").on("click", ".tp-empty-reset", resetFilters);
+    $("#tpTableBody").on("click", ".tp-retry", function () {
+        loadSummary();
+        loadTargetProducts(parseInt($(this).attr("data-page"), 10) || 0);
     });
     $("#tpFilterCustomerName").on("keypress", function (e) {
         if (e.which === 13) {
-            clearKpiFilter();
-            loadTargetProducts(0);
+                loadTargetProducts(0);
         }
     });
-    $(".kpi-filter-card").on("click", function () {
-        var filter = $(this).data("filter");
-        var resolvedFilter = filter === "all" ? null : filter;
-        if (activeKpiFilter === resolvedFilter) {
-            resolvedFilter = null;
+
+    $("#tpPageSize").on("click", "button", function () {
+        var size = parseInt($(this).attr("data-size"), 10);
+        if (!size || size === PAGE_SIZE) {
+            return;
         }
-        activeKpiFilter = resolvedFilter;
-        $("#tpFilterCustomerName").val("");
-        $("#tpFilterStockType").val("");
-        $("#tpFilterIsTarget").val("");
-        $("#tpFilterTradeType").val("");
-        $(".kpi-filter-card").removeClass("active");
-        if (activeKpiFilter === null) {
-            $('.kpi-filter-card[data-filter="all"]').addClass("active");
-        } else {
-            $(this).addClass("active");
-        }
+        PAGE_SIZE = size;
+        $("#tpPageSize button").removeClass("is-on");
+        $(this).addClass("is-on");
         loadTargetProducts(0);
     });
 
-    $("#tpBatchTriggerGroup").toggle(canTriggerBatch());
+    // ---------- 배치 수동 실행 ----------
+    // 로그인 확인(/api/admin/me)이 끝난 뒤에 버튼을 보인다 (같은 요청을 다시 보내지 않고 결과만 받는다)
+    MARIA.auth.requireAuth().done(function () {
+        $("#tpBatchTriggerGroup").prop("hidden", !canTriggerBatch());
+    });
+
+    function closeBatchModal() {
+        $("#tpBatchModal").prop("hidden", true);
+        $("#tpTriggerBatch").trigger("focus");
+    }
     $("#tpTriggerBatch").on("click", function () {
         if (!canTriggerBatch()) return;
+        $("#tpBatchModal").prop("hidden", false);
+        $("#tpBatchModalConfirm").trigger("focus");
+    });
+    $("#tpBatchModalClose, #tpBatchModalCancel").on("click", closeBatchModal);
+    $("#tpBatchModal").on("click", function (event) {
+        if (event.target === this) {
+            closeBatchModal();
+        }
+    });
+    $(document).on("keydown", function (event) {
+        if (event.key === "Escape" && !$("#tpBatchModal").prop("hidden")) {
+            closeBatchModal();
+        }
+    });
+
+    $("#tpBatchModalConfirm").on("click", function () {
+        if (!canTriggerBatch()) return;
+        $("#tpBatchModal").prop("hidden", true);
+        $("#tpTriggerBatch").prop("disabled", true);
         $("#tpBatchTriggerResult").text("실행 중...");
         MARIA.auth.ajax({ url: "/api/admin/external-trade-sync/jobs", method: "POST" })
             .done(function (res) {
@@ -274,6 +336,7 @@ $(function () {
                     text += " · 실패 " + r.failedCustomerCount + "명";
                 }
                 $("#tpBatchTriggerResult").text(text);
+                MARIA.ui.setStatus("외부 감시 배치를 실행했어요");
                 loadSummary();
                 loadTargetProducts(0);
             })
@@ -281,6 +344,9 @@ $(function () {
                 if (xhr.status === 401) return;
                 $("#tpBatchTriggerResult").text("실패");
                 MARIA.ui.showError((xhr.responseJSON && xhr.responseJSON.message) || "배치 실행에 실패했습니다.");
+            })
+            .always(function () {
+                $("#tpTriggerBatch").prop("disabled", false);
             });
     });
 

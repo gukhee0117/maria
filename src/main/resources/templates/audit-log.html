@@ -4,69 +4,131 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/statistics.css}">
-        <link rel="stylesheet" th:href="@{/css/audit-log.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/audit-log.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">감사 로그</div>
 
-<div layout:fragment="content" class="audit-log">
-    <div class="audit-log-header">
-        <h1 class="audit-log-title">감사 로그</h1>
-        <span class="audit-log-count" id="auditLogCount">-</span>
-    </div>
-
-    <div class="card audit-log-toolbar">
-        <div class="audit-log-filter-row">
-            <select id="auditTargetTableFilter" class="audit-log-filter">
-                <option value="">작업유형</option>
-                <option value="ADMIN_USER">관리자</option>
-                <option value="SYSTEM_CLOCK">시스템 시각</option>
-                <option value="ACCOUNT">계좌</option>
-                <option value="SETTLEMENT_BATCH">정산배치</option>
-                <option value="SETTLEMENT_ITEM">정산항목</option>
-                <option value="TAX_SNAPSHOT_BATCH">세액 스냅샷 배치</option>
-            </select>
-            <input id="auditStartDateFilter" class="audit-log-filter" type="datetime-local">
-            <span class="audit-log-filter-separator">~</span>
-            <input id="auditEndDateFilter" class="audit-log-filter" type="datetime-local">
+<div layout:fragment="content" class="adm-page audit-log">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[9002]</span> 감사 로그</h1>
+            <span class="adm-screen-path">시스템 &gt; 감사 로그</span>
         </div>
-        <div class="audit-log-filter-row">
-            <input id="auditAdminKeywordFilter" class="audit-log-filter audit-log-search-input" type="text"
-                   placeholder="관리자 (이름/역할)">
-            <input id="auditTargetKeywordFilter" class="audit-log-filter audit-log-search-input" type="text"
-                   placeholder="대상 (이름/계좌번호)">
-            <input id="auditReasonKeywordFilter" class="audit-log-filter audit-log-search-input" type="text"
-                   placeholder="사유">
-            <div class="audit-log-filter-actions">
-                <button id="auditLogSearch" class="btn btn-primary" type="button">조회</button>
-                <button id="auditLogReset" class="btn" type="button">초기화</button>
+
+        <!-- 요약: 지금 불러온 목록(현재 쪽) 기준으로 audit-log.js 가 센다 -->
+        <div class="adm-summary" id="auditSummary">
+            <div class="adm-summary-item" title="지금 불러온 목록 기준">
+                <span class="adm-summary-label">오늘 기록</span>
+                <span class="adm-summary-value" id="auditSummaryToday">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <div class="adm-summary-item" title="지금 불러온 목록 기준">
+                <span class="adm-summary-label">승인 · 반려</span>
+                <span class="adm-summary-value" id="auditSummaryDecision">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <div class="adm-summary-item" title="지금 불러온 목록 기준">
+                <span class="adm-summary-label">권한 · 업무시각 변경</span>
+                <span class="adm-summary-value" id="auditSummaryChange">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
         </div>
-    </div>
 
-    <div class="card audit-log-table-wrap">
-        <table class="audit-log-table">
-            <thead>
-            <tr>
-                <th>처리시각</th>
-                <th>기록시각</th>
-                <th>관리자</th>
-                <th>작업유형</th>
-                <th>대상</th>
-                <th>사유</th>
-                <th>변경 내용</th>
-            </tr>
-            </thead>
-            <tbody id="auditLogListBody">
-            <tr>
-                <td colspan="7" class="audit-log-loading">불러오는 중...</td>
-            </tr>
-            </tbody>
-        </table>
-    </div>
-    <div class="audit-log-pagination" id="auditLogPagination"></div>
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="auditAdminKeywordFilter">관리자
+                    <input id="auditAdminKeywordFilter" class="adm-input" type="text"
+                           placeholder="이름 · 역할">
+                </label>
+                <label class="adm-qfield" for="auditTargetKeywordFilter">대상
+                    <input id="auditTargetKeywordFilter" class="adm-input" type="text"
+                           placeholder="이름 · 계좌번호">
+                </label>
+                <label class="adm-qfield" for="auditReasonKeywordFilter">사유
+                    <input id="auditReasonKeywordFilter" class="adm-input" type="text">
+                </label>
+                <label class="adm-qfield" for="auditTargetTableFilter">작업유형
+                    <span class="adm-select-wrap">
+                        <select id="auditTargetTableFilter" class="adm-input adm-select">
+                            <option value="">전체</option>
+                            <option value="ADMIN_USER">관리자</option>
+                            <option value="SYSTEM_CLOCK">시스템 시각</option>
+                            <option value="ACCOUNT">계좌</option>
+                            <option value="SETTLEMENT_BATCH">정산배치</option>
+                            <option value="SETTLEMENT_ITEM">정산항목</option>
+                            <option value="TAX_SNAPSHOT_BATCH">세액 스냅샷 배치</option>
+                        </select>
+                    </span>
+                </label>
+                <div class="adm-qfield adm-qfield-range">처리일시
+                    <input id="auditStartDateFilter" class="adm-input" type="datetime-local" aria-label="처리일시 시작">
+                    <span class="adm-qsep">~</span>
+                    <input id="auditEndDateFilter" class="adm-input" type="datetime-local" aria-label="처리일시 끝">
+                </div>
+            </div>
+            <div class="adm-qbtns">
+                <button id="auditLogSearch" class="adm-btn adm-btn-primary adm-btn-md" type="button">조회</button>
+                <button id="auditLogReset" class="adm-btn adm-btn-md" type="button">초기화</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">감사 기록</span>
+            <span class="adm-grid-total">총 <b id="auditLogCount">-</b>건</span>
+            <div class="adm-pager" id="auditLogPagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="auditLogPageSize" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="10" class="is-on">10</button>
+                    <button type="button" data-size="20">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable audit-log-table" id="auditLogTable">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>처리시각</th>
+                        <th>기록시각</th>
+                        <th>관리자</th>
+                        <th>작업유형</th>
+                        <th>대상</th>
+                        <th>사유</th>
+                        <th>변경 내용</th>
+                    </tr>
+                    </thead>
+                    <tbody id="auditLogListBody">
+                    <tr class="is-state audit-log-loading">
+                        <td colspan="8">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="auditDetailScrim"></div>
+    <aside class="adm-panel" id="auditDetailPanel" aria-label="감사 로그 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[9002]</span>
+                <span class="adm-panel-name" id="auditDetailTitle">-</span>
+                <span class="adm-panel-sub" id="auditDetailSub"></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="auditDetailClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body" id="auditDetailBody"></div>
+    </aside>
 </div>
 
 <th:block layout:fragment="pageScripts">

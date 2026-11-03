@@ -4,97 +4,145 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/statistics.css}">
-        <link rel="stylesheet" th:href="@{/css/target-products.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/target-products.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">외부 감시</div>
-<div layout:fragment="content">
-    <div id="tpLoading" class="dash-loading">불러오는 중...</div>
-    <div id="tpError" class="dash-error" style="display:none"></div>
-    <div id="tpBody" style="display:none">
-        <div class="kpi-grid">
-            <div class="card kpi-card kpi-filter-card" data-filter="today">
-                <div class="kpi-label">오늘 판정 건수</div>
-                <div class="kpi-value" id="kpiTodayJudgement">-</div>
+
+<div layout:fragment="content" class="adm-page target-products">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1301]</span> 외부 감시</h1>
+            <span class="adm-screen-path">세금 · 리스크 &gt; 외부 감시</span>
+        </div>
+
+        <!-- 요약: 오늘 기준 값 3개 (원본 그대로) -->
+        <div class="adm-summary" id="tpSummary">
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">오늘 판정 건수</span>
+                <span class="adm-summary-value" id="kpiTodayJudgement">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div class="card kpi-card kpi-filter-card" data-filter="todayTarget">
-                <div class="kpi-label">오늘 대상상품 건수</div>
-                <div class="kpi-value" id="kpiTodayTarget">-</div>
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">대상 거래</span>
+                <span class="adm-summary-value" id="kpiTodayTarget">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div class="card kpi-card kpi-filter-card" data-filter="todayTarget">
-                <div class="kpi-label">오늘 대상상품 순매수 합계</div>
-                <div class="kpi-value kpi-value-amount" id="kpiTodayTargetAmount">-</div>
-            </div>
-            <div class="card kpi-card kpi-filter-card" data-filter="todayInheritanceGift">
-                <div class="kpi-label">오늘 상속·증여 산입 건수</div>
-                <div class="kpi-value" id="kpiTodayInheritanceGift">-</div>
-            </div>
-            <div class="card kpi-card kpi-filter-card" data-filter="all">
-                <div class="kpi-label">누적 판정 건수</div>
-                <div class="kpi-value" id="kpiTotalJudgement">-</div>
+            <div class="adm-summary-item" title="오늘 대상상품의 순매수금액 합계">
+                <span class="adm-summary-label">외부 순매수 합계</span>
+                <span class="adm-summary-value" id="kpiTodayTargetAmount">-</span>
+                <span class="adm-summary-unit">원</span>
             </div>
         </div>
-        <div class="card filter-bar">
-            <input type="text" id="tpFilterCustomerName" class="filter-input" placeholder="고객명 검색">
-            <select id="tpFilterStockType" class="filter-select">
-                <option value="">전체 종목구분</option>
-                <option value="FOREIGN_STOCK">해외주식</option>
-                <option value="ETF">ETF</option>
-                <option value="ETN">ETN</option>
-                <option value="FUND">펀드</option>
-            </select>
-            <select id="tpFilterTradeType" class="filter-select">
-                <option value="">전체 거래유형</option>
-                <option value="BUY">매수</option>
-                <option value="SELL">매도</option>
-                <option value="INHERITANCE">상속</option>
-                <option value="GIFT">증여</option>
-            </select>
-            <select id="tpFilterIsTarget" class="filter-select">
-                <option value="">전체 대상여부</option>
-                <option value="true">대상</option>
-                <option value="false">비대상</option>
-            </select>
-            <button type="button" id="tpFilterSubmit" class="btn btn-primary">검색</button>
-            <button type="button" id="tpFilterReset" class="btn">초기화</button>
-            <span id="tpBatchTriggerGroup" class="tp-batch-inline">
-                  <button type="button" id="tpTriggerBatch" class="tp-batch-btn">배치 수동 실행</button>
-                  <span id="tpBatchTriggerResult" class="tp-batch-result"></span>
+
+        <div class="adm-notice">myData에서 받은 타 계좌 거래의 판정 내역이에요(최신순). 대상상품의 순매수금액은 세액 계산의 조정비율에 반영돼요.</div>
+
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="tpFilterCustomerName">고객명
+                    <input id="tpFilterCustomerName" class="adm-input" type="text" placeholder="고객명" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="tpFilterStockType">종목구분
+                    <span class="adm-select-wrap">
+                        <select id="tpFilterStockType" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+                <label class="adm-qfield" for="tpFilterTradeType">거래유형
+                    <span class="adm-select-wrap">
+                        <select id="tpFilterTradeType" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+                <label class="adm-qfield" for="tpFilterIsTarget">대상상품 여부
+                    <span class="adm-select-wrap">
+                        <select id="tpFilterIsTarget" class="adm-input adm-select">
+                            <option value="">전체</option>
+                            <option value="true">대상</option>
+                            <option value="false">비대상</option>
+                        </select>
+                    </span>
+                </label>
+                <label class="adm-check" for="tpFilterTodayOnly">
+                    <input type="checkbox" id="tpFilterTodayOnly">오늘 판정만
+                </label>
+                <label class="adm-check" for="tpFilterGiftOnly">
+                    <input type="checkbox" id="tpFilterGiftOnly">상속·증여만
+                </label>
+            </div>
+            <div class="adm-qbtns">
+                <button type="button" id="tpFilterSubmit" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="tpFilterReset" class="adm-btn adm-btn-md">초기화</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">판정 내역</span>
+            <span class="adm-grid-total">총 <b id="tpTotalCount">-</b>건</span>
+            <div class="adm-pager" id="tpPagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="tpPageSize" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+            <div class="adm-grid-spacer"></div>
+            <!-- 배치 수동 실행: 정산담당(API 권한 SETTLEMENT)에게만 보인다 -->
+            <span id="tpBatchTriggerGroup" class="tp-batch-group" hidden>
+                <span id="tpBatchTriggerResult" class="tp-batch-result"></span>
+                <button type="button" id="tpTriggerBatch" class="adm-btn adm-btn-primary adm-btn-sm">배치 수동 실행</button>
             </span>
         </div>
-        <div class="card tp-list-card">
-        <div class="section-header">
-                <span>외부 순매수 판정 목록</span>
-                <span class="section-sub">myData 연동, 최신순</span>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable tp-judgement-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>판정일시</th>
+                        <th>고객명</th>
+                        <th>종목구분</th>
+                        <th>종목/펀드</th>
+                        <th class="is-c">거래유형</th>
+                        <th class="is-r">거래금액</th>
+                        <th class="is-r">순매수금액</th>
+                        <th class="is-c">대상상품 여부</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tpTableBody">
+                    <tr class="is-state"><td colspan="9">불러오는 중...</td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="tp-table-wrap">
-            <table class="dash-table tp-judgement-table">
-                <thead>
-                <tr>
-                    <th>판정일시</th>
-                    <th>고객명</th>
-                    <th>종목구분</th>
-                    <th>종목/펀드</th>
-                    <th>거래유형</th>
-                    <th>거래금액</th>
-                    <th>순매수금액</th>
-                    <th>대상상품</th>
-                </tr>
-                </thead>
-                <tbody id="tpTableBody">
-                <tr>
-                    <td colspan="8" class="dash-empty">불러오는 중...</td>
-                </tr>
-                </tbody>
-            </table>
-            </div>
-            <div id="tpPagination" class="pagination"></div>
         </div>
+    </section>
+
+    <!-- 배치 수동 실행 확인 창 -->
+    <div class="adm-modal-backdrop" id="tpBatchModal" hidden>
+        <section class="adm-modal" role="dialog" aria-modal="true" aria-labelledby="tpBatchModalTitle">
+            <div class="adm-modal-head">
+                <h2 id="tpBatchModalTitle">외부 감시 배치를 실행할까요?</h2>
+                <button type="button" class="adm-modal-close" id="tpBatchModalClose" aria-label="닫기">&times;</button>
+            </div>
+            <div class="adm-modal-body">
+                <p class="adm-modal-desc">타 계좌 해외주식 거래를 다시 판정해요.</p>
+            </div>
+            <div class="adm-modal-actions">
+                <button type="button" class="adm-btn" id="tpBatchModalCancel">취소</button>
+                <button type="button" class="adm-btn adm-btn-primary" id="tpBatchModalConfirm">실행</button>
+            </div>
+        </section>
     </div>
 </div>
+
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/target-products.js}"></script>
 </th:block>
 </body>

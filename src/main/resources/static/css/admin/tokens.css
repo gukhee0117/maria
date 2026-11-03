@@ -1,0 +1,148 @@
+/* 관리자 화면 디자인 토큰 (RIA ADMIN)
+   원본: customer-web/_design/Returns_프론트_최종/admin.dc.html 의 CSS 변수 블록을 값 그대로 옮김.
+   - 변수 이름은 원본 이름에 --adm- 접두어만 붙임 (예: --bg → --adm-bg). 기존 layout.css 변수와 충돌 방지.
+   - 라이트: :root / [data-theme="light"], 다크: [data-theme="dark"] (원본 규칙과 동일).
+   - 고객 웹과 값이 같은 항목에는 "고객 웹 tokens.css와 동일" 주석 (색만 비교, 라이트 기준).
+   - 이 파일은 아직 어떤 템플릿에서도 불러오지 않는다. (A-1) */
+
+:root,
+[data-theme="light"] {
+  --adm-bg: #EEF1F5; /* 고객 웹 tokens.css와 동일 (--color-chip) */
+  --adm-panel: #FFFFFF; /* 고객 웹 tokens.css와 동일 (--color-surface) */
+  --adm-bd: #D9DEE5;
+  --adm-bd2: #C5CDD8;
+  --adm-line: #E7EBF0;
+  --adm-head: #F5F7FA;
+  --adm-grid-head: #E8EDF5;
+  --adm-grid-head-h: #DDE5F0;
+  --adm-zebra: #FAFBFC; /* 고객 웹 tokens.css와 동일 (--color-surface-bar) */
+  --adm-hover: #EEF5FF;
+  --adm-sel: #E1ECFF;
+  --adm-total: #F1F4F9;
+  --adm-tabbar: #E3E8EF;
+  --adm-tab-off: #E9EDF2;
+  --adm-text: #1A2233; /* 고객 웹 tokens.css와 동일 (--color-ink) */
+  --adm-sub: #6B7280; /* 고객 웹 tokens.css와 동일 (--color-sub) */
+  --adm-field: #FFFFFF; /* 고객 웹 tokens.css와 동일 (--color-surface) */
+  --adm-qbox: #F5F7FA;
+  --adm-side: #183A6B; /* 고객 웹 tokens.css와 동일 (--color-navy) */
+  --adm-side-fg: #B9C8DF;
+  --adm-side-sel: rgba(255,255,255,.10);
+  --adm-navy-btn: #183A6B; /* 고객 웹 tokens.css와 동일 (--color-navy) */
+  --adm-on-navy: #FFFFFF; /* 고객 웹 tokens.css와 동일 (--color-surface) */
+  --adm-navy-fg: #183A6B; /* 고객 웹 tokens.css와 동일 (--color-navy) */
+  --adm-status: #183A6B; /* 고객 웹 tokens.css와 동일 (--color-navy) */
+  --adm-skel: #E9EDF3;
+  --adm-log: #F7F9FC;
+  --adm-ok-bg: #E3F5EE;
+  --adm-ok-fg: #0B7A5A;
+  --adm-ok-bd: #BDE6D6;
+  --adm-info-bg: #E8F1FF;
+  --adm-info-fg: #2D62BD;
+  --adm-info-bd: #C7DBFB;
+  --adm-warn-bg: #FDF0E3;
+  --adm-warn-fg: #B4621A;
+  --adm-warn-bd: #F6D3B0;
+  --adm-fail-bg: #FDECEC; /* 고객 웹 tokens.css와 동일 (--color-red-bg) */
+  --adm-fail-fg: #C42F35;
+  --adm-fail-bd: #F5C4C6; /* 고객 웹 tokens.css와 동일 (--color-red-line) */
+  --adm-off-bg: #EEF1F5; /* 고객 웹 tokens.css와 동일 (--color-chip) */
+  --adm-off-fg: #6B7280; /* 고객 웹 tokens.css와 동일 (--color-sub) */
+  --adm-off-bd: #D9DEE5;
+
+  /* ----- 원본 마크업에 변수 없이 직접 쓰인 값 (A-2 로그인에서 추가). 원본에 다크 값이 없어 라이트만 정의 ----- */
+  --adm-focus-ring: #6FA8FF;        /* 포커스 링 outline (원본 button/input :focus-visible) */
+  --adm-placeholder: #9AA4B2;       /* 입력창 placeholder */
+  --adm-navy-btn-hover: #122E57;    /* 남색 버튼 hover (로그인 버튼) */
+  --adm-login-eyebrow: #9FB6D9;     /* 로그인 왼쪽 패널 "RIA ADMIN" 라벨 */
+  --adm-login-input-bd: #D5DDE8;    /* 로그인 입력창 테두리 */
+  --adm-login-err-fg: #C26A1C;      /* 로그인 오류 문구 */
+  --adm-login-err-bd: #F2994A;      /* 로그인 오류 시 입력창 테두리 */
+
+  /* ----- 원본 셸(사이드바·상단·상태바·모달·토스트)에 변수 없이 직접 쓰인 값 (A-3에서 추가, 승인된 목록).
+           원본에 다크 값이 없고, 사이드바·상태바는 두 테마 모두 남색 바탕이라 라이트 값만 정의 ----- */
+  --adm-side-accent: var(--adm-focus-ring);     /* 활성 메뉴 왼쪽 막대 (#6FA8FF, --adm-focus-ring과 같은 값의 별칭) */
+  --adm-side-tag: var(--adm-login-eyebrow);     /* 사이드바 "RIA ADMIN" 태그 글자 (#9FB6D9, --adm-login-eyebrow와 같은 값의 별칭) */
+  --adm-side-tag-bd: rgba(159,182,217,.45);     /* 사이드바 "RIA ADMIN" 태그 테두리 */
+  --adm-side-icon: #9FB2CF;                     /* 사이드바 메뉴·검색 아이콘, Ctrl K 글자 */
+  --adm-side-muted: #8FA3C2;                    /* "메뉴 접기" 글자, 안내문 */
+  --adm-side-group-fg: rgba(255,255,255,.7);    /* 그룹 이름 글자 */
+  --adm-side-caret: rgba(255,255,255,.55);      /* 그룹 펼침 화살표 */
+  --adm-side-on: #FFFFFF;                       /* 남색 사이드바·상태바 위 흰 글자 (두 테마 모두 흰색) */
+  --adm-side-wash-04: rgba(255,255,255,.04);    /* 흰색 투명도: 그룹 머리글 hover */
+  --adm-side-wash-07: rgba(255,255,255,.07);    /* 메뉴 hover, 검색 입력 배경 */
+  --adm-side-wash-08: rgba(255,255,255,.08);    /* 검색 영역 아래 선 */
+  --adm-side-wash-10: rgba(255,255,255,.10);    /* 로고 아래 선, 메뉴 접기 위 선 */
+  --adm-side-wash-14: rgba(255,255,255,.14);    /* 상태바 칸 구분선 */
+  --adm-side-wash-16: rgba(255,255,255,.16);    /* 접힌 사이드바 팝업 테두리 */
+  --adm-side-wash-18: rgba(255,255,255,.18);    /* 검색 입력 테두리 */
+  --adm-side-wash-22: rgba(255,255,255,.22);    /* Ctrl K 키 표시 테두리 */
+  --adm-badge-bg: #D8A94E;                      /* 알림 배지, 접힌 사이드바 점 */
+  --adm-badge-fg: #1A2233;                      /* 알림 배지 글자 */
+  --adm-status-fg: #D6E2F3;                     /* 상태바 글자 */
+  --adm-scrim: rgba(10,20,38,.22);              /* 상세 패널 뒤 어둡게 */
+  --adm-scrim-modal: rgba(10,20,38,.42);        /* 확인/사유 모달 뒤 어둡게 */
+  --adm-tip-bg: #1A2233;                        /* 툴팁·토스트 바탕 */
+  --adm-tip-fg: #FFFFFF;                        /* 툴팁·토스트 글자 */
+  --adm-shadow-pop: 0 10px 24px -10px rgba(0,0,0,.55);  /* 검색 결과 드롭다운 그림자 */
+  --adm-shadow-modal: 0 20px 50px -20px rgba(10,20,38,.5);  /* 모달 그림자 */
+  --adm-shadow-toast: 0 10px 24px -12px rgba(10,20,38,.5);  /* 토스트 그림자 */
+  --adm-toast-dot: #00B386;                     /* 토스트 앞 점 */
+  --adm-shadow-fly: 8px 10px 24px -12px rgba(0,0,0,.5);  /* 접힌 사이드바 그룹 메뉴 그림자 */
+  /* ----- 원본 통계보드(9001)의 차트 색 (A-5에서 추가). 원본 마크업/스크립트에 직접 쓰인 값 그대로.
+           상태 도넛 = 1·4·5·회색, 종목 막대 = 1~5 (기타는 --adm-bd2), 나이대 막대 = chart-bar (최대값만 gold) ----- */
+  --adm-chart-1: #183A6B;           /* 상태 도넛 1번째 조각, 종목 막대 1위 */
+  --adm-chart-2: #2F5C9E;           /* 종목 막대 2위 */
+  --adm-chart-3: #4E83D6;           /* 종목 막대 3위 */
+  --adm-chart-4: #6FA8FF;           /* 상태 도넛 2번째 조각, 종목 막대 4위 */
+  --adm-chart-5: #A9CBFF;           /* 상태 도넛 3번째 조각, 종목 막대 5위 */
+  --adm-chart-gray: #CBD3DE;        /* 상태 도넛 4번째 조각 */
+  --adm-chart-gold: #D8A94E;        /* 나이대 막대 중 가장 큰 값 */
+  --adm-chart-bar: #183A6B;         /* 나이대 막대 기본색 (다크는 #6FA8FF) */
+}
+
+[data-theme="dark"] {
+  --adm-chart-bar: #6FA8FF;
+  --adm-bg: #0D192C;
+  --adm-panel: #13233D;
+  --adm-bd: #26395A;
+  --adm-bd2: #33496E;
+  --adm-line: #1E3150;
+  --adm-head: #172A47;
+  --adm-grid-head: #1B3050;
+  --adm-grid-head-h: #22395E;
+  --adm-zebra: #152640;
+  --adm-hover: #1A3052;
+  --adm-sel: #1E3862;
+  --adm-total: #182C4A;
+  --adm-tabbar: #0F1E35;
+  --adm-tab-off: #16273F;
+  --adm-text: #E6ECF5;
+  --adm-sub: #93A1B7;
+  --adm-field: #0F1E35;
+  --adm-qbox: #172A47;
+  --adm-side: #091425;
+  --adm-side-fg: #8FA3C2;
+  --adm-side-sel: rgba(111,168,255,.14);
+  --adm-navy-btn: #6FA8FF;
+  --adm-on-navy: #0B1A2E;
+  --adm-navy-fg: #9CC3FF;
+  --adm-status: #091425;
+  --adm-skel: #1D3150;
+  --adm-log: #0F1E35;
+  --adm-ok-bg: rgba(0,179,134,.16);
+  --adm-ok-fg: #4FD1A8;
+  --adm-ok-bd: rgba(0,179,134,.35);
+  --adm-info-bg: rgba(111,168,255,.16);
+  --adm-info-fg: #9CC3FF;
+  --adm-info-bd: rgba(111,168,255,.35);
+  --adm-warn-bg: rgba(242,153,74,.16);
+  --adm-warn-fg: #F5B57A;
+  --adm-warn-bd: rgba(242,153,74,.35);
+  --adm-fail-bg: rgba(229,72,77,.18);
+  --adm-fail-fg: #FF8A8D;
+  --adm-fail-bd: rgba(229,72,77,.4);
+  --adm-off-bg: rgba(147,161,183,.14);
+  --adm-off-fg: #A3B0C4;
+  --adm-off-bd: rgba(147,161,183,.3);
+}

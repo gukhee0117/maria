@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.fundflow.mapper.FundFlowMapper">
+
+    <!-- 가입→첫 매수 퍼널. 고객당 처음 도달 1회, 앞 단계를 모두 지난 고객만 센다(중첩).
+         일자 조건은 업무시계 날짜 미만(clockDate). 분석 기준: analysis/sql/20_funnel.sql -->
+    <select id="selectFunnel" parameterType="FundFlowFilterDTO" resultType="FundFlowFunnelStageDTO">
+        SELECT
+        t.stage_no AS stageNo,
+        t.stage AS stage,
+        t.n AS customers,
+        ROUND(t.n * 1.0 / NULLIF(LAG(t.n) OVER (ORDER BY t.stage_no), 0), 4) AS convPrev,
+        ROUND(t.n * 1.0 / NULLIF(FIRST_VALUE(t.n) OVER (ORDER BY t.stage_no), 0), 4) AS convTotal
+        FROM (
+        SELECT
+        m.stage_no,
+        m.stage,
+        CASE m.stage_no
+        WHEN 1 THEN s.n1
+        WHEN 2 THEN s.n2
+        WHEN 3 THEN s.n3
+        WHEN 4 THEN s.n4
+        WHEN 5 THEN s.n5
+        ELSE s.n6
+        END AS n
+        FROM (
+        SELECT 1 AS stage_no, '웹 가입' AS stage
+        UNION ALL SELECT 2, '마이데이터 동의'
+        UNION ALL SELECT 3, '계좌 신청'
+        UNION ALL SELECT 4, '개설'
+        UNION ALL SELECT 5, '첫 매도'
+        UNION ALL SELECT 6, '첫 국내 매수'
+        ) m
+        CROSS JOIN (
+        SELECT
+        COUNT(*) AS n1,
+        COALESCE(SUM(CASE WHEN k.customer_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS n2,
+        COALESCE(SUM(CASE WHEN k.customer_id IS NOT NULL AND a.account_id IS NOT NULL
+        THEN 1 ELSE 0 END), 0) AS n3,
+        COALESCE(SUM(CASE WHEN k.customer_id IS NOT NULL AND a.opened_at &lt; #{clockDate}
+        THEN 1 ELSE 0 END), 0) AS n4,
+        COALESCE(SUM(CASE WHEN k.customer_id IS NOT NULL AND a.opened_at &lt; #{clockDate}
+        AND so.account_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS n5,
+        COALESCE(SUM(CASE WHEN k.customer_id IS NOT NULL AND a.opened_at &lt; #{clockDate}
+        AND so.account_id IS NOT NULL AND bo.account_id IS NOT NULL
+        THEN 1 ELSE 0 END), 0) AS n6
+        FROM customer c
+        LEFT JOIN (
+        SELECT DISTINCT customer_id
+        FROM customer_consent
+        WHERE consent_type = 'MYDATA_PROVISION' AND agreed AND changed_at &lt; #{clockDate}
+        ) k ON k.customer_id = c.customer_id
+        LEFT JOIN account a ON a.customer_id = c.customer_id AND a.created_at &lt; #{clockDate}
+        LEFT JOIN (
+        SELECT DISTINCT account_id
+        FROM sell_order
+        WHERE status = 'EXECUTED' AND processed_at &lt; #{clockDate}
+        ) so ON so.account_id = a.account_id
+        LEFT JOIN (
+        SELECT DISTINCT account_id
+        FROM domestic_order
+        WHERE side = 'BUY' AND status = 'EXECUTED' AND processed_at &lt; #{clockDate}
+        ) bo ON bo.account_id = a.account_id
+        WHERE c.created_at &lt; #{clockDate}
+        ) s
+        ) t
+        ORDER BY t.stage_no
+    </select>
+
+    <!-- 상단 핵심 지표 원천 합계. 비율은 서비스에서 계산한다.
+         매수 체결금액 = ABS(amount) - fee_amount, 매도 체결금액 = amount + fee_amount + tax_amount -->
+    <select id="selectOverview" parameterType="FundFlowFilterDTO" resultType="FundFlowOverviewDTO">
+        SELECT
+        (SELECT COUNT(*) FROM account
+        WHERE opened_at IS NOT NULL AND opened_at &lt; #{clockDate}) AS openedAccounts,
+        COALESCE((SELECT SUM(final_amount) FROM krw_exchange
+        WHERE settlement_status = 'FINALIZED' AND final_at &lt; #{clockDate}), 0) AS inflowTotal,
+        COALESCE((SELECT SUM(ABS(amount) - fee_amount) FROM domestic_order
+        WHERE side = 'BUY' AND status = 'EXECUTED' AND processed_at &lt; #{clockDate}), 0) AS domesticBuyTotal,
+        COALESCE((SELECT SUM(amount + fee_amount + tax_amount) FROM domestic_order
+        WHERE side = 'SELL' AND status = 'EXECUTED' AND processed_at &lt; #{clockDate}), 0) AS domesticSellTotal
+    </select>
+
+    <!-- 혜택 누수 5분류. 분류 순서는 LeakageCategory.classify 와 같아야 한다. 분모 = tax_snapshot 행 -->
+    <select id="selectLeakage" resultType="FundFlowLeakageCategoryDTO">
+        SELECT
+        cls.code AS code,
+        COUNT(*) AS accounts,
+        SUM(CASE WHEN cls.external_amount &gt; 0 THEN 1 ELSE 0 END) AS withExternalBuy
+        FROM (
+        SELECT
+        CASE
+        WHEN t.weighted_sell = 0 THEN 'NO_SELL'
+        WHEN a.benefit = 'IMPOSSIBLE' THEN 'BENEFIT_CANCELED'
+        WHEN t.adjust_ratio = 1 THEN 'NO_IMPACT'
+        WHEN t.adjust_ratio &gt; 0 THEN 'PARTIAL_REDUCED'
+        ELSE 'EXTERNAL_BUY_OFFSET'
+        END AS code,
+        t.weighted_external_amount AS external_amount
+        FROM tax_snapshot t
+        JOIN account a ON a.account_id = t.account_id
+        ) cls
+        GROUP BY cls.code
+    </select>
+
+    <select id="selectSnapshotCalculatedAt" resultType="java.time.LocalDateTime">
+        SELECT MAX(calculated_at) FROM tax_snapshot
+    </select>
+
+    <!-- 완료된 달: fund_flow_monthly 를 월별로 합산 -->
+    <select id="selectMonthlyClosed" parameterType="FundFlowFilterDTO" resultType="FundFlowMonthDTO">
+        SELECT
+        flow_month AS flowMonth,
+        SUM(foreign_sell_amount) AS foreignSellAmount,
+        SUM(krw_inflow_amount) AS krwInflowAmount,
+        SUM(domestic_buy_amount) AS domesticBuyAmount,
+        SUM(domestic_sell_amount) AS domesticSellAmount,
+        SUM(withdrawal_amount) AS withdrawalAmount,
+        SUM(cash_balance_begin) AS cashBalanceBegin,
+        SUM(cash_balance_end) AS cashBalanceEnd
+        FROM fund_flow_monthly
+        WHERE flow_month &lt; #{monthStart}
+        <if test="fromMonth != null">AND flow_month &gt;= #{fromMonth}</if>
+        <if test="toMonth != null">AND flow_month &lt;= #{toMonth}</if>
+        GROUP BY flow_month
+        ORDER BY flow_month
+    </select>
+
+    <!-- 진행 중인 달: 원천 테이블 직접 집계. 국내 매수·매도는 fund_flow_monthly 와 이어지도록 예수금 순액 기준 -->
+    <select id="selectMonthlyPartial" parameterType="FundFlowFilterDTO" resultType="FundFlowMonthDTO">
+        SELECT
+        COALESCE((SELECT SUM(sell_qty * base_price) FROM sell_order
+        WHERE status = 'EXECUTED' AND processed_at &gt;= #{monthStart} AND processed_at &lt; #{clockDate}), 0)
+        AS foreignSellAmount,
+        COALESCE((SELECT SUM(final_amount) FROM krw_exchange
+        WHERE settlement_status = 'FINALIZED' AND final_at &gt;= #{monthStart} AND final_at &lt; #{clockDate}), 0)
+        AS krwInflowAmount,
+        COALESCE((SELECT SUM(ABS(amount)) FROM domestic_order
+        WHERE side = 'BUY' AND status = 'EXECUTED'
+        AND processed_at &gt;= #{monthStart} AND processed_at &lt; #{clockDate}), 0) AS domesticBuyAmount,
+        COALESCE((SELECT SUM(amount) FROM domestic_order
+        WHERE side = 'SELL' AND status = 'EXECUTED'
+        AND processed_at &gt;= #{monthStart} AND processed_at &lt; #{clockDate}), 0) AS domesticSellAmount,
+        COALESCE((SELECT SUM(requested_amount) FROM withdrawal
+        WHERE status = 'COMPLETED' AND processed_at &gt;= #{monthStart} AND processed_at &lt; #{clockDate}), 0)
+        AS withdrawalAmount
+    </select>
+
+    <!-- 연령대 × 투자성향 세부 칸. 소계·전체·5명 미만 마스킹·비율은 서비스에서 계산한다.
+         연령은 기준일(asOfDate) 만 나이 -->
+    <select id="selectSegments" parameterType="FundFlowFilterDTO" resultType="FundFlowSegmentRowDTO">
+        SELECT
+        p.age_band AS ageBand,
+        p.investor_type AS investorType,
+        COUNT(*) AS accounts,
+        SUM(CASE WHEN p.inflow &gt; 0 THEN 1 ELSE 0 END) AS accountsWithInflow,
+        SUM(p.inflow) AS inflowTotal,
+        SUM(p.buy_exec) AS buyTotal,
+        SUM(p.sell_exec) AS sellTotal
+        FROM (
+        SELECT
+        acc.investor_type,
+        CASE
+        WHEN acc.age &lt; 30 THEN '20대 이하'
+        WHEN acc.age &lt; 40 THEN '30대'
+        WHEN acc.age &lt; 50 THEN '40대'
+        WHEN acc.age &lt; 60 THEN '50대'
+        ELSE '60대 이상'
+        END AS age_band,
+        COALESCE(i.inflow, 0) AS inflow,
+        COALESCE(d.buy_exec, 0) AS buy_exec,
+        COALESCE(d.sell_exec, 0) AS sell_exec
+        FROM (
+        SELECT
+        a.account_id,
+        c.investor_type,
+        YEAR(#{asOfDate}) - YEAR(c.birth_date)
+        - CASE WHEN MONTH(#{asOfDate}) * 100 + DAY(#{asOfDate})
+        &lt; MONTH(c.birth_date) * 100 + DAY(c.birth_date) THEN 1 ELSE 0 END AS age
+        FROM account a
+        JOIN customer c ON c.customer_id = a.customer_id
+        WHERE a.opened_at IS NOT NULL AND a.opened_at &lt; #{clockDate}
+        ) acc
+        LEFT JOIN (
+        SELECT account_id, SUM(final_amount) AS inflow
+        FROM krw_exchange
+        WHERE settlement_status = 'FINALIZED' AND final_at &lt; #{clockDate}
+        GROUP BY account_id
+        ) i ON i.account_id = acc.account_id
+        LEFT JOIN (
+        SELECT account_id,
+        SUM(CASE WHEN side = 'BUY' THEN ABS(amount) - fee_amount ELSE 0 END) AS buy_exec,
+        SUM(CASE WHEN side = 'SELL' THEN amount + fee_amount + tax_amount ELSE 0 END) AS sell_exec
+        FROM domestic_order
+        WHERE status = 'EXECUTED' AND processed_at &lt; #{clockDate}
+        GROUP BY account_id
+        ) d ON d.account_id = acc.account_id
+        ) p
+        GROUP BY p.age_band, p.investor_type
+        ORDER BY p.age_band, p.investor_type
+    </select>
+
+    <!-- 일반 과세 세액 = 세율 × max(0, 비가중 총양도소득 − 기본공제), 감면액 = 일반 과세 세액 − 최종세액.
+         세율·기본공제는 기준일(asOfDate)에 유효한 tax_rule 행. 감면 1원당 투자액은 서비스에서 계산 -->
+    <select id="selectRelief" parameterType="FundFlowFilterDTO" resultType="FundFlowReliefDTO">
+        SELECT
+        COUNT(*) AS accounts,
+        COALESCE(SUM(r.general_tax), 0) AS generalTaxTotal,
+        COALESCE(SUM(r.final_tax), 0) AS finalTaxTotal,
+        COALESCE(SUM(r.general_tax - r.final_tax), 0) AS reliefTotal,
+        COALESCE(SUM(CASE WHEN r.general_tax - r.final_tax &gt; 0 THEN 1 ELSE 0 END), 0) AS accountsWithRelief,
+        COALESCE(SUM(r.net_invest), 0) AS netInvestTotal
+        FROM (
+        SELECT
+        t.final_tax AS final_tax,
+        ROUND(rule.rate * GREATEST(0, t.original_gain_amount - rule.basic), 2) AS general_tax,
+        COALESCE(d.net_invest, 0) AS net_invest
+        FROM tax_snapshot t
+        CROSS JOIN (
+        SELECT
+        COALESCE(MAX(CASE WHEN rule_type = 'BASIC_DEDUCTION' THEN rule_value END), 0) AS basic,
+        COALESCE(MAX(CASE WHEN rule_type = 'TAX_RATE' THEN rule_value END), 0) AS rate
+        FROM tax_rule
+        WHERE valid_from &lt;= #{asOfDate} AND valid_to &gt;= #{asOfDate}
+        ) rule
+        LEFT JOIN (
+        SELECT account_id,
+        SUM(CASE WHEN side = 'BUY' THEN ABS(amount) - fee_amount
+        ELSE -(amount + fee_amount + tax_amount) END) AS net_invest
+        FROM domestic_order
+        WHERE status = 'EXECUTED' AND processed_at &lt; #{clockDate}
+        GROUP BY account_id
+        ) d ON d.account_id = t.account_id
+        ) r
+        <if test="scope == 'POSITIVE'">
+            WHERE r.general_tax - r.final_tax &gt; 0
+        </if>
+    </select>
+
+    <!-- 매입금액 = 보유수량 × 평균 매입가 (현재가 평가액 아님) -->
+    <select id="selectProductCosts" resultType="FundFlowProductCostDTO">
+        SELECT
+        p.name AS name,
+        p.type AS type,
+        p.sector_name AS sectorName,
+        SUM(b.qty * b.avg_purchase_price) AS purchaseCost
+        FROM domestic_stock_balance b
+        JOIN domestic_product p ON p.domestic_product_id = b.domestic_product_id
+        WHERE b.qty &gt; 0 AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
+        GROUP BY p.domestic_product_id, p.name, p.type, p.sector_name
+    </select>
+
+    <!-- 고객: 본인 계좌 보유 종목별 매입금액 -->
+    <select id="selectCustomerProductCosts" resultType="FundFlowProductCostDTO">
+        SELECT
+        p.name AS name,
+        p.type AS type,
+        p.sector_name AS sectorName,
+        SUM(b.qty * b.avg_purchase_price) AS purchaseCost
+        FROM domestic_stock_balance b
+        JOIN account a ON a.account_id = b.account_id
+        JOIN domestic_product p ON p.domestic_product_id = b.domestic_product_id
+        WHERE a.customer_id = #{customerId} AND a.status = 'OPENED' AND b.qty &gt; 0
+        AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
+        GROUP BY p.domestic_product_id, p.name, p.type, p.sector_name
+    </select>
+
+    <!-- 순매수(매수 체결금액 − 매도 체결금액) 상위 10종목 -->
+    <select id="selectTopNetBuy" parameterType="FundFlowFilterDTO" resultType="FundFlowNetBuyDTO">
+        SELECT
+        p.name AS name,
+        p.type AS type,
+        p.sector_name AS sectorName,
+        SUM(CASE WHEN o.side = 'BUY' THEN ABS(o.amount) - o.fee_amount
+        ELSE -(o.amount + o.fee_amount + o.tax_amount) END) AS netBuyExec
+        FROM domestic_order o
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE o.status = 'EXECUTED' AND o.processed_at &lt; #{clockDate}
+        GROUP BY p.domestic_product_id, p.name, p.type, p.sector_name
+        ORDER BY netBuyExec DESC, p.domestic_product_id
+        LIMIT 10
+    </select>
+
+    <!-- 고객: 내 자금 흐름 요약. 개설된 계좌가 없으면 행이 없다 -->
+    <select id="selectCustomerSummary" resultType="FundFlowCustomerSummaryDTO">
+        SELECT
+        TRUE AS hasAccount,
+        a.amount AS cashBalance,
+        COALESCE((SELECT SUM(s.sell_qty * s.base_price) FROM sell_order s
+        WHERE s.account_id = a.account_id AND s.status = 'EXECUTED' AND s.processed_at &lt; #{clockDate}), 0)
+        AS soldForeignAmount,
+        COALESCE((SELECT SUM(k.final_amount) FROM krw_exchange k
+        WHERE k.account_id = a.account_id AND k.settlement_status = 'FINALIZED'
+        AND k.final_at &lt; #{clockDate}), 0) AS krwInflowAmount,
+        COALESCE((SELECT SUM(ABS(o.amount) - o.fee_amount) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'BUY' AND o.status = 'EXECUTED'
+        AND o.processed_at &lt; #{clockDate}), 0) AS domesticBuyAmount,
+        COALESCE((SELECT SUM(o.fee_amount) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'BUY' AND o.status = 'EXECUTED'
+        AND o.processed_at &lt; #{clockDate}), 0) AS domesticBuyFeeAmount
+        FROM account a
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+    </select>
+
+    <select id="selectCustomerMonthly" resultType="FundFlowMonthDTO">
+        SELECT
+        f.flow_month AS flowMonth,
+        f.foreign_sell_amount AS foreignSellAmount,
+        f.krw_inflow_amount AS krwInflowAmount,
+        f.domestic_buy_amount AS domesticBuyAmount,
+        f.domestic_sell_amount AS domesticSellAmount,
+        f.withdrawal_amount AS withdrawalAmount,
+        f.cash_balance_begin AS cashBalanceBegin,
+        f.cash_balance_end AS cashBalanceEnd
+        FROM fund_flow_monthly f
+        JOIN account a ON a.account_id = f.account_id
+        WHERE a.customer_id = #{customerId} AND f.flow_month &lt; #{monthStart}
+        ORDER BY f.flow_month
+    </select>
+
+    <!-- 고객: 진행 중인 달(monthStart ~ 업무시계 전일)을 본인 계좌 원천 테이블에서 직접 집계한다.
+         개설된 계좌가 없으면 행이 없다. 계산 기준은 관리자 selectMonthlyPartial 과 같다 -->
+    <select id="selectCustomerMonthlyPartial" resultType="FundFlowMonthDTO">
+        SELECT
+        COALESCE((SELECT SUM(s.sell_qty * s.base_price) FROM sell_order s
+        WHERE s.account_id = a.account_id AND s.status = 'EXECUTED'
+        AND s.processed_at &gt;= #{monthStart} AND s.processed_at &lt; #{clockDate}), 0) AS foreignSellAmount,
+        COALESCE((SELECT SUM(k.final_amount) FROM krw_exchange k
+        WHERE k.account_id = a.account_id AND k.settlement_status = 'FINALIZED'
+        AND k.final_at &gt;= #{monthStart} AND k.final_at &lt; #{clockDate}), 0) AS krwInflowAmount,
+        COALESCE((SELECT SUM(ABS(o.amount)) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'BUY' AND o.status = 'EXECUTED'
+        AND o.processed_at &gt;= #{monthStart} AND o.processed_at &lt; #{clockDate}), 0) AS domesticBuyAmount,
+        COALESCE((SELECT SUM(o.amount) FROM domestic_order o
+        WHERE o.account_id = a.account_id AND o.side = 'SELL' AND o.status = 'EXECUTED'
+        AND o.processed_at &gt;= #{monthStart} AND o.processed_at &lt; #{clockDate}), 0) AS domesticSellAmount,
+        COALESCE((SELECT SUM(w.requested_amount) FROM withdrawal w
+        WHERE w.account_id = a.account_id AND w.status = 'COMPLETED'
+        AND w.processed_at &gt;= #{monthStart} AND w.processed_at &lt; #{clockDate}), 0) AS withdrawalAmount
+        FROM account a
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+    </select>
+
+    <!-- 고객: 내 예상 세금 혜택. tax_snapshot 은 표시용 캐시 -->
+    <select id="selectCustomerRelief" resultType="FundFlowCustomerReliefDTO">
+        SELECT
+        TRUE AS hasAccount,
+        a.benefit AS benefit,
+        t.weighted_sell AS weightedSell,
+        t.adjust_ratio AS adjustRatio,
+        t.final_deduction AS finalDeduction,
+        t.final_tax AS finalTax,
+        t.calculated_at AS calculatedAt,
+        ROUND(rule.rate * GREATEST(0, t.original_gain_amount - rule.basic), 2) AS generalTax
+        FROM account a
+        LEFT JOIN tax_snapshot t ON t.account_id = a.account_id
+        CROSS JOIN (
+        SELECT
+        COALESCE(MAX(CASE WHEN rule_type = 'BASIC_DEDUCTION' THEN rule_value END), 0) AS basic,
+        COALESCE(MAX(CASE WHEN rule_type = 'TAX_RATE' THEN rule_value END), 0) AS rate
+        FROM tax_rule
+        WHERE valid_from &lt;= #{asOfDate} AND valid_to &gt;= #{asOfDate}
+        ) rule
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+    </select>
+
+</mapper>
