@@ -91,8 +91,8 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
 
     long countByCustomerIdAndStatusNot(Long customerId, CommunityStatus status);
 
-    boolean existsByCommunityPostIdAndKiruStatusIsNotNull(Long postId);
+    boolean existsByCommunityPostIdAndKkiruStatusIsNotNull(Long postId);
 
-    long countByCustomerIdAndKiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+    long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
             Long customerId, LocalDateTime since);
 }

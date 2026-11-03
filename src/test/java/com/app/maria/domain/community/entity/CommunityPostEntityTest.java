@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.app.maria.domain.community.type.CommunityStatus;
-import com.app.maria.domain.community.type.KiruStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class CommunityPostEntityTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 29, 14, 48);
 
-    private static CommunityPostEntity post(KiruStatus kiru) {
+    private static CommunityPostEntity post(KkiruStatus kiru) {
         return CommunityPostEntity.write(7L, "000660", "HBM 증설 기사 나왔던데요", kiru, NOW);
     }
 
@@ -74,8 +74,8 @@ class CommunityPostEntityTest {
     @Test
     @DisplayName("끼루가 이미 답한 글은 수정할 수 없고 본문도 그대로다")
     void cannotEditAnswered() {
-        CommunityPostEntity post = post(KiruStatus.PENDING);
-        post.moveKiruStatus(KiruStatus.ANSWERED);
+        CommunityPostEntity post = post(KkiruStatus.PENDING);
+        post.moveKkiruStatus(KkiruStatus.ANSWERED);
 
         assertThat(post.canEdit()).isFalse();
         assertError(() -> post.edit("바꾸기", NOW), ErrorType.COMMUNITY_POST_NOT_EDITABLE);
@@ -86,15 +86,15 @@ class CommunityPostEntityTest {
     @Test
     @DisplayName("답을 만드는 중(PENDING)인 글은 수정할 수 없고, 답을 못 받은 글(FAILED·NO_SOURCE·범위 밖)은 수정할 수 있다")
     void canEditOnlyWhenNoAnswerIsComing() {
-        CommunityPostEntity pending = post(KiruStatus.PENDING);
+        CommunityPostEntity pending = post(KkiruStatus.PENDING);
         assertThat(pending.canEdit()).isFalse();
-        pending.moveKiruStatus(KiruStatus.FAILED);
+        pending.moveKkiruStatus(KkiruStatus.FAILED);
         assertThat(pending.canEdit()).isTrue();
 
-        CommunityPostEntity noSource = post(KiruStatus.PENDING);
-        noSource.moveKiruStatus(KiruStatus.NO_SOURCE);
+        CommunityPostEntity noSource = post(KkiruStatus.PENDING);
+        noSource.moveKkiruStatus(KkiruStatus.NO_SOURCE);
         assertThat(noSource.canEdit()).isTrue();
-        assertThat(post(KiruStatus.OUT_OF_SCOPE).canEdit()).isTrue();
+        assertThat(post(KkiruStatus.OUT_OF_SCOPE).canEdit()).isTrue();
         assertThat(post(null).canEdit()).isTrue();
     }
 
@@ -136,17 +136,17 @@ class CommunityPostEntityTest {
 
     @Test
     @DisplayName("끼루 상태는 허용된 순서로만 바뀐다")
-    void kiruTransitions() {
+    void kkiruTransitions() {
         CommunityPostEntity noCall = post(null);
         assertError(
-                () -> noCall.moveKiruStatus(KiruStatus.ANSWERED),
-                ErrorType.COMMUNITY_KIRU_STATUS_INVALID);
+                () -> noCall.moveKkiruStatus(KkiruStatus.ANSWERED),
+                ErrorType.COMMUNITY_KKIRU_STATUS_INVALID);
 
-        CommunityPostEntity post = post(KiruStatus.PENDING);
-        post.moveKiruStatus(KiruStatus.ANSWERED);
+        CommunityPostEntity post = post(KkiruStatus.PENDING);
+        post.moveKkiruStatus(KkiruStatus.ANSWERED);
         assertError(
-                () -> post.moveKiruStatus(KiruStatus.PENDING),
-                ErrorType.COMMUNITY_KIRU_STATUS_INVALID);
+                () -> post.moveKkiruStatus(KkiruStatus.PENDING),
+                ErrorType.COMMUNITY_KKIRU_STATUS_INVALID);
     }
 
     private static void assertError(Runnable action, ErrorType expected) {

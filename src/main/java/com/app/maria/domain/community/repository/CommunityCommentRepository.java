@@ -71,9 +71,9 @@ public interface CommunityCommentRepository extends JpaRepository<CommunityComme
             Long postId, AuthorType authorType);
 
     /** 글 하나(그 댓글들)에서 끼루를 부른 횟수. */
-    long countByCommunityPostIdAndKiruStatusIsNotNull(Long postId);
+    long countByCommunityPostIdAndKkiruStatusIsNotNull(Long postId);
 
     /** 하루 한도 계산용: 사용자가 끼루를 부른 댓글 수. */
-    long countByCustomerIdAndKiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+    long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
             Long customerId, LocalDateTime since);
 }

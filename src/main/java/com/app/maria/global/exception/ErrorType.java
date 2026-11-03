@@ -232,9 +232,9 @@ public enum ErrorType {
     COMMUNITY_REPORT_ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 신고입니다.", LogLevel.WARN),
     COMMUNITY_REPORT_TARGET_UNAVAILABLE(
             HttpStatus.CONFLICT, "신고 대상이 이미 삭제되었거나 처리할 수 없는 상태입니다.", LogLevel.WARN),
-    COMMUNITY_KIRU_LIMIT_EXCEEDED(
+    COMMUNITY_KKIRU_LIMIT_EXCEEDED(
             HttpStatus.TOO_MANY_REQUESTS, "끼루를 부를 수 있는 횟수를 넘었어요. 나중에 다시 시도해 주세요.", LogLevel.WARN),
-    COMMUNITY_KIRU_STATUS_INVALID(HttpStatus.BAD_REQUEST, "끼루 상태를 변경할 수 없습니다", LogLevel.WARN),
+    COMMUNITY_KKIRU_STATUS_INVALID(HttpStatus.BAD_REQUEST, "끼루 상태를 변경할 수 없습니다", LogLevel.WARN),
     COMMUNITY_TEXT_RULE_LOAD_FAILED(
             HttpStatus.INTERNAL_SERVER_ERROR, "금칙어 규칙을 불러오지 못했습니다.", LogLevel.ERROR);
     private final HttpStatus status;

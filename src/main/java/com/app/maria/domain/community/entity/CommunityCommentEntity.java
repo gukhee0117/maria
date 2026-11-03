@@ -2,7 +2,7 @@ package com.app.maria.domain.community.entity;
 
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
-import com.app.maria.domain.community.type.KiruStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import jakarta.persistence.Column;
@@ -57,7 +57,7 @@ public class CommunityCommentEntity {
 
     @Column(name = "kiru_status", length = 15)
     @Enumerated(EnumType.STRING)
-    private KiruStatus kiruStatus;
+    private KkiruStatus kkiruStatus;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
@@ -71,7 +71,7 @@ public class CommunityCommentEntity {
             Long replyToCommentId,
             Long customerId,
             String content,
-            KiruStatus kiruStatus,
+            KkiruStatus kkiruStatus,
             LocalDateTime now) {
         return CommunityCommentEntity.builder()
                 .communityPostId(postId)
@@ -79,7 +79,7 @@ public class CommunityCommentEntity {
                 .customerId(customerId)
                 .content(CommunityContent.requireValid(content))
                 .authorType(AuthorType.CUSTOMER)
-                .kiruStatus(kiruStatus)
+                .kkiruStatus(kkiruStatus)
                 .status(CommunityStatus.VISIBLE)
                 .createdAt(now)
                 .build();
@@ -125,10 +125,10 @@ public class CommunityCommentEntity {
         this.status = CommunityStatus.DELETED;
     }
 
-    public void moveKiruStatus(KiruStatus next) {
-        if (!KiruStatus.canMove(kiruStatus, next)) {
-            throw new AppException(ErrorType.COMMUNITY_KIRU_STATUS_INVALID);
+    public void moveKkiruStatus(KkiruStatus next) {
+        if (!KkiruStatus.canMove(kkiruStatus, next)) {
+            throw new AppException(ErrorType.COMMUNITY_KKIRU_STATUS_INVALID);
         }
-        this.kiruStatus = next;
+        this.kkiruStatus = next;
     }
 }

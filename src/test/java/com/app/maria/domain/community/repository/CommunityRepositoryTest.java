@@ -11,7 +11,7 @@ import com.app.maria.domain.community.entity.CommunityPostReactionEntity;
 import com.app.maria.domain.community.entity.CommunityReportEntity;
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
-import com.app.maria.domain.community.type.KiruStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.domain.community.type.ReactionType;
 import com.app.maria.domain.community.type.ReportReason;
 import com.app.maria.domain.community.type.ReportStatus;
@@ -361,26 +361,26 @@ class CommunityRepositoryTest {
     void kiruCallCounts() {
         CommunityPostEntity p =
                 posts.saveAndFlush(
-                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KiruStatus.PENDING, NOW));
+                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
         comments.saveAndFlush(
                 CommunityCommentEntity.ofCustomer(
-                        p.getCommunityPostId(), null, 7L, "@끼루 또", KiruStatus.PENDING, NOW));
+                        p.getCommunityPostId(), null, 7L, "@끼루 또", KkiruStatus.PENDING, NOW));
         comment(p, 7);
 
-        assertThat(comments.countByCommunityPostIdAndKiruStatusIsNotNull(p.getCommunityPostId()))
+        assertThat(comments.countByCommunityPostIdAndKkiruStatusIsNotNull(p.getCommunityPostId()))
                 .isEqualTo(1);
         assertThat(
-                        posts.countByCustomerIdAndKiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+                        posts.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
                                 7L, NOW.toLocalDate().atStartOfDay()))
                 .isEqualTo(1);
         assertThat(
                         comments
-                                .countByCustomerIdAndKiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+                                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
                                         7L, NOW.toLocalDate().atStartOfDay()))
                 .isEqualTo(1);
         assertThat(
                         comments
-                                .countByCustomerIdAndKiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+                                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
                                         7L, NOW.toLocalDate().plusDays(1).atStartOfDay()))
                 .isZero();
     }
@@ -547,8 +547,8 @@ class CommunityRepositoryTest {
     void persistsKiruAndEdit() {
         CommunityPostEntity p =
                 posts.saveAndFlush(
-                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KiruStatus.PENDING, NOW));
-        p.moveKiruStatus(KiruStatus.NO_SOURCE);
+                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
+        p.moveKkiruStatus(KkiruStatus.NO_SOURCE);
         posts.flush();
 
         String stored =

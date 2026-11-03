@@ -1,14 +1,14 @@
 package com.app.maria.domain.community.type;
 
 /** 본문에 @끼루가 있을 때 호출이 어디까지 진행됐는지. 호출이 없으면 저장 값은 NULL이다. */
-public enum KiruStatus {
+public enum KkiruStatus {
     PENDING,
     ANSWERED,
     NO_SOURCE,
     OUT_OF_SCOPE,
     FAILED;
 
-    public static boolean canMove(KiruStatus from, KiruStatus to) {
+    public static boolean canMove(KkiruStatus from, KkiruStatus to) {
         if (to == null) {
             return false;
         }

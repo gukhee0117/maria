@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
-import com.app.maria.domain.community.type.KiruStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
@@ -86,14 +86,14 @@ class CommunityCommentEntityTest {
 
     @Test
     @DisplayName("댓글에서 끼루를 부르면 PENDING으로 시작해 결과로 끝난다")
-    void kiruOnComment() {
+    void kkiruOnComment() {
         CommunityCommentEntity comment =
                 CommunityCommentEntity.ofCustomer(
-                        1L, null, 7L, "@끼루 공시 있나요", KiruStatus.PENDING, NOW);
+                        1L, null, 7L, "@끼루 공시 있나요", KkiruStatus.PENDING, NOW);
 
-        comment.moveKiruStatus(KiruStatus.NO_SOURCE);
+        comment.moveKkiruStatus(KkiruStatus.NO_SOURCE);
 
-        assertThat(comment.getKiruStatus()).isEqualTo(KiruStatus.NO_SOURCE);
+        assertThat(comment.getKkiruStatus()).isEqualTo(KkiruStatus.NO_SOURCE);
     }
 
     private static void assertError(Runnable action, ErrorType expected) {

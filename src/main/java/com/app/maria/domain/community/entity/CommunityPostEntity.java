@@ -1,7 +1,7 @@
 package com.app.maria.domain.community.entity;
 
 import com.app.maria.domain.community.type.CommunityStatus;
-import com.app.maria.domain.community.type.KiruStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import jakarta.persistence.Column;
@@ -45,7 +45,7 @@ public class CommunityPostEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "kiru_status")
-    private KiruStatus kiruStatus;
+    private KkiruStatus kkiruStatus;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
@@ -61,13 +61,13 @@ public class CommunityPostEntity {
             Long customerId,
             String ticker,
             String content,
-            KiruStatus kiruStatus,
+            KkiruStatus kkiruStatus,
             LocalDateTime now) {
         return CommunityPostEntity.builder()
                 .customerId(customerId)
                 .ticker(ticker)
                 .content(CommunityContent.requireValid(content))
-                .kiruStatus(kiruStatus)
+                .kkiruStatus(kkiruStatus)
                 .status(CommunityStatus.VISIBLE)
                 .createdAt(now)
                 .editedAt(null)
@@ -79,7 +79,9 @@ public class CommunityPostEntity {
     }
 
     public boolean canEdit() {
-        return isVisible() && kiruStatus != KiruStatus.ANSWERED && kiruStatus != KiruStatus.PENDING;
+        return isVisible()
+                && kkiruStatus != KkiruStatus.ANSWERED
+                && kkiruStatus != KkiruStatus.PENDING;
     }
 
     public void edit(String newContent, LocalDateTime now) {
@@ -106,10 +108,10 @@ public class CommunityPostEntity {
         this.status = CommunityStatus.DELETED;
     }
 
-    public void moveKiruStatus(KiruStatus next) {
-        if (!KiruStatus.canMove(kiruStatus, next)) {
-            throw new AppException(ErrorType.COMMUNITY_KIRU_STATUS_INVALID);
+    public void moveKkiruStatus(KkiruStatus next) {
+        if (!KkiruStatus.canMove(kkiruStatus, next)) {
+            throw new AppException(ErrorType.COMMUNITY_KKIRU_STATUS_INVALID);
         }
-        this.kiruStatus = next;
+        this.kkiruStatus = next;
     }
 }
