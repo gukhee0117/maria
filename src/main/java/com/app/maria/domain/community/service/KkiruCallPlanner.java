@@ -58,6 +58,36 @@ public class KkiruCallPlanner {
     }
 
     /**
+     * 다시 묻기도 하루 한도(고객별·커뮤니티 전체)를 쓴다. 다시 묻기는 새 행을 만들지 않으므로, 그 행이 오늘 만들어져 이미 합계에 들어 있으면 자기 몫(1)을 빼고
+     * 판단한다. 호출하는 트랜잭션은 READ_COMMITTED여야 한다({@link #plan} 참고).
+     */
+    public void requireRetryLimits(Long customerId, LocalDateTime rowCreatedAt) {
+        customerRepository
+                .findByIdForUpdate(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+        LocalDateTime dayStart = clock.now().toLocalDate().atStartOfDay();
+        long ownCount = rowCreatedAt.isBefore(dayStart) ? 0 : 1;
+        long usedToday =
+                postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                customerId, LIMITED_STATUSES, dayStart)
+                        + commentRepository
+                                .countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                        customerId, LIMITED_STATUSES, dayStart);
+        if (usedToday - ownCount >= maxCallsPerDay) {
+            throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
+        }
+        callGate.lockDailyLimit();
+        long usedByEveryone =
+                postRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                COSTLY_STATUSES, dayStart)
+                        + commentRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
+                                COSTLY_STATUSES, dayStart);
+        if (usedByEveryone - ownCount >= dailyAnswerLimit) {
+            throw new AppException(ErrorType.COMMUNITY_KKIRU_BUSY);
+        }
+    }
+
+    /**
      * 한도 확인과 호출 예약(PENDING 저장)이 원자적이도록 고객 행과 전체 잠금 행을 잠근다. lock 순서는 글 → 고객 → 전체로 고정한다. 호출하는 트랜잭션은
      * READ_COMMITTED여야 한다: REPEATABLE READ면 잠금 전에 실행된 조회의 snapshot으로 아래 count를 읽어 앞 요청이 커밋한 호출을 못 볼
      * 수 있다.

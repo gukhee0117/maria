@@ -159,6 +159,34 @@ class KkiruCallPlannerTest {
     }
 
     @Test
+    @DisplayName("다시 묻기: 오늘 만든 행은 자기 몫을 빼고, 어제 행은 빼지 않고 전체 상한을 본다")
+    void retryChecksDailyAnswerLimit() {
+        usedToday(0, 0);
+        usedByEveryone(200, 100); // 합계 300, 이 행이 오늘 것이면 자기 몫 1을 빼 299 → 허용
+
+        planner.requireRetryLimits(7L, NOW);
+        assertThatThrownBy(() -> planner.requireRetryLimits(7L, NOW.minusDays(1)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.COMMUNITY_KKIRU_BUSY));
+    }
+
+    @Test
+    @DisplayName("다시 묻기: 고객 하루 한도가 찼으면 막는다")
+    void retryChecksCustomerDailyLimit() {
+        usedToday(10, 10); // 합계 20 = 한도
+
+        assertThatThrownBy(() -> planner.requireRetryLimits(7L, NOW.minusDays(1)))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED));
+    }
+
+    @Test
     @DisplayName("전체 상한은 비용이 든 상태 4개만 세고 OUT_OF_SCOPE는 세지 않는다")
     @SuppressWarnings("unchecked")
     void dailyAnswerLimitCountsCostlyStatusesOnly() {
