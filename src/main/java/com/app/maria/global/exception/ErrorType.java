@@ -77,6 +77,7 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "계좌 혜택 변경 결과가 올바르지 않습니다.", LogLevel.ERROR),
 
     // 세금
+    TAX_SNAPSHOT_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 저장된 세액 계산 자료가 없습니다.", LogLevel.WARN),
     TAX_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "유효한 세액 규칙을 찾지 못했습니다.", LogLevel.WARN),
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(

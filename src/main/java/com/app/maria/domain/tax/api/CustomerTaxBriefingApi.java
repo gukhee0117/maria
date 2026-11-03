@@ -18,6 +18,18 @@ public class CustomerTaxBriefingApi {
 
     private final TaxCalculationService taxCalculationService;
 
+    @GetMapping("/briefing/expected-relief")
+    public ResponseEntity<ApiResponseDTO<CustomerTaxBriefingResponseDTO.ExpectedTaxScenario>>
+            getExpectedRelief(
+                    @AuthenticationPrincipal(errorOnInvalidType = true)
+                            CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "예상 감면세액 계산 성공",
+                        taxCalculationService.getCustomerExpectedTaxBriefing(
+                                principal.customerId())));
+    }
+
     @GetMapping("/briefing")
     public ResponseEntity<ApiResponseDTO<CustomerTaxBriefingResponseDTO>> getBriefing(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {

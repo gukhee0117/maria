@@ -12,12 +12,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.global.config.CustomerSecurityConfig;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -42,11 +46,53 @@ class CustomerTaxBriefingApiTest {
 
     @MockitoBean private TaxCalculationService taxCalculationService;
 
+    @Test
+    void expectedReliefRequiresCustomerAuthentication() throws Exception {
+        mockMvc.perform(get("/api/customer/tax/briefing/expected-relief"))
+                .andExpect(status().isUnauthorized());
+        verify(taxCalculationService, never()).getCustomerExpectedTaxBriefing(CUSTOMER_ID);
+    }
+
+    @Test
+    void expectedReliefUsesAuthenticatedCustomerInsteadOfSuppliedAccount() throws Exception {
+        var expected = briefingResponse(LocalDateTime.of(2026, 10, 28, 10, 30)).getExpected();
+        when(taxCalculationService.getCustomerExpectedTaxBriefing(CUSTOMER_ID))
+                .thenReturn(expected);
+        mockMvc.perform(
+                        get("/api/customer/tax/briefing/expected-relief")
+                                .param("accountId", "999")
+                                .with(customerAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reliefAmount").value(5197500.00))
+                .andExpect(jsonPath("$.data.holdingCount").value(2));
+        verify(taxCalculationService).getCustomerExpectedTaxBriefing(CUSTOMER_ID);
+    }
+
     private static RequestPostProcessor customerAuth() {
         Authentication authentication =
                 new UsernamePasswordAuthenticationToken(
                         PRINCIPAL, null, List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
         return authentication(authentication);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1})
+    void zeroTaxStillReportsWhetherHoldingsExist(int holdingCount) throws Exception {
+        var expected =
+                CustomerTaxBriefingResponseDTO.ExpectedTaxScenario.of(
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        LocalDate.of(2026, 11, 20),
+                        holdingCount);
+        when(taxCalculationService.getCustomerExpectedTaxBriefing(CUSTOMER_ID))
+                .thenReturn(expected);
+
+        mockMvc.perform(get("/api/customer/tax/briefing/expected-relief").with(customerAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reliefAmount").value(0))
+                .andExpect(jsonPath("$.data.holdingCount").value(holdingCount));
     }
 
     @Test
@@ -59,7 +105,9 @@ class CustomerTaxBriefingApiTest {
     @Test
     void 로그인한_고객의_절세브리핑을_조회한다() throws Exception {
         LocalDateTime calculatedAt = LocalDateTime.of(2026, 10, 28, 10, 30);
-        CustomerTaxBriefingResponseDTO response = briefingResponse(calculatedAt);
+        CustomerTaxBriefingResponseDTO response =
+                CustomerTaxBriefingResponseDTO.of(
+                        11L, briefingResponse(calculatedAt).getCurrent(), null, calculatedAt);
         when(taxCalculationService.getCustomerTaxBriefing(CUSTOMER_ID)).thenReturn(response);
 
         mockMvc.perform(get("/api/customer/tax/briefing").with(customerAuth()))
@@ -69,18 +117,14 @@ class CustomerTaxBriefingApiTest {
                 .andExpect(jsonPath("$.data.current.generalTax").value(3850000.00))
                 .andExpect(jsonPath("$.data.current.riaTax").value(0))
                 .andExpect(jsonPath("$.data.current.reliefAmount").value(3850000.00))
-                .andExpect(jsonPath("$.data.expected.generalTax").value(5445000.00))
-                .andExpect(jsonPath("$.data.expected.riaTax").value(247500.00))
-                .andExpect(jsonPath("$.data.expected.reliefAmount").value(5197500.00))
-                .andExpect(jsonPath("$.data.expected.additionalReliefAmount").value(1347500.00))
-                .andExpect(jsonPath("$.data.expected.expectedFinalAt").value("2026-10-30"))
+                .andExpect(jsonPath("$.data.expected").value(nullValue()))
                 .andExpect(jsonPath("$.data.calculatedAt").value("2026-10-28T10:30:00"));
 
         verify(taxCalculationService).getCustomerTaxBriefing(CUSTOMER_ID);
     }
 
     @Test
-    void 예상_세액을_계산하지_못해도_현재_세액을_응답한다() throws Exception {
+    void 예상_API가_실패해도_현재_브리핑을_조회할수있다() throws Exception {
         CustomerTaxBriefingResponseDTO response =
                 CustomerTaxBriefingResponseDTO.of(
                         11L,
@@ -91,6 +135,11 @@ class CustomerTaxBriefingApiTest {
                         null,
                         LocalDateTime.of(2026, 10, 28, 10, 30));
         when(taxCalculationService.getCustomerTaxBriefing(CUSTOMER_ID)).thenReturn(response);
+        when(taxCalculationService.getCustomerExpectedTaxBriefing(CUSTOMER_ID))
+                .thenThrow(new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/customer/tax/briefing/expected-relief").with(customerAuth()))
+                .andExpect(status().isBadGateway());
 
         mockMvc.perform(get("/api/customer/tax/briefing").with(customerAuth()))
                 .andExpect(status().isOk())
@@ -98,6 +147,7 @@ class CustomerTaxBriefingApiTest {
                 .andExpect(jsonPath("$.data.expected").value(nullValue()));
 
         verify(taxCalculationService).getCustomerTaxBriefing(CUSTOMER_ID);
+        verify(taxCalculationService).getCustomerExpectedTaxBriefing(CUSTOMER_ID);
     }
 
     private CustomerTaxBriefingResponseDTO briefingResponse(LocalDateTime calculatedAt) {
@@ -111,8 +161,9 @@ class CustomerTaxBriefingApiTest {
                         new BigDecimal("5445000.00"),
                         new BigDecimal("247500.00"),
                         new BigDecimal("5197500.00"),
-                        new BigDecimal("1347500.00"),
-                        LocalDate.of(2026, 10, 30)),
+                        null,
+                        LocalDate.of(2026, 10, 30),
+                        2),
                 calculatedAt);
     }
 }

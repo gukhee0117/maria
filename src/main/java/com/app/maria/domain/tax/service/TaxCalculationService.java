@@ -26,4 +26,7 @@ public interface TaxCalculationService {
     TaxActionSummaryResponseDTO getActionSummary();
 
     CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId);
+
+    CustomerTaxBriefingResponseDTO.ExpectedTaxScenario getCustomerExpectedTaxBriefing(
+            Long customerId);
 }
