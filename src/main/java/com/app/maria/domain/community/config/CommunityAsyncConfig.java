@@ -34,4 +34,15 @@ public class CommunityAsyncConfig {
         executor.setQueueCapacity(50);
         return executor;
     }
+
+    /** 화제 종목 이유 생성용. 끼루 답변의 도구 실행기와 나눠, 순위 조회가 몰려도 끼루 답변이 밀리지 않게 한다. */
+    @Bean(name = "communityTrendReasonExecutor")
+    public Executor communityTrendReasonExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("community-trend-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        return executor;
+    }
 }

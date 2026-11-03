@@ -72,7 +72,7 @@ public class TrendReasonService {
             @Qualifier("communityKkiruChatClient") ChatClient chatClient,
             ObjectMapper objectMapper,
             KkiruAnswerValidator validator,
-            @Qualifier("communityKkiruToolExecutor") Executor executor,
+            @Qualifier("communityTrendReasonExecutor") Executor executor,
             Clock clock,
             BusinessClockService businessClock)
             throws IOException {
