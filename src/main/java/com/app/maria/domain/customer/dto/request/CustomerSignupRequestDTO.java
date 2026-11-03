@@ -17,9 +17,8 @@ public class CustomerSignupRequestDTO {
     @Pattern(regexp = "^[A-Za-z0-9]{4,20}$", message = "아이디는 영문·숫자 4~20자여야 합니다.")
     private String loginId;
 
-    // BCrypt는 72바이트까지만 처리하므로 글자 수와 바이트 수가 같은 ASCII 출력 문자만 허용한다.
     @NotBlank(message = "비밀번호를 입력해 주세요.")
-    @Pattern(regexp = "^[\\x21-\\x7E]{8,72}$", message = "비밀번호는 공백 없는 영문·숫자·특수문자 8~72자여야 합니다.")
+    @Pattern(regexp = PasswordRule.REGEX, message = PasswordRule.MESSAGE)
     private String password;
 
     @NotBlank(message = "주민번호를 입력해 주세요.")
@@ -33,4 +32,13 @@ public class CustomerSignupRequestDTO {
     @NotNull(message = "생년월일을 입력해 주세요.")
     @Past(message = "생년월일은 과거 날짜여야 합니다.")
     private LocalDate birthDate;
+
+    @NotBlank(message = "휴대폰 번호를 입력해 주세요.")
+    @Pattern(regexp = ContactRule.PHONE_REGEX, message = ContactRule.PHONE_MESSAGE)
+    private String phone;
+
+    @NotBlank(message = "이메일을 입력해 주세요.")
+    @Size(max = 100, message = "이메일은 100자 이하여야 합니다.")
+    @Pattern(regexp = ContactRule.EMAIL_REGEX, message = ContactRule.EMAIL_MESSAGE)
+    private String email;
 }

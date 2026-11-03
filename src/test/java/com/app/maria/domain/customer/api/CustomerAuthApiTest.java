@@ -49,9 +49,19 @@ class CustomerAuthApiTest {
 
     private static String body(String loginId, String password, String rrn) {
         return """
-                {"loginId":"%s","password":"%s","rrn":"%s","name":"홍길동","birthDate":"1990-01-01"}
+                {"loginId":"%s","password":"%s","rrn":"%s","name":"홍길동","birthDate":"1990-01-01","phone":"010-1234-5678","email":"hong@example.com"}
                 """
                 .formatted(loginId, password, rrn);
+    }
+
+    private static String signupJson(String phone, String email) {
+        String phoneField = phone == null ? "" : ",\"phone\":\"" + phone + "\"";
+        String emailField = email == null ? "" : ",\"email\":\"" + email + "\"";
+        return "{\"loginId\":\"hong1234\",\"password\":\"password-1234\","
+                + "\"rrn\":\"9001011234567\",\"name\":\"홍길동\",\"birthDate\":\"1990-01-01\""
+                + phoneField
+                + emailField
+                + "}";
     }
 
     @Test
@@ -197,7 +207,14 @@ class CustomerAuthApiTest {
                 Arguments.of(
                         "한글 비밀번호(BCrypt 72바이트 제한)",
                         body("hong1234", "가".repeat(30), "9001011234567")),
-                Arguments.of("3자 아이디", body("abc", "password-1234", "9001011234567")));
+                Arguments.of("3자 아이디", body("abc", "password-1234", "9001011234567")),
+                Arguments.of("특수문자 없는 비밀번호", body("hong1234", "password1234", "9001011234567")),
+                Arguments.of("숫자 없는 비밀번호", body("hong1234", "password-abcd", "9001011234567")),
+                Arguments.of("영문 없는 비밀번호", body("hong1234", "1234-5678", "9001011234567")),
+                Arguments.of("휴대폰 형식 오류", signupJson("123", "hong@example.com")),
+                Arguments.of("이메일 형식 오류", signupJson("010-1234-5678", "hong@example")),
+                Arguments.of("휴대폰 없음", signupJson(null, "hong@example.com")),
+                Arguments.of("이메일 없음", signupJson("010-1234-5678", null)));
     }
 
     @ParameterizedTest(name = "{0}은 거절한다")
