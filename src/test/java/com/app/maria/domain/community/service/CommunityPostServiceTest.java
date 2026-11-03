@@ -58,6 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
     CommunityPostAssembler.class,
     CommunityTextGuard.class,
     KkiruCallPlanner.class,
+    KkiruCallGate.class,
     KkiruQuestionClassifier.class
 })
 @RecordApplicationEvents

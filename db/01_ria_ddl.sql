@@ -14,6 +14,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS community_report;
 DROP TABLE IF EXISTS community_comment_like;
 DROP TABLE IF EXISTS community_post_reaction;
+DROP TABLE IF EXISTS kiru_call_gate;
 DROP TABLE IF EXISTS community_comment;
 DROP TABLE IF EXISTS community_post;
 DROP TABLE IF EXISTS stock_recommendation;
@@ -716,8 +717,15 @@ CREATE TABLE community_comment (
     PRIMARY KEY (community_comment_id),
     CONSTRAINT chk_cc_author CHECK ((author_type = 'CUSTOMER' AND customer_id IS NOT NULL) OR (author_type = 'AI' AND customer_id IS NULL)),
     CONSTRAINT chk_cc_status CHECK (status IN ('VISIBLE','HIDDEN','DELETED')),
-    CONSTRAINT chk_cc_kiru CHECK (kiru_status IS NULL OR kiru_status IN ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FAILED'))
+    CONSTRAINT chk_cc_kiru CHECK (kiru_status IS NULL OR kiru_status IN ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FOLLOW_UP','FAILED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='채팅방 댓글';
+
+-- [NO-SEED] 2차 신규. 끼루 전체 하루 상한 확인을 한 번에 하나씩 처리하기 위한 잠금 행(1행 고정).
+CREATE TABLE kiru_call_gate (
+    gate_id TINYINT NOT NULL PRIMARY KEY,
+    CONSTRAINT chk_kcg_singleton CHECK (gate_id = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='끼루 전체 하루 상한 잠금 행';
+INSERT INTO kiru_call_gate(gate_id) VALUES (1);
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE community_post_reaction (

@@ -51,9 +51,17 @@ public final class CommunityTestSchema {
                         OR (author_type = 'AI' AND customer_id IS NULL)),
                     CONSTRAINT chk_cc_status CHECK (status IN ('VISIBLE','HIDDEN','DELETED')),
                     CONSTRAINT chk_cc_kiru CHECK (kiru_status IS NULL OR kiru_status IN
-                        ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FAILED'))
+                        ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FOLLOW_UP','FAILED'))
                 )
                 """);
+        jdbc.execute(
+                """
+                CREATE TABLE kiru_call_gate (
+                    gate_id TINYINT NOT NULL PRIMARY KEY,
+                    CONSTRAINT chk_kcg_singleton CHECK (gate_id = 1)
+                )
+                """);
+        jdbc.execute("INSERT INTO kiru_call_gate (gate_id) VALUES (1)");
         jdbc.execute(
                 """
                 CREATE TABLE community_post_reaction (
@@ -93,6 +101,7 @@ public final class CommunityTestSchema {
         jdbc.execute("DROP TABLE IF EXISTS community_report");
         jdbc.execute("DROP TABLE IF EXISTS community_comment_like");
         jdbc.execute("DROP TABLE IF EXISTS community_post_reaction");
+        jdbc.execute("DROP TABLE IF EXISTS kiru_call_gate");
         jdbc.execute("DROP TABLE IF EXISTS community_comment");
         jdbc.execute("DROP TABLE IF EXISTS community_post");
         jdbc.execute("DROP TABLE IF EXISTS customer");

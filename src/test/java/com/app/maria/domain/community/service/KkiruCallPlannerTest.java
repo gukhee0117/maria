@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -13,14 +15,18 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.community.repository.CommunityCommentRepository;
 import com.app.maria.domain.community.repository.CommunityPostRepository;
 import com.app.maria.domain.community.type.KkiruStatus;
+import com.app.maria.domain.customer.entity.CustomerEntity;
+import com.app.maria.domain.customer.repository.CustomerRepository;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -33,6 +39,8 @@ class KkiruCallPlannerTest {
 
     @Mock private CommunityPostRepository postRepository;
     @Mock private CommunityCommentRepository commentRepository;
+    @Mock private CustomerRepository customerRepository;
+    @Mock private KkiruCallGate callGate;
     @Mock private BusinessClockService clock;
 
     // 범위 밖 판정은 실제 표현 파일로 한다.
@@ -43,11 +51,13 @@ class KkiruCallPlannerTest {
 
     private void usedToday(long posts, long comments) {
         when(clock.now()).thenReturn(NOW);
+        when(customerRepository.findByIdForUpdate(7L))
+                .thenReturn(Optional.of(mock(CustomerEntity.class)));
         when(postRepository.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
                         7L, DAY_START))
                 .thenReturn(posts);
-        when(commentRepository.countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-                        7L, DAY_START))
+        when(commentRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        eq(7L), any(), eq(DAY_START)))
                 .thenReturn(comments);
     }
 
@@ -56,7 +66,7 @@ class KkiruCallPlannerTest {
     void noMention() {
         assertThat(planner.plan("그냥 의견입니다", 7L, null)).isNull();
 
-        verifyNoInteractions(postRepository, commentRepository, clock);
+        verifyNoInteractions(postRepository, commentRepository, customerRepository, callGate, clock);
     }
 
     @Test
@@ -87,11 +97,11 @@ class KkiruCallPlannerTest {
     @DisplayName("글 한도: 글 본문 호출 1번을 포함해 3번이면 막고 2번이면 허용한다")
     void postLimit() {
         usedToday(0, 0);
-        when(commentRepository.countByCommunityPostIdAndKkiruStatusIsNotNull(5L)).thenReturn(1L);
+        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any())).thenReturn(1L);
         when(postRepository.existsByCommunityPostIdAndKkiruStatusIsNotNull(5L)).thenReturn(true);
         assertThat(planner.plan("@끼루 질문", 7L, 5L)).isEqualTo(KkiruStatus.PENDING);
 
-        when(commentRepository.countByCommunityPostIdAndKkiruStatusIsNotNull(5L)).thenReturn(2L);
+        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any())).thenReturn(2L);
         assertThatThrownBy(() -> planner.plan("@끼루 질문", 7L, 5L))
                 .isInstanceOfSatisfying(
                         AppException.class,
@@ -107,7 +117,7 @@ class KkiruCallPlannerTest {
 
         planner.plan("@끼루 질문", 7L, null);
 
-        verify(commentRepository, never()).countByCommunityPostIdAndKkiruStatusIsNotNull(anyLong());
+        verify(commentRepository, never()).countByCommunityPostIdAndKkiruStatusIn(anyLong(), any());
         verify(postRepository, never()).existsByCommunityPostIdAndKkiruStatusIsNotNull(any());
     }
 
@@ -173,5 +183,55 @@ class KkiruCallPlannerTest {
         assertThat(planner.plan("@끼루 사도 돼요?", 7L, null)).isEqualTo(KkiruStatus.OUT_OF_SCOPE);
         verify(postRepository, never())
                 .countByKkiruStatusInAndCreatedAtGreaterThanEqual(any(), any());
+        verify(callGate, never()).lockDailyLimit();
+    }
+
+    @Test
+    @DisplayName("고객·글 한도는 후속 질문(FOLLOW_UP)만 빼고 센다")
+    void customerAndPostLimitsSkipOnlyFollowUp() {
+        usedToday(0, 0);
+        usedByEveryone(0, 0);
+
+        planner.plan("@끼루 질문", 7L, 5L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Collection<KkiruStatus>> captor =
+                ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(commentRepository).countByCommunityPostIdAndKkiruStatusIn(eq(5L), captor.capture());
+        assertThat(captor.getValue())
+                .containsExactlyInAnyOrder(
+                        KkiruStatus.PENDING,
+                        KkiruStatus.ANSWERED,
+                        KkiruStatus.NO_SOURCE,
+                        KkiruStatus.OUT_OF_SCOPE,
+                        KkiruStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("고객 행을 먼저 잠근 뒤 한도를 세고, 전체 상한은 전체 잠금 뒤에 센다")
+    void locksBeforeCounting() {
+        usedToday(0, 0);
+        usedByEveryone(0, 0);
+
+        planner.plan("@끼루 질문", 7L, null);
+
+        InOrder order = inOrder(customerRepository, postRepository, callGate);
+        order.verify(customerRepository).findByIdForUpdate(7L);
+        order.verify(postRepository)
+                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(7L, DAY_START);
+        order.verify(callGate).lockDailyLimit();
+        order.verify(postRepository).countByKkiruStatusInAndCreatedAtGreaterThanEqual(any(), eq(DAY_START));
+    }
+
+    @Test
+    @DisplayName("없는 고객이면 한도를 세지 않고 CUSTOMER_NOT_FOUND")
+    void unknownCustomer() {
+        when(customerRepository.findByIdForUpdate(7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> planner.plan("@끼루 질문", 7L, null))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e -> assertThat(e.getErrorType()).isEqualTo(ErrorType.CUSTOMER_NOT_FOUND));
+        verifyNoInteractions(postRepository, commentRepository, callGate);
     }
 }

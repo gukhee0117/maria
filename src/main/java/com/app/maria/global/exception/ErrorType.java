@@ -224,6 +224,7 @@ public enum ErrorType {
     COMMUNITY_NOT_AUTHOR(HttpStatus.FORBIDDEN, "본인이 작성한 글만 수정하거나 삭제할 수 있습니다.", LogLevel.WARN),
     COMMUNITY_POST_NOT_EDITABLE(HttpStatus.CONFLICT, "수정할 수 없는 글입니다.", LogLevel.WARN),
     COMMUNITY_POST_NOT_VISIBLE(HttpStatus.CONFLICT, "볼 수 없는 글에는 작성할 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_POST_HIDDEN(HttpStatus.FORBIDDEN, "신고로 가려진 글의 댓글은 볼 수 없습니다.", LogLevel.WARN),
     COMMUNITY_REPLY_TARGET_INVALID(HttpStatus.BAD_REQUEST, "답글 대상 댓글을 확인할 수 없습니다.", LogLevel.WARN),
     COMMUNITY_TICKER_NOT_FOUND(HttpStatus.BAD_REQUEST, "종목을 찾을 수 없습니다.", LogLevel.WARN),
     COMMUNITY_REPORT_TARGET_INVALID(

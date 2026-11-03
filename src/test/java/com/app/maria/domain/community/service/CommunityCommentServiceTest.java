@@ -54,6 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
     CommunityCommentAssembler.class,
     CommunityTextGuard.class,
     KkiruCallPlanner.class,
+    KkiruCallGate.class,
     KkiruQuestionClassifier.class
 })
 @RecordApplicationEvents
@@ -304,7 +305,7 @@ class CommunityCommentServiceTest {
     }
 
     @Test
-    @DisplayName("끼루 댓글에 다시 @끼루로 물으면 후속 질문이라 OUT_OF_SCOPE이고 이벤트가 없다")
+    @DisplayName("끼루 댓글에 다시 @끼루로 물으면 후속 질문이라 FOLLOW_UP이고 이벤트가 없다")
     void kkiruFollowUp() {
         CommunityCommentEntity ai =
                 commentRepository.saveAndFlush(
@@ -312,13 +313,13 @@ class CommunityCommentServiceTest {
 
         CommentResponseDTO followUp = write(other, "@끼루 그럼 위험등급은요?", ai.getCommunityCommentId());
 
-        assertThat(followUp.kkiruStatus()).isEqualTo(KkiruStatus.OUT_OF_SCOPE);
+        assertThat(followUp.kkiruStatus()).isEqualTo(KkiruStatus.FOLLOW_UP);
         assertThat(followUp.replyToNickname()).isEqualTo("끼루 AI");
         assertThat(events.stream(KkiruCallRequestedEvent.class).count()).isZero();
     }
 
     @Test
-    @DisplayName("글의 호출 한도를 다 써도 끼루 댓글에 대한 후속 질문은 한도 오류 없이 OUT_OF_SCOPE로 저장된다")
+    @DisplayName("글의 호출 한도를 다 써도 끼루 댓글에 대한 후속 질문은 한도 오류 없이 FOLLOW_UP으로 저장된다")
     void kkiruFollowUpIgnoresLimit() {
         CommunityCommentEntity ai =
                 commentRepository.saveAndFlush(
@@ -331,7 +332,22 @@ class CommunityCommentServiceTest {
 
         CommentResponseDTO followUp = write(other, "@끼루 그럼 위험등급은요?", ai.getCommunityCommentId());
 
-        assertThat(followUp.kkiruStatus()).isEqualTo(KkiruStatus.OUT_OF_SCOPE);
+        assertThat(followUp.kkiruStatus()).isEqualTo(KkiruStatus.FOLLOW_UP);
+    }
+
+    @Test
+    @DisplayName("후속 질문은 글 한도를 쓰지 않는다: 질문 1번과 후속 질문 2번 뒤에도 새 질문을 부를 수 있다")
+    void followUpDoesNotConsumePostLimit() {
+        write(other, "@끼루 질문 1", null);
+        CommunityCommentEntity ai =
+                commentRepository.saveAndFlush(
+                        CommunityCommentEntity.ofAi(postId, null, "끼루 답변", null, NOW));
+        write(other, "@끼루 그럼 위험등급은요?", ai.getCommunityCommentId());
+        write(other, "@끼루 그럼 배당은요?", ai.getCommunityCommentId());
+
+        CommentResponseDTO next = write(other, "@끼루 질문 2", null);
+
+        assertThat(next.kkiruStatus()).isEqualTo(KkiruStatus.PENDING);
     }
 
     @Test
@@ -437,6 +453,16 @@ class CommunityCommentServiceTest {
 
         assertThat(page.items()).hasSize(2);
         assertThat(page.nextCursor()).isNull();
+    }
+
+    @Test
+    @DisplayName("신고로 숨겨진 글의 댓글 목록은 볼 수 없다")
+    void cannotListCommentsOfHiddenPost() {
+        savedComment(other, "숨김 글에 달린 댓글");
+        postRepository.findById(postId).orElseThrow().hide();
+        entityManager.flush();
+
+        assertError(() -> service.list(other, postId, null, 10), ErrorType.COMMUNITY_POST_HIDDEN);
     }
 
     @Test

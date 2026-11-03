@@ -6,6 +6,8 @@ public enum KkiruStatus {
     ANSWERED,
     NO_SOURCE,
     OUT_OF_SCOPE,
+    /** 끼루 답글에 다시 @끼루로 물은 후속 질문. 끼루 챗봇으로 보내며 호출 한도에 세지 않는다. 댓글에만 생긴다. */
+    FOLLOW_UP,
     FAILED;
 
     public static boolean canMove(KkiruStatus from, KkiruStatus to) {
@@ -13,7 +15,7 @@ public enum KkiruStatus {
             return false;
         }
         if (from == null) {
-            return to == PENDING || to == OUT_OF_SCOPE;
+            return to == PENDING || to == OUT_OF_SCOPE || to == FOLLOW_UP;
         }
         return switch (from) {
             case PENDING -> to == ANSWERED || to == NO_SOURCE || to == FAILED;

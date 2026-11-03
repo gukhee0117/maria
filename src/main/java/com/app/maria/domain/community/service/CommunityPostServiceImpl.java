@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 커뮤니티 글 쓰기·수정·삭제·목록·상세·인기글. */
@@ -45,9 +46,9 @@ public class CommunityPostServiceImpl implements CommunityPostService {
     @Value("${maria.community.popular.days:7}")
     private int popularDays;
 
-    /** 글을 쓴다. 본문에 @끼루가 있으면 호출 상태를 함께 저장하고, PENDING이면 이벤트를 낸다. */
+    /** 글을 쓴다. 본문에 @끼루가 있으면 호출 상태를 함께 저장하고, PENDING이면 이벤트를 낸다. READ_COMMITTED는 끼루 한도 확인용(KkiruCallPlanner 참고). */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager")
+    @Transactional(transactionManager = "jpaTransactionManager", isolation = Isolation.READ_COMMITTED)
     public PostResponseDTO write(Long customerId, PostWriteRequestDTO request) {
         String content = CommunityContent.requireValid(request.content());
         String ticker = normalizeTicker(request.ticker());

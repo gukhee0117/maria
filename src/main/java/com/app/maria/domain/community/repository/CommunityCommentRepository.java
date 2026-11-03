@@ -72,12 +72,12 @@ public interface CommunityCommentRepository extends JpaRepository<CommunityComme
     boolean existsByCommunityPostIdAndParentCommentIdIsNullAndAuthorType(
             Long postId, AuthorType authorType);
 
-    /** 글 하나(그 댓글들)에서 끼루를 부른 횟수. */
-    long countByCommunityPostIdAndKkiruStatusIsNotNull(Long postId);
+    /** 글당 한도 계산용: 그 글에서 한도에 세는 상태로 끼루를 부른 댓글 수. */
+    long countByCommunityPostIdAndKkiruStatusIn(Long postId, Collection<KkiruStatus> statuses);
 
-    /** 하루 한도 계산용: 사용자가 끼루를 부른 댓글 수. */
-    long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
-            Long customerId, LocalDateTime since);
+    /** 하루 한도 계산용: 사용자가 한도에 세는 상태로 끼루를 부른 댓글 수. */
+    long countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+            Long customerId, Collection<KkiruStatus> statuses, LocalDateTime since);
 
     /** 화제 집계용: 기간 안에 그 종목 글에 달린 보이는 이용자 댓글 수(끼루 댓글 제외), 종목별. */
     @Query(

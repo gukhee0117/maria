@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 글 안의 댓글 쓰기·삭제·목록. 댓글은 한 줄로 쌓이고, 답하는 대상은 parentCommentId에 기록한다. */
@@ -36,8 +37,9 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
     private final BusinessClockService clock;
     private final ApplicationEventPublisher events;
 
+    /** 댓글을 쓴다. READ_COMMITTED는 끼루 한도 확인용(KkiruCallPlanner 참고). */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager")
+    @Transactional(transactionManager = "jpaTransactionManager", isolation = Isolation.READ_COMMITTED)
     public CommentResponseDTO write(Long customerId, Long postId, CommentWriteRequestDTO request) {
         String content = CommunityContent.requireValid(request.content());
         String sanitized = textGuard.requireAllowed(content);
@@ -55,11 +57,11 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
         }
         CommunityCommentEntity target = resolveReplyTarget(postId, request.replyToCommentId());
 
-        // 끼루 댓글에 다시 @끼루로 물으면 후속 질문이다: 호출 한도를 쓰지 않고 끼루 챗봇으로 보낸다.
+        // 끼루 댓글에 다시 @끼루로 물으면 후속 질문이다: 호출 한도를 쓰지 않고(FOLLOW_UP은 세지 않음) 끼루 챗봇으로 보낸다.
         boolean followUp = callsKkiru && target != null && target.getAuthorType() == AuthorType.AI;
         KkiruStatus kkiruStatus =
                 followUp
-                        ? KkiruStatus.OUT_OF_SCOPE
+                        ? KkiruStatus.FOLLOW_UP
                         : kkiruCallPlanner.plan(content, customerId, postId);
 
         CommunityCommentEntity saved =
@@ -132,7 +134,7 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
         comment.markDeleted();
     }
 
-    /** 글 안의 댓글을 오래된 순으로. 삭제된 댓글은 빼고, 숨김 댓글은 본문 대신 안내 문구로 보낸다. */
+    /** 글 안의 댓글을 오래된 순으로. 삭제된 댓글은 빼고, 숨김 댓글은 본문 대신 안내 문구로 보낸다. 숨김 글이면 목록을 주지 않는다. */
     @Override
     @Transactional(transactionManager = "jpaTransactionManager", readOnly = true)
     public CommentPageResponseDTO list(Long viewerId, Long postId, Long cursor, int size) {
@@ -141,6 +143,10 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
                         .findById(postId)
                         .orElseThrow(
                                 () -> new AppException(ErrorType.COMMUNITY_POST_NOT_FOUND, postId));
+        // 신고로 가려진 글은 댓글로 내용이 드러날 수 있어 목록도 막는다.
+        if (post.getStatus() == CommunityStatus.HIDDEN) {
+            throw new AppException(ErrorType.COMMUNITY_POST_HIDDEN, postId);
+        }
         boolean deletedWithoutComments =
                 post.getStatus() == CommunityStatus.DELETED
                         && commentRepository.countByCommunityPostIdAndStatus(
