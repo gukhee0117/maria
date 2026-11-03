@@ -173,7 +173,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                         externalTrades,
                         BenefitType.isReliefExcluded(account.getBenefit()));
 
-        return TaxExpectedReliefResponseDTO.of(accountId, expectedFinalAt, result);
+        return TaxExpectedReliefResponseDTO.of(accountId, expectedFinalAt, result, heldLots.size());
     }
 
     @Override
@@ -190,78 +190,53 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId) {
-        AccountDTO account =
-                accountMapper
-                        .selectByCustomerId(customerId)
+        AccountDTO account = findCustomerAccount(customerId);
+        TaxSnapshotResponseDTO snapshot =
+                findSnapshots(List.of(account.getAccountId())).stream()
+                        .findFirst()
                         .orElseThrow(
-                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
-        Long accountId = account.getAccountId();
-        LocalDateTime calculatedAt = clockService.now();
-        List<Long> accountIds = List.of(accountId);
-
-        List<TaxRuleDTO> taxRules = taxMapper.selectTaxRules();
-        List<ExternalBuyDTO> externalTrades =
-                taxMapper.selectExternalBuysByAccountIdsAndYear(
-                        accountIds, riaTaxProperties.getYear(), calculatedAt);
-        List<SellLotDTO> finalizedLots =
-                taxMapper.selectFinalizedLotsByAccountIdsAndYear(
-                        accountIds, riaTaxProperties.getYear(), calculatedAt);
-        List<SellLotDTO> provisionalLots =
-                taxMapper.selectProvisionalLotsByAccountIdsAndYear(
-                        accountIds, riaTaxProperties.getYear(), calculatedAt);
-
-        CustomerTaxBriefingResponseDTO.TaxScenario current =
-                calculateBriefingScenario(account, finalizedLots, taxRules, externalTrades);
-
-        LocalDate expectedFinalAt =
-                settlementBusinessDayCalculator.calculateFinalAt(calculatedAt).toLocalDate();
-        expectedFinalAt = latestFinalAt(expectedFinalAt, provisionalLots);
-
-        List<HeldLotDTO> heldLots = taxMapper.selectHeldLotsByAccountId(accountId);
-        List<SellLotDTO> hypotheticalLots;
-        try {
-            hypotheticalLots = buildHypotheticalSellLots(accountId, heldLots, expectedFinalAt);
-        } catch (RuntimeException e) {
-            log.warn(
-                    "절세 브리핑 예상 세액 계산을 위한 외부 시세 조회에 실패했습니다. accountId={}, cause={}",
-                    accountId,
-                    e.getClass().getSimpleName());
-            return CustomerTaxBriefingResponseDTO.of(accountId, current, null, calculatedAt);
-        }
-
-        List<SellLotDTO> projectedLots = new ArrayList<>(finalizedLots);
-        projectedLots.addAll(provisionalLots);
-        projectedLots.addAll(hypotheticalLots);
-
-        CustomerTaxBriefingResponseDTO.TaxScenario projected =
-                calculateBriefingScenario(account, projectedLots, taxRules, externalTrades);
-        BigDecimal additionalRelief =
-                projected
-                        .getReliefAmount()
-                        .subtract(current.getReliefAmount())
-                        // 예상 감면액이 현재보다 작더라도 "추가 감면"을 음수로 표시하지 않는다.
-                        .max(BigDecimal.ZERO);
-
-        CustomerTaxBriefingResponseDTO.ExpectedTaxScenario expected =
-                CustomerTaxBriefingResponseDTO.ExpectedTaxScenario.of(
-                        projected.getGeneralTax(),
-                        projected.getRiaTax(),
-                        projected.getReliefAmount(),
-                        additionalRelief,
-                        expectedFinalAt);
-
-        return CustomerTaxBriefingResponseDTO.of(accountId, current, expected, calculatedAt);
+                                () ->
+                                        new AppException(
+                                                ErrorType.TAX_SNAPSHOT_NOT_FOUND,
+                                                account.getAccountId()));
+        var current = briefingScenario(snapshot.getOriginalGainAmount(), snapshot.getFinalTax());
+        return CustomerTaxBriefingResponseDTO.of(
+                account.getAccountId(), current, null, snapshot.getCalculatedAt());
     }
 
-    private LocalDate latestFinalAt(LocalDate expectedFinalAt, List<SellLotDTO> provisionalLots) {
-        return provisionalLots.stream()
-                .map(SellLotDTO::getFinalAt)
-                .filter(java.util.Objects::nonNull)
-                .reduce(expectedFinalAt, (latest, date) -> date.isAfter(latest) ? date : latest);
+    @Override
+    public CustomerTaxBriefingResponseDTO.ExpectedTaxScenario getCustomerExpectedTaxBriefing(
+            Long customerId) {
+        AccountDTO account = findCustomerAccount(customerId);
+        TaxExpectedReliefResponseDTO expected = previewExpectedRelief(account.getAccountId());
+        var result = expected.getTaxCalculationResultDTO();
+        var scenario = briefingScenario(result.getOriginalGainAmount(), result.getFinalTax());
+        // Existing preview covers held lots only, not an increment over finalized sales.
+        return CustomerTaxBriefingResponseDTO.ExpectedTaxScenario.of(
+                scenario.getGeneralTax(),
+                scenario.getRiaTax(),
+                scenario.getReliefAmount(),
+                null,
+                expected.getExpectedFinalAt(),
+                expected.getHoldingCount());
     }
 
-    // 아직 안 판 보유 lot을 "오늘 결제 기준(T+2)"에 판다고 가정해 SellLotDTO로 만든다.
+    private AccountDTO findCustomerAccount(Long customerId) {
+        return accountMapper
+                .selectByCustomerId(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
+    }
+
+    private CustomerTaxBriefingResponseDTO.TaxScenario briefingScenario(
+            BigDecimal originalGain, BigDecimal riaTax) {
+        BigDecimal generalTax =
+                taxCalculator.calculateGeneralTax(originalGain, taxMapper.selectTaxRules());
+        return CustomerTaxBriefingResponseDTO.TaxScenario.of(
+                generalTax, riaTax, generalTax.subtract(riaTax).max(BigDecimal.ZERO));
+    }
+
     // 같은 종목이 여러 lot으로 흩어져 있어도 현재가/환율 조회는 종목당 한 번만 한다.
     private List<SellLotDTO> buildHypotheticalSellLots(
             Long accountId, List<HeldLotDTO> heldLots, LocalDate expectedFinalAt) {
@@ -311,26 +286,6 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                     ErrorType.TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS, accountId);
         }
         return TaxBasisType.EARLY_WITHDRAWAL_CLAWBACK;
-    }
-
-    private CustomerTaxBriefingResponseDTO.TaxScenario calculateBriefingScenario(
-            AccountDTO account,
-            List<SellLotDTO> sellLots,
-            List<TaxRuleDTO> taxRules,
-            List<ExternalBuyDTO> externalTrades) {
-        TaxCalculationResultDTO generalResult =
-                taxCalculator.calculate(sellLots, taxRules, externalTrades, true);
-        TaxCalculationResultDTO riaResult =
-                taxCalculator.calculate(
-                        sellLots,
-                        taxRules,
-                        externalTrades,
-                        BenefitType.isReliefExcluded(account.getBenefit()));
-        BigDecimal reliefAmount =
-                generalResult.getFinalTax().subtract(riaResult.getFinalTax()).max(BigDecimal.ZERO);
-
-        return CustomerTaxBriefingResponseDTO.TaxScenario.of(
-                generalResult.getFinalTax(), riaResult.getFinalTax(), reliefAmount);
     }
 
     private ErrorType alreadyExistsErrorType(TaxBasisType basisType) {

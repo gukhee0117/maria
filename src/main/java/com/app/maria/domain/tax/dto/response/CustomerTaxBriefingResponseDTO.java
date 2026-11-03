@@ -61,18 +61,23 @@ public class CustomerTaxBriefingResponseDTO {
         private BigDecimal additionalReliefAmount;
         private LocalDate expectedFinalAt;
 
+        /** 가정 매도 대상인 잔량이 있는 입고 lot 개수. 0이면 매도 대상 없음. */
+        private int holdingCount;
+
         public static ExpectedTaxScenario of(
                 BigDecimal generalTax,
                 BigDecimal riaTax,
                 BigDecimal reliefAmount,
                 BigDecimal additionalReliefAmount,
-                LocalDate expectedFinalAt) {
+                LocalDate expectedFinalAt,
+                int holdingCount) {
             return ExpectedTaxScenario.builder()
                     .generalTax(generalTax)
                     .riaTax(riaTax)
                     .reliefAmount(reliefAmount)
                     .additionalReliefAmount(additionalReliefAmount)
                     .expectedFinalAt(expectedFinalAt)
+                    .holdingCount(holdingCount)
                     .build();
         }
     }
