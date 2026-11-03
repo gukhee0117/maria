@@ -15,6 +15,8 @@ public interface StockRiskGradeMapper {
 
     List<StockRiskGradeDTO> findAll();
 
+    StockRiskGradeDTO findByTicker(@Param("ticker") String ticker);
+
     int insert(StockRiskGradeDTO row);
 
     int updateIfNewer(StockRiskGradeDTO row);

@@ -2,12 +2,15 @@ package com.app.maria.domain.risk.service;
 
 import com.app.maria.domain.risk.calendar.KrxTradingCalendar;
 import com.app.maria.domain.risk.clock.RiskMarketClock;
+import com.app.maria.domain.risk.dto.StockRiskGradeDTO;
 import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.mapper.StockRiskGradeMapper;
 import com.app.maria.domain.risk.type.RiskDataStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,29 +30,47 @@ public class RiskGradeServiceImpl implements RiskGradeService {
     @Override
     @Transactional(readOnly = true)
     public List<UsableRiskGradeDTO> findUsable() {
-        var now = clock.now();
+        var context = context();
+        return mapper.findAll().stream()
+                .map(row -> toUsable(row, context))
+                .flatMap(Optional::stream)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UsableRiskGradeDTO> findUsableByTicker(String ticker) {
+        var context = context();
+        return Optional.ofNullable(mapper.findByTicker(ticker))
+                .flatMap(row -> toUsable(row, context));
+    }
+
+    private record Context(KrxTradingCalendar.Snapshot snapshot, LocalDate reference) {}
+
+    private Context context() {
         var snapshot = calendar.load();
-        var reference = snapshot.latest(now);
+        var reference = snapshot.latest(clock.now());
         if (!Integer.valueOf(32400).equals(mapper.sessionUtcOffsetSeconds()))
             throw new AppException(ErrorType.RISK_TIMEZONE_UNAVAILABLE);
-        return mapper.findAll().stream()
-                .filter(row -> row.getAnalysisVersion() != null && row.getAnalysisVersion() > 0)
-                .filter(
-                        row ->
-                                snapshot.state(row.getPriceTo(), reference)
-                                        != RiskDataStatus.EXPIRED)
-                .map(
-                        row ->
-                                new UsableRiskGradeDTO(
-                                        row.getDomesticProductId(),
-                                        row.getTicker(),
-                                        row.getVar975(),
-                                        row.getRiskGrade(),
-                                        row.getVolatility(),
-                                        row.getPriceFrom(),
-                                        row.getPriceTo(),
-                                        row.getAnalysisVersion(),
-                                        snapshot.state(row.getPriceTo(), reference)))
-                .toList();
+        return new Context(snapshot, reference);
+    }
+
+    private Optional<UsableRiskGradeDTO> toUsable(StockRiskGradeDTO row, Context context) {
+        if (row.getAnalysisVersion() == null || row.getAnalysisVersion() <= 0)
+            return Optional.empty();
+        var status = context.snapshot().state(row.getPriceTo(), context.reference());
+        if (status == RiskDataStatus.EXPIRED) return Optional.empty();
+        return Optional.of(
+                new UsableRiskGradeDTO(
+                        row.getDomesticProductId(),
+                        row.getTicker(),
+                        row.getName(),
+                        row.getVar975(),
+                        row.getRiskGrade(),
+                        row.getVolatility(),
+                        row.getPriceFrom(),
+                        row.getPriceTo(),
+                        row.getAnalysisVersion(),
+                        status));
     }
 }

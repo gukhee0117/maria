@@ -7,6 +7,7 @@ import java.time.LocalDate;
 public record UsableRiskGradeDTO(
         Long domesticProductId,
         String ticker,
+        String name,
         BigDecimal var975,
         int riskGrade,
         BigDecimal volatility,
