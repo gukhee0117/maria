@@ -29,6 +29,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 관리자 신고 처리. 숨기거나 삭제하면 신고를 인정하고, 되살리면 신고를 기각한다. 처리마다 감사로그를 남긴다. */
@@ -129,8 +130,14 @@ public class CommunityReportAdminServiceImpl implements CommunityReportAdminServ
                 .toList();
     }
 
+    /**
+     * 신고 처리. READ_COMMITTED인 이유: REPEATABLE READ면 첫 SELECT의 snapshot으로 잠금을 기다린 뒤에도 앞 관리자가 처리한 신고를
+     * PENDING으로 읽어 같은 대상을 두 번 처리한다. 대상을 잠근 뒤 처리 대기 신고를 다시 읽어, 이 신고가 아직 대기가 아니면 이미 처리된 것으로 본다.
+     */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager")
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            isolation = Isolation.READ_COMMITTED)
     public AdminReportProcessResponseDTO process(Long reportId, ReportAction action) {
         Long adminId = auditActorProvider.getCurrentAdminId();
         CommunityReportEntity report =
@@ -159,11 +166,12 @@ public class CommunityReportAdminServiceImpl implements CommunityReportAdminServ
                                     () ->
                                             new AppException(
                                                     ErrorType.COMMUNITY_POST_NOT_FOUND, targetId));
+            sameTarget =
+                    reportRepository.findByCommunityPostIdAndStatus(targetId, ReportStatus.PENDING);
+            requireStillPending(sameTarget, reportId);
             before = post.getStatus();
             apply(action, post::hide, post::markDeleted, post::restore, before, targetId);
             after = post.getStatus();
-            sameTarget =
-                    reportRepository.findByCommunityPostIdAndStatus(targetId, ReportStatus.PENDING);
         } else {
             targetType = COMMENT;
             targetId = report.getCommunityCommentId();
@@ -175,12 +183,13 @@ public class CommunityReportAdminServiceImpl implements CommunityReportAdminServ
                                             new AppException(
                                                     ErrorType.COMMUNITY_COMMENT_NOT_FOUND,
                                                     targetId));
-            before = comment.getStatus();
-            apply(action, comment::hide, comment::markDeleted, comment::restore, before, targetId);
-            after = comment.getStatus();
             sameTarget =
                     reportRepository.findByCommunityCommentIdAndStatus(
                             targetId, ReportStatus.PENDING);
+            requireStillPending(sameTarget, reportId);
+            before = comment.getStatus();
+            apply(action, comment::hide, comment::markDeleted, comment::restore, before, targetId);
+            after = comment.getStatus();
         }
         for (CommunityReportEntity pending : sameTarget) {
             if (accept) {
@@ -201,6 +210,13 @@ public class CommunityReportAdminServiceImpl implements CommunityReportAdminServ
                         .processedAt(clock.now())
                         .build());
         return new AdminReportProcessResponseDTO(targetType, targetId, after, sameTarget.size());
+    }
+
+    /** 대상을 잠근 뒤 다시 읽은 처리 대기 신고에 이 신고가 없으면, 잠금을 기다리는 사이 다른 관리자가 먼저 처리한 것이다. */
+    private static void requireStillPending(List<CommunityReportEntity> pending, Long reportId) {
+        if (pending.stream().noneMatch(r -> r.getCommunityReportId().equals(reportId))) {
+            throw new AppException(ErrorType.COMMUNITY_REPORT_ALREADY_PROCESSED, reportId);
+        }
     }
 
     /** 삭제된 대상은 어떤 처리도 할 수 없다. 이미 보이는 대상을 되살리는 것은 변경 없이 신고만 기각한다. */
