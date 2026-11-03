@@ -1459,3 +1459,309 @@ input[type="datetime-local"].adm-input {
     padding: 0 14px;
     font-weight: 600;
 }
+
+/* ===== 왼쪽 목록 + 오른쪽 표 화면의 왼쪽 목록 (원본 입고 관리 "계좌 목록") — A-10 =====
+   머리 30 · 열 머리 28 · 행 44. 줄무늬(홀수 흰색·짝수 zebra), 선택 행은 --adm-sel + 왼쪽 3px 막대. */
+.adm-master {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-master-head {
+    flex: none;
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--adm-bd);
+    background: var(--adm-head);
+    font-weight: 700;
+}
+
+.adm-master-count {
+    margin-left: auto;
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--adm-sub);
+}
+
+.adm-master-count b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.adm-master-cols {
+    flex: none;
+    box-sizing: content-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    height: 28px;
+    border-bottom: 1px solid var(--adm-bd);
+    background: var(--adm-grid-head);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 17.4px;
+}
+
+.adm-master-cols > span {
+    display: flex;
+    align-items: center;
+}
+
+.adm-master-cols > span:first-child {
+    padding: 0 8px;
+    border-right: 1px solid var(--adm-bd);
+}
+
+.adm-master-cols > span.is-c {
+    justify-content: center;
+}
+
+.adm-master-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.adm-master-row {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    width: 100%;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--adm-line);
+    background: var(--adm-panel);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.adm-master-row:nth-child(even) {
+    background: var(--adm-zebra);
+}
+
+.adm-master-row:hover {
+    background: var(--adm-hover);
+}
+
+.adm-master-row.is-selected {
+    background: var(--adm-sel);
+    box-shadow: inset 3px 0 0 0 var(--adm-focus-ring);
+}
+
+/* 원본은 선택된 행 위에 마우스를 올려도 hover 색으로 바뀐다 */
+.adm-master-row.is-selected:hover {
+    background: var(--adm-hover);
+}
+
+.adm-master-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 8px;
+    border-right: 1px solid var(--adm-line);
+}
+
+.adm-master-main > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.adm-master-no {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 17.4px;
+}
+
+.adm-master-sub {
+    font-size: 11.5px;
+    line-height: 16.675px;
+    color: var(--adm-sub);
+}
+
+.adm-master-n {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 17.4px;
+}
+
+.adm-master-foot {
+    flex: none;
+    display: flex;
+    justify-content: center;
+    padding: 4px 6px;
+    border-top: 1px solid var(--adm-bd);
+}
+
+.adm-master-foot:not(:has(button)) {
+    display: none;
+}
+
+.adm-master-foot .adm-pager {
+    margin-left: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.adm-master-state {
+    padding: 22px 12px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.adm-master-state .adm-btn {
+    margin-top: 10px;
+}
+
+.adm-master-skel {
+    box-sizing: border-box;
+    height: 44px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--adm-line);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+}
+
+.adm-master-skel span {
+    display: block;
+    height: 9px;
+    background: var(--adm-skel);
+}
+
+/* ===== 세 값 중 최소 비교 (원본 입고 상세 "승인수량 계산 근거") — A-10 =====
+   카드 3칸(가장 작은 값은 선택 색 + "최소" 표시, 같은 값이면 모두 표시) + 결과 줄 */
+.adm-cmp {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-cmp-card {
+    padding: 8px 10px;
+    border-right: 1px solid var(--adm-bd);
+    background: var(--adm-panel);
+}
+
+.adm-cmp-card.is-min {
+    background: var(--adm-sel);
+    box-shadow: inset 0 0 0 1.5px var(--adm-focus-ring);
+}
+
+.adm-cmp-label {
+    min-height: 32px;
+    font-size: 11.5px;
+    line-height: 16.675px;
+    color: var(--adm-sub);
+}
+
+.adm-cmp-val {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.adm-cmp-val b {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 24.65px;
+}
+
+.adm-cmp-card.is-min .adm-cmp-val b {
+    color: var(--adm-navy-fg);
+}
+
+.adm-cmp-val small {
+    font-size: 11px;
+    line-height: 15.95px;
+    color: var(--adm-sub);
+}
+
+.adm-cmp-min {
+    margin-left: auto;
+    padding: 0 5px;
+    border-radius: 2px;
+    background: var(--adm-navy-btn);
+    color: var(--adm-on-navy);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 16px;
+    opacity: 0;
+}
+
+.adm-cmp-card.is-min .adm-cmp-min {
+    opacity: 1;
+}
+
+.adm-cmp-result {
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--adm-bd);
+    border-top: 0;
+    background: var(--adm-head);
+}
+
+.adm-cmp-result-k {
+    font-size: 12px;
+    line-height: 17.4px;
+    color: var(--adm-sub);
+}
+
+.adm-cmp-result-val {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 21.75px;
+    color: var(--adm-navy-fg);
+}
+
+.adm-cmp-result-val b {
+    font-weight: inherit;
+}
+
+/* ===== 패널 안 작은 표 (머리 + 행, 칸 수는 --adm-mini-cols 로) — A-10 ===== */
+.adm-mini {
+    border: 1px solid var(--adm-bd);
+    border-bottom: 0;
+    font-size: 12px;
+}
+
+.adm-mini-row {
+    display: grid;
+    grid-template-columns: var(--adm-mini-cols, 1.4fr 1fr 1fr);
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-mini-row > span {
+    min-width: 0;
+    padding: 6px 10px;
+    overflow-wrap: anywhere;
+}
+
+.adm-mini-row > span.is-r {
+    text-align: right;
+}
+
+.adm-mini-row.is-head {
+    background: var(--adm-head);
+    color: var(--adm-sub);
+}

@@ -1,158 +1,180 @@
 $(function () {
+    var STATUS = MARIA.status; // 매도 상태·계좌 종류·0주 승인 사유 표기는 js/admin/status-labels.js 의 공통 매핑
+
     var QTY_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 });
-    var DATETIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit"
-    });
+    var INT_FORMATTER = new Intl.NumberFormat("ko-KR");
+
+    // 왼쪽 계좌 목록은 서버 쪽 이동(옛 화면과 같은 size=10), 오른쪽 입고 내역은 서버 쪽 이동에 페이지 크기만 20/50/100 으로 고른다.
+    var ACCOUNT_PAGE_SIZE = 10;
+    var inboundPageSize = 20;
+    var SKELETON_ROWS = 8;
+    var SKELETON_WIDTHS = ["62%", "70%", "48%", "54%", "66%", "78%", "56%", "40%", "60%"];
+    var COLUMN_COUNT = 8;
 
     var accounts = [];
-    var selectedAccountId = null;
-    var selectedInboundId = null;
     var accountKeyword = "";
-    var ACCOUNT_PAGE_SIZE = 10;
-
+    var accountPage = 0;
+    var selectedAccountId = null;
     var inbounds = [];
-    var INBOUND_PAGE_SIZE = 10;
+    var inboundPage = 0;
+    var selectedInboundId = null;
+    var accountRequestSeq = 0;   // 계좌를 빠르게 바꿀 때 늦게 온 옛 응답을 버리기 위한 번호
+    var inboundRequestSeq = 0;
 
-    function formatDateTime(isoString) {
-        if (!isoString) {
-            return "-";
-        }
-        return DATETIME_FORMATTER.format(new Date(isoString)).replace(/\. /g, "-").replace(".", "");
-    }
-
-    var DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-    var TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: true });
-
-    function formatDateTwoLine(isoString) {
-        if (!isoString) {
-            return "-";
-        }
-        var date = new Date(isoString);
-        var dateStr = DATE_FORMATTER.format(date).replace(/\. /g, "-").replace(/\.$/, "");
-        var timeStr = TIME_FORMATTER.format(date);
-        return '<div>' + dateStr + '</div><div class="ib-cell-sub">' + timeStr + '</div>';
-    }
-
-    function formatQty(qty) {
-        return QTY_FORMATTER.format(qty || 0) + "주";
-    }
-
+    // ---------- 서식 ----------
     function escapeHtml(value) {
-        return $("<div>").text(value).html();
+        return $("<div>").text(value == null ? "" : value).html();
     }
 
-    function loadSummary() {
-        MARIA.auth.ajax({ url: "/api/admin/inbounds/summary", method: "GET" })
-            .done(function (res) {
-                var s = res.data;
-                $("#kpiTodayProcessed").text(s.todayProcessedCount + " 건");
-                $("#kpiTodayRejected").text(s.todayRejectedCount + " 건");
-                $("#kpiTodayReduced").text(s.todayReducedCount + " 건");
-                $("#kpiTodayApprovedQty").text(formatQty(s.todayApprovedQtySum));
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) {
-                    return;
-                }
-            });
+    function pad(n) {
+        return String(n).padStart(2, "0");
+    }
+
+    function parseDate(value) {
+        var date = value ? new Date(value) : null;
+        return !date || isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatDate(value) {
+        var date = parseDate(value);
+        return !date ? "-" : date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+    }
+
+    function formatDateTime(value) {
+        var date = parseDate(value);
+        return !date ? "-" : formatDate(value) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    }
+
+    // 수량은 숫자만 (단위는 열 이름·요약 단위가 말해 준다). 값이 없으면 "-".
+    function formatQty(qty) {
+        return qty == null ? "-" : QTY_FORMATTER.format(Number(qty));
+    }
+
+    function formatQtyUnit(qty) {
+        return qty == null ? "-" : QTY_FORMATTER.format(Number(qty)) + "주";
     }
 
     function formatPrice(price, currency) {
         if (price == null) {
             return "-";
         }
-        return Number(price).toLocaleString("ko-KR", { maximumFractionDigits: 4 }) + " " + (currency || "");
+        return QTY_FORMATTER.format(Number(price)) + (currency ? " " + currency : "");
     }
 
-    function lotProgressCell(lot) {
-        var qty = Number(lot.qty) || 0;
-        var currentQty = Number(lot.currentQty) || 0;
-        var ratio = qty > 0 ? (currentQty / qty) : 0;
-        var soldQty = qty - currentQty;
-        var isDepleted = currentQty <= 0 && qty > 0;
-        var note = soldQty > 0
-            ? formatQty(soldQty) + " 소진 (" + Math.round((1 - ratio) * 100) + "%)"
-            : "소진 없음";
-        return (
-            '<div class="ib-lot-progress">' +
-            '<div class="ib-lot-progress-label">' + formatQty(currentQty) + ' / ' + formatQty(qty) + '</div>' +
-            '<div class="ib-lot-progress-track"><div class="ib-lot-progress-fill' + (isDepleted ? " depleted" : "") + '" style="width:' + Math.round(ratio * 100) + '%"></div></div>' +
-            '<div class="ib-lot-progress-note">' + note + '</div>' +
-            '</div>'
-        );
+    function chip(tone, label, title) {
+        return '<span class="adm-chip adm-chip-' + tone + '"' + (title ? ' title="' + escapeHtml(title) + '"' : "") + ">" +
+            escapeHtml(label) + "</span>";
     }
 
-    var SELL_STATUS_LABEL = { RECEIVED: "접수", EXECUTED: "체결", REJECTED: "거부" };
-
-    var ACCOUNT_TYPE_LABEL = {
-        BROKERAGE: "종합위탁계좌",
-        CMA: "CMA",
-        IRP: "IRP",
-        PENSION_SAVINGS: "연금저축",
-        ISA: "ISA"
-    };
-
-    function sourceLabel(lot) {
-        if (lot.sourceBroker) {
-            return escapeHtml(lot.sourceBroker);
-        }
-        if (lot.accountType && ACCOUNT_TYPE_LABEL[lot.accountType]) {
-            return escapeHtml(ACCOUNT_TYPE_LABEL[lot.accountType]);
-        }
-        return "당사";
+    function productLabel(item) {
+        return [item.productName, item.ticker].filter(Boolean).join(" ") || "-";
     }
 
-    function sellHistoryCell(sellHistory) {
-        if (!sellHistory || sellHistory.length === 0) {
-            return '<span class="ib-sell-history-empty">없음</span>';
+    function sourceLabel(item) {
+        return item.sourceBroker ? item.sourceBroker : "당사";
+    }
+
+    // 승인수량 0주 = 반려 (요약의 "오늘 반려 건수"와 같은 뜻)
+    function approvedCell(item) {
+        if (item.approvedQty === 0) {
+            return chip("fail", "0주 승인", STATUS.inboundZeroReasonLabel(STATUS.inboundZeroReason(item)));
         }
-        var items = sellHistory.map(function (order) {
-            var label = SELL_STATUS_LABEL[order.status] || order.status;
-            return (
-                '<li>' + label + ' ' + formatQty(order.sellQty) +
-                ' @ ' + formatPrice(order.basePrice, null) +
-                ' · ' + formatDateTime(order.processedAt) +
-                '</li>'
-            );
-        }).join("");
-        return '<ul class="ib-sell-history">' + items + '</ul>';
+        return "<span>" + formatQty(item.approvedQty) + "</span>";
+    }
+
+    function stateRow(className, innerHtml, fill) {
+        return '<tr class="is-state ' + (fill ? "is-state-fill " : "") + className + '"><td colspan="' + COLUMN_COUNT + '">' +
+            innerHtml + "</td></tr>";
+    }
+
+    // 표 머리 쪽 이동 (이전/숫자/다음, 10쪽 묶음)
+    function renderPager($pager, current, totalPages, onGo) {
+        $pager.empty();
+        if (!totalPages || totalPages <= 1) {
+            return;
+        }
+        var BLOCK_SIZE = 10;
+        var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
+        var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
+
+        function addButton(label, targetPage, isDisabled, isActive) {
+            var classes = "adm-page-btn" + (isActive ? " is-active" : "") + (/^[0-9]+$/.test(label) ? "" : " is-nav");
+            var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
+            $btn.prop("disabled", isDisabled || isActive);
+            if (!isDisabled && !isActive) {
+                $btn.on("click", function () {
+                    onGo(targetPage);
+                });
+            }
+            $pager.append($btn);
+        }
+
+        if (blockStart > 0) {
+            addButton("이전", blockStart - 1, false, false);
+        }
+        for (var i = blockStart; i <= blockEnd; i++) {
+            addButton(String(i + 1), i, false, i === current);
+        }
+        addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
+    }
+
+    function errorMessage(xhr, fallback) {
+        return (xhr.responseJSON && xhr.responseJSON.message) || fallback;
+    }
+
+    // ---------- 요약 ----------
+    function loadSummary() {
+        MARIA.auth.ajax({ url: "/api/admin/inbounds/summary", method: "GET" })
+            .done(function (res) {
+                var s = res.data || {};
+                $("#inbound-summary-processed").text(INT_FORMATTER.format(s.todayProcessedCount || 0));
+                $("#inbound-summary-approved-qty").text(formatQty(s.todayApprovedQtySum || 0));
+                $("#inbound-summary-rejected").text(INT_FORMATTER.format(s.todayRejectedCount || 0));
+                $("#inbound-summary-reduced").text(INT_FORMATTER.format(s.todayReducedCount || 0));
+            });
+    }
+
+    // ---------- 왼쪽: 계좌 목록 ----------
+    function renderAccountLoading() {
+        var html = "";
+        for (var r = 0; r < SKELETON_ROWS; r++) {
+            html += '<div class="adm-master-skel" aria-label="불러오는 중"><span style="width:' +
+                SKELETON_WIDTHS[r % SKELETON_WIDTHS.length] + '"></span><span style="width:' +
+                SKELETON_WIDTHS[(r + 3) % SKELETON_WIDTHS.length] + '"></span></div>';
+        }
+        $("#inbound-account-list").html(html);
     }
 
     function renderAccountList() {
-        var $items = $("#ibAccountItems").empty();
-        $("#ibAccountCount").text(accounts.length + "개 계좌");
-        if (accounts.length === 0) {
-            $items.append('<div class="dash-empty">입고 이력이 있는 계좌가 없습니다.</div>');
+        var $list = $("#inbound-account-list").empty();
+        if (!accounts.length) {
+            $list.html('<div class="adm-master-state">' +
+                (accountKeyword ? "조건에 맞는 계좌가 없습니다." : "입고 이력이 있는 계좌가 없습니다.") +
+                (accountKeyword ? '<br><button type="button" class="adm-btn inbound-account-empty-reset">조건 초기화</button>' : "") +
+                "</div>");
             return;
         }
-        accounts.forEach(function (acc) {
-            var isSelected = acc.accountId === selectedAccountId;
-            var $row = $(
-                '<div class="ib-list-item ib-account-item' + (isSelected ? " selected" : "") + '">' +
-                '<div class="ib-list-item-top">' +
-                '<span class="ib-list-item-name">' + escapeHtml(acc.customerName) + '</span>' +
-                '<span class="ib-list-item-ticker">' + MARIA.fmt.hyphenateAccountNo(acc.accountNo) + '</span>' +
-                '</div>' +
-                '<div class="ib-list-item-bottom">' +
-                '<span>입고 ' + acc.inboundCount + '건</span>' +
-                '<span>최근 처리: ' + formatDateTime(acc.lastProcessedAt) + '</span>' +
-                '</div>' +
-                '</div>'
+        accounts.forEach(function (account) {
+            var selected = Number(account.accountId) === Number(selectedAccountId);
+            var recent = formatDateTime(account.lastProcessedAt);
+            $list.append(
+                '<button type="button" class="adm-master-row' + (selected ? " is-selected" : "") +
+                '" data-account-id="' + account.accountId + '"' + (selected ? ' aria-current="true"' : "") + ">" +
+                '<span class="adm-master-main">' +
+                '<span class="adm-master-no">' + escapeHtml(MARIA.fmt.hyphenateAccountNo(account.accountNo)) + "</span>" +
+                '<span class="adm-master-sub" title="최근 처리 ' + escapeHtml(recent) + '">' + escapeHtml(account.customerName || "") +
+                (account.lastProcessedAt ? " · 최근 " + escapeHtml(recent.substring(5)) : "") + "</span>" +
+                "</span>" +
+                '<span class="adm-master-n">' + INT_FORMATTER.format(account.inboundCount || 0) + "건</span>" +
+                "</button>"
             );
-            $row.on("click", function () {
-                selectedAccountId = acc.accountId;
-                renderAccountList();
-                loadAccountInbounds(0);
-            });
-            $items.append($row);
         });
     }
 
-    function renderAccountPagination(page) {
-        renderPaginationInto($("#ibAccountPagination"), page.page, page.totalPages, function (targetPage) {
-            loadAccounts(targetPage);
-        });
+    function selectedAccount() {
+        return accounts.filter(function (account) {
+            return Number(account.accountId) === Number(selectedAccountId);
+        })[0] || null;
     }
 
     function loadAccounts(page) {
@@ -161,350 +183,410 @@ $(function () {
         if (accountKeyword) {
             requestData.keyword = accountKeyword;
         }
+        var seq = ++accountRequestSeq;
+        closeDrawer();
+        renderAccountLoading();
+
         MARIA.auth.ajax({
             url: "/api/admin/inbounds/accounts",
             method: "GET",
             data: requestData
         })
             .done(function (res) {
-                accounts = res.data.content || [];
-                var totalPages = Math.ceil((res.data.totalCount || 0) / ACCOUNT_PAGE_SIZE);
-                renderAccountList();
-                renderAccountPagination({ page: res.data.page, totalPages: totalPages });
-
-                if (accounts.length > 0) {
-                    selectedAccountId = accounts[0].accountId;
-                    renderAccountList();
-                    loadAccountInbounds(0);
-                } else {
-                    selectedAccountId = null;
-                    inbounds = [];
-                    renderInboundList();
-                    $("#ibInboundPagination").empty();
-                }
-                $("#ibLoading").hide();
-                $("#ibBody").css("display", "flex");
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) {
+                if (seq !== accountRequestSeq) {
                     return;
                 }
-                $("#ibLoading").hide();
-                var message = "계좌 목록을 불러오지 못했습니다.";
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
+                var data = res.data || {};
+                accounts = data.content || [];
+                accountPage = data.page || 0;
+                var totalPages = Math.ceil((data.totalCount || 0) / ACCOUNT_PAGE_SIZE);
+                $("#inbound-account-count").text(INT_FORMATTER.format(data.totalCount || 0));
+
+                // 옛 화면과 같이 목록을 받으면 첫 계좌를 고르고 그 입고 내역을 불러온다.
+                selectedAccountId = accounts.length ? accounts[0].accountId : null;
+                renderAccountList();
+                renderPager($("#inbound-account-pagination"), accountPage, totalPages, loadAccounts);
+
+                if (selectedAccountId != null) {
+                    loadAccountInbounds(0);
+                } else {
+                    inbounds = [];
+                    renderInboundState("none");
                 }
-                $("#ibError").text(message).show();
+            })
+            .fail(function (xhr) {
+                if (seq !== accountRequestSeq || xhr.status === 401) {
+                    return;
+                }
+                accounts = [];
+                selectedAccountId = null;
+                inbounds = [];
+                $("#inbound-account-count").text("-");
+                $("#inbound-account-pagination").empty();
+                $("#inbound-account-list").html('<div class="adm-master-state">' +
+                    escapeHtml(errorMessage(xhr, "계좌 목록을 불러오지 못했습니다.")) +
+                    '<br><button type="button" class="adm-btn inbound-account-retry">다시 시도</button></div>');
+                renderInboundState("none");
             });
     }
 
-    function renderInboundList() {
-        var $items = $("#ibInboundItems").empty();
-        $("#ibInboundCount").text(inbounds.length + "건");
-        if (!selectedAccountId) {
-            $items.append('<div class="dash-empty">왼쪽에서 계좌를 선택하세요.</div>');
-            return;
-        }
-        if (inbounds.length === 0) {
-            $items.append('<div class="dash-empty">이 계좌의 입고 내역이 없습니다.</div>');
-            return;
-        }
-
-        var rows = inbounds.map(function (item) {
-            return (
-                '<tr class="ib-inbound-row' +
-                (Number(item.inboundId) === Number(selectedInboundId) ? ' selected' : '') +
-                '" data-inbound-id="' + item.inboundId + '">' +
-                '<td>' + escapeHtml(item.ticker || "-") + '<br><span class="ib-cell-sub">' + escapeHtml(item.productName || "-") + '</span></td>' +
-                '<td>' + formatQty(item.requestedQty) + '</td>' +
-                '<td>' + formatQty(item.snapshotQty) + '</td>' +
-                '<td>' + formatQty(item.currentHoldingAtRequest) + '</td>' +
-                '<td>' + (item.approvedQty === 0
-                    ? '<span class="status-badge failed">0주 승인</span>'
-                    : formatQty(item.approvedQty)) + '</td>' +
-                '<td>' + formatQty(item.remainingQty) + '</td>' +
-                '<td>' + (item.sourceBroker ? escapeHtml(item.sourceBroker) : "당사") + '</td>' +
-                '<td>' + formatDateTime(item.processedAt) + '</td>' +
-                '</tr>'
-            );
-        }).join("");
-
-        var $table = $(
-            '<table class="dash-table ib-inbound-table">' +
-            '<thead><tr>' +
-            '<th>종목</th><th>신청수량</th><th>기준일수량</th><th>현재보유수량</th>' +
-            '<th>승인수량</th><th>잔여가능수량</th><th>출처</th><th>처리일시</th>' +
-            '</tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-            '</table>'
-        );
-        $items.append($table);
-
-        $table.find("tbody tr").on("click", function () {
-            var inboundId = Number($(this).data("inbound-id"));
-            var item = inbounds.filter(function (i) { return i.inboundId === inboundId; })[0];
-            if (item) {
-                selectedInboundId = inboundId;
-                renderInboundList();
-                openDetailOverlay(item);
+    // ---------- 오른쪽: 입고 내역 ----------
+    function renderInboundLoading() {
+        var html = "";
+        for (var r = 0; r < SKELETON_ROWS; r++) {
+            html += '<tr class="is-state inbound-loading" aria-label="불러오는 중"><td colspan="' + COLUMN_COUNT +
+                '"><div class="adm-skel-row"><div class="adm-skel-cell"></div>';
+            for (var c = 0; c < COLUMN_COUNT - 1; c++) {
+                html += '<div class="adm-skel-cell"><span style="width:' + SKELETON_WIDTHS[(c + r) % SKELETON_WIDTHS.length] +
+                    ';animation-delay:' + ((c + r) % 5) * 0.06 + 's"></span></div>';
             }
-        });
+            html += "</div></td></tr>";
+        }
+        $("#inbound-list").html(html);
     }
 
-        function renderInboundPagination(page) {
-        renderPaginationInto($("#ibInboundPagination"), page.page, page.totalPages, function (targetPage) {
+    // kind: none(고른 계좌 없음) / empty(입고 내역 없음) / error
+    function renderInboundState(kind, message) {
+        var html;
+        $("#inbound-count").text(kind === "error" || kind === "none" ? "-" : "0");
+        $("#inbound-pagination").empty();
+        $("#inbound-selected-account").text("");
+        if (kind === "error") {
+            html = '<div class="adm-state-error"><div class="adm-state-error-text">' +
+                '<div class="adm-state-error-title">' + escapeHtml(message) + "</div>" +
+                '<div class="adm-state-error-desc">잠시 후 다시 시도해 주세요.</div></div>' +
+                '<button type="button" class="adm-btn inbound-retry">다시 시도</button></div>';
+        } else {
+            html = '<div class="adm-state-empty"><img src="/images/admin/char-front.png" alt="">' +
+                '<div class="adm-state-empty-title">' +
+                (kind === "none" ? "왼쪽에서 계좌를 선택하세요." : "이 계좌의 입고 내역이 없습니다.") + "</div>" +
+                (kind === "none" ? "" : '<div class="adm-state-empty-desc">다른 계좌를 선택해 주세요.</div>') + "</div>";
+        }
+        $("#inbound-list").html(stateRow("inbound-" + (kind === "error" ? "error" : "empty"), html, true));
+    }
+
+    function renderInbounds(pageData) {
+        var $body = $("#inbound-list").empty();
+        var account = selectedAccount();
+        var start = (pageData.page || 0) * (pageData.size || inboundPageSize);
+
+        $("#inbound-count").text(INT_FORMATTER.format(pageData.totalElements || 0));
+        $("#inbound-selected-account").text(account
+            ? (account.customerName || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
+        renderPager($("#inbound-pagination"), pageData.page || 0, pageData.totalPages || 0, function (targetPage) {
+            closeDrawer();
             loadAccountInbounds(targetPage);
+        });
+
+        if (!inbounds.length) {
+            renderInboundState("empty");
+            $("#inbound-count").text(INT_FORMATTER.format(pageData.totalElements || 0));
+            $("#inbound-selected-account").text(account
+                ? (account.customerName || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
+            return;
+        }
+
+        inbounds.forEach(function (item, index) {
+            var selectedClass = Number(item.inboundId) === Number(selectedInboundId) ? " is-selected" : "";
+            $body.append(
+                '<tr class="is-clickable' + selectedClass + '" tabindex="0" data-inbound-id="' + item.inboundId + '">' +
+                '<td class="adm-col-no">' + (start + index + 1) + "</td>" +
+                "<td><span>" + escapeHtml(productLabel(item)) + "</span></td>" +
+                '<td class="is-r inbound-col-req"><span>' + formatQty(item.requestedQty) + "</span></td>" +
+                '<td class="is-r"><span>' + formatQty(item.snapshotQty) + "</span></td>" +
+                '<td class="is-r"><span>' + formatQty(item.currentHoldingAtRequest) + "</span></td>" +
+                '<td class="is-r is-strong">' + approvedCell(item) + "</td>" +
+                "<td><span>" + escapeHtml(sourceLabel(item)) + "</span></td>" +
+                "<td><span>" + formatDateTime(item.processedAt) + "</span></td>" +
+                "</tr>"
+            );
         });
     }
 
     function loadAccountInbounds(page) {
-        if (!selectedAccountId) {
+        if (selectedAccountId == null) {
             return;
         }
         var targetPage = page || 0;
+        var seq = ++inboundRequestSeq;
+        inboundPage = targetPage;
+        renderInboundLoading();
+
         MARIA.auth.ajax({
             url: "/api/admin/inbounds/by-account/" + selectedAccountId,
             method: "GET",
-            data: { page: targetPage, size: INBOUND_PAGE_SIZE }
+            data: { page: targetPage, size: inboundPageSize }
         })
             .done(function (res) {
-                inbounds = res.data.content || [];
-                renderInboundList();
-                renderInboundPagination(res.data);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) {
+                if (seq !== inboundRequestSeq) {
                     return;
                 }
-                var message = "입고 내역을 불러오지 못했습니다.";
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
+                var data = res.data || {};
+                inbounds = data.content || [];
+                renderInbounds(data);
+            })
+            .fail(function (xhr) {
+                if (seq !== inboundRequestSeq || xhr.status === 401) {
+                    return;
                 }
-                $("#ibError").text(message).show();
+                inbounds = [];
+                renderInboundState("error", errorMessage(xhr, "입고 내역을 불러오지 못했습니다."));
             });
     }
 
-    function renderPaginationInto($pagination, current, totalPages, onClick) {
-        $pagination.empty();
-        if (!totalPages || totalPages <= 1) {
-            return;
-        }
-
-        var BLOCK_SIZE = 10;
-        var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
-        var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
-
-        function addButton(label, targetPage, isDisabled, isActive) {
-            var classes = "page-btn" + (isActive ? " active" : "");
-            var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
-            $btn.prop("disabled", isDisabled || isActive);
-            if (!isDisabled && !isActive) {
-                $btn.on("click", function () {
-                    onClick(targetPage);
-                });
-            }
-            $pagination.append($btn);
-        }
-
-        addButton("이전", blockStart - 1, blockStart === 0, false);
-        for (var i = blockStart; i <= blockEnd; i++) {
-            addButton(String(i + 1), i, false, i === current);
-        }
-        addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
+    // ---------- 상세 패널 ----------
+    function round4(value) {
+        return Math.round(Number(value) * 10000) / 10000;
     }
 
-    function minCard(label, value, isMatched, note) {
-        var cls = "ib-min-card" + (isMatched ? " matched" : "");
-        return (
-            '<div class="' + cls + '">' +
-            (isMatched ? '<span class="ib-min-badge">MIN 채택</span>' : "") +
-            '<div class="ib-min-label">' + label + '</div>' +
-            '<div class="ib-min-value">' + formatQty(value) + '</div>' +
-            '<div class="ib-min-note">' + note + '</div>' +
-            '</div>'
-        );
+    // 세 값(신청 · 12.23 기준 · 요청 시점 보유) 중 가장 작은 값에 "최소" 표시. 같은 값이 여럿이면 모두 표시한다.
+    function renderCompare(item) {
+        var values = [
+            { id: "inbound-cmp-requested", value: item.requestedQty },
+            { id: "inbound-cmp-snapshot", value: item.snapshotQty },
+            { id: "inbound-cmp-holding", value: item.currentHoldingAtRequest }
+        ];
+        var numbers = values.filter(function (v) { return v.value != null; }).map(function (v) { return round4(v.value); });
+        var min = numbers.length ? Math.min.apply(null, numbers) : null;
+
+        values.forEach(function (v) {
+            var isMin = v.value != null && min != null && round4(v.value) === min;
+            $("#" + v.id).toggleClass("is-min", isMin).find("b").text(formatQty(v.value));
+        });
+        $("#inbound-cmp-result").text(formatQty(item.approvedQty));
+        return min;
     }
 
-    function zeroApprovalReason(item) {
-        if (item.currentHoldingAtRequest === 0) {
-            return "요청 시점 기준 현재 보유수량이 0주라 입고할 자산이 없습니다.";
+    function renderPriorApprovals(rows) {
+        if (!rows.length) {
+            return '<div class="inbound-lots-empty">기존 승인 내역이 없습니다.</div>';
         }
-        if (item.requestedQty === 0) {
-            return "신청수량 자체가 0주로 접수됐습니다.";
-        }
-        return "이 계좌·종목으로 이미 승인된 누적수량이 12.23 기준수량을 다 채웠습니다.";
+        var html = '<div class="adm-mini"><div class="adm-mini-row is-head"><span>처리일시</span><span class="is-r">신청수량</span><span class="is-r">승인수량</span></div>';
+        rows.forEach(function (row) {
+            html += '<div class="adm-mini-row"><span>' + formatDateTime(row.processedAt) + '</span><span class="is-r">' +
+                formatQty(row.requestedQty) + '</span><span class="is-r">' + formatQty(row.approvedQty) + "</span></div>";
+        });
+        return html + "</div>";
     }
 
-    function loadPriorApprovals(inboundId, $container) {
-        $container.append('<div class="section-header"><span>이 계좌·종목 기존 승인 내역</span></div>');
+    function loadPriorApprovals(inboundId) {
+        var $box = $("#inbound-prior-approvals").html('<div class="inbound-lots-empty">불러오는 중...</div>');
         MARIA.auth.ajax({ url: "/api/admin/inbounds/" + inboundId + "/prior-approvals", method: "GET" })
             .done(function (res) {
-                var rows = res.data || [];
-                if (rows.length === 0) {
-                    $container.append('<div class="dash-empty">기존 승인 내역이 없습니다.</div>');
+                if (Number(selectedInboundId) !== Number(inboundId)) {
                     return;
                 }
-                var trs = rows.map(function (r) {
-                    return (
-                        '<tr>' +
-                        '<td>' + formatDateTime(r.processedAt) + '</td>' +
-                        '<td>' + formatQty(r.requestedQty) + '</td>' +
-                        '<td>' + formatQty(r.approvedQty) + '</td>' +
-                        '</tr>'
-                    );
-                }).join("");
-                $container.append(
-                    '<table class="dash-table ib-info-table">' +
-                    '<thead><tr><th>처리일시</th><th>신청수량</th><th>승인수량</th></tr></thead>' +
-                    '<tbody>' + trs + '</tbody>' +
-                    '</table>'
-                );
+                $box.html(renderPriorApprovals(res.data || []));
             })
             .fail(function (xhr) {
-                if (xhr.status === 401) {
+                if (Number(selectedInboundId) !== Number(inboundId) || xhr.status === 401) {
                     return;
                 }
-                $container.append('<div class="dash-empty">기존 승인 내역을 불러오지 못했습니다.</div>');
+                $box.html('<div class="inbound-lots-empty">기존 승인 내역을 불러오지 못했습니다.</div>');
             });
     }
 
-    function openDetailOverlay(item) {
-        var $body = $("#ibOverlayBody").empty();
-        var $detail = $('<div class="ib-detail-card"></div>');
-        $body.append($detail);
-
-        var isZeroApproved = item.approvedQty === 0;
-        var availableQty = item.remainingQty + item.approvedQty;
-        $detail.append(
-            '<div class="section-header">' +
-            '<span>3-way MIN 계산 — ' + MARIA.fmt.accountNoHtml(item.accountNo) + ' · ' + escapeHtml(item.customerName) + ' · ' + escapeHtml(item.ticker || item.productName) + '</span>' +
-            '<span class="section-sub' + (isZeroApproved ? " ib-zero-text" : "") + '">최종 채택: ' + formatQty(item.approvedQty) + '</span>' +
-            '</div>' +
-            (isZeroApproved
-                ? '<div class="ib-zero-warning">이번 요청은 반려됐습니다 — ' + zeroApprovalReason(item) + '</div>'
-                : "")
-        );
-
-        $detail.append(
-            '<div class="ib-min-grid">' +
-            minCard("1. 신청수량", item.requestedQty, item.requestedQty === item.approvedQty, "고객 입고 신청 수량") +
-            minCard("2. 가용수량(기준수량 - 기승인)", availableQty, availableQty === item.approvedQty, "12.23 기준수량 " + formatQty(item.snapshotQty) + " 중<br>이미 승인된 수량 차감") +
-            minCard("3. 현재보유수량", item.currentHoldingAtRequest, item.currentHoldingAtRequest === item.approvedQty, "요청시점 실보유수량") +
-            '</div>'
-        );
-
-        $detail.append(
-            '<div class="ib-min-formula">' +
-            'MIN(' + formatQty(item.requestedQty) + ', ' + formatQty(availableQty) + ', ' + formatQty(item.currentHoldingAtRequest) + ') = ' +
-            '<strong>' + formatQty(item.approvedQty) + '</strong>' +
-            '</div>'
-        );
-
-        var alreadyApprovedQty = item.snapshotQty - availableQty;
-        $detail.append(
-            '<div class="section-header"><span>3-way MIN 근거 — 가용수량 분해</span></div>' +
-            '<table class="dash-table ib-info-table">' +
-            '<thead><tr><th>항목</th><th>수량</th></tr></thead>' +
-            '<tbody>' +
-            '<tr><td>12.23 기준수량 (한도)</td><td>' + formatQty(item.snapshotQty) + '</td></tr>' +
-            '<tr><td>이 계좌·종목 기존 승인 누적</td><td>' + formatQty(alreadyApprovedQty) + '</td></tr>' +
-            '<tr><td><strong>가용수량 (기준수량 − 기존승인)</strong></td><td><strong>' + formatQty(availableQty) + '</strong></td></tr>' +
-            '</tbody>' +
-            '</table>'
-        );
-
-        var $priorSection = $('<div></div>');
-        $detail.append($priorSection);
-        loadPriorApprovals(item.inboundId, $priorSection);
-
-        $detail.append(
-            '<div class="section-header"><span>기본 정보</span></div>' +
-            '<table class="dash-table ib-info-table">' +
-            '<thead><tr>' +
-            '<th>계좌번호</th><th>고객명</th><th>종목</th><th>출처</th><th>처리일시</th><th>잔여가능수량</th>' +
-            '</tr></thead>' +
-            '<tbody><tr>' +
-            '<td>' + MARIA.fmt.accountNoHtml(item.accountNo) + '</td>' +
-            '<td>' + escapeHtml(item.customerName) + '</td>' +
-            '<td>' + escapeHtml(item.ticker || "-") + ' (' + escapeHtml(item.productName || "-") + ')</td>' +
-            '<td>' + (item.sourceBroker ? escapeHtml(item.sourceBroker) : "-") + '</td>' +
-            '<td>' + formatDateTime(item.processedAt) + '</td>' +
-            '<td><strong>' + formatQty(item.remainingQty) + '</strong></td>' +
-            '</tr></tbody>' +
-            '</table>'
-        );
-
-        if (item.lots && item.lots.length > 0) {
-            var lotRows = item.lots.map(function (lot) {
-                return (
-                    '<tr>' +
-                    '<td>' + sourceLabel(lot) + '</td>' +
-                    '<td>' + formatDateTwoLine(lot.purchaseDate) + '</td>' +
-                    '<td>' + formatDateTwoLine(lot.recordedAt) + '</td>' +
-                    '<td class="ib-price-cell">' + formatPrice(lot.purchasePrice, lot.purchaseCurrency) + '</td>' +
-                    '<td>' + lotProgressCell(lot) + '</td>' +
-                    '<td>' + sellHistoryCell(lot.sellHistory) + '</td>' +
-                    '</tr>'
-                );
-            }).join("");
-
-            $detail.append(
-                '<div class="section-header">' +
-                '<span>취득 정보</span>' +
-                '<span class="section-sub">lot ' + item.lots.length + '건</span>' +
-                '</div>' +
-                '<table class="dash-table ib-lot-table">' +
-                '<thead><tr><th>출처</th><th>매수일</th><th>기록일</th><th>매수단가</th><th>보유 현황</th><th>매도 이력</th></tr></thead>' +
-                '<tbody>' + lotRows + '</tbody>' +
-                '</table>'
-            );
+    // 취득 정보: 입고 lot 별 남은 수량 바 (채움 = 현재 잔량 ÷ 입고 수량), 아래에 소진·기록일·매도 이력
+    function renderLots(item) {
+        var lots = item.lots || [];
+        var $box = $("#inbound-lots").empty();
+        $("#inbound-lot-count").text(lots.length ? "· lot " + lots.length + "건" : "");
+        if (!lots.length) {
+            $box.html('<div class="inbound-lots-empty">취득 lot 정보가 없습니다.</div>');
+            return;
         }
+        var html = "";
+        lots.forEach(function (lot, index) {
+            var qty = Number(lot.qty) || 0;
+            var currentQty = Number(lot.currentQty) || 0;
+            var ratio = qty > 0 ? Math.max(0, Math.min(1, currentQty / qty)) : 0;
+            var soldQty = qty - currentQty;
+            var source = lot.sourceBroker || STATUS.generalAccountTypeLabel(lot.accountType);
+            if (source === "-") {
+                source = "당사";
+            }
+            var meta = [(soldQty > 0
+                ? formatQtyUnit(soldQty) + " 소진 (" + Math.round((1 - ratio) * 100) + "%)" : "소진 없음") +
+                " · 기록 " + formatDateTime(lot.recordedAt)];
+            var history = lot.sellHistory || [];
+            history.forEach(function (order) {
+                meta.push("매도 " + STATUS.sellOrderStatusLabel(order.status) + " " + formatQtyUnit(order.sellQty) +
+                    " @ " + formatPrice(order.basePrice) + " · " + formatDateTime(order.processedAt));
+            });
+            if (!history.length) {
+                meta.push("매도 이력 없음");
+            }
 
-        $("#ibOverlayBackdrop").prop("hidden", false);
-        requestAnimationFrame(function () {
-            $("#ibOverlayBackdrop").addClass("is-open");
-            $("#ibOverlayPanel").addClass("is-open");
+            html += '<div class="adm-alloc-item" data-lot-index="' + index + '" data-ratio="' + ratio + '">' +
+                '<div class="adm-alloc-head"><span class="adm-alloc-name">' + escapeHtml(source) +
+                " <small>· 매수 " + escapeHtml(formatDate(lot.purchaseDate)) + "</small></span>" +
+                '<span class="adm-alloc-avail"><span>매수단가</span><span>' +
+                escapeHtml(formatPrice(lot.purchasePrice, lot.purchaseCurrency)) + "</span></span></div>" +
+                '<div class="adm-alloc-bar"><div class="adm-alloc-fill" style="transform:scaleX(' + ratio + ')"></div>' +
+                '<span class="adm-alloc-amt">' + formatQty(currentQty) + " <small>/ " + formatQty(qty) + "</small></span></div>" +
+                meta.map(function (line) {
+                    return '<div class="adm-alloc-meta">' + escapeHtml(line) + "</div>";
+                }).join("") +
+                "</div>";
         });
+        $box.html('<div class="adm-alloc">' + html + "</div>");
     }
 
-    function closeDetailOverlay() {
-        $("#ibOverlayBackdrop").removeClass("is-open");
-        $("#ibOverlayPanel").removeClass("is-open");
-        setTimeout(function () {
-            $("#ibOverlayBackdrop").prop("hidden", true);
-        }, 200);
+    function renderDrawer(item) {
+        var min = renderCompare(item);
+        // 가용수량 = 기준수량 − 기존 승인 누적 (옛 화면과 같은 계산: 잔여 가능 수량 + 승인수량)
+        var available = Number(item.remainingQty || 0) + Number(item.approvedQty || 0);
+        var priorSum = Number(item.snapshotQty || 0) - available;
+        var isZero = item.approvedQty === 0;
+
+        $("#inbound-detail-title").text(productLabel(item));
+        $("#inbound-detail-sub").text((item.customerName || "-") + " · " + MARIA.fmt.hyphenateAccountNo(item.accountNo));
+
+        $("#inbound-detail-source").text(sourceLabel(item));
+        $("#inbound-detail-processed-at").text(formatDateTime(item.processedAt));
+        $("#inbound-detail-approved").text(formatQtyUnit(item.approvedQty));
+        $("#inbound-detail-remaining").text(formatQtyUnit(item.remainingQty));
+
+        // 0주 승인이면 사유를, 세 값의 최소와 승인수량이 다르면 가용수량 때문이라는 설명을 보인다.
+        $("#inbound-zero-warning").prop("hidden", !isZero).text(isZero
+            ? "이번 요청은 반려됐습니다 — " + STATUS.inboundZeroReasonLabel(STATUS.inboundZeroReason(item)) : "");
+        var reduced = !isZero && min != null && item.approvedQty != null && round4(item.approvedQty) !== min &&
+            round4(available) === round4(item.approvedQty);
+        $("#inbound-reduced-note").prop("hidden", !reduced).text(reduced
+            ? "12.23 기준수량에서 기존 승인 " + formatQtyUnit(priorSum) + "를 빼면 가용수량이 " +
+            formatQtyUnit(available) + "라서 승인수량이 " + formatQtyUnit(item.approvedQty) + "로 줄었어요." : "");
+
+        renderLots(item);
+
+        $("#inbound-detail-snapshot").text(formatQtyUnit(item.snapshotQty));
+        $("#inbound-detail-prior-sum").text(formatQtyUnit(priorSum));
+        $("#inbound-detail-available").text(formatQtyUnit(available));
+        setFold(false);
+        loadPriorApprovals(item.inboundId);
+
+        $("#inbound-drawer-backdrop, #inbound-detail-drawer").addClass("is-open");
+        $("#inbound-detail-drawer").attr("aria-hidden", "false");
+        $("#inbound-detail-drawer .adm-panel-body").scrollTop(0);
+        $("#inbound-drawer-close").trigger("focus");
     }
 
-    $("#ibOverlayClose").on("click", closeDetailOverlay);
-    $("#ibOverlayBackdrop").on("click", closeDetailOverlay);
-    $(document).on("keydown", function (e) {
-        if (e.key === "Escape") {
-            closeDetailOverlay();
+    function closeDrawer() {
+        if (!$("#inbound-detail-drawer").hasClass("is-open")) {
+            return;
+        }
+        $("#inbound-drawer-backdrop, #inbound-detail-drawer").removeClass("is-open");
+        $("#inbound-detail-drawer").attr("aria-hidden", "true");
+        var $row = $("#inbound-list tr.is-selected").removeClass("is-selected");
+        if ($row.length) {
+            $row.trigger("focus");
+        }
+        selectedInboundId = null;
+    }
+
+    function selectRow($row) {
+        var inboundId = Number($row.data("inbound-id"));
+        var item = inbounds.filter(function (i) { return Number(i.inboundId) === inboundId; })[0];
+        if (!item) {
+            return;
+        }
+        selectedInboundId = inboundId;
+        $("#inbound-list tr[data-inbound-id]").removeClass("is-selected");
+        $row.addClass("is-selected");
+        renderDrawer(item);
+    }
+
+    $("#inbound-list").on("click", "tr[data-inbound-id]", function () {
+        selectRow($(this));
+    });
+    $("#inbound-list").on("keydown", "tr[data-inbound-id]", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectRow($(this));
         }
     });
-
-    $("#ibAccountSearchSubmit").on("click", function () {
-        accountKeyword = $("#ibAccountSearch").val().trim();
-        loadAccounts(0);
+    $("#inbound-list").on("click", ".inbound-retry", function () {
+        loadAccountInbounds(inboundPage);
     });
-    $("#ibAccountSearchReset").on("click", function () {
+
+    $("#inbound-drawer-close, #inbound-drawer-backdrop").on("click", closeDrawer);
+
+    // 기존 승인 내역·가용수량 접기 (처음엔 접힘, 패널을 새로 열 때마다 다시 접는다)
+    function setFold(open) {
+        $("#inbound-fold-toggle").attr("aria-expanded", open ? "true" : "false");
+        $("#inbound-fold-body").prop("hidden", !open);
+    }
+    $("#inbound-fold-toggle").on("click", function () {
+        setFold($(this).attr("aria-expanded") !== "true");
+    });
+
+    // ---------- 계좌 선택 · 검색 ----------
+    $("#inbound-account-list").on("click", ".adm-master-row", function () {
+        var accountId = Number($(this).data("account-id"));
+        if (accountId === Number(selectedAccountId)) {
+            return;
+        }
+        selectedAccountId = accountId;
+        closeDrawer();
+        renderAccountList();
+        loadAccountInbounds(0);
+    });
+    $("#inbound-account-list").on("click", ".inbound-account-retry", function () {
+        loadAccounts(accountPage);
+    });
+    $("#inbound-account-list").on("click", ".inbound-account-empty-reset", resetSearch);
+
+    function searchAccounts() {
+        accountKeyword = $("#inbound-account-search").val().trim();
+        loadAccounts(0);
+    }
+
+    function resetSearch() {
         accountKeyword = "";
-        $("#ibAccountSearch").val("");
+        $("#inbound-account-search").val("");
         loadAccounts(0);
-    });
-    $("#ibAccountSearch").on("keypress", function (e) {
-        if (e.which === 13) {
-            accountKeyword = $(this).val().trim();
-            loadAccounts(0);
+    }
+
+    $("#inbound-account-search-submit").on("click", searchAccounts);
+    $("#inbound-account-search-reset").on("click", resetSearch);
+    $("#inbound-account-search").on("keydown", function (event) {
+        if (event.key === "Enter") {
+            searchAccounts();
         }
     });
+
+    // 오른쪽 표 페이지 크기 (서버 size 파라미터)
+    $("#inbound-page-size").on("click", "button", function () {
+        var size = parseInt($(this).attr("data-size"), 10);
+        if (!size || size === inboundPageSize) {
+            return;
+        }
+        inboundPageSize = size;
+        $("#inbound-page-size button").removeClass("is-on");
+        $(this).addClass("is-on");
+        closeDrawer();
+        loadAccountInbounds(0);
+    });
+
+    // 좁은 화면(화면 너비 ÷ 글자 크기 배율 < 900, 원본 기준): 계좌 목록이 표 위로 올라가 한 줄로 쌓인다.
+    // 글자 크기 배율은 layout.js 가 #admShell 의 --font-scale 로 정한다.
+    function applyNarrowLayout() {
+        var shell = document.getElementById("admShell");
+        var zoom = shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--font-scale")) || 1 : 1;
+        $(".inbound-management").toggleClass("is-narrow", window.innerWidth / zoom < 900);
+    }
+    $(window).on("resize", applyNarrowLayout);
+    if (window.MutationObserver && document.getElementById("admShell")) {
+        new MutationObserver(applyNarrowLayout).observe(document.getElementById("admShell"), { attributes: true, attributeFilter: ["style"] });
+    }
+    applyNarrowLayout();
 
     var deepLinkAccountNo = MARIA.deeplink.accountNoFromUrl();
     if (deepLinkAccountNo) {
         accountKeyword = deepLinkAccountNo;
-        $("#ibAccountSearch").val(deepLinkAccountNo);
+        $("#inbound-account-search").val(deepLinkAccountNo);
     }
 
+    renderInboundLoading();
     loadSummary();
     loadAccounts(0);
 });

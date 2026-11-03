@@ -152,6 +152,22 @@ MARIA.status = (function () {
         ADMIN: "전체 + 업무시각·역할 변경"
     };
 
+    // 입고 lot 의 출처 계좌 종류 (GeneralAccountType)
+    var GENERAL_ACCOUNT_TYPE_LABEL = {
+        BROKERAGE: "종합위탁계좌",
+        CMA: "CMA",
+        IRP: "IRP",
+        PENSION_SAVINGS: "연금저축",
+        ISA: "ISA"
+    };
+
+    // 입고 0주 승인 사유 (InboundZeroApprovalReason). 목록·상세 응답에는 사유가 없어(요청 #56) 화면이 수량으로 추정할 때 쓴다.
+    var INBOUND_ZERO_REASON_LABEL = {
+        CURRENT_HOLDING_INSUFFICIENT: "요청 시점 기준 현재 보유수량이 0주라 입고할 자산이 없습니다.",
+        REQUESTED_ZERO: "신청수량 자체가 0주로 접수됐습니다.",
+        SNAPSHOT_QUANTITY_EXHAUSTED: "이 계좌·종목으로 이미 승인된 누적수량이 12.23 기준수량을 다 채웠습니다."
+    };
+
     // 인출 처리 상태 (WithdrawalStatus). CANCELLED 는 목록에서 빼지만 매핑은 둔다.
     var WITHDRAWAL_STATUS_LABEL = {
         REQUESTED: "처리 중",
@@ -238,6 +254,24 @@ MARIA.status = (function () {
         },
         withdrawalKindTone: function (kind) {
             return WITHDRAWAL_KIND_TONE[kind] || "off";
+        },
+        GENERAL_ACCOUNT_TYPE_LABEL: GENERAL_ACCOUNT_TYPE_LABEL,
+        generalAccountTypeLabel: function (type) {
+            return pick(GENERAL_ACCOUNT_TYPE_LABEL, type, "-");
+        },
+        INBOUND_ZERO_REASON_LABEL: INBOUND_ZERO_REASON_LABEL,
+        // 입고 0주 승인 사유 추정: 옛 화면과 같은 순서 (현재 보유 0 → 신청 0 → 그 밖에는 기준수량 소진)
+        inboundZeroReason: function (item) {
+            if (item.currentHoldingAtRequest === 0) {
+                return "CURRENT_HOLDING_INSUFFICIENT";
+            }
+            if (item.requestedQty === 0) {
+                return "REQUESTED_ZERO";
+            }
+            return "SNAPSHOT_QUANTITY_EXHAUSTED";
+        },
+        inboundZeroReasonLabel: function (reason) {
+            return INBOUND_ZERO_REASON_LABEL[reason] || "-";
         },
         BENEFIT_LABEL: BENEFIT_LABEL,
         ADMIN_ROLE_LABEL: ADMIN_ROLE_LABEL,
