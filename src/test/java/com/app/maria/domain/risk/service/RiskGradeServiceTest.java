@@ -75,4 +75,41 @@ class RiskGradeServiceTest {
         assertThatThrownBy(service::findUsable).isInstanceOf(AppException.class);
         verify(mapper, never()).findAll();
     }
+
+    @Test
+    void findUsableByTickerAppliesSameRulesAsFindUsable() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(32400);
+        when(mapper.findByTicker("005930")).thenReturn(row(1));
+        when(mapper.findByTicker("000660")).thenReturn(row(0));
+        when(mapper.findByTicker("999999")).thenReturn(null);
+        var cal = RiskTestSupport.calendar();
+        var service =
+                new RiskGradeServiceImpl(
+                        mapper, cal, RiskTestSupport.clock("2026-10-26T17:00:00+09:00"));
+
+        assertThat(service.findUsableByTicker("005930"))
+                .get()
+                .satisfies(r -> assertThat(r.ticker()).isEqualTo("005930"));
+        assertThat(service.findUsableByTicker("000660")).isEmpty(); // version 0
+        assertThat(service.findUsableByTicker("999999")).isEmpty(); // 자료 없음
+        var expired =
+                new RiskGradeServiceImpl(
+                        mapper, cal, RiskTestSupport.clock("2026-10-30T15:30:00+09:00"));
+        assertThat(expired.findUsableByTicker("005930")).isEmpty();
+        verify(mapper, never()).findAll();
+    }
+
+    @Test
+    void findUsableByTickerFailsClosedOnWrongTimezone() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(0);
+        var service =
+                new RiskGradeServiceImpl(
+                        mapper,
+                        RiskTestSupport.calendar(),
+                        RiskTestSupport.clock("2026-10-28T17:00:00+09:00"));
+        assertThatThrownBy(() -> service.findUsableByTicker("005930"))
+                .isInstanceOf(AppException.class);
+    }
 }

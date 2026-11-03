@@ -213,8 +213,40 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "입고 수량 배분 중 오류가 발생했습니다.", LogLevel.ERROR),
 
     // 출고
-    OUTBOUND_NO_AVAILABLE_QTY(HttpStatus.BAD_REQUEST, "출고 가능한 수량이 없습니다.", LogLevel.WARN);
+    OUTBOUND_NO_AVAILABLE_QTY(HttpStatus.BAD_REQUEST, "출고 가능한 수량이 없습니다.", LogLevel.WARN),
 
+    // 커뮤니티
+    COMMUNITY_TEXT_BANNED(HttpStatus.BAD_REQUEST, "사용할 수 없는 표현이 포함되어 있습니다.", LogLevel.WARN),
+    COMMUNITY_CONTENT_INVALID(
+            HttpStatus.BAD_REQUEST, "내용은 1자 이상 500자 이하로 입력해야 합니다.", LogLevel.WARN),
+    COMMUNITY_POST_NOT_FOUND(HttpStatus.NOT_FOUND, "글을 찾을 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_NOT_AUTHOR(HttpStatus.FORBIDDEN, "본인이 작성한 글만 수정하거나 삭제할 수 있습니다.", LogLevel.WARN),
+    COMMUNITY_POST_NOT_EDITABLE(HttpStatus.CONFLICT, "수정할 수 없는 글입니다.", LogLevel.WARN),
+    COMMUNITY_POST_NOT_VISIBLE(HttpStatus.CONFLICT, "볼 수 없는 글에는 작성할 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_POST_HIDDEN(HttpStatus.FORBIDDEN, "신고로 가려진 글의 댓글은 볼 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_REPLY_TARGET_INVALID(HttpStatus.BAD_REQUEST, "답글 대상 댓글을 확인할 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_TICKER_NOT_FOUND(HttpStatus.BAD_REQUEST, "종목을 찾을 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_REPORT_TARGET_INVALID(
+            HttpStatus.BAD_REQUEST, "신고할 글이나 댓글을 하나만 선택해야 합니다.", LogLevel.WARN),
+    COMMUNITY_REPORT_DUPLICATED(HttpStatus.CONFLICT, "이미 신고한 내용입니다.", LogLevel.WARN),
+    COMMUNITY_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "신고를 찾을 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_REPORT_ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 신고입니다.", LogLevel.WARN),
+    COMMUNITY_REPORT_TARGET_UNAVAILABLE(
+            HttpStatus.CONFLICT, "신고 대상이 이미 삭제되었거나 처리할 수 없는 상태입니다.", LogLevel.WARN),
+    COMMUNITY_KKIRU_LIMIT_EXCEEDED(
+            HttpStatus.TOO_MANY_REQUESTS, "끼루 호출 가능 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    OPENDART_LIMIT_EXCEEDED(
+            HttpStatus.SERVICE_UNAVAILABLE, "OpenDART 하루 호출 한도를 초과했습니다.", LogLevel.ERROR),
+    OPENDART_KEY_INVALID(
+            HttpStatus.INTERNAL_SERVER_ERROR, "OpenDART 인증키 설정에 문제가 있습니다.", LogLevel.ERROR),
+    OPENDART_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "OpenDART에서 자료를 가져오지 못했습니다.", LogLevel.WARN),
+    COMMUNITY_KKIRU_BUSY(
+            HttpStatus.TOO_MANY_REQUESTS, "오늘 끼루 호출 가능 횟수가 모두 소진되었습니다.", LogLevel.WARN),
+    COMMUNITY_KKIRU_RETRY_NOT_ALLOWED(HttpStatus.CONFLICT, "다시 물을 수 없는 상태입니다.", LogLevel.WARN),
+    COMMUNITY_KKIRU_STATUS_INVALID(HttpStatus.BAD_REQUEST, "끼루 상태를 변경할 수 없습니다.", LogLevel.WARN),
+    COMMUNITY_TEXT_RULE_LOAD_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR, "금칙어 규칙을 불러오지 못했습니다.", LogLevel.ERROR);
     private final HttpStatus status;
     private final String message;
     private final LogLevel logLevel;

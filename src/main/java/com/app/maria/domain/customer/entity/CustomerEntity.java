@@ -41,6 +41,14 @@ public class CustomerEntity {
     @Column(name = "ci_hash", nullable = false, length = 64, unique = true)
     private String ciHash;
 
+    /** 커뮤니티에서 보여줄 이름. 시드가 채우고 앱은 조회만 한다. 새로 가입한 고객은 NULL이다(UNIQUE) */
+    @Column(name = "nickname", length = 20)
+    private String nickname;
+
+    /** 커뮤니티 글·댓글에 투자성향 이름을 보여줄지. 기본은 비공개 */
+    @Column(name = "investor_type_public", nullable = false)
+    private boolean investorTypePublic;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -54,6 +62,10 @@ public class CustomerEntity {
         customer.createdAt = createdAt;
         customer.investorType = InvestorType.UNASSIGNED;
         return customer;
+    }
+
+    public void changeInvestorTypePublic(boolean investorTypePublic) {
+        this.investorTypePublic = investorTypePublic;
     }
 
     /** 설문 진단 결과를 반영한다. 미진단(UNASSIGNED)은 진단 결과가 될 수 없다. */

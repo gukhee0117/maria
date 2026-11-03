@@ -1,0 +1,27 @@
+{
+ "status": "000",
+ "message": "정상",
+ "list": [
+  {
+   "rcept_no": "20260710000008",
+   "corp_cls": "Y",
+   "corp_code": "00164779",
+   "corp_name": "SK하이닉스",
+   "nstk_ostk_cnt": "17,790,000",
+   "nstk_estk_cnt": "-",
+   "fv_ps": "5,000",
+   "bfic_tisstk_ostk": "712,702,365",
+   "bfic_tisstk_estk": "-",
+   "fdpp_fclt": "40,023,070,290,000",
+   "fdpp_bsninh": "-",
+   "fdpp_op": "-",
+   "fdpp_dtrp": "-",
+   "fdpp_ocsa": "-",
+   "fdpp_etc": "-",
+   "ic_mthn": "제3자배정증자",
+   "ssl_at": "N",
+   "ssl_bgd": "-",
+   "ssl_edd": "-"
+  }
+ ]
+}

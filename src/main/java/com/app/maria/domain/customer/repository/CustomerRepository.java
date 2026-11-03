@@ -2,6 +2,8 @@ package com.app.maria.domain.customer.repository;
 
 import com.app.maria.domain.customer.entity.CustomerEntity;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -23,4 +25,12 @@ public interface CustomerRepository extends Repository<CustomerEntity, Long> {
     Optional<CustomerEntity> findById(Long customerId);
 
     CustomerEntity saveAndFlush(CustomerEntity customer);
+
+    /** 글·댓글 목록에 작성자 닉네임과 성향 공개 여부를 한 번에 붙이기 위한 조회. */
+    @Query(
+            "select c.customerId as customerId, c.nickname as nickname,"
+                    + " c.investorType as investorType,"
+                    + " c.investorTypePublic as investorTypePublic"
+                    + " from CustomerEntity c where c.customerId in :ids")
+    List<CustomerCommunityProfile> findCommunityProfiles(@Param("ids") Collection<Long> ids);
 }

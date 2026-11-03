@@ -1,0 +1,12 @@
+# 외부 채팅·커뮤니티 링크 — 즉시 차단 (정규식, 정규화 전 원문에 적용 — 정규화하면 . / 가 사라져서)
+# 점 앞뒤 공백 우회("open . kakao . com")도 잡도록 \s* 허용
+open\s*\.\s*kakao\s*\.\s*com
+pf\s*\.\s*kakao\s*\.\s*com
+qr\s*\.\s*kakao\s*\.\s*com
+(^|[^a-z])t\s*\.\s*me/
+telegram\s*\.\s*(me|dog)
+band\s*\.\s*us
+discord(app)?\s*\.\s*(gg|com/invite)
+(^|[^a-z])line\s*\.\s*me
+(^|[^a-z])wa\s*\.\s*me
+kakaotalk

@@ -5,6 +5,7 @@
 -- 변경: domestic_stock_balance를 증권사 -> RIA로 이동(account/domestic_product FK 복구)
 -- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
 -- 변경(2차, 10-28): customer.investor_type_public 추가, customer_login_history 신규, news_item에 category·picked_slot 추가 + ticker NULL 허용 + (ticker, picked_date) UNIQUE 삭제
+-- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행)
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -14,6 +15,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS community_report;
 DROP TABLE IF EXISTS community_comment_like;
 DROP TABLE IF EXISTS community_post_reaction;
+DROP TABLE IF EXISTS kiru_call_gate;
 DROP TABLE IF EXISTS community_comment;
 DROP TABLE IF EXISTS community_post;
 DROP TABLE IF EXISTS stock_recommendation;
@@ -72,7 +74,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE customer (
     customer_id   BIGINT      NOT NULL AUTO_INCREMENT,
     name          VARCHAR(50) NOT NULL COMMENT '이름(표시/감사용, 해시 입력 아님)',
-    nickname      VARCHAR(20) NULL     COMMENT '채팅방 닉네임',
+    nickname      VARCHAR(20) NULL     COMMENT '커뮤니티 닉네임(시드가 채우고 앱은 조회만 함. 새로 가입한 고객은 NULL)',
     birth_date    DATE        NOT NULL COMMENT '생년월일',
     phone         VARCHAR(20) NULL     COMMENT '연락처',
     email         VARCHAR(100) NULL    COMMENT '이메일',
@@ -716,8 +718,15 @@ CREATE TABLE community_comment (
     PRIMARY KEY (community_comment_id),
     CONSTRAINT chk_cc_author CHECK ((author_type = 'CUSTOMER' AND customer_id IS NOT NULL) OR (author_type = 'AI' AND customer_id IS NULL)),
     CONSTRAINT chk_cc_status CHECK (status IN ('VISIBLE','HIDDEN','DELETED')),
-    CONSTRAINT chk_cc_kiru CHECK (kiru_status IS NULL OR kiru_status IN ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FAILED'))
+    CONSTRAINT chk_cc_kiru CHECK (kiru_status IS NULL OR kiru_status IN ('PENDING','ANSWERED','NO_SOURCE','OUT_OF_SCOPE','FOLLOW_UP','FAILED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='채팅방 댓글';
+
+-- [NO-SEED] 2차 신규. 끼루 전체 하루 상한 확인을 한 번에 하나씩 처리하기 위한 잠금 행(1행 고정).
+CREATE TABLE kiru_call_gate (
+    gate_id TINYINT NOT NULL PRIMARY KEY,
+    CONSTRAINT chk_kcg_singleton CHECK (gate_id = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='끼루 전체 하루 상한 잠금 행';
+INSERT INTO kiru_call_gate(gate_id) VALUES (1);
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE community_post_reaction (

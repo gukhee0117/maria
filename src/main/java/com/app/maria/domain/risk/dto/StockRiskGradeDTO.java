@@ -9,6 +9,7 @@ import lombok.Data;
 public class StockRiskGradeDTO {
     private Long domesticProductId;
     private String ticker;
+    private String name;
     private BigDecimal var975;
     private Integer riskGrade;
     private BigDecimal volatility;

@@ -1,0 +1,80 @@
+# 형식: 기대값<TAB>대상<TAB>문장   (기대값: BLOCK / PASS, 대상: CONTENT / NICKNAME)
+# 금융 일상 문장 — 막히면 안 됨
+PASS	CONTENT	삼성전자 보존 목적으로 계속 들고 갈게요
+PASS	CONTENT	2025년도 받은 년도 기준으로 계산하면 되나요?
+PASS	CONTENT	SK텔레콤 배당 언제 나오나요
+PASS	CONTENT	리딩 기업이라 장기로 봅니다
+PASS	CONTENT	조정 병합 공시 나왔네요
+PASS	CONTENT	존버 중입니다 ㅠㅠ
+PASS	CONTENT	노무비 증가로 영업이익이 줄었네요
+PASS	CONTENT	1년 안에 인출하면 감면 취소되나요?
+PASS	CONTENT	원금이 보장되는 상품은 없죠?
+# 욕설·우회 — 막혀야 함
+BLOCK	CONTENT	이 종목 산 놈들 다 개새끼
+BLOCK	CONTENT	시 1 발 또 떨어졌네
+BLOCK	CONTENT	ㅅ.ㅂ 손절함
+BLOCK	CONTENT	개.새.끼들 작전주네
+BLOCK	CONTENT	틀딱들은 모름
+# 스팸 — 막혀야 함
+BLOCK	CONTENT	수익 보장 리딩방 들어오세요
+BLOCK	CONTENT	무료 추천방 open.kakao.com/o/abc123
+BLOCK	CONTENT	텔레그램 t.me/stockking 연락
+# 닉네임
+PASS	NICKNAME	배당좋아
+PASS	NICKNAME	장기투자자
+BLOCK	NICKNAME	끼루공식
+BLOCK	NICKNAME	관리자1
+BLOCK	NICKNAME	admin_kim
+BLOCK	NICKNAME	리턴증권직원
+# --- 2026-10-22 추가: 단어 경계를 넘는 우연한 매칭 (v1에서 전부 차단되던 문장) ---
+PASS	CONTENT	공시 발표 나왔네요
+PASS	CONTENT	증시 발작 오면 무섭네요
+PASS	CONTENT	어제 다시 팔았어요
+PASS	CONTENT	보존 내용 확인했습니다
+PASS	CONTENT	보존 나중에 할게요
+PASS	CONTENT	한 녀석이 계속 사네
+PASS	CONTENT	원금 보장형 ELB 있나요
+# 한 단어 안의 정상 단어 (allowlist / allow-patterns)
+PASS	CONTENT	시발점이 어디였는지 보자
+PASS	CONTENT	시바이누 코인 어떻게 보세요
+PASS	CONTENT	새끼손가락 걸고 약속
+PASS	CONTENT	중기 5개년 계획 발표
+PASS	CONTENT	3개년 실적 비교해 봤어요
+# 목록에서 뺀 일반어
+PASS	CONTENT	드라이브스루 매장 늘어난대요
+PASS	CONTENT	탄핵소추 뉴스 때문에 빠짐
+PASS	CONTENT	버블 꺼지면 어떡하죠
+PASS	CONTENT	노사관계 삐걱거리네요
+PASS	CONTENT	지뢰주 조심하세요
+PASS	CONTENT	존귀한 고객님
+PASS	CONTENT	가격 후려치기 당함
+PASS	CONTENT	카지노주 실적 좋네요
+PASS	CONTENT	SK텔레콤 텔레비전 광고
+PASS	CONTENT	보지 마세요 이 종목
+# 우회 — 막혀야 함
+BLOCK	CONTENT	시 발 또 물렸네
+BLOCK	CONTENT	아 씨 발 진짜
+BLOCK	CONTENT	ㅅㅣㅂㅏㄹ 손절
+BLOCK	CONTENT	ｓｉｂａｌ 떨어짐
+BLOCK	CONTENT	qudtls 같은 종목
+BLOCK	CONTENT	what the fuck
+BLOCK	CONTENT	ᄉᄇ 진짜
+BLOCK	CONTENT	개 새 끼 들
+# 링크·연락처 우회
+BLOCK	CONTENT	open . kakao . com/o/xyz 로 오세요
+BLOCK	CONTENT	텔방 들어오세요
+BLOCK	CONTENT	무료리딩 선착순 30명
+BLOCK	CONTENT	작업대출 당일 가능
+# 보류(REVIEW) — 스팸일 수도, 질문·피해 글일 수도
+REVIEW	CONTENT	원금 보장 상품 있나요?
+REVIEW	CONTENT	텔레그램으로 사기 당했어요
+REVIEW	CONTENT	대포통장 신고는 어디로 하나요
+REVIEW	CONTENT	자세한 건 bit.ly/abc12 참고
+REVIEW	CONTENT	문의는 010-1234-5678
+# 닉네임 추가
+PASS	NICKNAME	시바견주인
+BLOCK	NICKNAME	끼루 공식
+BLOCK	NICKNAME	ＡＤＭＩＮ
+BLOCK	NICKNAME	금감원직원
+BLOCK	NICKNAME	운영팀장
+BLOCK	NICKNAME	탈퇴회원

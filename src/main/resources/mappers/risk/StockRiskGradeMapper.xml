@@ -13,10 +13,16 @@
         SELECT <include refid="columns"/> FROM stock_risk_grade WHERE domestic_product_id=#{id} FOR UPDATE
     </select>
     <select id="findAll" resultType="com.app.maria.domain.risk.dto.StockRiskGradeDTO">
-        SELECT g.domestic_product_id, p.ticker, g.var_975, g.risk_grade, g.volatility,
+        SELECT g.domestic_product_id, p.ticker, p.name, g.var_975, g.risk_grade, g.volatility,
             g.price_from, g.price_to, g.calculated_at, g.synced_at, g.analysis_version
         FROM stock_risk_grade g JOIN domestic_product p ON p.domestic_product_id=g.domestic_product_id
         ORDER BY g.domestic_product_id
+    </select>
+    <select id="findByTicker" resultType="com.app.maria.domain.risk.dto.StockRiskGradeDTO">
+        SELECT g.domestic_product_id, p.ticker, p.name, g.var_975, g.risk_grade, g.volatility,
+            g.price_from, g.price_to, g.calculated_at, g.synced_at, g.analysis_version
+        FROM stock_risk_grade g JOIN domestic_product p ON p.domestic_product_id=g.domestic_product_id
+        WHERE p.ticker=#{ticker}
     </select>
     <insert id="insert">
         INSERT INTO stock_risk_grade (<include refid="columns"/>)

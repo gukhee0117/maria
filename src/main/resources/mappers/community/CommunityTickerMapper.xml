@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.community.mapper.CommunityTickerMapper">
+
+    <select id="selectAllTickers" resultType="com.app.maria.domain.community.dto.response.TickerResponseDTO">
+        SELECT ticker, name, market
+        FROM (
+            SELECT ticker, name, 'DOMESTIC' AS market FROM domestic_product
+            UNION ALL
+            SELECT ticker, name, 'FOREIGN' AS market FROM foreign_product
+        ) t
+        ORDER BY CASE market WHEN 'DOMESTIC' THEN 0 ELSE 1 END, ticker
+    </select>
+
+    <select id="existsTicker" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM domestic_product WHERE ticker = #{ticker}
+            UNION ALL
+            SELECT 1 FROM foreign_product WHERE ticker = #{ticker}
+        )
+    </select>
+
+    <select id="selectTickersByCodes" resultType="com.app.maria.domain.community.dto.response.TickerResponseDTO">
+        SELECT ticker, name, market
+        FROM (
+            SELECT ticker, name, 'DOMESTIC' AS market FROM domestic_product
+            UNION ALL
+            SELECT ticker, name, 'FOREIGN' AS market FROM foreign_product
+        ) t
+        WHERE ticker IN
+        <foreach item="code" collection="tickers" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+    </select>
+
+</mapper>
