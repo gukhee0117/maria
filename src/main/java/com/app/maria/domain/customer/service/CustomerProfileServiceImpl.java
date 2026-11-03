@@ -34,7 +34,12 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     @Transactional(transactionManager = "jpaTransactionManager")
     public CustomerProfileResponseDTO update(
             Long customerId, CustomerProfileUpdateRequestDTO request) {
-        CustomerEntity customer = find(customerId);
+        // 고객 행은 보내지 않은 컬럼까지 함께 UPDATE되므로, 잠그지 않고 읽으면 동시에 들어온 다른 변경(다른 연락처, 투자성향 진단)을 예전 값으로 되돌린다.
+        CustomerEntity customer =
+                customerRepository
+                        .findByIdForUpdate(customerId)
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
         String phone =
                 request.getPhone() == null ? null : ContactRule.normalizePhone(request.getPhone());
         customer.changeContact(phone, request.getEmail());
