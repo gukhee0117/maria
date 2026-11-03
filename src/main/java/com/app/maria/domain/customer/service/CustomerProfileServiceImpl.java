@@ -1,0 +1,73 @@
+package com.app.maria.domain.customer.service;
+
+import com.app.maria.domain.customer.dto.request.ContactRule;
+import com.app.maria.domain.customer.dto.request.CustomerPasswordChangeRequestDTO;
+import com.app.maria.domain.customer.dto.request.CustomerProfileUpdateRequestDTO;
+import com.app.maria.domain.customer.dto.response.CustomerProfileResponseDTO;
+import com.app.maria.domain.customer.entity.CustomerAuthEntity;
+import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
+import com.app.maria.domain.customer.entity.CustomerEntity;
+import com.app.maria.domain.customer.repository.CustomerAuthRepository;
+import com.app.maria.domain.customer.repository.CustomerRepository;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** 내 정보 조회·수정과 비밀번호 변경. */
+@Service
+@RequiredArgsConstructor
+public class CustomerProfileServiceImpl implements CustomerProfileService {
+    private final CustomerRepository customerRepository;
+    private final CustomerAuthRepository customerAuthRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    @Transactional(transactionManager = "jpaTransactionManager", readOnly = true)
+    public CustomerProfileResponseDTO get(Long customerId) {
+        return CustomerProfileResponseDTO.of(find(customerId));
+    }
+
+    @Override
+    @Transactional(transactionManager = "jpaTransactionManager")
+    public CustomerProfileResponseDTO update(
+            Long customerId, CustomerProfileUpdateRequestDTO request) {
+        CustomerEntity customer = find(customerId);
+        String phone =
+                request.getPhone() == null ? null : ContactRule.normalizePhone(request.getPhone());
+        customer.changeContact(phone, request.getEmail());
+        return CustomerProfileResponseDTO.of(customer);
+    }
+
+    /**
+     * 현재 비밀번호를 확인한 뒤 바꾼다. 세션은 그대로 유지한다. 같은 고객의 변경이 동시에 들어오면 둘 다 옛 비밀번호로 확인을 통과해 마지막 것이 이기므로, 고객 행을
+     * 잠가 한 번에 하나씩 처리한다.
+     */
+    @Override
+    @Transactional(transactionManager = "jpaTransactionManager")
+    public void changePassword(Long customerId, CustomerPasswordChangeRequestDTO request) {
+        customerRepository
+                .findByIdForUpdate(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+        CustomerAuthEntity auth =
+                customerAuthRepository
+                        .findByCustomerCustomerIdAndType(customerId, AuthType.LOCAL)
+                        .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_PASSWORD_NOT_SET));
+        String currentHash = auth.getPassword().getPasswordHash();
+        if (!passwordEncoder.matches(request.getCurrentPassword(), currentHash)) {
+            throw new AppException(ErrorType.CUSTOMER_PASSWORD_MISMATCH);
+        }
+        if (request.getCurrentPassword().equals(request.getNewPassword())) {
+            throw new AppException(ErrorType.CUSTOMER_PASSWORD_UNCHANGED);
+        }
+        auth.getPassword().changeHash(passwordEncoder.encode(request.getNewPassword()));
+    }
+
+    private CustomerEntity find(Long customerId) {
+        return customerRepository
+                .findById(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+    }
+}
