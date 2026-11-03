@@ -2,8 +2,10 @@ package com.app.maria.domain.community.repository;
 
 import com.app.maria.domain.community.entity.CommunityPostEntity;
 import com.app.maria.domain.community.type.CommunityStatus;
+import com.app.maria.domain.community.type.KkiruStatus;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -95,6 +97,10 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
     long countByCustomerIdAndStatusNot(Long customerId, CommunityStatus status);
 
     boolean existsByCommunityPostIdAndKkiruStatusIsNotNull(Long postId);
+
+    /** 전체 하루 상한 계산용: 그 시각 이후 만들어진 글 중 해당 상태인 것의 수. */
+    long countByKkiruStatusInAndCreatedAtGreaterThanEqual(
+            Collection<KkiruStatus> statuses, LocalDateTime since);
 
     long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
             Long customerId, LocalDateTime since);
