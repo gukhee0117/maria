@@ -4,112 +4,278 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/settlement.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/settlement.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">정산 배치</div>
 
-<div layout:fragment="content" class="settlement-management">
-    <section class="card settlement-trend-card">
-        <div class="settlement-section-header">
-            <div class="settlement-trend-title">
-                <strong>최근 14일 정산 항목 처리 추이</strong>
-                <span id="settlementTrendTotal">-</span>
-            </div>
-            <button id="executeSettlement" class="btn btn-primary" type="button">정산 배치 실행</button>
+<div layout:fragment="content" class="adm-page settlement-management">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1203]</span> 정산 배치</h1>
+            <span class="adm-screen-path">입고 · 매도 &gt; 정산 배치</span>
         </div>
-        <div id="settlementTrendDetail" class="settlement-trend-detail" style="display:none">
-            <strong id="settlementTrendDetailDate">-</strong>
-            <div class="settlement-trend-detail-grid">
-                <div><span>전체</span><b id="settlementTrendDetailTotal">-</b></div>
-                <div><span>성공</span><b id="settlementTrendDetailSuccess">-</b></div>
-                <div><span>실패</span><b id="settlementTrendDetailFailed">-</b></div>
-                <div><span>처리 건수</span><b id="settlementTrendDetailProcessed">-</b></div>
+
+        <!-- 요약: 배치 목록(GET /api/admin/settlement/batches) 전체를 화면에서 센다. 오늘 = 업무일자(system-clock) -->
+        <div class="adm-summary" id="settlement-summary">
+            <div class="adm-summary-item" title="업무일자 당일에 실행된 정산 배치 횟수 (배치 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">오늘 실행</span>
+                <span class="adm-summary-value" id="settlement-summary-runs">-</span>
+                <span class="adm-summary-unit">회</span>
+            </div>
+            <div class="adm-summary-item" title="업무일자 당일에 실행된 배치들의 성공 건수 합계 (배치 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">오늘 성공 건수</span>
+                <span class="adm-summary-value" id="settlement-summary-success">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <div class="adm-summary-item" title="업무일자 당일에 실행된 배치들의 실패 건수 합계 (배치 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">오늘 실패 건수</span>
+                <span class="adm-summary-value" id="settlement-summary-failed">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <div class="adm-summary-item" title="재처리를 기다리는 실패 항목 수 = 가장 최근에 실행된 배치의 실패 건수 (배치 목록 전체를 화면에서 센 값)">
+                <span class="adm-summary-label">재처리 대기</span>
+                <span class="adm-summary-value" id="settlement-summary-retry">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
         </div>
-        <div class="settlement-application-trend"><canvas id="settlementBatchTrend" aria-label="최근 14일 정산 항목 처리 추이"></canvas></div>
+
+        <!-- 조회조건: 원본의 실행일자 조건은 만들지 않음(요청 #63). 배치 ID 검색과 상태는 받아 둔 목록에서 화면이 거른다 -->
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="settlement-keyword">배치 ID
+                    <input id="settlement-keyword" class="adm-input" type="text"
+                           placeholder="배치 ID로 검색" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="settlement-filter-status">상태
+                    <span class="adm-select-wrap">
+                        <select id="settlement-filter-status" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+            </div>
+            <div class="adm-qbtns">
+                <button type="button" id="settlement-search-button" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="settlement-filter-reset" class="adm-btn adm-btn-md">초기화</button>
+            </div>
+        </div>
     </section>
 
-    <div class="card settlement-table-card">
-        <div class="settlement-section-header"><strong>배치 실행 이력</strong><span id="settlementBatchCount">-</span></div>
-        <div class="settlement-table-wrap">
-            <table class="settlement-table">
-                <thead><tr><th>배치 ID</th><th>실행 일시</th><th>상태</th><th>전체</th><th>성공</th><th>실패</th><th>처리</th><th>실행 ID</th></tr></thead>
-                <tbody id="settlementBatchBody"><tr><td colspan="8" class="settlement-empty">불러오는 중...</td></tr></tbody>
-            </table>
-        </div>
-        <div id="settlementPagination" class="settlement-pagination" style="display:none"></div>
-    </div>
-
-    <div id="settlementDetailBackdrop" class="settlement-detail-backdrop" hidden></div>
-    <aside id="settlementDetail" class="settlement-detail settlement-detail-drawer"
-           aria-hidden="true" aria-labelledby="detailBatchTitle">
-        <div class="settlement-detail-header settlement-drawer-header">
-            <div><strong id="detailBatchTitle">배치 상세</strong><p id="detailBatchFailure"></p></div>
-            <div class="settlement-detail-actions">
-                <select id="settlementItemFilter" class="settlement-item-filter" style="display:none">
-                    <option value="all">모든 항목 보기</option>
-                    <option value="success">성공 항목만 보기</option>
-                    <option value="failed">실패 항목만 보기</option>
-                </select>
-                <button id="retrySettlementBatch" class="btn" type="button" style="display:none">실패 배치 재처리</button>
-                <button id="closeSettlementDetail" class="settlement-drawer-close" type="button" aria-label="정산 상세 닫기">×</button>
+    <!-- 실행 현황 + 실행 로그 -->
+    <section class="adm-live" aria-label="실행 현황과 실행 로그">
+        <div class="adm-live-status">
+            <div class="adm-live-head">
+                <span class="adm-live-title">실행 현황</span>
+                <span class="adm-live-sub" id="settlement-run-id">-</span>
+                <span class="adm-live-spacer"></span>
+                <span id="settlement-run-chip"></span>
             </div>
-        </div>
-        <div class="settlement-batch-summary">
-            <div><span>실행 일시</span><strong id="detailBatchExecutedAt">-</strong></div>
-            <div><span>Run ID</span><strong id="detailBatchRunId">-</strong></div>
-            <div><span>전체</span><strong id="detailBatchTotalCount">-</strong></div>
-            <div><span>성공</span><strong id="detailBatchSuccessCount">-</strong></div>
-            <div><span>실패</span><strong id="detailBatchFailedCount">-</strong></div>
-            <div><span>처리</span><strong id="detailBatchProcessedCount">-</strong></div>
-        </div>
-        <div class="settlement-table-wrap settlement-item-table-wrap">
-            <table class="settlement-table settlement-item-table">
-                <thead><tr><th>Item ID</th><th>계좌번호</th><th>종목</th><th>가환전액</th><th>확정산액</th><th>결과</th><th>실패 사유</th><th>처리 일시</th></tr></thead>
-                <tbody id="settlementItemBody"><tr><td colspan="8" class="settlement-empty">배치를 선택하세요.</td></tr></tbody>
-            </table>
-        </div>
-        <div id="settlementItemPagination" class="settlement-pagination" style="display:none"></div>
-    </aside>
-
-    <div id="settlementItemDetailBackdrop" class="settlement-item-detail-backdrop" hidden></div>
-    <aside id="settlementItemDetail" class="settlement-item-detail settlement-item-detail-drawer"
-           aria-hidden="true" aria-labelledby="detailItemTitle">
-            <div class="settlement-detail-header settlement-drawer-header">
-                <div><strong id="detailItemTitle">정산 항목 상세</strong><p id="detailItemFailure"></p></div>
-                <div class="settlement-detail-actions">
-                    <button id="retrySettlementItem" class="btn" type="button" style="display:none">실패 항목 재처리</button>
-                    <button id="closeSettlementItemDetail" class="settlement-drawer-close" type="button" aria-label="정산 항목 상세 닫기">×</button>
+            <div class="adm-live-body">
+                <div class="adm-live-line">
+                    <span class="adm-live-text" id="settlement-run-text">실행 내역이 없습니다.</span>
+                    <span class="adm-live-pct" id="settlement-run-pct">-</span>
+                </div>
+                <div class="adm-live-bar"><div class="adm-live-fill" id="settlement-run-fill"></div></div>
+                <div class="adm-live-kv">
+                    <div><div class="adm-live-k">시작</div><div class="adm-live-v" id="settlement-run-start">-</div></div>
+                    <div><div class="adm-live-k">성공</div><div class="adm-live-v is-ok" id="settlement-run-success">-</div></div>
+                    <div><div class="adm-live-k">실패</div><div class="adm-live-v is-fail" id="settlement-run-failed">-</div></div>
                 </div>
             </div>
-            <div class="settlement-item-detail-grid">
-                <div><span>환전 ID</span><strong id="detailItemExchangeId">-</strong></div>
-                <div><span>계좌 ID</span><strong id="detailItemAccountId">-</strong></div>
-                <div><span>계좌번호</span><strong id="detailItemAccountNo">-</strong></div>
-                <div><span>주문 ID</span><strong id="detailItemOrderId">-</strong></div>
-                <div><span>종목</span><strong id="detailItemProduct">-</strong></div>
-                <div><span>환전 상태</span><strong id="detailItemExchangeStatus">-</strong></div>
-                <div><span>실패 코드</span><strong id="detailItemFailureCode">-</strong></div>
+        </div>
+        <div class="adm-live-log">
+            <div class="adm-live-head"><span class="adm-live-title">실행 로그</span></div>
+            <div class="adm-live-logbody" id="settlement-log" role="log" aria-live="polite"></div>
+        </div>
+    </section>
+
+    <!-- 실행 목록 -->
+    <section class="adm-grid settlement-list">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">실행 목록</span>
+            <span class="adm-grid-total">총 <b id="settlement-count">-</b>건</span>
+            <div class="adm-pager" id="settlement-pagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="settlement-page-size" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
             </div>
-            <div class="settlement-comparison">
-                <div class="settlement-comparison-column"><span>가환전</span><strong id="detailItemProvisionalAmount">-</strong><small id="detailItemProvisionalAt">-</small><small>가환전 기준환율 <b id="detailItemProvisionalRate">-</b></small></div>
-                <div class="settlement-comparison-arrow">→</div>
-                <div class="settlement-comparison-column"><span>확정산</span><strong id="detailItemFinalAmount">-</strong><small>T+2 결제일 <b id="detailItemFinalAt">-</b></small><small>최종 정산환율 <b id="detailItemFinalRate">-</b></small></div>
-                <div class="settlement-comparison-difference"><span>정산 차액</span><strong id="detailItemDifference">-</strong></div>
+            <div class="adm-grid-spacer"></div>
+            <!-- ADMIN·SETTLEMENT 에게만 보인다 (POST /settlement/jobs 의 @PreAuthorize) -->
+            <button type="button" class="adm-btn adm-btn-primary adm-btn-sm" id="settlement-execute" hidden>정산 배치 실행</button>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable settlement-batch-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>배치 ID</th>
+                        <th class="settlement-col-at">실행 일시</th>
+                        <th class="is-c">상태</th>
+                        <th class="is-r">전체 건수</th>
+                        <th class="is-r">성공 건수</th>
+                        <th class="is-r">실패 건수</th>
+                        <th class="is-r">처리 건수</th>
+                    </tr>
+                    </thead>
+                    <tbody id="settlement-list">
+                    <tr class="is-state settlement-loading">
+                        <td colspan="8">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="settlement-retry-history">
-                <strong>처리 이력</strong>
-                <ol id="settlementRetryHistory" class="settlement-retry-history-list"></ol>
+        </div>
+    </section>
+
+    <!-- 선택한 배치의 실패 항목: GET /batches/detail/fail/{batchId} -->
+    <section class="adm-grid settlement-fail">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title"><span class="adm-fail-batch" id="settlement-fail-batch"></span> 실패 항목 <span id="settlement-fail-count">-</span>건</span>
+            <div class="adm-grid-spacer"></div>
+            <!-- ADMIN·SETTLEMENT 에게만 보인다. 실패 상태(FAILED) 배치만 눌러진다 -->
+            <button type="button" class="adm-btn adm-btn-sm" id="settlement-retry-batch" hidden>실패 배치 재처리</button>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable settlement-fail-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>Item ID</th>
+                        <th>계좌번호</th>
+                        <th>종목</th>
+                        <th class="is-r">가환전액</th>
+                        <th class="is-r">확정산액</th>
+                        <th class="is-c">결과</th>
+                        <th>실패 사유</th>
+                        <th>처리 일시</th>
+                    </tr>
+                    </thead>
+                    <tbody id="settlement-fail-list">
+                    <tr class="is-state">
+                        <td colspan="9">배치를 선택하세요.</td>
+                    </tr>
+                    </tbody>
+                </table>
             </div>
+        </div>
+    </section>
+
+    <!-- 원본에 없는 기존 요소: 최근 14일 정산 항목 처리 추이(Chart.js). 지우지 않고 숨겨 둔다 — 배치는 사용자 선택 대기 -->
+    <section class="adm-card settlement-trend" id="settlement-trend" hidden>
+        <div class="adm-card-head">
+            <span class="adm-card-title">최근 14일 정산 항목 처리 추이</span>
+            <span class="adm-card-sub" id="settlement-trend-total">-</span>
+        </div>
+        <div class="settlement-trend-detail" id="settlement-trend-detail"></div>
+        <div class="settlement-trend-chart"><canvas id="settlement-trend-canvas" aria-label="최근 14일 정산 항목 처리 추이"></canvas></div>
+    </section>
+
+    <!-- 정산 항목 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="settlement-drawer-backdrop"></div>
+    <aside class="adm-panel" id="settlement-detail-drawer" aria-label="정산 항목 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1203]</span>
+                <span class="adm-panel-name" id="settlement-detail-title">-</span>
+                <span class="adm-panel-sub" id="settlement-detail-sub">-</span>
+            </div>
+            <button type="button" class="adm-panel-close" id="settlement-drawer-close" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div>
+                <div class="adm-section-title">기본 정보</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">결과</div>
+                    <div class="adm-kv-v"><span id="settlement-detail-result">-</span></div>
+                    <div class="adm-kv-k">실패 사유</div>
+                    <div class="adm-kv-v" id="settlement-detail-reason">-</div>
+                    <div class="adm-kv-k">종목</div>
+                    <div class="adm-kv-v" id="settlement-detail-product">-</div>
+                    <div class="adm-kv-k">환전 상태</div>
+                    <div class="adm-kv-v" id="settlement-detail-exchange-status">-</div>
+                    <div class="adm-kv-k">처리 일시</div>
+                    <div class="adm-kv-v" id="settlement-detail-processed-at">-</div>
+                </div>
+            </div>
+            <div id="settlement-detail-notice" class="adm-notice is-box is-warn" hidden></div>
+            <div>
+                <div class="adm-section-title">가환전 → 확정산</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">가환전액</div>
+                    <div class="adm-kv-v" id="settlement-detail-provisional-amount">-</div>
+                    <div class="adm-kv-k">가환전 일시</div>
+                    <div class="adm-kv-v" id="settlement-detail-provisional-at">-</div>
+                    <div class="adm-kv-k">가환전 기준환율</div>
+                    <div class="adm-kv-v" id="settlement-detail-provisional-rate">-</div>
+                    <div class="adm-kv-k">확정산액</div>
+                    <div class="adm-kv-v" id="settlement-detail-final-amount">-</div>
+                    <div class="adm-kv-k">T+2 결제일</div>
+                    <div class="adm-kv-v" id="settlement-detail-final-at">-</div>
+                    <div class="adm-kv-k">최종 정산환율</div>
+                    <div class="adm-kv-v" id="settlement-detail-final-rate">-</div>
+                    <div class="adm-kv-k">정산 차액</div>
+                    <div class="adm-kv-v" id="settlement-detail-difference">-</div>
+                </div>
+            </div>
+            <div>
+                <button type="button" class="adm-fold" id="settlement-fold-toggle" aria-expanded="false" aria-controls="settlement-fold-body">
+                    <span class="adm-section-title">식별 정보</span>
+                    <svg class="adm-fold-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="adm-kv" id="settlement-fold-body" hidden>
+                    <div class="adm-kv-k">Item ID</div>
+                    <div class="adm-kv-v" id="settlement-detail-item-id">-</div>
+                    <div class="adm-kv-k">배치</div>
+                    <div class="adm-kv-v" id="settlement-detail-batch">-</div>
+                    <div class="adm-kv-k">환전 ID</div>
+                    <div class="adm-kv-v" id="settlement-detail-exchange-id">-</div>
+                    <div class="adm-kv-k">계좌 ID</div>
+                    <div class="adm-kv-v" id="settlement-detail-account-id">-</div>
+                    <div class="adm-kv-k">주문 ID</div>
+                    <div class="adm-kv-v" id="settlement-detail-order-id">-</div>
+                    <div class="adm-kv-k">실패 코드</div>
+                    <div class="adm-kv-v" id="settlement-detail-failure-code">-</div>
+                </div>
+            </div>
+        </div>
+        <!-- ADMIN·SETTLEMENT 에게만 보인다. 실패 상태 배치의 실패 항목만 눌러진다 -->
+        <div class="adm-panel-foot" id="settlement-detail-foot" hidden>
+            <button type="button" class="adm-btn adm-btn-primary adm-btn-foot" id="settlement-retry-item">실패 항목 재처리</button>
+        </div>
     </aside>
+
+    <!-- 처리 확인 창 (정산 배치 실행 · 실패 배치 재처리 · 실패 항목 재처리 공용) -->
+    <div class="adm-modal-backdrop" id="settlement-confirm" hidden>
+        <section class="adm-modal is-confirm" role="dialog" aria-modal="true" aria-labelledby="settlement-confirm-title">
+            <div class="adm-modal-head">
+                <h2 id="settlement-confirm-title">-</h2>
+            </div>
+            <div class="adm-modal-body">
+                <p class="adm-modal-desc" id="settlement-confirm-desc"></p>
+            </div>
+            <div class="adm-modal-actions">
+                <button type="button" class="adm-btn" id="settlement-confirm-cancel">취소</button>
+                <button type="button" class="adm-btn adm-btn-primary" id="settlement-confirm-ok">확인</button>
+            </div>
+        </section>
+    </div>
 </div>
 
 <th:block layout:fragment="pageScripts">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
             integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
             crossorigin="anonymous"></script>
+    <script th:src="@{/js/admin/status-labels.js}"></script>
+    <script th:src="@{/js/admin/ui-helpers.js}"></script>
     <script th:src="@{/js/settlement.js}"></script>
 </th:block>
 </body>

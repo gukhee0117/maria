@@ -1765,3 +1765,189 @@ input[type="datetime-local"].adm-input {
     background: var(--adm-head);
     color: var(--adm-sub);
 }
+
+/* ===== 실행 현황 + 실행 로그 한 줄 (원본 정산 배치) — A-11 =====
+   왼쪽(5) 실행 현황: 진행 막대 + 시작·성공·실패, 오른쪽(7) 실행 로그: 고정폭 글꼴 한 줄씩. 머리 30px. */
+.adm-live {
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-rows: 150px;
+    min-width: 0;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-live-status {
+    min-width: 0;
+    overflow: hidden;
+    border-right: 1px solid var(--adm-bd);
+}
+
+.adm-live-log {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.adm-live-log .adm-live-head {
+    font-weight: 700;
+}
+
+.adm-live-head {
+    box-sizing: content-box;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--adm-bd);
+    background: var(--adm-head);
+}
+
+.adm-live-title {
+    font-weight: 700;
+}
+
+.adm-live-sub {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 17.4px;
+    color: var(--adm-sub);
+}
+
+.adm-live-spacer {
+    flex: 1;
+}
+
+.adm-live-body {
+    padding: 12px 12px 14px;
+}
+
+.adm-live-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 12.5px;
+    line-height: 18.125px;
+}
+
+.adm-live-text {
+    font-weight: 700;
+}
+
+.adm-live-pct {
+    font-weight: 700;
+    color: var(--adm-navy-fg);
+}
+
+.adm-live-bar {
+    position: relative;
+    height: 10px;
+    margin-top: 8px;
+    overflow: hidden;
+    background: var(--adm-line);
+}
+
+.adm-live-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--adm-focus-ring);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.adm-live-kv {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 10px;
+    border: 1px solid var(--adm-line);
+}
+
+.adm-live-kv > div {
+    padding: 6px 8px;
+    border-right: 1px solid var(--adm-line);
+}
+
+.adm-live-kv > div:last-child {
+    border-right: 0;
+}
+
+.adm-live-k {
+    font-size: 11px;
+    line-height: 15.95px;
+    color: var(--adm-sub);
+}
+
+.adm-live-v {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 17.4px;
+}
+
+.adm-live-v.is-ok,
+.adm-live-v.is-fail {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 18.85px;
+}
+
+.adm-live-v.is-ok {
+    color: var(--adm-ok-fg);
+}
+
+.adm-live-v.is-fail {
+    color: var(--adm-fail-fg);
+}
+
+.adm-live-logbody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px 10px;
+    background: var(--adm-log);
+    font-family: "D2Coding", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 18px;
+}
+
+.adm-live-logline {
+    display: flex;
+    gap: 10px;
+}
+
+.adm-live-logtime {
+    flex: none;
+    color: var(--adm-sub);
+}
+
+.adm-live-loglevel {
+    flex: none;
+    width: 38px;
+    font-weight: 700;
+    color: var(--adm-sub);
+}
+
+.adm-live-loglevel.is-warn {
+    color: var(--adm-warn-fg);
+}
+
+.adm-live-loglevel.is-error {
+    color: var(--adm-fail-fg);
+}
+
+.adm-live-logtext {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 처리 확인 창 (원본 정산 배치 확인 창): 닫기 × 없음, 머리 안쪽 여백 14px, 머리 높이 36px + 아래 선 1px — A-11 */
+.adm-modal.is-confirm .adm-modal-head {
+    box-sizing: content-box;
+    padding: 0 14px;
+}

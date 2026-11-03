@@ -152,6 +152,56 @@ MARIA.status = (function () {
         ADMIN: "전체 + 업무시각·역할 변경"
     };
 
+    // 정산 배치 상태 (BatchStatus) + 건수. 화면에는 실행 중 / 완료 / 부분 실패 / 배치 실패 네 가지로 보여 준다 — 원본 표기.
+    // 서버는 실패 항목이 하나라도 남아 있으면 배치를 FAILED 로 둔다(재처리까지 끝나 실패 0 이어야 COMPLETED — refreshBatchStatusAfterRetry).
+    // 그래서 부분 실패 = 성공 항목이 있는 FAILED (또는 COMPLETED 인데 실패 건수가 남은 경우), 배치 실패 = 성공 항목이 하나도 없는 FAILED.
+    var SETTLEMENT_BATCH_LABEL = {
+        RUNNING: "실행 중",
+        COMPLETED: "완료",
+        PARTIAL: "부분 실패",
+        FAILED: "배치 실패"
+    };
+    var SETTLEMENT_BATCH_TONE = {
+        RUNNING: "info",
+        COMPLETED: "ok",
+        PARTIAL: "warn",
+        FAILED: "fail"
+    };
+    function settlementBatchKind(batch) {
+        var status = String(batch.status || "").toUpperCase();
+        var failed = Number(batch.failedCount || 0);
+        if (status === "COMPLETED") {
+            return failed > 0 ? "PARTIAL" : "COMPLETED";
+        }
+        if (status === "FAILED") {
+            return Number(batch.successCount || 0) > 0 ? "PARTIAL" : "FAILED";
+        }
+        return status === "RUNNING" ? status : null;
+    }
+
+    // 정산 항목 결과 (SettlementItemResult)
+    var SETTLEMENT_ITEM_RESULT_LABEL = {
+        SUCCESS: "성공",
+        FAILED: "실패"
+    };
+    var SETTLEMENT_ITEM_RESULT_TONE = {
+        SUCCESS: "ok",
+        FAILED: "fail"
+    };
+
+    // 정산 실패 코드 (SettlementFailureCode) 9종 → 한글 사유
+    var SETTLEMENT_FAILURE_LABEL = {
+        EXCHANGE_RATE_NOT_FOUND: "환율 정보를 찾을 수 없음",
+        EXTERNAL_API_ERROR: "외부 API 오류",
+        EXCHANGE_NOT_FOUND: "환전 내역을 찾을 수 없음",
+        INVALID_ORDER_STATUS: "주문 상태가 올바르지 않음",
+        ACCOUNT_NOT_FOUND: "계좌를 찾을 수 없음",
+        ACCOUNT_MISMATCH: "환전·계좌 정보 불일치",
+        CALCULATION_ERROR: "정산 금액 계산 오류",
+        DB_STATE_CONFLICT: "데이터 상태 충돌",
+        UNKNOWN_ERROR: "알 수 없는 오류"
+    };
+
     // 입고 lot 의 출처 계좌 종류 (GeneralAccountType)
     var GENERAL_ACCOUNT_TYPE_LABEL = {
         BROKERAGE: "종합위탁계좌",
@@ -254,6 +304,25 @@ MARIA.status = (function () {
         },
         withdrawalKindTone: function (kind) {
             return WITHDRAWAL_KIND_TONE[kind] || "off";
+        },
+        SETTLEMENT_BATCH_LABEL: SETTLEMENT_BATCH_LABEL,
+        settlementBatchKind: settlementBatchKind,
+        settlementBatchLabel: function (kind) {
+            return SETTLEMENT_BATCH_LABEL[kind] || "-";
+        },
+        settlementBatchTone: function (kind) {
+            return SETTLEMENT_BATCH_TONE[kind] || "off";
+        },
+        settlementItemResultLabel: function (result) {
+            return pick(SETTLEMENT_ITEM_RESULT_LABEL, result, "-");
+        },
+        settlementItemResultTone: function (result) {
+            return SETTLEMENT_ITEM_RESULT_TONE[String(result).toUpperCase()] || "off";
+        },
+        SETTLEMENT_FAILURE_LABEL: SETTLEMENT_FAILURE_LABEL,
+        // 실패 코드 → 한글 (코드가 없으면 서버 메시지, 둘 다 없으면 "-")
+        settlementFailureLabel: function (code, message) {
+            return pick(SETTLEMENT_FAILURE_LABEL, code, message || "-");
         },
         GENERAL_ACCOUNT_TYPE_LABEL: GENERAL_ACCOUNT_TYPE_LABEL,
         generalAccountTypeLabel: function (type) {
