@@ -8,12 +8,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.community.repository.CommunityCommentRepository;
 import com.app.maria.domain.community.repository.CommunityPostRepository;
+import com.app.maria.domain.community.repository.KkiruRetryLogRepository;
 import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.domain.customer.entity.CustomerEntity;
 import com.app.maria.domain.customer.repository.CustomerRepository;
@@ -39,6 +41,7 @@ class KkiruCallPlannerTest {
 
     @Mock private CommunityPostRepository postRepository;
     @Mock private CommunityCommentRepository commentRepository;
+    @Mock private KkiruRetryLogRepository retryLogRepository;
     @Mock private CustomerRepository customerRepository;
     @Mock private KkiruCallGate callGate;
     @Mock private BusinessClockService clock;
@@ -163,8 +166,8 @@ class KkiruCallPlannerTest {
     void retryRowLimit() {
         usedToday(0, 0);
         usedByEveryone(0, 0);
-        planner.requireRetryLimits(7L, NOW, 9);
-        assertThatThrownBy(() -> planner.requireRetryLimits(7L, NOW, 10))
+        planner.requireRetryLimits(7L, 9);
+        assertThatThrownBy(() -> planner.requireRetryLimits(7L, 10))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -173,35 +176,40 @@ class KkiruCallPlannerTest {
     }
 
     @Test
-    @DisplayName("다시 묻기: 오늘 만든 행은 자기 몫을 빼고, 어제 행은 빼지 않고 전체 상한을 본다")
-    void retryChecksDailyAnswerLimit() {
-        usedToday(0, 0);
-        usedByEveryone(200, 100); // 합계 300, 오늘 행이면 자기 몫 1을 빼 299 → 허용
+    @DisplayName("다시 묻기도 고객 하루 예산을 쓴다: 오늘 만든 행 + 오늘 재시도가 20이면 막고, 통과하면 재시도를 기록한다")
+    void retryCountsTowardCustomerDay() {
+        usedToday(10, 9); // 오늘 만든 행 19
+        usedByEveryone(0, 0);
 
-        planner.requireRetryLimits(7L, NOW, 0);
-        assertThatThrownBy(() -> planner.requireRetryLimits(7L, NOW.minusDays(1), 0))
+        planner.requireRetryLimits(7L, 0); // 19 + 재시도 0 < 20 → 통과
+        verify(retryLogRepository).save(any());
+
+        when(retryLogRepository.countByCustomerIdAndRetriedAtGreaterThanEqual(7L, DAY_START))
+                .thenReturn(1L); // 19 + 재시도 1 = 20 → 막는다
+        assertThatThrownBy(() -> planner.requireRetryLimits(7L, 0))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED));
+        verify(retryLogRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("다시 묻기도 전체 하루 상한을 쓴다: 오늘 만든 행 + 모든 고객의 오늘 재시도가 300이면 BUSY")
+    void retryCountsTowardGlobalDay() {
+        usedToday(0, 0);
+        usedByEveryone(200, 99); // 299
+
+        planner.requireRetryLimits(7L, 0); // 299 + 재시도 0 < 300 → 통과
+
+        when(retryLogRepository.countByRetriedAtGreaterThanEqual(DAY_START)).thenReturn(1L);
+        assertThatThrownBy(() -> planner.requireRetryLimits(7L, 0)) // 299 + 1 = 300 → 막는다
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
                                 assertThat(e.getErrorType())
                                         .isEqualTo(ErrorType.COMMUNITY_KKIRU_BUSY));
-    }
-
-    @Test
-    @DisplayName("다시 묻기: 오늘 만든 행은 자기 몫을 빼고 고객 하루 한도를 본다(합계 20이면 허용, 21이면 막음)")
-    void retryChecksCustomerDailyLimit() {
-        usedToday(10, 10); // 합계 20 중 1은 이 행 자신 → 19 < 20
-        usedByEveryone(0, 0);
-
-        planner.requireRetryLimits(7L, NOW, 0);
-
-        usedToday(10, 11);
-        assertThatThrownBy(() -> planner.requireRetryLimits(7L, NOW, 0))
-                .isInstanceOfSatisfying(
-                        AppException.class,
-                        e ->
-                                assertThat(e.getErrorType())
-                                        .isEqualTo(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED));
     }
 
     @Test

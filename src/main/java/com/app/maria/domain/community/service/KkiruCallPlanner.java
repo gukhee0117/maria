@@ -1,7 +1,9 @@
 package com.app.maria.domain.community.service;
 
+import com.app.maria.domain.community.entity.KkiruRetryLogEntity;
 import com.app.maria.domain.community.repository.CommunityCommentRepository;
 import com.app.maria.domain.community.repository.CommunityPostRepository;
+import com.app.maria.domain.community.repository.KkiruRetryLogRepository;
 import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.domain.customer.repository.CustomerRepository;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Component;
 public class KkiruCallPlanner {
     private final CommunityPostRepository postRepository;
     private final CommunityCommentRepository commentRepository;
+    private final KkiruRetryLogRepository retryLogRepository;
     private final CustomerRepository customerRepository;
     private final KkiruCallGate callGate;
     private final BusinessClockService clock;
@@ -62,24 +65,29 @@ public class KkiruCallPlanner {
     }
 
     /**
-     * 다시 묻기 검사. 한 행은 {@code maxRetriesPerRow}번까지만 다시 물을 수 있다(행의 재시도 횟수로 센다). 다시 묻기는 새 행을 만들지 않아 호출이
-     * 하루 합계에 더해지지 않으므로, 합계가 이미 찼는지만 본다: 이 행이 오늘 만들어졌으면 두 합계에 이미 들어 있어 자기 몫(1)을 빼고 판단한다. 호출하는 트랜잭션은
-     * READ_COMMITTED여야 한다({@link #plan} 참고).
+     * 다시 묻기 검사와 예약. 재시도도 새 호출이라 하루 예산(고객별·전체)을 쓴다: 오늘 만든 행 수에 오늘 한 재시도 수(`kiru_retry_log`)를 더해 한도와
+     * 비교하고, 통과하면 재시도 한 줄을 기록한다. 그래서 며칠 전에 만든 FAILED 행을 다시 물어도 오늘 예산에서 차감된다. 한 행은 {@code
+     * maxRetriesPerRow}번까지만 다시 물을 수 있다. 호출하는 트랜잭션은 READ_COMMITTED여야 한다({@link #plan} 참고).
      */
-    public void requireRetryLimits(Long customerId, LocalDateTime rowCreatedAt, int retryCount) {
+    public void requireRetryLimits(Long customerId, int retryCount) {
         if (retryCount >= maxRetriesPerRow) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
         }
         lockCustomer(customerId);
-        LocalDateTime dayStart = clock.now().toLocalDate().atStartOfDay();
-        long ownCount = rowCreatedAt.isBefore(dayStart) ? 0 : 1;
-        if (usedToday(customerId, dayStart) - ownCount >= maxCallsPerDay) {
+        LocalDateTime now = clock.now();
+        LocalDateTime dayStart = now.toLocalDate().atStartOfDay();
+        long retriesToday =
+                retryLogRepository.countByCustomerIdAndRetriedAtGreaterThanEqual(
+                        customerId, dayStart);
+        if (usedToday(customerId, dayStart) + retriesToday >= maxCallsPerDay) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
         }
         callGate.lockDailyLimit();
-        if (usedByEveryone(dayStart) - ownCount >= dailyAnswerLimit) {
+        long allRetriesToday = retryLogRepository.countByRetriedAtGreaterThanEqual(dayStart);
+        if (usedByEveryone(dayStart) + allRetriesToday >= dailyAnswerLimit) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_BUSY);
         }
+        retryLogRepository.save(KkiruRetryLogEntity.of(customerId, now));
     }
 
     /**

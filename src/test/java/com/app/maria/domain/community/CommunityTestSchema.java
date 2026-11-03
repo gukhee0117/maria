@@ -66,6 +66,13 @@ public final class CommunityTestSchema {
         jdbc.execute("INSERT INTO kiru_call_gate (gate_id) VALUES (1)");
         jdbc.execute(
                 """
+                CREATE TABLE kiru_retry_log (
+                    kiru_retry_log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id BIGINT NOT NULL, retried_at TIMESTAMP NOT NULL
+                )
+                """);
+        jdbc.execute(
+                """
                 CREATE TABLE community_post_reaction (
                     community_post_id BIGINT NOT NULL, customer_id BIGINT NOT NULL,
                     reaction_type VARCHAR(10) NOT NULL, created_at TIMESTAMP NOT NULL,
@@ -103,6 +110,7 @@ public final class CommunityTestSchema {
         jdbc.execute("DROP TABLE IF EXISTS community_report");
         jdbc.execute("DROP TABLE IF EXISTS community_comment_like");
         jdbc.execute("DROP TABLE IF EXISTS community_post_reaction");
+        jdbc.execute("DROP TABLE IF EXISTS kiru_retry_log");
         jdbc.execute("DROP TABLE IF EXISTS kiru_call_gate");
         jdbc.execute("DROP TABLE IF EXISTS community_comment");
         jdbc.execute("DROP TABLE IF EXISTS community_post");

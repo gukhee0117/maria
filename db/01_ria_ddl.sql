@@ -5,7 +5,7 @@
 -- 변경: domestic_stock_balance를 증권사 -> RIA로 이동(account/domestic_product FK 복구)
 -- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
 -- 변경(2차, 10-28): customer.investor_type_public 추가, customer_login_history 신규, news_item에 category·picked_slot 추가 + ticker NULL 허용 + (ticker, picked_date) UNIQUE 삭제
--- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행), community_post·community_comment에 kiru_retry_count 추가(다시 묻기 횟수 상한)
+-- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행), community_post·community_comment에 kiru_retry_count 추가(다시 묻기 행당 횟수 상한), kiru_retry_log 신규(다시 묻기를 하루 호출 예산에 반영)
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -15,6 +15,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS community_report;
 DROP TABLE IF EXISTS community_comment_like;
 DROP TABLE IF EXISTS community_post_reaction;
+DROP TABLE IF EXISTS kiru_retry_log;
 DROP TABLE IF EXISTS kiru_call_gate;
 DROP TABLE IF EXISTS community_comment;
 DROP TABLE IF EXISTS community_post;
@@ -729,6 +730,15 @@ CREATE TABLE kiru_call_gate (
     CONSTRAINT chk_kcg_singleton CHECK (gate_id = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='끼루 전체 하루 상한 잠금 행';
 INSERT INTO kiru_call_gate(gate_id) VALUES (1);
+
+-- [NO-SEED] 2차 신규. 끼루 다시 묻기 기록: 재시도 한 번에 한 줄. 하루 호출 예산(고객별·전체)에 재시도를 반영하려고 날짜별로 센다.
+CREATE TABLE kiru_retry_log (
+    kiru_retry_log_id BIGINT   NOT NULL AUTO_INCREMENT,
+    customer_id       BIGINT   NOT NULL,
+    retried_at        DATETIME NOT NULL COMMENT '다시 묻기를 한 시각(업무시계)',
+    PRIMARY KEY (kiru_retry_log_id),
+    CONSTRAINT fk_krl__customer FOREIGN KEY (customer_id) REFERENCES customer (customer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='끼루 다시 묻기 기록';
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
 CREATE TABLE community_post_reaction (

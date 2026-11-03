@@ -85,7 +85,7 @@ public class CommunityPostServiceImpl implements CommunityPostService {
 
     /**
      * 내 글의 끼루 호출 다시 묻기. 행을 잠가 본인·상태·보임 여부를 다시 확인하고 PENDING으로 돌린 뒤 커밋 뒤 이벤트를 낸다. 새 행을 만들지 않아 호출 횟수
-     * 집계는 그대로고, 행당 횟수 상한과 하루 한도·전체 상한은 다시 확인한다.
+     * 집계는 그대로지만 재시도 기록이 남아 하루 한도·전체 상한에 반영되고, 행당 횟수 상한도 확인한다.
      */
     @Override
     @Transactional(
@@ -106,8 +106,7 @@ public class CommunityPostServiceImpl implements CommunityPostService {
                 || !kkiruCallPlanner.canRetry(post.getContent())) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED, postId);
         }
-        kkiruCallPlanner.requireRetryLimits(
-                customerId, post.getCreatedAt(), post.getKkiruRetryCount());
+        kkiruCallPlanner.requireRetryLimits(customerId, post.getKkiruRetryCount());
         post.restartKkiru();
         events.publishEvent(new KkiruCallRequestedEvent(postId, null));
         return assembler.assemble(List.of(post), customerId).get(0);
