@@ -2,15 +2,22 @@ package com.app.maria.domain.withdrawal.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
+import com.app.maria.domain.withdrawal.dto.response.CustomerWithdrawalAvailabilityResponseDTO;
+import com.app.maria.domain.withdrawal.dto.response.CustomerWithdrawalAvailabilityResponseDTO.LeftAmountItem;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
+import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +29,8 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
 
     private final AccountMapper accountMapper;
     private final WithdrawalService withdrawalService;
+    private final WithdrawalMapper withdrawalMapper;
+    private final BusinessClockService businessClockService;
     private final GeneralAccountClient generalAccountClient;
 
     @Override
@@ -33,6 +42,56 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
                         .orElseThrow(
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
         return generalAccountClient.findByCiHash(ciHash);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerWithdrawalAvailabilityResponseDTO getAvailability(Long customerId) {
+        AccountDTO account =
+                accountMapper
+                        .selectByCustomerId(customerId)
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
+
+        LocalDateTime now = businessClockService.now();
+        List<LeftAmountDTO> leftAmountDTOs =
+                withdrawalMapper.selectAvailableLeftAmountsByAccountId(account.getAccountId());
+
+        BigDecimal provisionalTotal =
+                withdrawalMapper.selectProvisionalAmountByAccountId(account.getAccountId());
+        BigDecimal cashAmount = account.getAmount();
+        BigDecimal requestableAmount =
+                cashAmount.subtract(provisionalTotal).max(BigDecimal.ZERO);
+
+        BigDecimal totalPrincipal =
+                leftAmountDTOs.stream()
+                        .map(LeftAmountDTO::getCurAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal earnings = requestableAmount.subtract(totalPrincipal).max(BigDecimal.ZERO);
+
+        BigDecimal maturedPrincipal =
+                leftAmountDTOs.stream()
+                        .filter(la -> !la.getFinalAt().plusYears(1).isAfter(now))
+                        .map(LeftAmountDTO::getCurAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal immaturePrincipalAmount = totalPrincipal.subtract(maturedPrincipal);
+
+        BigDecimal withdrawableWithoutPenalty =
+                requestableAmount.min(earnings.add(maturedPrincipal));
+
+        List<LeftAmountItem> leftAmounts =
+                leftAmountDTOs.stream()
+                        .map(la -> new LeftAmountItem(la.getFinalAt(), la.getCurAmount(), now))
+                        .toList();
+
+        return new CustomerWithdrawalAvailabilityResponseDTO(
+                cashAmount,
+                provisionalTotal,
+                requestableAmount,
+                withdrawableWithoutPenalty,
+                immaturePrincipalAmount,
+                now,
+                leftAmounts);
     }
 
     @Override
