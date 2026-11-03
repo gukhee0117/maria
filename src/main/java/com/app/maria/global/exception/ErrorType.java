@@ -235,6 +235,11 @@ public enum ErrorType {
             HttpStatus.CONFLICT, "신고 대상이 이미 삭제되었거나 처리할 수 없는 상태입니다.", LogLevel.WARN),
     COMMUNITY_KKIRU_LIMIT_EXCEEDED(
             HttpStatus.TOO_MANY_REQUESTS, "끼루 호출 가능 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    OPENDART_LIMIT_EXCEEDED(
+            HttpStatus.SERVICE_UNAVAILABLE, "OpenDART 하루 호출 한도를 초과했습니다.", LogLevel.ERROR),
+    OPENDART_KEY_INVALID(
+            HttpStatus.INTERNAL_SERVER_ERROR, "OpenDART 인증키 설정에 문제가 있습니다.", LogLevel.ERROR),
+    OPENDART_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "OpenDART에서 자료를 가져오지 못했습니다.", LogLevel.WARN),
     COMMUNITY_KKIRU_BUSY(
             HttpStatus.TOO_MANY_REQUESTS, "오늘 끼루 호출 가능 횟수가 모두 소진되었습니다.", LogLevel.WARN),
     COMMUNITY_KKIRU_RETRY_NOT_ALLOWED(HttpStatus.CONFLICT, "다시 물을 수 없는 상태입니다.", LogLevel.WARN),

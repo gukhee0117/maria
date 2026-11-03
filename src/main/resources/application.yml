@@ -99,6 +99,10 @@ custom:
     # 0 = until midnight KST; e.g. PT1H stops one hour after the actual close.
     cutoff-after-close: ${RISK_CUTOFF_AFTER_CLOSE:PT0S}
     tick-millis: ${RISK_TICK_MILLIS:30000}
+  opendart:
+    url: https://opendart.fss.or.kr/api
+    # 비어 있으면 OpenDART 도구가 꺼진다(오류가 아님). 키는 환경변수로만 받는다.
+    api-key: ${OPENDART_API_KEY:}
   exchange:
     name: exchange-money
     url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON

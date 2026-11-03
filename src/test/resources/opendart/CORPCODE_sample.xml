@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<result>
+    <list>
+        <corp_code>00164779</corp_code>
+        <corp_name>SK하이닉스</corp_name>
+        <corp_eng_name>SK hynix Inc.</corp_eng_name>
+        <stock_code>000660</stock_code>
+        <modify_date>20240328</modify_date>
+    </list>
+    <list>
+        <corp_code>00126380</corp_code>
+        <corp_name>삼성전자</corp_name>
+        <corp_eng_name>SAMSUNG ELECTRONICS CO,.LTD</corp_eng_name>
+        <stock_code>005930</stock_code>
+        <modify_date>20251201</modify_date>
+    </list>
+    <list>
+        <corp_code>00688996</corp_code>
+        <corp_name>KB금융</corp_name>
+        <corp_eng_name>KB Financial Group Inc.</corp_eng_name>
+        <stock_code>105560</stock_code>
+        <modify_date>20250108</modify_date>
+    </list>
+    <list>
+        <corp_code>00434003</corp_code>
+        <corp_name>다코</corp_name>
+        <corp_eng_name>Daco corporation</corp_eng_name>
+        <stock_code> </stock_code>
+        <modify_date>20170630</modify_date>
+    </list>
+    <list>
+        <corp_code>00430964</corp_code>
+        <corp_name>굿앤엘에스</corp_name>
+        <corp_eng_name>Good &amp; LS Co.,Ltd.</corp_eng_name>
+        <stock_code> </stock_code>
+        <modify_date>20170630</modify_date>
+    </list>
+    <list>
+        <corp_code>00388953</corp_code>
+        <corp_name>크레디피아제이십오차유동화전문회사</corp_name>
+        <corp_eng_name>Credipia 25th Asset Securitization Specialty L.L.C</corp_eng_name>
+        <stock_code> </stock_code>
+        <modify_date>20170630</modify_date>
+    </list>
+</result>
