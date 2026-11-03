@@ -65,6 +65,21 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
             @Param("ticker") String ticker,
             Pageable pageable);
 
+    /** 한 줄 이유 입력용: 기간 안에 그 종목의 보이는 글, 최신순. */
+    @Query(
+            """
+            select p from CommunityPostEntity p
+            where p.ticker = :ticker
+                and p.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
+                and p.createdAt >= :from and p.createdAt < :to
+            order by p.communityPostId desc
+            """)
+    List<CommunityPostEntity> findRecentTickerPosts(
+            @Param("ticker") String ticker,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            Pageable pageable);
+
     @Query(
             """
             select p.ticker as ticker, count(p) as postCount

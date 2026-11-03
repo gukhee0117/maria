@@ -78,6 +78,41 @@ public interface CommunityCommentRepository extends JpaRepository<CommunityComme
     long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
             Long customerId, LocalDateTime since);
 
+    /** 화제 집계용: 기간 안에 그 종목 글에 달린 보이는 이용자 댓글 수(끼루 댓글 제외), 종목별. */
+    @Query(
+            """
+            select p.ticker as ticker, count(c) as commentCount
+            from CommunityCommentEntity c
+                join CommunityPostEntity p on p.communityPostId = c.communityPostId
+            where p.ticker is not null
+                and p.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
+                and c.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
+                and c.authorType = com.app.maria.domain.community.type.AuthorType.CUSTOMER
+                and c.createdAt >= :from and c.createdAt < :to
+            group by p.ticker
+            """)
+    List<CommunityTickerCommentCount> countTickerComments(
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** 한 줄 이유 입력용: 기간 안에 그 종목 글에 달린 보이는 이용자 댓글, 최신순. */
+    @Query(
+            """
+            select c from CommunityCommentEntity c
+            where c.communityPostId in (
+                    select p.communityPostId from CommunityPostEntity p
+                    where p.ticker = :ticker
+                        and p.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE)
+                and c.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
+                and c.authorType = com.app.maria.domain.community.type.AuthorType.CUSTOMER
+                and c.createdAt >= :from and c.createdAt < :to
+            order by c.communityCommentId desc
+            """)
+    List<CommunityCommentEntity> findRecentTickerComments(
+            @Param("ticker") String ticker,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            Pageable pageable);
+
     /** 전체 하루 상한 계산용: 그 시각 이후 만들어진 댓글 중 해당 상태인 것의 수. */
     long countByKkiruStatusInAndCreatedAtGreaterThanEqual(
             Collection<KkiruStatus> statuses, LocalDateTime since);
