@@ -39,7 +39,9 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
 
     /** 댓글을 쓴다. READ_COMMITTED는 끼루 한도 확인용(KkiruCallPlanner 참고). */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager", isolation = Isolation.READ_COMMITTED)
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            isolation = Isolation.READ_COMMITTED)
     public CommentResponseDTO write(Long customerId, Long postId, CommentWriteRequestDTO request) {
         String content = CommunityContent.requireValid(request.content());
         String sanitized = textGuard.requireAllowed(content);

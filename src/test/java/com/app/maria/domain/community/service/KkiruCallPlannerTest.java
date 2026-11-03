@@ -66,7 +66,8 @@ class KkiruCallPlannerTest {
     void noMention() {
         assertThat(planner.plan("그냥 의견입니다", 7L, null)).isNull();
 
-        verifyNoInteractions(postRepository, commentRepository, customerRepository, callGate, clock);
+        verifyNoInteractions(
+                postRepository, commentRepository, customerRepository, callGate, clock);
     }
 
     @Test
@@ -97,11 +98,13 @@ class KkiruCallPlannerTest {
     @DisplayName("글 한도: 글 본문 호출 1번을 포함해 3번이면 막고 2번이면 허용한다")
     void postLimit() {
         usedToday(0, 0);
-        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any())).thenReturn(1L);
+        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any()))
+                .thenReturn(1L);
         when(postRepository.existsByCommunityPostIdAndKkiruStatusIsNotNull(5L)).thenReturn(true);
         assertThat(planner.plan("@끼루 질문", 7L, 5L)).isEqualTo(KkiruStatus.PENDING);
 
-        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any())).thenReturn(2L);
+        when(commentRepository.countByCommunityPostIdAndKkiruStatusIn(eq(5L), any()))
+                .thenReturn(2L);
         assertThatThrownBy(() -> planner.plan("@끼루 질문", 7L, 5L))
                 .isInstanceOfSatisfying(
                         AppException.class,
@@ -218,9 +221,11 @@ class KkiruCallPlannerTest {
         InOrder order = inOrder(customerRepository, postRepository, callGate);
         order.verify(customerRepository).findByIdForUpdate(7L);
         order.verify(postRepository)
-                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(7L, DAY_START);
+                .countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
+                        7L, DAY_START);
         order.verify(callGate).lockDailyLimit();
-        order.verify(postRepository).countByKkiruStatusInAndCreatedAtGreaterThanEqual(any(), eq(DAY_START));
+        order.verify(postRepository)
+                .countByKkiruStatusInAndCreatedAtGreaterThanEqual(any(), eq(DAY_START));
     }
 
     @Test

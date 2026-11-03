@@ -53,9 +53,9 @@ public class KkiruCallPlanner {
     private int dailyAnswerLimit = 300;
 
     /**
-     * 한도 확인과 호출 예약(PENDING 저장)이 원자적이도록 고객 행과 전체 잠금 행을 잠근다. lock 순서는 글 → 고객 → 전체로 고정한다.
-     * 호출하는 트랜잭션은 READ_COMMITTED여야 한다: REPEATABLE READ면 잠금 전에 실행된 조회의 snapshot으로 아래 count를 읽어 앞 요청이
-     * 커밋한 호출을 못 볼 수 있다.
+     * 한도 확인과 호출 예약(PENDING 저장)이 원자적이도록 고객 행과 전체 잠금 행을 잠근다. lock 순서는 글 → 고객 → 전체로 고정한다. 호출하는 트랜잭션은
+     * READ_COMMITTED여야 한다: REPEATABLE READ면 잠금 전에 실행된 조회의 snapshot으로 아래 count를 읽어 앞 요청이 커밋한 호출을 못 볼
+     * 수 있다.
      *
      * @param postId 댓글이면 그 글의 id, 새 글이면 null
      * @return 호출이 없으면 null
@@ -80,7 +80,8 @@ public class KkiruCallPlanner {
         }
         if (postId != null) {
             long usedOnPost =
-                    commentRepository.countByCommunityPostIdAndKkiruStatusIn(postId, LIMITED_STATUSES)
+                    commentRepository.countByCommunityPostIdAndKkiruStatusIn(
+                                    postId, LIMITED_STATUSES)
                             + (postRepository.existsByCommunityPostIdAndKkiruStatusIsNotNull(postId)
                                     ? 1
                                     : 0);

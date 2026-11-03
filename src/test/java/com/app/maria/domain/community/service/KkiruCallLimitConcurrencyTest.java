@@ -37,8 +37,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 끼루 한도 확인과 호출 예약(PENDING 저장)의 원자성. 다른 트랜잭션이 잠금을 쥔 채 호출을 예약하는 동안 뒤 요청이 기다렸다가, 앞 호출이 커밋되면
- * 그 호출까지 세어 막히는지 본다. 서비스를 실제 별도 트랜잭션으로 실행해야 하므로 테스트 트랜잭션을 쓰지 않는다.
+ * 끼루 한도 확인과 호출 예약(PENDING 저장)의 원자성. 다른 트랜잭션이 잠금을 쥔 채 호출을 예약하는 동안 뒤 요청이 기다렸다가, 앞 호출이 커밋되면 그 호출까지 세어
+ * 막히는지 본다. 서비스를 실제 별도 트랜잭션으로 실행해야 하므로 테스트 트랜잭션을 쓰지 않는다.
  *
  * <p>못 잡는 것: H2의 기본 격리수준은 READ COMMITTED라서 write()의 READ_COMMITTED 지정을 빼도 통과한다. 그 지정이 필요한지는
  * MariaDB(REPEATABLE READ 기본)에서만 드러난다.

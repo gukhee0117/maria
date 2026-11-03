@@ -46,9 +46,14 @@ public class CommunityPostServiceImpl implements CommunityPostService {
     @Value("${maria.community.popular.days:7}")
     private int popularDays;
 
-    /** 글을 쓴다. 본문에 @끼루가 있으면 호출 상태를 함께 저장하고, PENDING이면 이벤트를 낸다. READ_COMMITTED는 끼루 한도 확인용(KkiruCallPlanner 참고). */
+    /**
+     * 글을 쓴다. 본문에 @끼루가 있으면 호출 상태를 함께 저장하고, PENDING이면 이벤트를 낸다. READ_COMMITTED는 끼루 한도
+     * 확인용(KkiruCallPlanner 참고).
+     */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager", isolation = Isolation.READ_COMMITTED)
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            isolation = Isolation.READ_COMMITTED)
     public PostResponseDTO write(Long customerId, PostWriteRequestDTO request) {
         String content = CommunityContent.requireValid(request.content());
         String ticker = normalizeTicker(request.ticker());
