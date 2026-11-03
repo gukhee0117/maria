@@ -632,6 +632,12 @@ class CommunityPostServiceTest {
         PostResponseDTO retried = service.retryKkiru(me, post.getCommunityPostId());
 
         assertThat(retried.kkiruStatus()).isEqualTo(KkiruStatus.PENDING);
+        assertThat(
+                        postRepository
+                                .findById(post.getCommunityPostId())
+                                .orElseThrow()
+                                .getKkiruRetryCount())
+                .isEqualTo(1);
         assertThat(postCount()).isEqualTo(before);
         List<KkiruCallRequestedEvent> published =
                 events.stream(KkiruCallRequestedEvent.class).toList();

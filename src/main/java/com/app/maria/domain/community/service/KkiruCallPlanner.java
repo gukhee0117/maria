@@ -52,37 +52,32 @@ public class KkiruCallPlanner {
     @Value("${maria.community.kkiru.daily-answer-limit:300}")
     private int dailyAnswerLimit = 300;
 
+    /** 한 글·댓글을 다시 물을 수 있는 횟수. */
+    @Value("${maria.community.kkiru.max-retries-per-row:10}")
+    private int maxRetriesPerRow = 10;
+
     /** 다시 묻기 검사: 글을 고친 뒤라 본문이 아직 호출 조건(멘션 있음, 범위 안)인지 본다. 한도는 처음 호출 때 셌으므로 다시 세지 않는다. */
     public boolean canRetry(String content) {
         return KkiruMention.in(content) && !questionClassifier.isOutOfScope(content);
     }
 
     /**
-     * 다시 묻기도 하루 한도(고객별·커뮤니티 전체)를 쓴다. 다시 묻기는 새 행을 만들지 않으므로, 그 행이 오늘 만들어져 이미 합계에 들어 있으면 자기 몫(1)을 빼고
-     * 판단한다. 호출하는 트랜잭션은 READ_COMMITTED여야 한다({@link #plan} 참고).
+     * 다시 묻기 검사. 한 행은 {@code maxRetriesPerRow}번까지만 다시 물을 수 있다(행의 재시도 횟수로 센다). 다시 묻기는 새 행을 만들지 않아 호출이
+     * 하루 합계에 더해지지 않으므로, 합계가 이미 찼는지만 본다: 이 행이 오늘 만들어졌으면 두 합계에 이미 들어 있어 자기 몫(1)을 빼고 판단한다. 호출하는 트랜잭션은
+     * READ_COMMITTED여야 한다({@link #plan} 참고).
      */
-    public void requireRetryLimits(Long customerId, LocalDateTime rowCreatedAt) {
-        customerRepository
-                .findByIdForUpdate(customerId)
-                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+    public void requireRetryLimits(Long customerId, LocalDateTime rowCreatedAt, int retryCount) {
+        if (retryCount >= maxRetriesPerRow) {
+            throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
+        }
+        lockCustomer(customerId);
         LocalDateTime dayStart = clock.now().toLocalDate().atStartOfDay();
         long ownCount = rowCreatedAt.isBefore(dayStart) ? 0 : 1;
-        long usedToday =
-                postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                customerId, LIMITED_STATUSES, dayStart)
-                        + commentRepository
-                                .countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                        customerId, LIMITED_STATUSES, dayStart);
-        if (usedToday - ownCount >= maxCallsPerDay) {
+        if (usedToday(customerId, dayStart) - ownCount >= maxCallsPerDay) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
         }
         callGate.lockDailyLimit();
-        long usedByEveryone =
-                postRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                COSTLY_STATUSES, dayStart)
-                        + commentRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                COSTLY_STATUSES, dayStart);
-        if (usedByEveryone - ownCount >= dailyAnswerLimit) {
+        if (usedByEveryone(dayStart) - ownCount >= dailyAnswerLimit) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_BUSY);
         }
     }
@@ -100,17 +95,9 @@ public class KkiruCallPlanner {
             return null;
         }
         // 같은 고객의 호출을 한 번에 하나씩: 서로 다른 글에 동시에 불러 하루 한도를 넘기지 못하게 한다.
-        customerRepository
-                .findByIdForUpdate(customerId)
-                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+        lockCustomer(customerId);
         LocalDateTime dayStart = clock.now().toLocalDate().atStartOfDay();
-        long usedToday =
-                postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                customerId, LIMITED_STATUSES, dayStart)
-                        + commentRepository
-                                .countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                        customerId, LIMITED_STATUSES, dayStart);
-        if (usedToday >= maxCallsPerDay) {
+        if (usedToday(customerId, dayStart) >= maxCallsPerDay) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED, customerId);
         }
         if (postId != null) {
@@ -131,14 +118,31 @@ public class KkiruCallPlanner {
         }
         // 전체 상한도 확인과 예약이 순서대로 일어나게 잠근다. 범위 밖 질문은 전체 상한을 쓰지 않아 잠그지 않는다.
         callGate.lockDailyLimit();
-        long usedByEveryone =
-                postRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                COSTLY_STATUSES, dayStart)
-                        + commentRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
-                                COSTLY_STATUSES, dayStart);
-        if (usedByEveryone >= dailyAnswerLimit) {
+        if (usedByEveryone(dayStart) >= dailyAnswerLimit) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_BUSY);
         }
         return KkiruStatus.PENDING;
+    }
+
+    private void lockCustomer(Long customerId) {
+        customerRepository
+                .findByIdForUpdate(customerId)
+                .orElseThrow(() -> new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId));
+    }
+
+    /** 이 고객이 오늘 쓴 호출 수(글+댓글, 후속 질문 제외). */
+    private long usedToday(Long customerId, LocalDateTime dayStart) {
+        return postRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        customerId, LIMITED_STATUSES, dayStart)
+                + commentRepository.countByCustomerIdAndKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        customerId, LIMITED_STATUSES, dayStart);
+    }
+
+    /** 커뮤니티 전체가 오늘 쓴 비용 있는 호출 수(글+댓글). */
+    private long usedByEveryone(LocalDateTime dayStart) {
+        return postRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        COSTLY_STATUSES, dayStart)
+                + commentRepository.countByKkiruStatusInAndCreatedAtGreaterThanEqual(
+                        COSTLY_STATUSES, dayStart);
     }
 }

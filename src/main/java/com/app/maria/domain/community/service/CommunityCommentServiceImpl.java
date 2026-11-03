@@ -108,8 +108,9 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
                 || !postVisible) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED, commentId);
         }
-        kkiruCallPlanner.requireRetryLimits(customerId, comment.getCreatedAt());
-        comment.moveKkiruStatus(KkiruStatus.PENDING);
+        kkiruCallPlanner.requireRetryLimits(
+                customerId, comment.getCreatedAt(), comment.getKkiruRetryCount());
+        comment.restartKkiru();
         events.publishEvent(new KkiruCallRequestedEvent(comment.getCommunityPostId(), commentId));
         return assembler.assemble(List.of(comment), customerId).get(0);
     }

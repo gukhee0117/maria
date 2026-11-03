@@ -59,6 +59,9 @@ public class CommunityCommentEntity {
     @Enumerated(EnumType.STRING)
     private KkiruStatus kkiruStatus;
 
+    @Column(name = "kiru_retry_count", nullable = false)
+    private int kkiruRetryCount;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private CommunityStatus status;
@@ -130,5 +133,11 @@ public class CommunityCommentEntity {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_STATUS_INVALID);
         }
         this.kkiruStatus = next;
+    }
+
+    /** 다시 묻기: FAILED를 PENDING으로 돌리고 횟수를 센다. 횟수 상한은 호출하는 쪽(KkiruCallPlanner)이 확인한다. */
+    public void restartKkiru() {
+        moveKkiruStatus(KkiruStatus.PENDING);
+        kkiruRetryCount++;
     }
 }

@@ -5,7 +5,7 @@
 -- 변경: domestic_stock_balance를 증권사 -> RIA로 이동(account/domestic_product FK 복구)
 -- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
 -- 변경(2차, 10-28): customer.investor_type_public 추가, customer_login_history 신규, news_item에 category·picked_slot 추가 + ticker NULL 허용 + (ticker, picked_date) UNIQUE 삭제
--- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행)
+-- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행), community_post·community_comment에 kiru_retry_count 추가(다시 묻기 횟수 상한)
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -695,6 +695,7 @@ CREATE TABLE community_post (
     customer_id       BIGINT       NOT NULL COMMENT '작성자(응답에는 닉네임만)',
     content           TEXT         NOT NULL COMMENT '본문 1~500자(앱에서 검사). 제목 없음',
     kiru_status       VARCHAR(15)  NULL     COMMENT '본문에 @끼루가 있을 때 호출 상태. NULL=호출 안 함',
+    kiru_retry_count  INT          NOT NULL DEFAULT 0 COMMENT '다시 묻기를 한 횟수(행당 상한은 앱 설정)',
     status            VARCHAR(10)  NOT NULL DEFAULT 'VISIBLE' COMMENT 'VISIBLE/HIDDEN/DELETED',
     created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '업무시계 기준으로 앱이 넣는다',
     edited_at         DATETIME     NULL     COMMENT '본문을 수정한 시각(수정됨 표시). NULL=수정 안 함',
@@ -713,6 +714,7 @@ CREATE TABLE community_comment (
     content              TEXT        NOT NULL,
     sources_json         TEXT        NULL     COMMENT 'AI 답글 근거 목록',
     kiru_status          VARCHAR(15) NULL     COMMENT '이 댓글에 @끼루가 있을 때 호출 상태. NULL=호출 안 함',
+    kiru_retry_count     INT         NOT NULL DEFAULT 0 COMMENT '다시 묻기를 한 횟수(행당 상한은 앱 설정)',
     status               VARCHAR(10) NOT NULL DEFAULT 'VISIBLE',
     created_at           DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (community_comment_id),

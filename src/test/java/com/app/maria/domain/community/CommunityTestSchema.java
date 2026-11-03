@@ -30,6 +30,7 @@ public final class CommunityTestSchema {
                     community_post_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     ticker VARCHAR(20), customer_id BIGINT NOT NULL,
                     content VARCHAR(4000) NOT NULL, kiru_status VARCHAR(15),
+                    kiru_retry_count INT NOT NULL DEFAULT 0,
                     status VARCHAR(10) NOT NULL DEFAULT 'VISIBLE',
                     created_at TIMESTAMP NOT NULL, edited_at TIMESTAMP,
                     CONSTRAINT chk_cp_status CHECK (status IN ('VISIBLE','HIDDEN','DELETED')),
@@ -45,6 +46,7 @@ public final class CommunityTestSchema {
                     author_type VARCHAR(10) NOT NULL, customer_id BIGINT,
                     content VARCHAR(4000) NOT NULL, sources_json VARCHAR(4000),
                     kiru_status VARCHAR(15),
+                    kiru_retry_count INT NOT NULL DEFAULT 0,
                     status VARCHAR(10) NOT NULL DEFAULT 'VISIBLE',
                     created_at TIMESTAMP NOT NULL,
                     CONSTRAINT chk_cc_author CHECK ((author_type = 'CUSTOMER' AND customer_id IS NOT NULL)
