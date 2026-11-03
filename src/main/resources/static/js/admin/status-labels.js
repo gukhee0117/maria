@@ -68,8 +68,98 @@ MARIA.status = (function () {
         FUND: "펀드"
     };
 
+    // 매도 주문 상태 (SellOrderStatus) 와 정산 상태 (SettlementStatus).
+    // 화면에는 둘을 합친 "처리 단계"(주문 / 체결 / 원화 확정 / 실패) 하나로 보여 준다 — 원본 매도 · 환전 화면 표기.
+    var SELL_ORDER_STATUS_LABEL = {
+        RECEIVED: "접수",
+        EXECUTED: "체결",
+        REJECTED: "거부"
+    };
+    var SETTLEMENT_STATUS_LABEL = {
+        PROVISIONAL: "가환전",
+        FINALIZED: "확정산"
+    };
+    var SELL_STAGE_LABEL = {
+        ORDER: "주문",
+        EXECUTED: "체결",
+        CONFIRMED: "원화 확정",
+        FAILED: "실패"
+    };
+    var SELL_STAGE_TONE = {
+        ORDER: "info",
+        EXECUTED: "info",
+        CONFIRMED: "ok",
+        FAILED: "fail"
+    };
+
+    // 처리 단계 정하기: 거부=실패, 접수=주문, 체결 + (확정산이거나 확정액이 있음)=원화 확정, 그 밖의 체결=체결(가환전)
+    function sellStage(status, settlementStatus, finalAmount) {
+        var s = String(status || "").toUpperCase();
+        if (s === "REJECTED") {
+            return "FAILED";
+        }
+        if (s === "RECEIVED") {
+            return "ORDER";
+        }
+        if (s === "EXECUTED") {
+            var settled = String(settlementStatus || "").toUpperCase() === "FINALIZED" ||
+                (finalAmount !== null && finalAmount !== undefined);
+            return settled ? "CONFIRMED" : "EXECUTED";
+        }
+        return null;
+    }
+
+    // 국내투자 계좌의 매수가능 여부 (계좌 단위). 보유종목 상태(DomesticStockStatus)에서 정한다:
+    // 거래정지 종목이 있으면 거래정지, 거래제한 종목이 있으면 거래제한, 둘 다 없으면 매수가능.
+    // 목록 응답에는 거래제한·정지 보유 여부(boolean)만 있어 둘을 가르지 못하므로 RESTRICTED_ANY("거래제한·정지")를 쓴다.
+    var BUYABLE_LABEL = {
+        AVAILABLE: "매수가능",
+        RESTRICTED: "거래제한",
+        SUSPENDED: "거래정지",
+        RESTRICTED_ANY: "거래제한·정지"
+    };
+    var BUYABLE_TONE = {
+        AVAILABLE: "ok",
+        RESTRICTED: "warn",
+        SUSPENDED: "fail",
+        RESTRICTED_ANY: "warn"
+    };
+    function domesticBuyable(holdings) {
+        var list = holdings || [];
+        var has = function (status) {
+            return list.some(function (h) { return String(h.status).toUpperCase() === status; });
+        };
+        return has("TRADE_SUSPENDED") ? "SUSPENDED" : has("TRADE_RESTRICTED") ? "RESTRICTED" : "AVAILABLE";
+    }
+
     return {
         BENEFIT_LABEL: BENEFIT_LABEL,
+        BUYABLE_LABEL: BUYABLE_LABEL,
+        BUYABLE_TONE: BUYABLE_TONE,
+        domesticBuyable: domesticBuyable,
+        buyableLabel: function (key) {
+            return BUYABLE_LABEL[key] || "-";
+        },
+        buyableTone: function (key) {
+            return BUYABLE_TONE[key] || "off";
+        },
+        SELL_ORDER_STATUS_LABEL: SELL_ORDER_STATUS_LABEL,
+        SETTLEMENT_STATUS_LABEL: SETTLEMENT_STATUS_LABEL,
+        SELL_STAGE_LABEL: SELL_STAGE_LABEL,
+        SELL_STAGE_TONE: SELL_STAGE_TONE,
+        sellStage: sellStage,
+        sellOrderStatusLabel: function (status) {
+            return pick(SELL_ORDER_STATUS_LABEL, status, "-");
+        },
+        settlementStatusLabel: function (status) {
+            return pick(SETTLEMENT_STATUS_LABEL, status, "-");
+        },
+        sellStageLabel: function (stage) {
+            return SELL_STAGE_LABEL[stage] || "-";
+        },
+        sellStageTone: function (stage) {
+            return SELL_STAGE_TONE[stage] || "off";
+        },
         STOCK_TYPE_LABEL: STOCK_TYPE_LABEL,
         TRADE_TYPE_LABEL: TRADE_TYPE_LABEL,
         TRADE_TYPE_TONE: TRADE_TYPE_TONE,

@@ -1137,3 +1137,145 @@ input[type="datetime-local"].adm-input {
     height: 13px;
     accent-color: var(--adm-chart-1);
 }
+
+/* 요약 줄의 숨긴 항목 (display:flex 가 hidden 속성을 이기지 않게) — A-7 */
+.adm-summary-item[hidden] {
+    display: none;
+}
+
+/* 상세 패널의 탭 줄 (원본: 높이 28 · 글자 12 · 선택 탭은 패널 바탕색으로 아래선을 지움) — A-7 */
+.adm-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-tab {
+    height: 28px;
+    padding: 0 12px;
+    margin-bottom: -1px;
+    border: 1px solid transparent;
+    border-bottom-color: transparent;
+    background: var(--adm-head);
+    color: var(--adm-sub);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.adm-tab.is-on {
+    border-color: var(--adm-bd);
+    border-bottom-color: var(--adm-panel);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    font-weight: 700;
+}
+
+/* 굵은 숫자 칸 (원본 AdminTable strong) — A-6 후속 */
+.adm-gtable td.is-strong {
+    font-weight: 700;
+}
+
+/* 상세 패널의 처리 단계 (원본: 칸마다 단계 · 상태 / 이름 / 시각) — A-7 */
+.adm-flow {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    border: 1px solid var(--adm-bd);
+}
+
+.adm-flow-step {
+    min-width: 0;
+    padding: 7px 10px;
+    border-right: 1px solid var(--adm-bd);
+    background: var(--adm-head);
+    box-shadow: none;
+}
+
+.adm-flow-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--adm-sub);
+}
+
+.adm-flow-arrow {
+    color: var(--adm-sub);
+}
+
+.adm-flow-label {
+    margin-top: 2px;
+    font-size: 12.5px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.adm-flow-sub {
+    font-size: 11.5px;
+    color: var(--adm-sub);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.adm-flow-step.is-cur {
+    background: var(--adm-sel);
+    box-shadow: inset 0 2px 0 var(--adm-focus-ring);
+}
+
+.adm-flow-step.is-cur .adm-flow-head {
+    color: var(--adm-info-fg);
+}
+
+.adm-flow-step.is-done {
+    background: var(--adm-panel);
+}
+
+.adm-flow-step.is-done .adm-flow-head {
+    color: var(--adm-ok-fg);
+}
+
+.adm-flow-step.is-fail {
+    background: var(--adm-fail-bg);
+    box-shadow: inset 0 2px 0 var(--adm-fail-bar);
+}
+
+.adm-flow-step.is-fail .adm-flow-head {
+    color: var(--adm-fail-fg);
+}
+
+/* 상세 패널의 접기 단추 (구역 제목과 같은 글꼴, 오른쪽에 펼침 화살표) — A-7 후속 */
+.adm-fold {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 5px;
+    border: 0;
+    background: transparent;
+    color: var(--adm-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.adm-fold .adm-section-title {
+    margin-bottom: 0;
+}
+
+.adm-fold-caret {
+    width: 14px;
+    height: 14px;
+    color: var(--adm-sub);
+    transition: transform 0.15s;
+}
+
+.adm-fold[aria-expanded="true"] .adm-fold-caret {
+    transform: rotate(180deg);
+}
+
+.adm-kv[hidden] {
+    display: none;
+}

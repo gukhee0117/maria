@@ -51,6 +51,7 @@
   --adm-off-bd: #D9DEE5;
 
   /* ----- 원본 마크업에 변수 없이 직접 쓰인 값 (A-2 로그인에서 추가). 원본에 다크 값이 없어 라이트만 정의 ----- */
+  --adm-fail-bar: #E5484D;          /* 처리 단계 "실패" 칸 윗줄 (원본 인라인 값, A-7에서 추가. 두 테마 같은 값) */
   --adm-focus-ring: #6FA8FF;        /* 포커스 링 outline (원본 button/input :focus-visible) */
   --adm-placeholder: #9AA4B2;       /* 입력창 placeholder */
   --adm-navy-btn-hover: #122E57;    /* 남색 버튼 hover (로그인 버튼) */

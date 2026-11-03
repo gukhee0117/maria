@@ -809,10 +809,8 @@ body {
    페이지 CSS 는 건드리지 않고, 셸 쪽에서 본문 영역을 채우도록 덮어쓴다 (A-4에서 각 화면 CSS 가 새 틀로 바뀌면 제거). */
 .adm-shell .adm-main .account-management,
 .adm-shell .adm-main .settlement-management,
-.adm-shell .adm-main #diBody,
 .adm-shell .adm-main #ibBody,
 .adm-shell .adm-main #taxBody,
-.adm-shell .adm-main > div:has(> #diBody),
 .adm-shell .adm-main > div:has(> #ibBody),
 .adm-shell .adm-main > div:has(> #taxBody) {
     height: 100%;

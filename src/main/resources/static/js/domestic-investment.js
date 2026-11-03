@@ -1,68 +1,73 @@
 $(function () {
+    var STATUS = MARIA.status; // 보유 상태·매수가능 여부 표기는 js/admin/status-labels.js 의 공통 매핑
+
     var QTY_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 });
     var KRW_FORMATTER = new Intl.NumberFormat("ko-KR");
-    var DATETIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit"
-    });
 
     var investments = [];
     var selectedAccountId = null;
-    var PAGE_SIZE = 10;
+    var PAGE_SIZE = 20;
+    var currentPage = 0;
+    var totalCount = 0;
+    var totalCashAmount = null; // 예탁금 비중의 분모 (summary.totalCashAmount)
     var businessToday = null;
     var recentDays = 7;
-    var currentDetailType = null;
-    var accountListFilter = null;
-    var LIST_FILTER_TITLES = {
-        restricted: "거래제한·정지 계좌 목록",
-        unpurchasable: "매수불가 종목 보유 계좌 목록",
-        recentBuy: "최근 매수 있는 계좌 목록",
-        noRecentBuy: "최근 매수 없는 계좌 목록"
-    };
-    var LIST_FILTER_TYPES = ["restricted", "unpurchasable", "recentBuy", "noRecentBuy", "none"];
+    var SKELETON_ROWS = 8;
+    var SKELETON_WIDTHS = ["62%", "70%", "48%", "54%", "66%", "78%"];
+    var TYPE_LABEL = STATUS.DOMESTIC_TYPE_LABEL;
 
-    function setAccountListFilter(type) {
-        accountListFilter = type;
-        $("#diListTitle").text(LIST_FILTER_TITLES[type] || "계좌 목록");
-        $("#diFilterCustomerName").val("");
-        $("#diFilterStatus").val("");
-        loadInvestments(0);
-    }
-
-    var STATUS_LABEL = {
-        HOLDING: "보유중",
-        PARTIALLY_SOLD: "일부매도",
-        SOLD_OUT: "전량매도",
-        TRADE_RESTRICTED: "거래제한",
-        TRADE_SUSPENDED: "거래정지",
-        TERMINATED: "보유종료"
-    };
-    var DANGER_STATUSES = ["TRADE_RESTRICTED", "TRADE_SUSPENDED"];
-    var TYPE_LABEL = { STOCK: "국내주식", FUND: "펀드" };
-    var TRADE_TYPE_LABEL = { BUY: "매수", SELL: "매도" };
-
-    function formatDateTime(isoString) {
-        if (!isoString) {
-            return "-";
-        }
-        return DATETIME_FORMATTER.format(new Date(isoString)).replace(/\. /g, "-").replace(".", "");
-    }
-    function formatQty(qty) {
-        return QTY_FORMATTER.format(qty || 0) + "주";
-    }
-    function formatAmount(amount) {
-        return "₩" + KRW_FORMATTER.format(amount || 0);
+    // ---------- 서식 ----------
+    function pad(n) {
+        return String(n).padStart(2, "0");
     }
     function escapeHtml(value) {
-        return $("<div>").text(value).html();
+        return $("<div>").text(value == null ? "" : value).html();
     }
-    function statusBadge(status) {
-        var label = STATUS_LABEL[status] || status;
-        var cls = DANGER_STATUSES.indexOf(status) >= 0 ? "failed" : "completed";
-        return '<span class="status-badge ' + cls + '">' + label + '</span>';
+    function formatDateTime(isoString) {
+        var date = isoString ? new Date(isoString) : null;
+        if (!date || isNaN(date.getTime())) {
+            return "-";
+        }
+        return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+            " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
     }
-    function formatPercent(ratio) {
-        return (Number(ratio) * 100).toFixed(1) + "%";
+    // 금액·수량은 숫자만 (단위는 열 이름·요약 단위가 말해 준다)
+    function formatAmount(amount) {
+        return amount == null ? "-" : KRW_FORMATTER.format(Math.trunc(amount));
+    }
+    function formatQty(qty) {
+        return qty == null ? "-" : QTY_FORMATTER.format(qty);
+    }
+    // 큰 금액은 원본처럼 "186억 4,230만" 으로 (원 단위 아래는 버림)
+    function formatEok(amount) {
+        var value = Math.trunc(Number(amount) || 0);
+        var eok = Math.floor(value / 100000000);
+        var man = Math.floor((value % 100000000) / 10000);
+        var parts = [];
+        if (eok > 0) {
+            parts.push(KRW_FORMATTER.format(eok) + "억");
+        }
+        if (man > 0) {
+            parts.push(KRW_FORMATTER.format(man) + "만");
+        }
+        return parts.length ? parts.join(" ") : KRW_FORMATTER.format(value);
+    }
+    // 예탁금 비중 = 이 계좌 예탁금 ÷ 전체 예탁금 합계 (요약 API 의 totalCashAmount). 새 요청 없음.
+    function cashRatioText(cashAmount) {
+        if (totalCashAmount == null || Number(totalCashAmount) <= 0 || cashAmount == null) {
+            return "-";
+        }
+        return (Number(cashAmount) / Number(totalCashAmount) * 100).toFixed(1) + "%";
+    }
+    function chip(tone, label, title) {
+        return '<span class="adm-chip adm-chip-' + tone + '"' + (title ? ' title="' + escapeHtml(title) + '"' : "") + ">" +
+            escapeHtml(label) + "</span>";
+    }
+    function buyableChip(key) {
+        return chip(STATUS.buyableTone(key), STATUS.buyableLabel(key));
+    }
+    function statusChip(status) {
+        return chip(STATUS.domesticStatusTone(status), STATUS.domesticStatusLabel(status));
     }
     function purchasabilityReason(h) {
         if (h.type !== "FUND") {
@@ -93,52 +98,68 @@ $(function () {
         );
     }
 
+    // ---------- 계좌 목록 ----------
+    function stateRow(className, innerHtml, fill) {
+        return '<tr class="is-state ' + (fill ? "is-state-fill " : "") + className + '"><td colspan="7">' + innerHtml + "</td></tr>";
+    }
+
+    function renderLoading() {
+        var html = "";
+        for (var r = 0; r < SKELETON_ROWS; r++) {
+            html += '<tr class="is-state di-loading" aria-label="불러오는 중"><td colspan="7"><div class="adm-skel-row">' +
+                '<div class="adm-skel-cell"></div>';
+            for (var c = 0; c < 6; c++) {
+                html += '<div class="adm-skel-cell"><span style="width:' + SKELETON_WIDTHS[(c + r) % SKELETON_WIDTHS.length] +
+                    ';animation-delay:' + ((c + r) % 5) * 0.06 + 's"></span></div>';
+            }
+            html += "</div></td></tr>";
+        }
+        $("#diListBody").html(html);
+    }
+
     function renderList() {
-        var $items = $("#diListItems").empty();
+        var $body = $("#diListBody").empty();
         if (investments.length === 0) {
-            $items.append('<div class="dash-empty">국내투자 계좌가 없습니다.</div>');
+            $body.append(stateRow("di-empty",
+                '<div class="adm-state-empty">' +
+                '<img src="/images/admin/char-front.png" alt="">' +
+                '<div class="adm-state-empty-title">국내투자 계좌가 없습니다.</div>' +
+                '<div class="adm-state-empty-desc">조회조건을 바꾸거나 초기화한 뒤 다시 조회해 주세요.</div>' +
+                '<button type="button" class="adm-btn di-empty-reset">조건 초기화</button>' +
+                "</div>", true));
             return;
         }
-        investments.forEach(function (item) {
-            var isSelected = item.accountId === selectedAccountId;
-            var $row = $(
-                '<div class="di-list-item' + (isSelected ? " selected" : "") + '">' +
-                '<div class="di-list-item-top">' +
-                '<span class="di-list-item-name">' + escapeHtml(item.customerName) + '</span>' +
-                (item.hasRestrictedHolding
-                    ? '<span class="status-badge failed">거래제한/정지</span>'
-                    : "") +
-                '</div>' +
-                '<div class="di-list-item-bottom">' +
-                '<span>계좌 ' + MARIA.fmt.accountNoHtml(item.accountNo) + '</span>' +
-                '<span>예탁금 ' + formatAmount(item.cashAmount) + '</span>' +
-                '<span>보유종목 ' + item.holdingCount + '건</span>' +
-                '</div>' +
-                '</div>'
+        investments.forEach(function (item, index) {
+            var selected = item.accountId === selectedAccountId ? " is-selected" : "";
+            // 목록 응답에는 거래제한·정지 보유 여부만 있어 "거래제한·정지" 로 보인다 (거래제한/거래정지 구분은 상세에서)
+            var buyable = item.hasRestrictedHolding ? "RESTRICTED_ANY" : "AVAILABLE";
+            $body.append(
+                '<tr class="is-clickable' + selected + '" tabindex="0" data-account-id="' + item.accountId + '">' +
+                '<td class="adm-col-no">' + (currentPage * PAGE_SIZE + index + 1) + "</td>" +
+                "<td><span>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(item.accountNo)) + "</span></td>" +
+                "<td><span>" + escapeHtml(item.customerName || "") + "</span></td>" +
+                '<td class="is-r is-strong"><span>' + formatAmount(item.cashAmount) + "</span></td>" +
+                '<td class="is-r"><span>' + cashRatioText(item.cashAmount) + "</span></td>" +
+                '<td class="is-r"><span>' + KRW_FORMATTER.format(item.holdingCount || 0) + "</span></td>" +
+                '<td class="is-c">' + buyableChip(buyable) + "</td>" +
+                "</tr>"
             );
-            $row.on("click", function () {
-                selectedAccountId = item.accountId;
-                renderList();
-                loadDetail(item.accountId);
-            });
-            $items.append($row);
         });
     }
 
-    function renderPagination(page) {
+    function renderPagination() {
         var $pagination = $("#diPagination").empty();
-        if (!page || page.totalPages <= 1) {
+        var totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+        if (totalCount === 0 || totalPages <= 1) {
             return;
         }
 
-        var current = page.page;
-        var totalPages = page.totalPages;
         var BLOCK_SIZE = 10;
-        var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
+        var blockStart = Math.floor(currentPage / BLOCK_SIZE) * BLOCK_SIZE;
         var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
 
         function addButton(label, targetPage, isDisabled, isActive) {
-            var classes = "page-btn" + (isActive ? " active" : "");
+            var classes = "adm-page-btn" + (isActive ? " is-active" : "") + (/^[0-9]+$/.test(label) ? "" : " is-nav");
             var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
             $btn.prop("disabled", isDisabled || isActive);
             if (!isDisabled && !isActive) {
@@ -149,91 +170,13 @@ $(function () {
             $pagination.append($btn);
         }
 
-        addButton("이전", blockStart - 1, blockStart === 0, false);
+        if (blockStart > 0) {
+            addButton("이전", blockStart - 1, false, false);
+        }
         for (var i = blockStart; i <= blockEnd; i++) {
-            addButton(String(i + 1), i, false, i === current);
+            addButton(String(i + 1), i, false, i === currentPage);
         }
         addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
-    }
-
-    function renderDetail(data) {
-        var $detail = $("#diDetail").empty();
-
-        $detail.append(
-            '<div class="section-header">' +
-            '<span>' + MARIA.fmt.accountNoHtml(data.accountNo) + ' · ' + escapeHtml(data.customerName) + '</span>' +
-            '<span class="section-sub">예탁금 ' + formatAmount(data.cashAmount) + '</span>' +
-            '</div>'
-        );
-
-        var holdings = data.holdings || [];
-        var holdingRows = holdings.map(function (h) {
-            return (
-                '<tr>' +
-                '<td>' + escapeHtml(h.name) + ' (' + escapeHtml(h.ticker) + ')</td>' +
-                '<td>' + (TYPE_LABEL[h.type] || escapeHtml(h.type)) + '</td>' +
-                '<td>' + formatQty(h.qty) + '</td>' +
-                '<td>' + formatAmount(h.avgPurchasePrice) + '</td>' +
-                '<td>' + formatDateTime(h.lastPurchaseDate) + '</td>' +
-                '<td>' + statusBadge(h.status) + '</td>' +
-                '<td>' + (h.currentlyPurchasable
-                    ? '<span class="status-badge completed" title="' + escapeHtml(purchasabilityReason(h)) + '">매수가능</span>'
-                    : '<span class="status-badge failed" title="' + escapeHtml(purchasabilityReason(h)) + '">매수불가</span>') + '</td>' +
-                '</tr>'
-            );
-        }).join("");
-
-        $detail.append(
-            '<div class="section-header">' +
-            '<span>보유종목</span>' +
-            '<span class="section-sub">' + holdings.length + '건</span>' +
-            '</div>' +
-            '<table class="dash-table di-holdings-table">' +
-            '<thead><tr><th>종목</th><th>구분</th><th>수량</th><th>평균매수단가</th><th>최근매수일</th><th>상태</th><th>매수가능여부</th></tr></thead>' +
-            '<tbody>' + (holdingRows || '<tr><td colspan="7" class="dash-empty">보유종목이 없습니다.</td></tr>') + '</tbody>' +
-            '</table>'
-        );
-
-        var tradeHistory = data.tradeHistory || [];
-        var tradeItems = tradeHistory.map(function (t) {
-            return (
-                '<li>' + (TRADE_TYPE_LABEL[t.tradeType] || escapeHtml(t.tradeType)) + ' ' +
-                escapeHtml(t.stockCode) + ' ' + formatQty(t.qty) +
-                ' @ ' + formatAmount(t.price) + ' · ' + formatDateTime(t.executedAt) +
-                '</li>'
-            );
-        }).join("");
-
-        $detail.append(
-            '<div class="section-header">' +
-            '<span>개별 매매내역</span>' +
-            '<span class="section-sub">' + tradeHistory.length + '건</span>' +
-            '</div>' +
-            (tradeItems
-                ? '<ul class="di-trade-history">' + tradeItems + '</ul>'
-                : '<div class="dash-empty">매매내역이 없습니다.</div>')
-        );
-    }
-
-    function loadDetail(accountId) {
-        $("#diDetail").empty().append('<div class="dash-loading">불러오는 중...</div>');
-        MARIA.auth.ajax({
-            url: "/api/admin/domestic-investments/" + accountId,
-            method: "GET"
-        })
-            .done(function (res) {
-                renderDetail(res.data);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) {
-                    return;
-                }
-                var message = "상세 정보를 불러오지 못했습니다.";
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                $("#diDetail").empty().append('<div class="dash-error">' + escapeHtml(message) + '</div>');
-            });
     }
 
     function getFilterParams() {
@@ -246,15 +189,13 @@ $(function () {
         if (status) {
             params.status = status;
         }
-        if (accountListFilter === "restricted") {
-            params.hasRestrictedHolding = true;
-        } else if (accountListFilter === "unpurchasable") {
+        // 옛 요약 칸(매수불가 종목 보유 / 최근 매수 있음·없음)을 눌러 보내던 파라미터를 그대로 보낸다
+        if ($("#diFilterUnpurchasable").prop("checked")) {
             params.hasUnpurchasableHolding = true;
-        } else if (accountListFilter === "recentBuy") {
-            params.hasRecentBuy = true;
-            params.recentBuyDays = recentDays;
-        } else if (accountListFilter === "noRecentBuy") {
-            params.hasRecentBuy = false;
+        }
+        var recentBuy = $("#diFilterRecentBuy").val();
+        if (recentBuy) {
+            params.hasRecentBuy = recentBuy === "true";
             params.recentBuyDays = recentDays;
         }
         return params;
@@ -262,60 +203,55 @@ $(function () {
 
     function loadInvestments(page) {
         var targetPage = page || 0;
-        var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams());
+        var $content = $(".content");
+        var scrollTop = $content.scrollTop();
+        closeDetail();
+        renderLoading();
         MARIA.auth.ajax({
             url: "/api/admin/domestic-investments",
             method: "GET",
-            data: requestData
+            data: $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams())
         })
             .done(function (res) {
-                investments = res.data.content || [];
+                var data = res.data || {};
+                investments = data.content || [];
+                currentPage = data.page || 0;
+                totalCount = data.totalElements || 0;
                 selectedAccountId = null;
+                $("#diTotalCount").text(KRW_FORMATTER.format(totalCount));
                 renderList();
-                renderPagination(res.data);
-                if (investments.length > 0) {
-                    selectedAccountId = investments[0].accountId;
-                    renderList();
-                    loadDetail(investments[0].accountId);
-                } else {
-                    $("#diDetail").empty().append('<div class="dash-empty">왼쪽에서 계좌를 선택하세요.</div>');
-                }
-                $("#diLoading").hide();
-                $("#diBody").css("display", "flex");
+                renderPagination();
+                $content.scrollTop(scrollTop);
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
                     return;
                 }
-                $("#diLoading").hide();
-                var message = "목록을 불러오지 못했습니다.";
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                $("#diError").text(message).show();
+                var message = (xhr.responseJSON && xhr.responseJSON.message) || "목록을 불러오지 못했습니다.";
+                investments = [];
+                totalCount = 0;
+                $("#diTotalCount").text("-");
+                $("#diPagination").empty();
+                $("#diListBody").html(stateRow("di-error",
+                    '<div class="adm-state-error">' +
+                    '<div class="adm-state-error-text">' +
+                    '<div class="adm-state-error-title">' + escapeHtml(message) + "</div>" +
+                    '<div class="adm-state-error-desc">잠시 후 다시 시도해 주세요.</div>' +
+                    "</div>" +
+                    '<button type="button" class="adm-btn di-retry" data-page="' + targetPage + '">다시 시도</button>' +
+                    "</div>", true));
             });
     }
 
-    $("#diFilterSubmit").on("click", function () {
-        loadInvestments(0);
-    });
-    $("#diFilterReset").on("click", function () {
-        $(".kpi-clickable").removeClass("active");
-        setAccountListFilter(null);
-    });
-    $("#diFilterCustomerName").on("keypress", function (e) {
-        if (e.which === 13) {
-            loadInvestments(0);
-        }
-    });
-
+    // ---------- 요약 ----------
     function renderSummary(summary) {
-        $("#kpiTotalAccount").text(summary.totalAccountCount + " 개");
-        $("#kpiRestrictedAccount").text(summary.restrictedAccountCount + " 개");
-        $("#kpiUnpurchasable").text(summary.unpurchasableHoldingCount + " 건");
-        $("#kpiTotalCash").text(formatAmount(summary.totalCashAmount));
-        $("#kpiRecentBuy").text(summary.recentBuyAccountCount);
-        $("#kpiNoRecentBuy").text(summary.noRecentBuyAccountCount);
+        $("#kpiTotalAccount").text(KRW_FORMATTER.format(summary.totalAccountCount || 0));
+        $("#kpiTotalCash").text(formatEok(summary.totalCashAmount));
+        $("#kpiRestrictedAccount").text(KRW_FORMATTER.format(summary.restrictedAccountCount || 0));
+        // 조회조건으로 옮긴 기존 요소의 건수
+        $("#kpiUnpurchasable").text(summary.unpurchasableHoldingCount);
+        $("#diRecentOptYes").text("있음 (" + summary.recentBuyAccountCount + "개)");
+        $("#diRecentOptNo").text("없음 (" + summary.noRecentBuyAccountCount + "개)");
     }
 
     function loadSummary() {
@@ -325,7 +261,12 @@ $(function () {
             data: { days: recentDays }
         })
             .done(function (res) {
-                renderSummary(res.data);
+                var summary = res.data || {};
+                renderSummary(summary);
+                totalCashAmount = summary.totalCashAmount;
+                if (investments.length) {
+                    renderList(); // 예탁금 비중을 다시 계산해 채운다
+                }
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
@@ -334,145 +275,192 @@ $(function () {
             });
     }
 
-    var DETAIL_CONFIG = {
-        cashHeavy: {
-            title: "예탁금 비중 높은 순",
-            columns: ["고객명", "계좌번호", "예탁금", "투자금액", "예탁금 비중"],
-            load: function (page) {
-                return MARIA.auth.ajax({
-                    url: "/api/admin/domestic-investments/cash-heavy-accounts",
-                    method: "GET",
-                    data: { page: page, size: 20 }
-                });
-            },
-            row: function (r) {
-                return [
-                    escapeHtml(r.customerName),
-                    escapeHtml(r.accountNo || "-"),
-                    formatAmount(r.cashAmount),
-                    formatAmount(r.investedAmount),
-                    formatPercent(r.cashRatio)
-                ];
-            }
+    // ---------- 상세 패널 ----------
+    function setTab(name) {
+        $("#diDetailTabs .adm-tab").each(function () {
+            var on = $(this).attr("data-tab") === name;
+            $(this).toggleClass("is-on", on).attr("aria-selected", on ? "true" : "false");
+        });
+        $("#diDetailTabs [data-pane]").each(function () {
+            $(this).prop("hidden", $(this).attr("data-pane") !== name);
+        });
+    }
+    $("#diDetailTabs").on("click", ".adm-tab", function () {
+        setTab($(this).attr("data-tab"));
+    });
+
+    function emptyRow(cols, text) {
+        return '<tr class="is-state"><td colspan="' + cols + '"><div class="di-panel-empty">' + text + "</div></td></tr>";
+    }
+
+    function renderDetail(data, listItem) {
+        var holdings = data.holdings || [];
+        var trades = data.tradeHistory || [];
+        var buyable = STATUS.domesticBuyable(holdings);
+
+        $("#diDetailTitle").text((data.customerName || "-") + " 님 국내투자");
+        $("#diDetailSub").text(data.accountNo ? MARIA.fmt.hyphenateAccountNo(data.accountNo) : "");
+        $("#diDetailCash").text(data.cashAmount == null ? "-" : formatAmount(data.cashAmount) + "원");
+        $("#diDetailRatio").text(cashRatioText(data.cashAmount));
+        $("#diDetailCount").text((listItem ? listItem.holdingCount : holdings.length) + "종목");
+        $("#diDetailBuyable").html(buyableChip(buyable));
+
+        $("#diHoldingsBody").html(holdings.length ? holdings.map(function (h, i) {
+            return "<tr>" +
+                '<td class="adm-col-no">' + (i + 1) + "</td>" +
+                '<td><span title="' + escapeHtml(h.ticker || "") + '">' + escapeHtml(h.name || "-") + "</span></td>" +
+                '<td class="is-r"><span>' + formatQty(h.qty) + "</span></td>" +
+                '<td class="is-r"><span>' + formatAmount(h.avgPurchasePrice) + "</span></td>" +
+                '<td class="is-c">' + statusChip(h.status) + "</td>" +
+                "</tr>";
+        }).join("") : emptyRow(5, "보유종목이 없습니다."));
+
+        $("#diExtraBody").html(holdings.length ? holdings.map(function (h, i) {
+            return "<tr>" +
+                '<td class="adm-col-no">' + (i + 1) + "</td>" +
+                "<td><span>" + escapeHtml(h.name || "-") + "</span></td>" +
+                "<td><span>" + escapeHtml(TYPE_LABEL[h.type] || h.type || "-") + "</span></td>" +
+                '<td class="is-c"><span>' + formatDateTime(h.lastPurchaseDate) + "</span></td>" +
+                '<td class="is-c">' + (h.currentlyPurchasable
+                    ? chip("ok", "매수가능", purchasabilityReason(h))
+                    : chip("fail", "매수불가", purchasabilityReason(h))) + "</td>" +
+                "</tr>";
+        }).join("") : emptyRow(5, "보유종목이 없습니다."));
+
+        $("#diTradesBody").html(trades.length ? trades.map(function (t, i) {
+            return "<tr>" +
+                '<td class="adm-col-no">' + (i + 1) + "</td>" +
+                "<td><span>" + formatDateTime(t.executedAt) + "</span></td>" +
+                "<td><span>" + escapeHtml(t.stockCode || "-") + "</span></td>" +
+                '<td class="is-c">' + chip(STATUS.tradeTypeTone(t.tradeType), STATUS.tradeTypeLabel(t.tradeType)) + "</td>" +
+                '<td class="is-r"><span>' + formatQty(t.qty) + "</span></td>" +
+                '<td class="is-r"><span>' + formatAmount(t.price) + "</span></td>" +
+                "</tr>";
+        }).join("") : emptyRow(6, "매매내역이 없습니다."));
+
+        $("#diDetailState").prop("hidden", true).empty();
+        $("#diDetailTabs").prop("hidden", false);
+        $("#diFold").prop("hidden", false);
+    }
+
+    // 종목별 추가 정보 접기 (처음엔 접힘, 패널을 새로 열 때마다 다시 접는다)
+    function setFold(open) {
+        $("#diFoldToggle").attr("aria-expanded", open ? "true" : "false");
+        $("#diFoldBody").prop("hidden", !open);
+    }
+    $("#diFoldToggle").on("click", function () {
+        setFold($(this).attr("aria-expanded") !== "true");
+    });
+
+    function openPanel() {
+        $("#diDetailScrim, #diDetailPanel").addClass("is-open");
+        $("#diDetailPanel").attr("aria-hidden", "false");
+        $("#diDetailBody").scrollTop(0);
+        $("#diDetailClose").trigger("focus");
+    }
+
+    function closeDetail() {
+        if (!$("#diDetailPanel").hasClass("is-open")) {
+            return;
         }
-    };
+        $("#diDetailScrim, #diDetailPanel").removeClass("is-open");
+        $("#diDetailPanel").attr("aria-hidden", "true");
+        var $row = $("#diListBody tr.is-selected").removeClass("is-selected");
+        if ($row.length) {
+            $row.trigger("focus");
+        }
+        selectedAccountId = null;
+    }
 
-    function openDetailPanel(type, page) {
-        currentDetailType = type;
-        $(".kpi-clickable").removeClass("active");
-        $('[data-detail="' + type + '"]').addClass("active");
-
-        var config = DETAIL_CONFIG[type];
-        var targetPage = page || 0;
-        $("#diDetailTitle").text(config.title);
-        $("#diDetailTableHead").html(
-            "<tr>" + config.columns.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr>"
-        );
-        $("#diDetailTableBody").html(
-            '<tr><td colspan="' + config.columns.length + '" class="dash-empty">불러오는 중...</td></tr>'
-        );
-        $("#diDetailPagination").empty();
-        $("#diDetailPanel").show();
-
-        config.load(targetPage)
+    function loadDetail(accountId) {
+        var item = investments.filter(function (i) { return i.accountId === accountId; })[0];
+        setTab("holdings");
+        $("#diDetailTitle").text(item ? item.customerName + " 님 국내투자" : "-");
+        $("#diDetailSub").text(item ? MARIA.fmt.hyphenateAccountNo(item.accountNo) : "");
+        $("#diDetailTabs").prop("hidden", true);
+        $("#diFold").prop("hidden", true);
+        setFold(false);
+        $("#diDetailState").prop("hidden", false).removeClass("di-detail-state").html('<div class="di-panel-empty">불러오는 중...</div>');
+        openPanel();
+        MARIA.auth.ajax({
+            url: "/api/admin/domestic-investments/" + accountId,
+            method: "GET"
+        })
             .done(function (res) {
-                if (currentDetailType !== type) {
+                if (selectedAccountId !== accountId) {
                     return;
                 }
-                var pageData = res.data;
-                var rows = pageData.content || [];
-                $("#diDetailCount").text(pageData.totalElements + "건");
-                var $body = $("#diDetailTableBody").empty();
-                if (rows.length === 0) {
-                    $body.append(
-                        '<tr><td colspan="' + config.columns.length + '" class="dash-empty">해당하는 항목이 없습니다.</td></tr>'
-                    );
-                } else {
-                    rows.forEach(function (r) {
-                        var cells = config.row(r);
-                        $body.append("<tr><td>" + cells.join("</td><td>") + "</td></tr>");
-                    });
-                }
-                renderDetailPagination(pageData, type);
+                renderDetail(res.data || {}, item);
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
                     return;
                 }
-                $("#diDetailTableBody").empty().append(
-                    '<tr><td colspan="' + config.columns.length + '" class="dash-empty">불러오지 못했습니다.</td></tr>'
-                );
+                var message = (xhr.responseJSON && xhr.responseJSON.message) || "상세 정보를 불러오지 못했습니다.";
+                $("#diDetailState").addClass("di-detail-state").html(
+                    "<span>" + escapeHtml(message) + '</span><button type="button" class="adm-btn di-detail-retry" data-id="' + accountId + '">다시 시도</button>');
             });
     }
 
-    function renderDetailPagination(page, type) {
-        var $pagination = $("#diDetailPagination").empty();
-        if (!page || page.totalPages <= 1) {
-            return;
-        }
-
-        var current = page.page;
-        var totalPages = page.totalPages;
-        var BLOCK_SIZE = 10;
-        var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
-        var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
-
-        function addButton(label, targetPage, isDisabled, isActive) {
-            var classes = "page-btn" + (isActive ? " active" : "");
-            var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
-            $btn.prop("disabled", isDisabled || isActive);
-            if (!isDisabled && !isActive) {
-                $btn.on("click", function () {
-                    openDetailPanel(type, targetPage);
-                });
-            }
-            $pagination.append($btn);
-        }
-
-        addButton("이전", blockStart - 1, blockStart === 0, false);
-        for (var i = blockStart; i <= blockEnd; i++) {
-            addButton(String(i + 1), i, false, i === current);
-        }
-        addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
+    function selectRow($row) {
+        selectedAccountId = Number($row.data("account-id"));
+        $("#diListBody tr[data-account-id]").removeClass("is-selected");
+        $row.addClass("is-selected");
+        loadDetail(selectedAccountId);
     }
 
-    function closeDetailPanel() {
-        currentDetailType = null;
-        $(".kpi-clickable").removeClass("active");
-        $("#diDetailPanel").hide();
+    $("#diListBody").on("click", "tr[data-account-id]", function () {
+        selectRow($(this));
+    });
+    $("#diListBody").on("keydown", "tr[data-account-id]", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            selectRow($(this));
+        }
+    });
+    $("#diDetailState").on("click", ".di-detail-retry", function () {
+        loadDetail(parseInt($(this).attr("data-id"), 10));
+    });
+    $("#diDetailClose, #diDetailScrim").on("click", closeDetail);
+
+    // ---------- 조회 조건 ----------
+    $("#diFilterSubmit").on("click", function () {
+        loadInvestments(0);
+    });
+    function resetFilters() {
+        $("#diFilterCustomerName").val("");
+        $("#diFilterStatus").val("");
+        $("#diFilterRecentBuy").val("");
+        $("#diFilterUnpurchasable").prop("checked", false);
+        loadInvestments(0);
     }
-
-    $(".kpi-clickable").on("click", function () {
-        var type = $(this).data("detail");
-
-        if (LIST_FILTER_TYPES.indexOf(type) >= 0) {
-            closeDetailPanel();
-            $(".kpi-clickable").removeClass("active");
-            if (accountListFilter === type || type === "none") {
-                setAccountListFilter(null);
-            } else {
-                $(this).addClass("active");
-                setAccountListFilter(type);
-            }
-            return;
-        }
-
-        if (accountListFilter) {
-            setAccountListFilter(null);
-        }
-        if (currentDetailType === type) {
-            closeDetailPanel();
-        } else {
-            openDetailPanel(type, 0);
+    $("#diFilterReset").on("click", resetFilters);
+    $("#diListBody").on("click", ".di-empty-reset", resetFilters);
+    $("#diListBody").on("click", ".di-retry", function () {
+        loadSummary();
+        loadInvestments(parseInt($(this).attr("data-page"), 10) || 0);
+    });
+    $("#diFilterCustomerName").on("keydown", function (event) {
+        if (event.key === "Enter") {
+            loadInvestments(0);
         }
     });
 
-    $("#diDetailClose").on("click", closeDetailPanel);
+    $("#diPageSize").on("click", "button", function () {
+        var size = parseInt($(this).attr("data-size"), 10);
+        if (!size || size === PAGE_SIZE) {
+            return;
+        }
+        PAGE_SIZE = size;
+        $("#diPageSize button").removeClass("is-on");
+        $(this).addClass("is-on");
+        loadInvestments(0);
+    });
 
     $("#diRecentDays").on("change", function () {
         recentDays = Number($(this).val());
         loadSummary();
-        if (accountListFilter === "recentBuy" || accountListFilter === "noRecentBuy") {
+        if ($("#diFilterRecentBuy").val()) {
             loadInvestments(0);
         }
     });
