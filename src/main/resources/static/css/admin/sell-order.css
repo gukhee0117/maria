@@ -1,0 +1,22 @@
+/* 매도 · 환전 (1202) 화면 전용 규칙 (A-7)
+   원본: admin.dc.html 의 매도 · 환전 화면. 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/sell-order.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.sellorder) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.sellorder {
+    /* 칸 너비: 원본 칸 너비(No 40 · 140 · 80 · 150 · 80 · 100 · 130 · 120 · 120 · 80)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 */
+    --adm-cols: 40px minmax(126px, 1fr) minmax(66px, 1fr) minmax(136px, 1fr) minmax(66px, 1fr) minmax(86px, 1fr) minmax(116px, 1fr) minmax(106px, 1fr) minmax(106px, 1fr) minmax(66px, 1fr);
+    --adm-cols-min: 914px;
+}
+
+/* 상세 패널 안 매수 lot 표 (원본: No 40 · 110 · 100 · 100 · 60 에서 14px 뺀 값) */
+.sellorder .sellorder-lot-table {
+    --adm-cols: 40px minmax(96px, 1fr) minmax(86px, 1fr) minmax(86px, 1fr) minmax(56px, 1fr);
+    --adm-cols-min: 364px;
+    height: auto;
+}

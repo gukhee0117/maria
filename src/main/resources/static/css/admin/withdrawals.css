@@ -1,0 +1,36 @@
+/* 인출 관리 (1402) 화면 전용 규칙 (A-9)
+   원본: admin.dc.html 의 인출 관리 화면. 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/withdrawals.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.withdrawals) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.withdrawals {
+    /* 칸 너비: 원본 칸 너비(No 40 · 140 · 80 · 90 · 120 · 130 · 84)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 */
+    --adm-cols: 40px minmax(126px, 1fr) minmax(66px, 1fr) minmax(76px, 1fr) minmax(106px, 1fr) minmax(116px, 1fr) minmax(70px, 1fr);
+    --adm-cols-min: 600px;
+}
+
+/* 고객명 칸 오른쪽에 1px 안쪽 구분선 (원본: 고정 칸 묶음의 끝 표시) */
+.withdrawals .withdrawals-table th.withdrawals-col-name,
+.withdrawals .withdrawals-table td.withdrawals-col-name {
+    box-shadow: inset -1px 0 0 0 var(--adm-bd2);
+}
+
+/* 구역 제목 옆 보조 글 (원본: 굵기 500 · 보조 색) */
+.withdrawals .adm-section-sub {
+    font-weight: 500;
+    color: var(--adm-sub);
+}
+
+/* 배분 내역이 없을 때 (원본에 없는 상태) */
+.withdrawals .withdrawals-alloc-empty {
+    padding: 14px 10px;
+    border: 1px solid var(--adm-bd);
+    color: var(--adm-sub);
+    font-size: 12px;
+    text-align: center;
+}

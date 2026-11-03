@@ -1,0 +1,101 @@
+/* 정산 배치 (1203) 화면 전용 규칙 (A-11)
+   원본: admin.dc.html 의 정산 배치 화면(요약 → 조회조건 → 실행 현황·로그 → 실행 목록 → 실패 항목). 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/settlement.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.settlement-management) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.settlement-management {
+    /* 칸 너비: 원본 칸 너비(No 40 · 배치 ID 150 · 130 · 90 · 80 · 80 · 80 · 150)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 */
+    --adm-cols: 40px minmax(136px, 1fr) minmax(116px, 1fr) minmax(76px, 1fr) minmax(66px, 1fr) minmax(66px, 1fr) minmax(66px, 1fr) minmax(136px, 1fr);
+    --adm-cols-min: 700px;
+}
+
+/* 실행 목록(55) 과 실패 항목(45) 이 남는 높이를 나눈다 (원본 비율). 실패 항목은 최소 196px */
+.settlement-management .settlement-list {
+    flex: 55 1 0;
+}
+
+.settlement-management .settlement-fail {
+    flex: 45 1 0;
+    min-height: 196px;
+    --adm-cols: 40px minmax(106px, 1fr) minmax(126px, 1fr) minmax(126px, 1fr) minmax(96px, 1fr) minmax(76px, 1fr) minmax(56px, 1fr) minmax(136px, 1.2fr) minmax(116px, 1fr);
+    --adm-cols-min: 880px;
+}
+
+/* 실행 일시 칸 오른쪽에 1px 안쪽 구분선 (원본: 고정 칸 묶음의 끝 표시) */
+.settlement-management .settlement-batch-table th.settlement-col-at,
+.settlement-management .settlement-batch-table td.settlement-col-at {
+    box-shadow: inset -1px 0 0 0 var(--adm-bd2);
+}
+
+.settlement-management .settlement-mono {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 실패 항목 제목의 배치 번호 (원본: 남색 고정폭) */
+.settlement-management .adm-fail-batch {
+    color: var(--adm-navy-fg);
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 좁은 화면(원본: 화면 너비 ÷ 글자 배율 < 900): 세로로 쌓고 본문이 스크롤된다. 실행 목록 최소 360px, 실패 항목 300px */
+.content.adm-main:has(.settlement-management.is-narrow) {
+    overflow: auto;
+}
+
+.settlement-management.is-narrow {
+    height: auto;
+    min-height: 100%;
+}
+
+.settlement-management.is-narrow .adm-live {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+}
+
+.settlement-management.is-narrow .adm-live-status {
+    border-right: 0;
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.settlement-management.is-narrow .adm-live-logbody {
+    min-height: 120px;
+}
+
+.settlement-management.is-narrow .settlement-list {
+    flex: 0 0 auto;
+    min-height: 360px;
+}
+
+.settlement-management.is-narrow .settlement-fail {
+    flex: 0 0 300px;
+    min-height: 0;
+}
+
+/* 원본에 없는 기존 요소: 최근 14일 추이 (지금은 숨김) */
+.settlement-management .settlement-trend-chart {
+    height: 220px;
+    padding: 8px 10px;
+}
+
+/* 낮은 화면(원본: 화면 높이 ÷ 글자 배율 < 800): 실행 현황·로그 높이 120px, 안쪽 여백 8px 12px, 시작·성공·실패 칸 숨김 */
+.settlement-management.is-short .adm-live {
+    grid-template-rows: 120px;
+}
+
+.settlement-management.is-short .adm-live-body {
+    padding: 8px 12px;
+}
+
+.settlement-management.is-short .adm-live-kv {
+    display: none;
+}
+
+.settlement-management.is-narrow.is-short .adm-live {
+    grid-template-rows: auto;
+}
+

@@ -51,6 +51,7 @@
   --adm-off-bd: #D9DEE5;
 
   /* ----- 원본 마크업에 변수 없이 직접 쓰인 값 (A-2 로그인에서 추가). 원본에 다크 값이 없어 라이트만 정의 ----- */
+  --adm-fail-bar: #E5484D;          /* 처리 단계 "실패" 칸 윗줄 (원본 인라인 값, A-7에서 추가. 두 테마 같은 값) */
   --adm-focus-ring: #6FA8FF;        /* 포커스 링 outline (원본 button/input :focus-visible) */
   --adm-placeholder: #9AA4B2;       /* 입력창 placeholder */
   --adm-navy-btn-hover: #122E57;    /* 남색 버튼 hover (로그인 버튼) */
@@ -99,6 +100,9 @@
   --adm-chart-gray: #CBD3DE;        /* 상태 도넛 4번째 조각 */
   --adm-chart-gold: #D8A94E;        /* 나이대 막대 중 가장 큰 값 */
   --adm-chart-bar: #183A6B;         /* 나이대 막대 기본색 (다크는 #6FA8FF) */
+  /* ----- 원본 인출 관리(1402) 납입건별 배분 바 채움색 (A-9). 원본 데이터의 color(#6FA8FF / #F2994A)에 투명도 .5 ----- */
+  --adm-alloc-ok: rgba(111,168,255,.5);         /* 인출 가능 배분 바 */
+  --adm-alloc-early: rgba(242,153,74,.5);       /* 조기(1년 미경과) 배분 바 */
 }
 
 [data-theme="dark"] {

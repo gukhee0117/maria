@@ -4,94 +4,224 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/statistics.css}">
-        <link rel="stylesheet" th:href="@{/css/domestic-investment.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/domestic-investment.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">국내투자 현황</div>
-<div layout:fragment="content">
-    <div id="diLoading" class="dash-loading">불러오는 중...</div>
-    <div id="diError" class="dash-error" style="display:none"></div>
-    <div id="diBody" style="display:none">
-        <div class="kpi-grid">
-            <div class="card kpi-card kpi-clickable" data-detail="none">
-                <div class="kpi-label">전체 계좌 수</div>
-                <div class="kpi-value" id="kpiTotalAccount">-</div>
+
+<div layout:fragment="content" class="adm-page domestic-investment">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1401]</span> 국내투자 현황</h1>
+            <span class="adm-screen-path">자산 · 인출 &gt; 국내투자 현황</span>
+        </div>
+
+        <!-- 요약: /api/admin/domestic-investments/summary -->
+        <div class="adm-summary" id="diSummary">
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">전체 계좌 수</span>
+                <span class="adm-summary-value" id="kpiTotalAccount">-</span>
+                <span class="adm-summary-unit">계좌</span>
             </div>
-            <div class="card kpi-card kpi-clickable" data-detail="restricted">
-                <div class="kpi-label">거래제한·정지 계좌 수</div>
-                <div class="kpi-value" id="kpiRestrictedAccount">-</div>
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">총 예탁금 합계</span>
+                <span class="adm-summary-value" id="kpiTotalCash">-</span>
+                <span class="adm-summary-unit">원</span>
             </div>
-            <div class="card kpi-card kpi-clickable" data-detail="unpurchasable">
-                <div class="kpi-label">매수불가 종목 보유 건수</div>
-                <div class="kpi-value" id="kpiUnpurchasable">-</div>
+            <div class="adm-summary-item">
+                <span class="adm-summary-label">거래제한 · 정지 계좌 수</span>
+                <span class="adm-summary-value" id="kpiRestrictedAccount">-</span>
+                <span class="adm-summary-unit">계좌</span>
             </div>
-            <div class="card kpi-card">
-                <div class="kpi-label di-recent-header">
-                    <span>최근 매수 활동</span>
-                    <select id="diRecentDays" class="di-days-select">
-                        <option value="1">1일</option>
-                        <option value="7">7일</option>
-                        <option value="14">14일</option>
-                        <option value="30">30일</option>
-                    </select>
-                </div>
-                <div class="kpi-value di-recent-value">
-                    <span class="di-recent-item kpi-clickable" data-detail="recentBuy">
-                        <strong id="kpiRecentBuy">-</strong>개 있음
+        </div>
+
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="diFilterCustomerName">검색어
+                    <input id="diFilterCustomerName" class="adm-input" type="text"
+                           placeholder="고객명 또는 계좌번호" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="diFilterStatus">매수가능 여부
+                    <span class="adm-select-wrap">
+                        <select id="diFilterStatus" class="adm-input adm-select">
+                            <option value="">전체</option>
+                            <option value="AVAILABLE" disabled>매수가능 (준비 중)</option>
+                            <option value="TRADE_RESTRICTED">거래제한</option>
+                            <option value="TRADE_SUSPENDED">거래정지</option>
+                            <!-- 원본에 없는 기존 요소: 보유 상태로 거르기 -->
+                            <optgroup label="보유 상태">
+                                <option value="HOLDING">보유중</option>
+                                <option value="PARTIALLY_SOLD">일부매도</option>
+                                <option value="SOLD_OUT">전량매도</option>
+                                <option value="TERMINATED">보유종료</option>
+                            </optgroup>
+                        </select>
                     </span>
-                    <span class="di-recent-item kpi-clickable" data-detail="noRecentBuy">
-                        <strong id="kpiNoRecentBuy">-</strong>개 없음
+                </label>
+                <!-- 원본에 없는 기존 요소(요약 칸 클릭으로 하던 거르기)를 조회조건으로 옮김 -->
+                <label class="adm-qfield" for="diFilterRecentBuy">최근 매수
+                    <span class="adm-select-wrap">
+                        <select id="diFilterRecentBuy" class="adm-input adm-select">
+                            <option value="">전체</option>
+                            <option value="true" id="diRecentOptYes">있음</option>
+                            <option value="false" id="diRecentOptNo">없음</option>
+                        </select>
                     </span>
-                </div>
+                </label>
+                <label class="adm-qfield" for="diRecentDays">기간
+                    <span class="adm-select-wrap">
+                        <select id="diRecentDays" class="adm-input adm-select">
+                            <option value="1">1일</option>
+                            <option value="7" selected>7일</option>
+                            <option value="14">14일</option>
+                            <option value="30">30일</option>
+                        </select>
+                    </span>
+                </label>
+                <label class="adm-check" for="diFilterUnpurchasable" title="매수불가 종목을 가진 계좌만">
+                    <input type="checkbox" id="diFilterUnpurchasable">매수불가 종목 보유만 <span class="adm-summary-unit">(<span id="kpiUnpurchasable">-</span>건)</span>
+                </label>
             </div>
-            <div class="card kpi-card">
-            <div class="kpi-label">총 예탁금 합계</div>
-                <div class="kpi-value kpi-value-amount" id="kpiTotalCash">-</div>
-            </div>
-        </div>
-        <div class="card" id="diDetailPanel" style="display:none">
-            <div class="section-header">
-                <span id="diDetailTitle">상세</span>
-                <span class="section-sub" id="diDetailCount"></span>
-                <button type="button" id="diDetailClose" class="di-detail-close" aria-label="닫기">&times;</button>
-            </div>
-            <table class="dash-table">
-                <thead id="diDetailTableHead"></thead>
-                <tbody id="diDetailTableBody"></tbody>
-            </table>
-            <div id="diDetailPagination" class="pagination"></div>
-        </div>
-        <div class="di-layout">
-            <div class="card di-list-card">
-                <div class="section-header">
-                    <span id="diListTitle">계좌 목록</span>
-                </div>
-                <div class="filter-bar di-filter-bar">
-                    <input type="text" id="diFilterCustomerName" class="filter-input" placeholder="고객명 또는 계좌번호 검색">
-                    <select id="diFilterStatus" class="filter-select">
-                        <option value="">전체 상태</option>
-                        <option value="HOLDING">보유중</option>
-                        <option value="PARTIALLY_SOLD">일부매도</option>
-                        <option value="SOLD_OUT">전량매도</option>
-                        <option value="TRADE_RESTRICTED">거래제한</option>
-                        <option value="TRADE_SUSPENDED">거래정지</option>
-                        <option value="TERMINATED">보유종료</option>
-                    </select>
-                    <button type="button" id="diFilterSubmit" class="btn btn-primary">검색</button>
-                    <button type="button" id="diFilterReset" class="btn">초기화</button>
-                </div>
-                <div id="diListItems" class="di-list-items"></div>
-                <div id="diPagination" class="pagination"></div>
-            </div>
-            <div class="card di-detail-card" id="diDetail">
-                <div class="dash-empty">왼쪽에서 계좌를 선택하세요.</div>
+            <div class="adm-qbtns">
+                <button type="button" id="diFilterSubmit" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="diFilterReset" class="adm-btn adm-btn-md">초기화</button>
             </div>
         </div>
-    </div>
+    </section>
+
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title" id="diListTitle">계좌 목록</span>
+            <span class="adm-grid-total">총 <b id="diTotalCount">-</b>건</span>
+            <div class="adm-pager" id="diPagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="diPageSize" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable di-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>계좌번호</th>
+                        <th>고객명</th>
+                        <th class="is-r">예탁금</th>
+                        <th class="is-r">예탁금 비중</th>
+                        <th class="is-r">보유종목 수</th>
+                        <th class="is-c">매수가능 여부</th>
+                    </tr>
+                    </thead>
+                    <tbody id="diListBody">
+                    <tr class="is-state di-loading">
+                        <td colspan="7">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="diDetailScrim"></div>
+    <aside class="adm-panel" id="diDetailPanel" aria-label="국내투자 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1401]</span>
+                <span class="adm-panel-name" id="diDetailTitle">-</span>
+                <span class="adm-panel-sub" id="diDetailSub"></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="diDetailClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body" id="diDetailBody">
+            <div>
+                <div class="adm-section-title">기본 정보</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">예탁금</div>
+                    <div class="adm-kv-v" id="diDetailCash">-</div>
+                    <div class="adm-kv-k">예탁금 비중</div>
+                    <div class="adm-kv-v" id="diDetailRatio">-</div>
+                    <div class="adm-kv-k">보유종목 수</div>
+                    <div class="adm-kv-v" id="diDetailCount">-</div>
+                    <div class="adm-kv-k">매수가능 여부</div>
+                    <div class="adm-kv-v"><span id="diDetailBuyable">-</span></div>
+                </div>
+            </div>
+
+            <div id="diDetailState" hidden></div>
+
+            <div id="diDetailTabs">
+                <div class="adm-tabs" role="tablist">
+                    <button type="button" class="adm-tab is-on" role="tab" aria-selected="true" data-tab="holdings">보유종목</button>
+                    <button type="button" class="adm-tab" role="tab" aria-selected="false" data-tab="trades">개별 매매내역</button>
+                </div>
+                <div class="adm-grid-scroll" data-pane="holdings">
+                    <table class="adm-gtable di-holdings-table">
+                        <thead>
+                        <tr>
+                            <th class="adm-col-no">No</th>
+                            <th>종목</th>
+                            <th class="is-r">수량</th>
+                            <th class="is-r">평균매수단가</th>
+                            <th class="is-c">상태</th>
+                        </tr>
+                        </thead>
+                        <tbody id="diHoldingsBody"></tbody>
+                    </table>
+                </div>
+                <div class="adm-grid-scroll" data-pane="trades" hidden>
+                    <table class="adm-gtable di-trades-table">
+                        <thead>
+                        <tr>
+                            <th class="adm-col-no">No</th>
+                            <th>일시</th>
+                            <th>종목</th>
+                            <th class="is-c">구분</th>
+                            <th class="is-r">수량</th>
+                            <th class="is-r">체결가</th>
+                        </tr>
+                        </thead>
+                        <tbody id="diTradesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 원본에 없는 기존 열(구분·최근매수일·매수가능여부): 지우지 않고 접어 둔다. 처음엔 접힘 -->
+            <div id="diFold">
+                <button type="button" class="adm-fold" id="diFoldToggle" aria-expanded="false" aria-controls="diFoldBody">
+                    <span class="adm-section-title">종목별 추가 정보</span>
+                    <svg class="adm-fold-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div id="diFoldBody" hidden>
+                    <div class="adm-grid-scroll">
+                        <table class="adm-gtable di-extra-table">
+                            <thead>
+                            <tr>
+                                <th class="adm-col-no">No</th>
+                                <th>종목</th>
+                                <th>구분</th>
+                                <th class="is-c">최근매수일</th>
+                                <th class="is-c">매수가능여부</th>
+                            </tr>
+                            </thead>
+                            <tbody id="diExtraBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
 </div>
+
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/domestic-investment.js}"></script>
 </th:block>
 </body>

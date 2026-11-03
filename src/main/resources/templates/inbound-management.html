@@ -4,65 +4,202 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/statistics.css}">
-        <link rel="stylesheet" th:href="@{/css/inbound-management.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/inbound-management.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">입고 관리</div>
-<div layout:fragment="content">
-    <div id="ibLoading" class="dash-loading">불러오는 중...</div>
-    <div id="ibError" class="dash-error" style="display:none"></div>
-    <div id="ibBody" style="display:none">
-        <div class="kpi-grid">
-            <div class="card kpi-card">
-                <div class="kpi-label">오늘 처리 건수</div>
-                <div class="kpi-value" id="kpiTodayProcessed">-</div>
+
+<div layout:fragment="content" class="adm-page inbound-management">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1201]</span> 입고 관리</h1>
+            <span class="adm-screen-path">입고 · 매도 &gt; 입고 관리</span>
+        </div>
+
+        <!-- 요약: GET /api/admin/inbounds/summary. 원본은 3칸(처리 건수·총 승인수량·반려 건수).
+             한도초과·감액 건수(todayReducedCount)는 원본에 없는 기존 값이라 칸만 만들어 숨겨 두고 값은 받아 둔다(배치는 사용자 선택 대기) -->
+        <div class="adm-summary" id="inbound-summary">
+            <div class="adm-summary-item" title="오늘 처리된 입고 건수">
+                <span class="adm-summary-label">오늘 처리 건수</span>
+                <span class="adm-summary-value" id="inbound-summary-processed">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div class="card kpi-card kpi-card-danger">
-                <div class="kpi-label">오늘 반려 건수</div>
-                <div class="kpi-value kpi-value-danger" id="kpiTodayRejected">-</div>
+            <div class="adm-summary-item" title="오늘 처리된 입고의 승인수량 합계">
+                <span class="adm-summary-label">오늘 총 승인수량</span>
+                <span class="adm-summary-value" id="inbound-summary-approved-qty">-</span>
+                <span class="adm-summary-unit">주</span>
             </div>
-            <div class="card kpi-card">
-                <div class="kpi-label">오늘 한도초과·감액 건수</div>
-                <div class="kpi-value" id="kpiTodayReduced">-</div>
+            <div class="adm-summary-item" title="오늘 처리된 입고 중 반려된(승인수량 0주) 건수">
+                <span class="adm-summary-label">오늘 반려 건수</span>
+                <span class="adm-summary-value" id="inbound-summary-rejected">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
-            <div class="card kpi-card">
-                <div class="kpi-label">오늘 총 승인수량</div>
-                <div class="kpi-value" id="kpiTodayApprovedQty">-</div>
+            <div class="adm-summary-item" id="inbound-summary-reduced-item" hidden title="오늘 처리된 입고 중 한도초과·감액된 건수">
+                <span class="adm-summary-label">오늘 한도초과·감액 건수</span>
+                <span class="adm-summary-value" id="inbound-summary-reduced">-</span>
+                <span class="adm-summary-unit">건</span>
             </div>
         </div>
-        <div class="ib-layout">
-            <div class="card ib-account-card">
-                <div class="section-header">
-                    <span>계좌 목록</span>
-                    <span class="section-sub" id="ibAccountCount">0개 계좌</span>
-                </div>
-                <div class="filter-bar ib-account-filter-bar">
-                    <input type="text" id="ibAccountSearch" class="filter-input" placeholder="고객명 또는 계좌번호 검색">
-                    <button type="button" id="ibAccountSearchSubmit" class="btn btn-primary">검색</button>
-                    <button type="button" id="ibAccountSearchReset" class="btn">초기화</button>
-                </div>
-                <div id="ibAccountItems" class="ib-list-items"></div>
-                <div id="ibAccountPagination" class="pagination"></div>
+
+        <!-- 조회조건: 원본의 종목·처리일자 조건은 API 에 없어 만들지 않음(요청 #57). 옛 화면의 계좌 검색(?keyword=)이 검색어 칸 -->
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="inbound-account-search">검색어
+                    <input id="inbound-account-search" class="adm-input" type="text"
+                           placeholder="계좌번호, 고객명으로 검색" autocomplete="off">
+                </label>
             </div>
-            <div class="card ib-inbound-card">
-                <div class="section-header">
-                    <span id="ibInboundTitle">입고 내역</span>
-                    <span class="section-sub" id="ibInboundCount">0건</span>
-                </div>
-                <div id="ibInboundItems" class="ib-list-items"></div>
-                <div id="ibInboundPagination" class="pagination"></div>
+            <div class="adm-qbtns">
+                <button type="button" id="inbound-account-search-submit" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="inbound-account-search-reset" class="adm-btn adm-btn-md">초기화</button>
             </div>
         </div>
+    </section>
+
+    <div class="inbound-split">
+        <!-- 왼쪽: 입고 이력이 있는 계좌 목록 (master) -->
+        <section class="adm-master" aria-label="계좌 목록">
+            <div class="adm-master-head">
+                <span class="adm-master-title">계좌 목록</span>
+                <span class="adm-master-count"><b id="inbound-account-count">-</b>개</span>
+            </div>
+            <div class="adm-master-cols" aria-hidden="true">
+                <span>계좌번호 / 고객</span>
+                <span class="is-c">입고</span>
+            </div>
+            <div class="adm-master-list" id="inbound-account-list"></div>
+            <div class="adm-master-foot">
+                <div class="adm-pager" id="inbound-account-pagination"></div>
+            </div>
+        </section>
+
+        <!-- 오른쪽: 선택한 계좌의 입고 내역 -->
+        <section class="adm-grid">
+            <div class="adm-grid-head">
+                <span class="adm-grid-title">입고 내역</span>
+                <span class="adm-grid-total">총 <b id="inbound-count">-</b>건</span>
+                <div class="adm-pager" id="inbound-pagination"></div>
+                <div class="adm-per">페이지당
+                    <div class="adm-seg" id="inbound-page-size" role="group" aria-label="페이지당 건수">
+                        <button type="button" data-size="20" class="is-on">20</button>
+                        <button type="button" data-size="50">50</button>
+                        <button type="button" data-size="100">100</button>
+                    </div>건
+                </div>
+                <span class="inbound-selected-account" id="inbound-selected-account"></span>
+            </div>
+            <div class="adm-grid-body">
+                <div class="adm-grid-scroll">
+                    <table class="adm-gtable inbound-table">
+                        <thead>
+                        <tr>
+                            <th class="adm-col-no">No</th>
+                            <th>종목</th>
+                            <th class="is-r inbound-col-req">신청수량</th>
+                            <th class="is-r">기준일수량</th>
+                            <th class="is-r">현재보유수량</th>
+                            <th class="is-r">승인수량</th>
+                            <th>출처</th>
+                            <th>처리일시</th>
+                        </tr>
+                        </thead>
+                        <tbody id="inbound-list">
+                        <tr class="is-state inbound-loading">
+                            <td colspan="8">불러오는 중...</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
     </div>
-    <div id="ibOverlayBackdrop" class="detail-overlay-backdrop" hidden></div>
-    <div id="ibOverlayPanel" class="detail-panel">
-        <button type="button" id="ibOverlayClose" class="detail-panel-close" aria-label="닫기">&times;</button>
-        <div id="ibOverlayBody" class="detail-panel-body"></div>
-    </div>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다.
+         입고 승인·반려·일괄 버튼은 만들지 않는다 — 입고는 자동 MIN 처리이고 승인 API(POST)는 입고 신청 전용 -->
+    <div class="adm-scrim" id="inbound-drawer-backdrop"></div>
+    <aside class="adm-panel" id="inbound-detail-drawer" aria-label="입고 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1201]</span>
+                <span class="adm-panel-name" id="inbound-detail-title">-</span>
+                <span class="adm-panel-sub" id="inbound-detail-sub">-</span>
+            </div>
+            <button type="button" class="adm-panel-close" id="inbound-drawer-close" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div>
+                <div class="adm-section-title">기본 정보</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">출처</div>
+                    <div class="adm-kv-v" id="inbound-detail-source">-</div>
+                    <div class="adm-kv-k">처리일시</div>
+                    <div class="adm-kv-v" id="inbound-detail-processed-at">-</div>
+                    <div class="adm-kv-k">승인수량</div>
+                    <div class="adm-kv-v" id="inbound-detail-approved">-</div>
+                    <div class="adm-kv-k">잔여 가능 수량</div>
+                    <div class="adm-kv-v" id="inbound-detail-remaining">-</div>
+                </div>
+            </div>
+
+            <div>
+                <div class="adm-section-title">승인수량 계산 근거 <span class="adm-section-sub">· 세 값 중 최소</span></div>
+                <div class="adm-cmp" id="inbound-cmp">
+                    <div class="adm-cmp-card" id="inbound-cmp-requested">
+                        <div class="adm-cmp-label">신청 수량</div>
+                        <div class="adm-cmp-val"><b></b><small>주</small><span class="adm-cmp-min">최소</span></div>
+                    </div>
+                    <div class="adm-cmp-card" id="inbound-cmp-snapshot">
+                        <div class="adm-cmp-label">2025.12.23 기준 보유</div>
+                        <div class="adm-cmp-val"><b></b><small>주</small><span class="adm-cmp-min">최소</span></div>
+                    </div>
+                    <div class="adm-cmp-card" id="inbound-cmp-holding">
+                        <div class="adm-cmp-label">요청 시점 보유</div>
+                        <div class="adm-cmp-val"><b></b><small>주</small><span class="adm-cmp-min">최소</span></div>
+                    </div>
+                </div>
+                <div class="adm-cmp-result">
+                    <span class="adm-cmp-result-k">min(신청, 기준일, 실보유) = 승인수량</span>
+                    <span class="adm-cmp-result-val"><b id="inbound-cmp-result">-</b>주</span>
+                </div>
+            </div>
+
+            <!-- 세 값의 최소와 승인수량이 다를 때(이미 승인된 수량이 있거나 0주 승인) 이유를 알려 준다 -->
+            <div id="inbound-reduced-note" class="adm-notice is-box" hidden></div>
+            <div id="inbound-zero-warning" class="adm-notice is-box is-warn" hidden></div>
+
+            <div>
+                <div class="adm-section-title">취득 정보 <span class="adm-section-sub" id="inbound-lot-count"></span></div>
+                <div id="inbound-lots"></div>
+            </div>
+
+            <!-- 원본에 없는 기존 요소(가용수량 분해·기존 승인 내역): 지우지 않고 접어 둔다. 처음엔 접힘 -->
+            <div>
+                <button type="button" class="adm-fold" id="inbound-fold-toggle" aria-expanded="false" aria-controls="inbound-fold-body">
+                    <span class="adm-section-title">기존 승인 내역 · 가용수량</span>
+                    <svg class="adm-fold-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div id="inbound-fold-body" hidden>
+                    <div class="adm-kv">
+                        <div class="adm-kv-k">12.23 기준수량 (한도)</div>
+                        <div class="adm-kv-v" id="inbound-detail-snapshot">-</div>
+                        <div class="adm-kv-k">기존 승인 누적</div>
+                        <div class="adm-kv-v" id="inbound-detail-prior-sum">-</div>
+                        <div class="adm-kv-k">가용수량</div>
+                        <div class="adm-kv-v" id="inbound-detail-available">-</div>
+                    </div>
+                    <div class="adm-section-title inbound-prior-title">이 계좌·종목 기존 승인 내역</div>
+                    <div id="inbound-prior-approvals"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
 </div>
+
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/inbound-management.js}"></script>
 </th:block>
 </body>

@@ -4,179 +4,209 @@
       layout:decorate="~{layout/main}">
 <head>
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/statistics.css}">
-        <link rel="stylesheet" th:href="@{/css/sell-order.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/sell-order.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">매도 · 환전</div>
 
-<div layout:fragment="content" class="sellorder">
-    <div class="sellorder-header">
-        <div>
-            <h1 class="sellorder-page-title">매도 · 환전</h1>
+<div layout:fragment="content" class="adm-page sellorder">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1202]</span> 매도 · 환전</h1>
+            <span class="adm-screen-path">입고 · 매도 &gt; 매도 · 환전</span>
         </div>
-    </div>
 
-    <div class="kpi-grid sellorder-kpi-grid">
-        <div class="card kpi-card">
-            <div class="kpi-label">오늘 매도금액</div>
-            <div class="kpi-value" id="kpiTodaySellAmount">-</div>
-            <div class="kpi-change" id="kpiTodaySellAmountChange"></div>
+        <!-- 요약: /api/admin/sell-orders/summary (SellOrderSummaryResponseDTO) -->
+        <div class="adm-summary" id="sellOrderSummary">
+            <div class="adm-summary-item" title="오늘 체결된 매도 건수">
+                <span class="adm-summary-label">오늘 매도 건수</span>
+                <span class="adm-summary-value" id="kpiTodayExecutedCount">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <div class="adm-summary-item" title="가환전은 됐지만 아직 원화로 확정되지 않은 금액">
+                <span class="adm-summary-label">체결 · 원화 확정 대기</span>
+                <span class="adm-summary-value" id="kpiPendingProvisionalAmount">-</span>
+                <span class="adm-summary-unit">원</span>
+            </div>
+            <div class="adm-summary-item" title="오늘 확정산이 끝난 금액">
+                <span class="adm-summary-label">원화 확정 합계</span>
+                <span class="adm-summary-value" id="kpiTodayFinalizedAmount">-</span>
+                <span class="adm-summary-unit">원</span>
+            </div>
+            <div class="adm-summary-item" title="준비 중" id="sellOrderFailedItem">
+                <span class="adm-summary-label">실패</span>
+                <span class="adm-summary-value" id="kpiFailedCount">-</span>
+                <span class="adm-summary-unit">건</span>
+            </div>
+            <!-- 원본에 없는 기존 요소(오늘 매도금액과 전일 대비 증감): 지우지 않고 숨겨 둔다. summary 응답 값은 그대로 채운다 -->
+            <div class="adm-summary-item" id="sellOrderSummaryExtra" hidden>
+                <span class="adm-summary-label">오늘 매도금액</span>
+                <span class="adm-summary-value" id="kpiTodaySellAmount">-</span>
+                <span class="adm-summary-unit">원</span>
+                <span class="adm-summary-unit" id="kpiTodaySellAmountChange"></span>
+                <span class="adm-summary-unit" id="kpiTodayExecutedCountChange"></span>
+            </div>
         </div>
-        <div class="card kpi-card">
-            <div class="kpi-label">오늘 체결 건수</div>
-            <div class="kpi-value" id="kpiTodayExecutedCount">-</div>
-            <div class="kpi-change" id="kpiTodayExecutedCountChange"></div>
-        </div>
-        <div class="card kpi-card">
-            <div class="kpi-label">가환전 대기금액</div>
-            <div class="kpi-value" id="kpiPendingProvisionalAmount">-</div>
-        </div>
-        <div class="card kpi-card">
-            <div class="kpi-label">오늘 확정산 완료금액</div>
-            <div class="kpi-value" id="kpiTodayFinalizedAmount">-</div>
-        </div>
-    </div>
 
-    <section class="card sellorder-history">
-        <div class="section-header">
-            <span>매도 · 환전 내역</span>
-            <span class="section-sub" id="sellOrderCount">0건</span>
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="sellOrderFilterKeyword">검색어
+                    <input id="sellOrderFilterKeyword" class="adm-input" type="text"
+                           placeholder="계좌번호 또는 고객명" autocomplete="off">
+                </label>
+                <label class="adm-qfield" for="sellOrderFilterStatus">상태
+                    <span class="adm-select-wrap">
+                        <select id="sellOrderFilterStatus" class="adm-input adm-select">
+                            <option value="">전체</option>
+                        </select>
+                    </span>
+                </label>
+                <div class="adm-qfield adm-qfield-range">매도일자
+                    <input id="sellOrderFilterStartDate" class="adm-input" type="date" aria-label="매도일자 시작">
+                    <span class="adm-qsep">~</span>
+                    <input id="sellOrderFilterEndDate" class="adm-input" type="date" aria-label="매도일자 끝">
+                </div>
+            </div>
+            <div class="adm-qbtns">
+                <button type="button" id="sellOrderFilterSearch" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
+                <button type="button" id="sellOrderFilterReset" class="adm-btn adm-btn-md">초기화</button>
+            </div>
         </div>
-        <div class="filter-bar sellorder-filter-bar">
-            <select id="sellOrderFilterStatus" class="filter-select">
-                <option value="">전체 상태</option>
-                <option value="EXECUTED">체결</option>
-                <option value="REJECTED">거부</option>
-            </select>
-            <input id="sellOrderFilterStartDate" class="filter-input sellorder-filter-date" type="date">
-            <span class="sellorder-filter-date-separator">~</span>
-            <input id="sellOrderFilterEndDate" class="filter-input sellorder-filter-date" type="date">
-            <input id="sellOrderFilterKeyword" class="filter-input sellorder-filter-keyword" type="text" placeholder="계좌번호 또는 고객명" autocomplete="off">
-            <button type="button" id="sellOrderFilterSearch" class="btn btn-primary">검색</button>
-            <button type="button" id="sellOrderFilterReset" class="btn">초기화</button>
-        </div>
-        <p id="sellOrderError" class="sellorder-form-error" style="display:none"></p>
-
-        <div class="sellorder-table-wrap">
-            <table class="sellorder-table">
-                <colgroup>
-                    <col style="width: 11%">
-                    <col style="width: 18%">
-                    <col style="width: 9%">
-                    <col style="width: 12%">
-                    <col style="width: 15%">
-                    <col style="width: 12%">
-                    <col style="width: 12%">
-                    <col style="width: 11%">
-                </colgroup>
-                <thead>
-                <tr>
-                    <th>계좌번호 / 고객명</th>
-                    <th>종목</th>
-                    <th>매도수량</th>
-                    <th>매도기준가</th>
-                    <th>매도시각</th>
-                    <th>가환전액</th>
-                    <th>확정액</th>
-                    <th>상태</th>
-                </tr>
-                </thead>
-                <tbody id="sellOrderListBody">
-                <tr>
-                    <td colspan="8" class="sellorder-loading">불러오는 중...</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="pagination" id="sellOrderPagination"></div>
     </section>
 
-    <div id="sellorder-drawer-backdrop" class="sellorder-drawer-backdrop" hidden></div>
-    <aside id="sellorder-detail-drawer" class="sellorder-detail-drawer"
-           aria-labelledby="sellorder-detail-title" aria-hidden="true">
-        <div class="sellorder-drawer-header">
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">매도 내역</span>
+            <span class="adm-grid-total">총 <b id="sellOrderCount">-</b>건</span>
+            <div class="adm-pager" id="sellOrderPagination"></div>
+            <div class="adm-per">페이지당
+                <div class="adm-seg" id="sellOrderPageSize" role="group" aria-label="페이지당 건수">
+                    <button type="button" data-size="20" class="is-on">20</button>
+                    <button type="button" data-size="50">50</button>
+                    <button type="button" data-size="100">100</button>
+                </div>건
+            </div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable sellorder-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th>계좌번호</th>
+                        <th>고객명</th>
+                        <th>종목</th>
+                        <th class="is-r">매도수량</th>
+                        <th class="is-r">매도기준가</th>
+                        <th>매도시각</th>
+                        <th class="is-r">가환전액</th>
+                        <th class="is-r">확정액</th>
+                        <th class="is-c">상태</th>
+                    </tr>
+                    </thead>
+                    <tbody id="sellOrderListBody">
+                    <tr class="is-state sellorder-loading">
+                        <td colspan="10">불러오는 중...</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="sellorder-drawer-backdrop"></div>
+    <aside class="adm-panel" id="sellorder-detail-panel" aria-label="매도 · 환전 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1202]</span>
+                <span class="adm-panel-name" id="sellorder-detail-title">-</span>
+                <span class="adm-panel-sub"><span id="sellorder-detail-customer-name">-</span> · <span id="sellorder-detail-account-no">-</span></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="sellorder-drawer-close" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
             <div>
-                <span class="sellorder-section-label">매도 · 환전 상세</span>
-                <h2 id="sellorder-detail-title">매도 내역</h2>
+                <div class="adm-section-title">기본 정보</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">상태</div>
+                    <div class="adm-kv-v"><span id="sellorder-detail-status">-</span></div>
+                    <div class="adm-kv-k">매도기준가</div>
+                    <div class="adm-kv-v" id="sellorder-detail-base-price">-</div>
+                    <div class="adm-kv-k">가환전액</div>
+                    <div class="adm-kv-v" id="sellorder-detail-provisional-amount">-</div>
+                    <div class="adm-kv-k">확정액</div>
+                    <div class="adm-kv-v" id="sellorder-detail-final-amount">-</div>
+                </div>
             </div>
-            <div class="sellorder-drawer-actions">
-                <span id="sellorder-detail-status" class="sellorder-status-badge"></span>
-                <button type="button" id="sellorder-drawer-close" aria-label="상세 닫기">&times;</button>
+
+            <div>
+                <div class="adm-section-title">처리 단계</div>
+                <div class="adm-flow" id="sellorder-detail-flow"></div>
+            </div>
+
+            <div>
+                <div class="adm-tabs" role="tablist">
+                    <button type="button" class="adm-tab is-on" role="tab" aria-selected="true">매수 lot</button>
+                </div>
+                <div class="adm-grid-scroll">
+                    <table class="adm-gtable sellorder-lot-table">
+                        <thead>
+                        <tr>
+                            <th class="adm-col-no">No</th>
+                            <th>입고 출처</th>
+                            <th class="is-c">매수일</th>
+                            <th class="is-r">매수단가</th>
+                            <th class="is-r">수량</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td class="adm-col-no">1</td>
+                            <td><span id="sellorder-detail-source-broker">-</span></td>
+                            <td class="is-c"><span id="sellorder-detail-purchase-date">-</span></td>
+                            <td class="is-r"><span id="sellorder-detail-purchase-price">-</span></td>
+                            <td class="is-r"><span id="sellorder-detail-lot-qty">-</span></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 원본에 없는 기존 요소(정산 상세): 지우지 않고 접어 둔다. 처음엔 접힘 -->
+            <div>
+                <button type="button" class="adm-fold" id="sellorder-fold-toggle" aria-expanded="false" aria-controls="sellorder-fold-body">
+                    <span class="adm-section-title">정산 상세</span>
+                    <svg class="adm-fold-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="adm-kv" id="sellorder-fold-body" hidden>
+                    <div class="adm-kv-k">매도수량</div>
+                    <div class="adm-kv-v" id="sellorder-detail-qty">-</div>
+                    <div class="adm-kv-k">매도시각</div>
+                    <div class="adm-kv-v" id="sellorder-detail-processed-at">-</div>
+                    <div class="adm-kv-k">정산환율</div>
+                    <div class="adm-kv-v" id="sellorder-detail-fx-rate">-</div>
+                    <div class="adm-kv-k">체결대비 차이</div>
+                    <div class="adm-kv-v" id="sellorder-detail-variance">-</div>
+                    <div class="adm-kv-k">가환전 시각</div>
+                    <div class="adm-kv-v" id="sellorder-detail-provisional-at">-</div>
+                    <div class="adm-kv-k">확정 환율</div>
+                    <div class="adm-kv-v" id="sellorder-detail-final-rate">-</div>
+                    <div class="adm-kv-k">T+2 결제일</div>
+                    <div class="adm-kv-v" id="sellorder-detail-final-at">-</div>
+                    <div class="adm-kv-k">정산 상태</div>
+                    <div class="adm-kv-v" id="sellorder-detail-settlement-status">-</div>
+                </div>
             </div>
         </div>
-
-        <div class="sellorder-drawer-section-title">기본 정보</div>
-        <table class="dash-table sellorder-drawer-table">
-            <thead>
-            <tr>
-                <th>계좌번호</th>
-                <th>고객명</th>
-                <th>종목</th>
-                <th>매도수량</th>
-                <th>매도시각</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr>
-                <td id="sellorder-detail-account-no">-</td>
-                <td id="sellorder-detail-customer-name">-</td>
-                <td id="sellorder-detail-product">-</td>
-                <td id="sellorder-detail-qty">-</td>
-                <td id="sellorder-detail-processed-at">-</td>
-            </tr>
-            </tbody>
-        </table>
-
-        <div class="sellorder-summary-grid">
-            <article class="sellorder-summary-box">
-                <span>매도기준가</span>
-                <strong id="sellorder-detail-base-price">-</strong>
-                <small id="sellorder-detail-fx-rate">-</small>
-            </article>
-            <article class="sellorder-summary-box">
-                <span>가환전액</span>
-                <strong id="sellorder-detail-provisional-amount">-</strong>
-            </article>
-            <article class="sellorder-summary-box">
-                <span>확정액</span>
-                <strong id="sellorder-detail-final-amount">-</strong>
-                <small id="sellorder-detail-variance">-</small>
-            </article>
-        </div>
-
-        <div class="sellorder-drawer-section-title">가환전 · 확정산</div>
-        <dl class="sellorder-detail-grid">
-            <div><dt>가환전액</dt><dd id="sellorder-detail-provisional-amount-detail">-</dd></div>
-            <div><dt>가환전 시각</dt><dd id="sellorder-detail-provisional-at">-</dd></div>
-            <div><dt>확정 환율</dt><dd id="sellorder-detail-final-rate">-</dd></div>
-            <div><dt>확정액</dt><dd id="sellorder-detail-final-amount-detail">-</dd></div>
-            <div><dt>T+2 결제일</dt><dd id="sellorder-detail-final-at">-</dd></div>
-            <div><dt>정산 상태</dt><dd id="sellorder-detail-settlement-status">-</dd></div>
-        </dl>
-
-        <div class="sellorder-drawer-section-title">매도 lot 출처</div>
-        <table class="dash-table sellorder-drawer-table">
-            <thead>
-            <tr>
-                <th>입고 출처</th>
-                <th>매수일</th>
-                <th>매수단가</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr>
-                <td id="sellorder-detail-source-broker">-</td>
-                <td id="sellorder-detail-purchase-date">-</td>
-                <td id="sellorder-detail-purchase-price">-</td>
-            </tr>
-            </tbody>
-        </table>
     </aside>
 </div>
 
 <th:block layout:fragment="pageScripts">
+    <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/sell-order.js}"></script>
 </th:block>
 </body>
