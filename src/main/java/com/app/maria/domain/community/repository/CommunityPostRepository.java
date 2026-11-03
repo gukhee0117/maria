@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -116,6 +117,20 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
     /** 전체 하루 상한 계산용: 그 시각 이후 만들어진 글 중 해당 상태인 것의 수. */
     long countByKkiruStatusInAndCreatedAtGreaterThanEqual(
             Collection<KkiruStatus> statuses, LocalDateTime since);
+
+    /** 오래된 PENDING 정리: cutoff 이전에 만들어졌고 보호 목록에 없는 PENDING을 FAILED로. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            """
+            update CommunityPostEntity p
+            set p.kkiruStatus = com.app.maria.domain.community.type.KkiruStatus.FAILED
+            where p.kkiruStatus = com.app.maria.domain.community.type.KkiruStatus.PENDING
+                and p.createdAt < :cutoff
+                and p.communityPostId not in :protectedIds
+            """)
+    int failStalePending(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("protectedIds") Collection<Long> protectedIds);
 
     long countByCustomerIdAndKkiruStatusIsNotNullAndCreatedAtGreaterThanEqual(
             Long customerId, LocalDateTime since);
