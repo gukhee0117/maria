@@ -153,6 +153,7 @@ class CommunityRepositoryTest {
         CommunityPostEntity percent = post(7, "000660", "수익률 100% 라는데");
         CommunityPostEntity underscore = post(7, "000660", "a_b 같은 코드");
         CommunityPostEntity plain = post(7, "000660", "aXb 평범한 글");
+        CommunityPostEntity bang = post(7, "000660", "대박! 이건 !중요");
         CommunityPostEntity hidden = post(7, "000660", "비밀키워드 포함");
         hidden.hide();
         posts.flush();
@@ -161,13 +162,15 @@ class CommunityRepositoryTest {
         assertThat(ids(search("100%"))).containsExactly(percent.getCommunityPostId());
         assertThat(ids(search("%"))).containsExactly(percent.getCommunityPostId());
         assertThat(ids(search("a_b"))).containsExactly(underscore.getCommunityPostId());
+        assertThat(ids(search("!"))).containsExactly(bang.getCommunityPostId());
+        assertThat(ids(search("박!"))).containsExactly(bang.getCommunityPostId());
         assertThat(ids(search("비밀키워드"))).isEmpty();
         assertThat(plain.getCommunityPostId()).isNotNull();
     }
 
     private List<CommunityPostEntity> search(String keyword) {
         String escaped =
-                keyword.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                keyword.toLowerCase().replace("!", "!!").replace("%", "!%").replace("_", "!_");
         return posts.findFeed(NO_CURSOR, true, false, "", true, "%" + escaped + "%", TEN);
     }
 
@@ -191,13 +194,28 @@ class CommunityRepositoryTest {
         posts.flush();
         LocalDateTime since = NOW.minusDays(7);
 
-        List<CommunityPostEntity> hynix = posts.findPopular(since, false, "000660", TEN);
-        List<CommunityPostEntity> all = posts.findPopular(since, true, "", TEN);
+        List<CommunityPostEntity> hynix = posts.findPopular(since, false, false, "000660", TEN);
+        List<CommunityPostEntity> all = posts.findPopular(since, true, false, "", TEN);
 
         assertThat(ids(hynix)).containsExactly(a.getCommunityPostId(), b.getCommunityPostId());
         assertThat(ids(all))
                 .containsExactly(
                         other.getCommunityPostId(), a.getCommunityPostId(), b.getCommunityPostId());
+    }
+
+    @Test
+    @DisplayName("인기글: 일반 글(종목 없음)만 따로 볼 수 있다")
+    void popularGeneral() {
+        CommunityPostEntity general = post(7, null, "종목 없는 글");
+        CommunityPostEntity ticker = post(7, "000660", "종목 글");
+        comment(general, 8);
+        comment(ticker, 8);
+        comment(ticker, 8);
+
+        List<CommunityPostEntity> result =
+                posts.findPopular(NOW.minusDays(7), false, true, "", TEN);
+
+        assertThat(ids(result)).containsExactly(general.getCommunityPostId());
     }
 
     @Test
@@ -209,7 +227,7 @@ class CommunityRepositoryTest {
         comment(newer, 8);
 
         List<CommunityPostEntity> result =
-                posts.findPopular(NOW.minusDays(7), false, "000660", TEN);
+                posts.findPopular(NOW.minusDays(7), false, false, "000660", TEN);
 
         assertThat(ids(result))
                 .containsExactly(newer.getCommunityPostId(), older.getCommunityPostId());
@@ -326,7 +344,7 @@ class CommunityRepositoryTest {
 
     @Test
     @DisplayName("끼루가 이미 답했는지: 댓글에서 호출한 경우와 글 본문에서 호출한 경우를 구분한다")
-    void kiruAnsweredChecks() {
+    void kkiruAnsweredChecks() {
         CommunityPostEntity p = post(7, "000660", "@끼루 공시 있나요");
         CommunityCommentEntity called = comment(p, 8);
 
@@ -358,10 +376,11 @@ class CommunityRepositoryTest {
 
     @Test
     @DisplayName("끼루 호출 횟수는 글 단위, 사용자 단위(글+댓글)로 센다")
-    void kiruCallCounts() {
+    void kkiruCallCounts() {
         CommunityPostEntity p =
                 posts.saveAndFlush(
-                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
+                        CommunityPostEntity.write(
+                                7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
         comments.saveAndFlush(
                 CommunityCommentEntity.ofCustomer(
                         p.getCommunityPostId(), null, 7L, "@끼루 또", KkiruStatus.PENDING, NOW));
@@ -544,10 +563,11 @@ class CommunityRepositoryTest {
 
     @Test
     @DisplayName("끼루 상태와 수정 시각이 저장되고 다시 읽힌다")
-    void persistsKiruAndEdit() {
+    void persistsKkiruAndEdit() {
         CommunityPostEntity p =
                 posts.saveAndFlush(
-                        CommunityPostEntity.write(7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
+                        CommunityPostEntity.write(
+                                7L, "000660", "@끼루 질문", KkiruStatus.PENDING, NOW));
         p.moveKkiruStatus(KkiruStatus.NO_SOURCE);
         posts.flush();
 

@@ -27,7 +27,7 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
                     or (:general = false and p.ticker = :ticker))
                 and (:hasKeyword = false
                     or (p.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
-                        and lower(p.content) like :pattern escape '\\'))
+                        and lower(p.content) like :pattern escape '!'))
                 and (p.status <> com.app.maria.domain.community.type.CommunityStatus.DELETED
                     or  exists (select 1 from CommunityCommentEntity c
                         where c.communityPostId = p.communityPostId
@@ -50,13 +50,16 @@ public interface CommunityPostRepository extends JpaRepository<CommunityPostEnti
         where p.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
             and c.status = com.app.maria.domain.community.type.CommunityStatus.VISIBLE
             and p.createdAt >= :since
-            and (:allTickers = true or p.ticker = :ticker)
+            and (:allTickers = true
+                or (:general = true and p.ticker is null)
+                or (:general = false and p.ticker = :ticker))
         group by p
         order by count(c) desc, p.communityPostId desc
         """)
     List<CommunityPostEntity> findPopular(
             @Param("since") LocalDateTime since,
             @Param("allTickers") boolean allTickers,
+            @Param("general") boolean general,
             @Param("ticker") String ticker,
             Pageable pageable);
 
