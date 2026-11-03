@@ -39,8 +39,10 @@ public class CustomerWithdrawalApi {
     }
 
     @GetMapping("/withdrawals/availability")
-    public ResponseEntity<ApiResponseDTO<CustomerWithdrawalAvailabilityResponseDTO>> getAvailability(
-            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
+    public ResponseEntity<ApiResponseDTO<CustomerWithdrawalAvailabilityResponseDTO>>
+            getAvailability(
+                    @AuthenticationPrincipal(errorOnInvalidType = true)
+                            CustomerPrincipal principal) {
         return ResponseEntity.ok(
                 ApiResponseDTO.of(
                         "인출 가능 금액 조회 성공",

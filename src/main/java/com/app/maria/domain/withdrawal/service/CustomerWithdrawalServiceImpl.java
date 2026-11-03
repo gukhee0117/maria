@@ -60,8 +60,7 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
         BigDecimal provisionalTotal =
                 withdrawalMapper.selectProvisionalAmountByAccountId(account.getAccountId());
         BigDecimal cashAmount = account.getAmount();
-        BigDecimal requestableAmount =
-                cashAmount.subtract(provisionalTotal).max(BigDecimal.ZERO);
+        BigDecimal requestableAmount = cashAmount.subtract(provisionalTotal).max(BigDecimal.ZERO);
 
         BigDecimal totalPrincipal =
                 leftAmountDTOs.stream()
