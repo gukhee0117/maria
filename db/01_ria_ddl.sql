@@ -5,6 +5,7 @@
 -- 변경: domestic_stock_balance를 증권사 -> RIA로 이동(account/domestic_product FK 복구)
 -- 변경(2차, 이슈 #308): 확정 ERD(docs/phase2-erd-changes.md, ERDCloud ver5) 반영 - 신규 19개 테이블, 기존 테이블 컬럼·제약 변경, FK 29개 추가
 -- 변경(2차, 10-28): customer.investor_type_public 추가, customer_login_history 신규, news_item에 category·picked_slot 추가 + ticker NULL 허용 + (ticker, picked_date) UNIQUE 삭제
+-- 변경(2차, 11-03): community_comment.kiru_status에 FOLLOW_UP 허용, kiru_call_gate 신규(끼루 전체 하루 상한 잠금 행)
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci;

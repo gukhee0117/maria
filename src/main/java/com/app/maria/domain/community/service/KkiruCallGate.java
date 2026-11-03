@@ -18,7 +18,7 @@ public class KkiruCallGate {
                         .getResultList();
         if (rows.isEmpty()) {
             throw new IllegalStateException(
-                    "kiru_call_gate(gate_id=1) 행이 없습니다. db/migrations/002를 확인하세요.");
+                    "kiru_call_gate(gate_id=1) 행이 없습니다. 기준 DDL(db/01_ria_ddl.sql)로 DB를 다시 만들었는지 확인하세요.");
         }
     }
 }
