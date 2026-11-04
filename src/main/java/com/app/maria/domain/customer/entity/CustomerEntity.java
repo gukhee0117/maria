@@ -44,7 +44,7 @@ public class CustomerEntity {
     @Column(name = "ci_hash", nullable = false, length = 64, unique = true)
     private String ciHash;
 
-    /** 커뮤니티에서 보여줄 이름. 시드가 채우고 앱은 조회만 한다. 새로 가입한 고객은 NULL이다(UNIQUE) */
+    /** 커뮤니티에서 보여줄 이름. 앱은 조회만 한다. 시드가 채우고, 없는 고객은 가입할 때 무작위로 붙인다(UNIQUE) */
     @Column(name = "nickname", length = 20)
     private String nickname;
 

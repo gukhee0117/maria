@@ -1,5 +1,6 @@
 package com.app.maria.domain.customer.service;
 
+import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.customer.dto.request.ContactRule;
 import com.app.maria.domain.customer.dto.request.CustomerPasswordChangeRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerProfileUpdateRequestDTO;
@@ -9,6 +10,8 @@ import com.app.maria.domain.customer.entity.CustomerAuthEntity.AuthType;
 import com.app.maria.domain.customer.entity.CustomerEntity;
 import com.app.maria.domain.customer.repository.CustomerAuthRepository;
 import com.app.maria.domain.customer.repository.CustomerRepository;
+import com.app.maria.domain.investorassessment.repository.InvestorAssessmentRepository;
+import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +26,14 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     private final CustomerRepository customerRepository;
     private final CustomerAuthRepository customerAuthRepository;
     private final PasswordEncoder passwordEncoder;
+    private final InvestorAssessmentService investorAssessmentService;
+    private final InvestorAssessmentRepository assessmentRepository;
+    private final AccountMapper accountMapper;
 
     @Override
     @Transactional(transactionManager = "jpaTransactionManager", readOnly = true)
     public CustomerProfileResponseDTO get(Long customerId) {
-        return CustomerProfileResponseDTO.of(find(customerId));
+        return toResponse(find(customerId));
     }
 
     @Override
@@ -43,7 +49,7 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         String phone =
                 request.getPhone() == null ? null : ContactRule.normalizePhone(request.getPhone());
         customer.changeContact(phone, request.getEmail());
-        return CustomerProfileResponseDTO.of(customer);
+        return toResponse(customer);
     }
 
     /**
@@ -68,6 +74,16 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
             throw new AppException(ErrorType.CUSTOMER_PASSWORD_UNCHANGED);
         }
         auth.getPassword().changeHash(passwordEncoder.encode(request.getNewPassword()));
+    }
+
+    private CustomerProfileResponseDTO toResponse(CustomerEntity customer) {
+        Long customerId = customer.getCustomerId();
+        return CustomerProfileResponseDTO.of(
+                customer,
+                investorAssessmentService.getMine(customerId),
+                assessmentRepository.findTop3ByCustomerIdOrderByInvestorAssessmentIdDesc(
+                        customerId),
+                accountMapper.selectByCustomerId(customerId).orElse(null));
     }
 
     private CustomerEntity find(Long customerId) {
