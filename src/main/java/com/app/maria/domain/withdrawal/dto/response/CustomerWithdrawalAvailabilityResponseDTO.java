@@ -11,6 +11,7 @@ public class CustomerWithdrawalAvailabilityResponseDTO {
     private final BigDecimal cashAmount;
     private final BigDecimal provisionalAmount;
     private final BigDecimal requestableAmount;
+    private final BigDecimal earningsAmount;
     private final BigDecimal withdrawableWithoutPenalty;
     private final BigDecimal immaturePrincipalAmount;
     private final LocalDateTime asOf;
@@ -20,6 +21,7 @@ public class CustomerWithdrawalAvailabilityResponseDTO {
             BigDecimal cashAmount,
             BigDecimal provisionalAmount,
             BigDecimal requestableAmount,
+            BigDecimal earningsAmount,
             BigDecimal withdrawableWithoutPenalty,
             BigDecimal immaturePrincipalAmount,
             LocalDateTime asOf,
@@ -27,6 +29,7 @@ public class CustomerWithdrawalAvailabilityResponseDTO {
         this.cashAmount = cashAmount;
         this.provisionalAmount = provisionalAmount;
         this.requestableAmount = requestableAmount;
+        this.earningsAmount = earningsAmount;
         this.withdrawableWithoutPenalty = withdrawableWithoutPenalty;
         this.immaturePrincipalAmount = immaturePrincipalAmount;
         this.asOf = asOf;

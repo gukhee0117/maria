@@ -62,31 +62,32 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
         BigDecimal cashAmount = account.getAmount();
         BigDecimal requestableAmount = cashAmount.subtract(provisionalTotal).max(BigDecimal.ZERO);
 
-        BigDecimal totalPrincipal =
+        List<LeftAmountItem> leftAmounts =
                 leftAmountDTOs.stream()
-                        .map(LeftAmountDTO::getCurAmount)
+                        .map(la -> new LeftAmountItem(la.getFinalAt(), la.getCurAmount(), now))
+                        .toList();
+
+        BigDecimal totalPrincipal =
+                leftAmounts.stream()
+                        .map(LeftAmountItem::getCurAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal earnings = requestableAmount.subtract(totalPrincipal).max(BigDecimal.ZERO);
 
         BigDecimal maturedPrincipal =
-                leftAmountDTOs.stream()
-                        .filter(la -> !la.getFinalAt().plusYears(1).isAfter(now))
-                        .map(LeftAmountDTO::getCurAmount)
+                leftAmounts.stream()
+                        .filter(LeftAmountItem::isMatured)
+                        .map(LeftAmountItem::getCurAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal immaturePrincipalAmount = totalPrincipal.subtract(maturedPrincipal);
 
         BigDecimal withdrawableWithoutPenalty =
                 requestableAmount.min(earnings.add(maturedPrincipal));
 
-        List<LeftAmountItem> leftAmounts =
-                leftAmountDTOs.stream()
-                        .map(la -> new LeftAmountItem(la.getFinalAt(), la.getCurAmount(), now))
-                        .toList();
-
         return new CustomerWithdrawalAvailabilityResponseDTO(
                 cashAmount,
                 provisionalTotal,
                 requestableAmount,
+                earnings,
                 withdrawableWithoutPenalty,
                 immaturePrincipalAmount,
                 now,
