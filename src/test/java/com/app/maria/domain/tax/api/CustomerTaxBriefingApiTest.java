@@ -96,6 +96,28 @@ class CustomerTaxBriefingApiTest {
     }
 
     @Test
+    void cumulativeProjectionExposesFinalizedReliefAndSignedChange() throws Exception {
+        var expected =
+                CustomerTaxBriefingResponseDTO.ExpectedTaxScenario.builder()
+                        .generalTax(new BigDecimal("110000"))
+                        .riaTax(BigDecimal.ZERO)
+                        .reliefAmount(new BigDecimal("110000"))
+                        .finalizedReliefAmount(new BigDecimal("330000"))
+                        .additionalReliefAmount(new BigDecimal("-220000"))
+                        .expectedFinalAt(LocalDate.of(2026, 11, 20))
+                        .holdingCount(1)
+                        .build();
+        when(taxCalculationService.getCustomerExpectedTaxBriefing(CUSTOMER_ID))
+                .thenReturn(expected);
+
+        mockMvc.perform(get("/api/customer/tax/briefing/expected-relief").with(customerAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.generalTax").value(110000))
+                .andExpect(jsonPath("$.data.finalizedReliefAmount").value(330000))
+                .andExpect(jsonPath("$.data.additionalReliefAmount").value(-220000));
+    }
+
+    @Test
     void 미인증_고객은_조회할수없다() throws Exception {
         mockMvc.perform(get("/api/customer/tax/briefing")).andExpect(status().isUnauthorized());
 

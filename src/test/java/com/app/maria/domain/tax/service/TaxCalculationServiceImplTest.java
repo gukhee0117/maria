@@ -12,11 +12,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -31,7 +29,6 @@ import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
-import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
@@ -709,29 +706,85 @@ class TaxCalculationServiceImplTest {
     }
 
     @Test
-    void expectedBriefingReusesPreviewForCustomersOwnAccount() {
-        when(accountMapper.selectByCustomerId(7L))
-                .thenReturn(Optional.of(account(BenefitType.POSSIBLE)));
-        var service = spy(taxCalculationService);
-        var result =
-                TaxCalculationResultDTO.builder()
-                        .originalGainAmount(new BigDecimal("20000000"))
-                        .finalTax(new BigDecimal("1234500"))
-                        .build();
-        doReturn(TaxExpectedReliefResponseDTO.of(ACCOUNT_ID, LocalDate.of(2026, 8, 6), result, 2))
-                .when(service)
-                .previewExpectedRelief(ACCOUNT_ID);
-        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+    void customerProjectionCombinesFinalizedAndHeldGainsWithOneBasicDeduction() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", true);
 
-        var response = service.getCustomerExpectedTaxBriefing(7L);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
 
-        verify(service).previewExpectedRelief(ACCOUNT_ID);
-        assertThat(response.getGeneralTax()).isEqualByComparingTo("3850000");
-        assertThat(response.getReliefAmount()).isEqualByComparingTo("2615500");
-        assertThat(response.getAdditionalReliefAmount()).isNull();
-        assertThat(response.getHoldingCount()).isEqualTo(2);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("770000");
+        assertThat(response.getRiaTax()).isEqualByComparingTo("110000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("660000");
+        assertThat(response.getFinalizedReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getHoldingCount()).isEqualTo(1);
         assertThat(response.getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
+        verify(taxMapper)
+                .selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
+        verify(kisPriceClient, times(1)).getPreviousClose("NAS", "AAPL");
+        verify(exchangeRateClient, times(1)).getBaseRate("USD");
+        verify(taxMapper, times(1)).selectTaxRules();
+        verify(taxMapper, never())
+                .selectProvisionalLotsByAccountIdsAndYear(anyList(), anyInt(), any());
         verifyNoInteractions(taxSnapshotMapper);
+    }
+
+    @Test
+    void customerProjectionOffsetsHeldLossAndKeepsSignedReliefChange() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "400", true);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("110000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("110000");
+        assertThat(response.getFinalizedReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("-220000");
+    }
+
+    @Test
+    void customerProjectionWithoutHoldingsKeepsFinalizedTotalsWithoutPriceRequests() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", false);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("330000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("0");
+        assertThat(response.getHoldingCount()).isZero();
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    void customerProjectionWithRevokedBenefitHasNoReliefOnEitherComponent() {
+        stubCustomerProjection(BenefitType.IMPOSSIBLE, "100", true);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("770000");
+        assertThat(response.getRiaTax()).isEqualByComparingTo("770000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("0");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("0");
+    }
+
+    private void stubCustomerProjection(BenefitType benefit, String purchasePrice, boolean held) {
+        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.of(account(benefit)));
+        stubTaxYearAndClock();
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of(lot(LocalDate.of(2026, 8, 1), "5000000", "100", "100", "100")));
+        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID))
+                .thenReturn(
+                        held
+                                ? List.of(
+                                        heldLot(
+                                                "AAPL",
+                                                "NASDAQ",
+                                                "USD",
+                                                purchasePrice,
+                                                "100",
+                                                "100"))
+                                : List.of());
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+        if (held) {
+            when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
+            when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("200"));
+        }
     }
 
     @Test
