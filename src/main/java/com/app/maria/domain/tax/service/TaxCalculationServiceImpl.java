@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +72,7 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     private final KisPriceClient kisPriceClient;
     private final ExchangeRateClient exchangeRateClient;
     private final SettlementBusinessDayCalculator settlementBusinessDayCalculator;
+    private final TaxExpectedSnapshotReader expectedSnapshotReader;
 
     @Override
     @Transactional(readOnly = true)
@@ -153,29 +155,31 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     @Override
     @Transactional(readOnly = true)
     public TaxExpectedReliefResponseDTO previewExpectedRelief(Long accountId) {
-        return calculateExpectedRelief(findAccount(accountId), false).expected();
+        AccountDTO account = findAccount(accountId);
+        LocalDateTime asOf = clockService.now();
+        List<HeldLotDTO> heldLots = taxMapper.selectHeldLotsByAccountId(accountId);
+        TaxCalculationInputs inputs =
+                new TaxCalculationInputs(
+                        List.of(),
+                        taxMapper.selectTaxRules(),
+                        taxMapper.selectExternalBuysByAccountIdsAndYear(
+                                List.of(accountId), riaTaxProperties.getYear(), asOf));
+        return calculateExpectedRelief(account, heldLots, asOf, inputs, false).expected();
     }
 
     private ExpectedCalculation calculateExpectedRelief(
-            AccountDTO account, boolean includeFinalized) {
+            AccountDTO account,
+            List<HeldLotDTO> heldLots,
+            LocalDateTime asOf,
+            TaxCalculationInputs inputs,
+            boolean includeFinalized) {
         Long accountId = account.getAccountId();
-        List<HeldLotDTO> heldLots = taxMapper.selectHeldLotsByAccountId(accountId);
 
         LocalDate expectedFinalAt =
-                settlementBusinessDayCalculator.calculateFinalAt(clockService.now()).toLocalDate();
+                settlementBusinessDayCalculator.calculateFinalAt(asOf).toLocalDate();
         List<SellLotDTO> hypotheticalSellLots =
                 buildHypotheticalSellLots(accountId, heldLots, expectedFinalAt);
 
-        TaxCalculationInputs inputs =
-                includeFinalized
-                        ? loadInputs(account)
-                        : new TaxCalculationInputs(
-                                List.of(),
-                                taxMapper.selectTaxRules(),
-                                taxMapper.selectExternalBuysByAccountIdsAndYear(
-                                        List.of(accountId),
-                                        riaTaxProperties.getYear(),
-                                        clockService.now()));
         List<SellLotDTO> combinedLots = new ArrayList<>(inputs.sellLots());
         combinedLots.addAll(hypotheticalSellLots);
 
@@ -239,14 +243,26 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     @Override
     public CustomerTaxBriefingResponseDTO.ExpectedTaxScenario getCustomerExpectedTaxBriefing(
             Long customerId) {
-        AccountDTO account = findCustomerAccount(customerId);
-        ExpectedCalculation calculation = calculateExpectedRelief(account, true);
+        var snapshot = expectedSnapshotReader.readCustomer(customerId);
+        ExpectedCalculation calculation =
+                calculateExpectedRelief(
+                        snapshot.account(),
+                        snapshot.heldLots(),
+                        snapshot.asOf(),
+                        new TaxCalculationInputs(
+                                snapshot.finalizedLots(),
+                                snapshot.rules(),
+                                snapshot.externalTrades()),
+                        true);
         TaxExpectedReliefResponseDTO expected = calculation.expected();
         var result = expected.getTaxCalculationResultDTO();
         var scenario =
                 briefingScenario(
                         result.getOriginalGainAmount(), result.getFinalTax(), calculation.rules());
-        var finalized = calculation.finalized();
+        var finalized =
+                Objects.requireNonNull(
+                        calculation.finalized(),
+                        "Customer projection requires finalized calculation result");
         var finalizedScenario =
                 briefingScenario(
                         finalized.getOriginalGainAmount(),

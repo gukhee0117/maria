@@ -99,6 +99,8 @@ class TaxCalculationServiceImplTest {
 
     @Mock SettlementBusinessDayCalculator settlementBusinessDayCalculator;
 
+    @Mock TaxExpectedSnapshotReader expectedSnapshotReader;
+
     @InjectMocks TaxCalculationServiceImpl taxCalculationService;
 
     @Test
@@ -718,14 +720,10 @@ class TaxCalculationServiceImplTest {
         assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("330000");
         assertThat(response.getHoldingCount()).isEqualTo(1);
         assertThat(response.getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
-        verify(taxMapper)
-                .selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW);
+        verify(expectedSnapshotReader).readCustomer(7L);
         verify(kisPriceClient, times(1)).getPreviousClose("NAS", "AAPL");
         verify(exchangeRateClient, times(1)).getBaseRate("USD");
-        verify(taxMapper, times(1)).selectTaxRules();
-        verify(taxMapper, never())
-                .selectProvisionalLotsByAccountIdsAndYear(anyList(), anyInt(), any());
-        verifyNoInteractions(taxSnapshotMapper);
+        verifyNoInteractions(taxMapper, taxSnapshotMapper);
     }
 
     @Test
@@ -760,27 +758,28 @@ class TaxCalculationServiceImplTest {
     }
 
     private void stubCustomerProjection(BenefitType benefit, String purchasePrice, boolean held) {
-        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.of(account(benefit)));
-        stubTaxYearAndClock();
-        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
-                .thenReturn(List.of(lot(LocalDate.of(2026, 8, 1), "5000000", "100", "100", "100")));
-        when(taxMapper.selectHeldLotsByAccountId(ACCOUNT_ID))
+        lenient().when(clockService.now()).thenReturn(NOW);
+        var holdings =
+                held
+                        ? List.of(heldLot("AAPL", "NASDAQ", "USD", purchasePrice, "100", "100"))
+                        : List.<com.app.maria.domain.tax.dto.HeldLotDTO>of();
+        when(expectedSnapshotReader.readCustomer(7L))
                 .thenReturn(
-                        held
-                                ? List.of(
-                                        heldLot(
-                                                "AAPL",
-                                                "NASDAQ",
-                                                "USD",
-                                                purchasePrice,
+                        new TaxExpectedSnapshotReader.Snapshot(
+                                account(benefit),
+                                NOW,
+                                holdings,
+                                List.of(
+                                        lot(
+                                                LocalDate.of(2026, 8, 1),
+                                                "5000000",
                                                 "100",
-                                                "100"))
-                                : List.of());
+                                                "100",
+                                                "100")),
+                                allSeedRules(),
+                                List.of()));
         when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
                 .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
-        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
-        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
-                .thenReturn(List.of());
         if (held) {
             when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
             when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("200"));
@@ -788,8 +787,25 @@ class TaxCalculationServiceImplTest {
     }
 
     @Test
+    void customerProjectionRequiresFinalizedCalculationResult() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", true);
+        org.mockito.Mockito.doAnswer(
+                        invocation -> {
+                            List<?> lots = invocation.getArgument(0);
+                            return lots.size() == 1 ? null : invocation.callRealMethod();
+                        })
+                .when(taxCalculator)
+                .calculate(anyList(), anyList(), anyList(), anyBoolean());
+        assertThatThrownBy(() -> taxCalculationService.getCustomerExpectedTaxBriefing(7L))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("finalized");
+    }
+
+    @Test
     void customerWithoutAccountCannotRequestEitherBriefing() {
         when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.empty());
+        when(expectedSnapshotReader.readCustomer(7L))
+                .thenThrow(new AppException(ErrorType.ACCOUNT_NOT_FOUND, 7L));
         assertThatThrownBy(() -> taxCalculationService.getCustomerTaxBriefing(7L))
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.ACCOUNT_NOT_FOUND);
         assertThatThrownBy(() -> taxCalculationService.getCustomerExpectedTaxBriefing(7L))
