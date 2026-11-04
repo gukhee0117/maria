@@ -11,11 +11,18 @@ import com.app.maria.domain.fundflow.dto.FundFlowCustomerReliefDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerSummaryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowTransactionRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotRowDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowTrendResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
+import com.app.maria.domain.fundflow.type.FundFlowTransactionType;
+import com.app.maria.domain.fundflow.type.FundFlowTrendUnit;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -267,5 +274,495 @@ class CustomerFundFlowServiceImplTest {
 
         assertThat(result.isHasAccount()).isFalse();
         assertThat(result.getAsOfDate()).isEqualTo(AS_OF_DATE);
+    }
+
+    private static FundFlowTransactionRowDTO row(
+            String date,
+            FundFlowTransactionType type,
+            Long productId,
+            String name,
+            String qty,
+            String amount,
+            String fee,
+            String cash) {
+        return FundFlowTransactionRowDTO.builder()
+                .eventDate(LocalDate.parse(date))
+                .type(type)
+                .domesticProductId(productId)
+                .productName(name)
+                .qty(qty == null ? null : new BigDecimal(qty))
+                .amount(new BigDecimal(amount))
+                .feeAmount(new BigDecimal(fee))
+                .taxAmount(BigDecimal.ZERO)
+                .cashAmount(new BigDecimal(cash))
+                .build();
+    }
+
+    @Test
+    @DisplayName("거래 내역: 같은 날은 원화 확정 → 매도 → 매수 → 인출 순으로 처리하고 쪼개진 원화 확정과 종목별 매수를 합친다")
+    void transactionsMergeAndOrderWithinSameDay() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        // 일부러 뒤섞은 순서로 준다
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.WITHDRAWAL,
+                                        null,
+                                        null,
+                                        null,
+                                        "1000",
+                                        "0",
+                                        "-1000"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        10L,
+                                        "삼성전자",
+                                        "3",
+                                        "300",
+                                        "5",
+                                        "-305"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "600",
+                                        "0",
+                                        "600"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        11L,
+                                        "KODEX 200",
+                                        "1",
+                                        "9000",
+                                        "5",
+                                        "-9005"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "10000",
+                                        "0",
+                                        "10000"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        10L,
+                                        "삼성전자",
+                                        "2",
+                                        "200",
+                                        "5",
+                                        "-205"),
+                                row(
+                                        "2026-10-23",
+                                        FundFlowTransactionType.DOMESTIC_SELL,
+                                        12L,
+                                        "NAVER",
+                                        "1",
+                                        "500",
+                                        "5",
+                                        "490"),
+                                row(
+                                        "2026-10-22",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "100",
+                                        "0",
+                                        "100")));
+
+        FundFlowTransactionsResponseDTO result = service.getTransactions(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isTrue();
+        assertThat(result.getAsOfDate()).isEqualTo(AS_OF_DATE);
+        assertThat(result.getItems())
+                .extracting(FundFlowTransactionsResponseDTO.Item::getType)
+                .containsExactly(
+                        FundFlowTransactionType.KRW_CONFIRMED, // 10/22
+                        FundFlowTransactionType.KRW_CONFIRMED, // 10/23
+                        FundFlowTransactionType.DOMESTIC_SELL,
+                        FundFlowTransactionType.DOMESTIC_BUY,
+                        FundFlowTransactionType.WITHDRAWAL);
+        assertThat(result.getItems())
+                .extracting(FundFlowTransactionsResponseDTO.Item::getAmount)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(
+                        new BigDecimal("100"),
+                        new BigDecimal("10600"), // 쪼개진 원화 확정 합계
+                        new BigDecimal("490"),
+                        new BigDecimal("-9515"), // -305 + -9005 + -205
+                        new BigDecimal("-1000"));
+        // 예수금 = 100 → 10700 → 11190 → 1675 → 675
+        assertThat(result.getItems())
+                .extracting(FundFlowTransactionsResponseDTO.Item::getCashAfter)
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(
+                        new BigDecimal("100"),
+                        new BigDecimal("10700"),
+                        new BigDecimal("11190"),
+                        new BigDecimal("1675"),
+                        new BigDecimal("675"));
+
+        FundFlowTransactionsResponseDTO.Item buy = result.getItems().get(3);
+        assertThat(buy.getTitle()).isEqualTo("KODEX 200 외 1"); // 금액이 큰 종목이 대표
+        assertThat(buy.getDetails()).hasSize(2);
+        assertThat(buy.getDetails().get(1).getName()).isEqualTo("삼성전자");
+        assertThat(buy.getDetails().get(1).getQty()).isEqualByComparingTo("5"); // 같은 종목 두 건 합침
+        assertThat(buy.getDetails().get(1).getAmount()).isEqualByComparingTo("500");
+        assertThat(buy.getDetails().get(1).getFeeAmount()).isEqualByComparingTo("10");
+
+        FundFlowTransactionsResponseDTO.Item sell = result.getItems().get(2);
+        assertThat(sell.getTitle()).isEqualTo("NAVER"); // 종목이 하나면 종목명만
+        assertThat(result.getItems().get(1).getTitle()).isNull();
+        assertThat(result.getItems().get(1).getDetails()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거래 내역: 패키지 밖 체결도 mapper가 준 행이면 그대로 합산에 들어간다(거르지 않는다)")
+    void transactionsKeepRowsRegardlessOfOrigin() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                row(
+                                        "2026-05-19",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "1000",
+                                        "0",
+                                        "1000"),
+                                row(
+                                        "2026-05-22",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        10L,
+                                        "삼성전자",
+                                        "1",
+                                        "300",
+                                        "5",
+                                        "-305"),
+                                row(
+                                        "2026-09-04",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        11L,
+                                        "KODEX 200",
+                                        "1",
+                                        "200",
+                                        "5",
+                                        "-205")));
+
+        FundFlowTransactionsResponseDTO result = service.getTransactions(CUSTOMER_ID);
+
+        assertThat(result.getItems()).hasSize(3);
+        assertThat(result.getItems().get(2).getCashAfter()).isEqualByComparingTo("490");
+    }
+
+    @Test
+    @DisplayName("거래 내역: 계좌는 있는데 거래가 없으면 빈 목록이다")
+    void transactionsEmptyWhenNoRows() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(List.of());
+
+        FundFlowTransactionsResponseDTO result = service.getTransactions(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isTrue();
+        assertThat(result.getItems()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("거래 내역: 개설된 계좌가 없으면 hasAccount=false이고 원천 행은 조회하지 않는다")
+    void transactionsWithoutAccount() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(false);
+
+        FundFlowTransactionsResponseDTO result = service.getTransactions(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isFalse();
+        assertThat(result.getItems()).isEmpty();
+        assertThat(result.getAsOfDate()).isEqualTo(AS_OF_DATE);
+        verify(fundFlowMapper, never()).selectCustomerTransactionRows(any(), any());
+    }
+
+    private static FundFlowTransactionRowDTO trendRow(
+            String dateTime,
+            FundFlowTransactionType type,
+            Long productId,
+            String qty,
+            String price,
+            String amount,
+            String cash) {
+        LocalDateTime at = LocalDateTime.parse(dateTime);
+        return FundFlowTransactionRowDTO.builder()
+                .eventDate(at.toLocalDate())
+                .eventAt(at)
+                .type(type)
+                .domesticProductId(productId)
+                .productName(productId == null ? null : "종목" + productId)
+                .qty(qty == null ? null : new BigDecimal(qty))
+                .price(price == null ? null : new BigDecimal(price))
+                .amount(new BigDecimal(amount))
+                .feeAmount(BigDecimal.ZERO)
+                .taxAmount(BigDecimal.ZERO)
+                .cashAmount(new BigDecimal(cash))
+                .build();
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 첫 원화 확정이 3개월 미만이면 주 단위(월~일), 마지막 주는 기준일까지, 기간 말 잔액을 준다")
+    void trendWeeklyWhenUnderThreeMonths() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                trendRow(
+                                        "2026-10-23T00:00:00",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "1000000",
+                                        "1000000"),
+                                trendRow(
+                                        "2026-10-24T10:00:00",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        1L,
+                                        "10",
+                                        "50000",
+                                        "500000",
+                                        "-500100")));
+
+        FundFlowTrendResponseDTO result = service.getBalanceTrend(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isTrue();
+        assertThat(result.isHasKrwConfirmed()).isTrue();
+        assertThat(result.getUnit()).isEqualTo(FundFlowTrendUnit.WEEK);
+        assertThat(result.getPoints()).hasSize(5);
+        var first = result.getPoints().get(0);
+        assertThat(first.getPeriodStart()).isEqualTo(LocalDate.of(2026, 10, 19));
+        assertThat(first.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 10, 25));
+        assertThat(first.getInvested()).isEqualByComparingTo("500000");
+        assertThat(first.getCash()).isEqualByComparingTo("499900");
+        assertThat(first.isHasTransactions()).isTrue();
+        var last = result.getPoints().get(4);
+        assertThat(last.getPeriodStart()).isEqualTo(LocalDate.of(2026, 11, 16));
+        assertThat(last.getPeriodEnd()).isEqualTo(AS_OF_DATE); // 마지막 주는 기준일까지
+        assertThat(last.getInvested()).isEqualByComparingTo("500000"); // 거래가 없는 주는 잔액을 이어 간다
+        assertThat(last.getCash()).isEqualByComparingTo("499900");
+        assertThat(last.isHasTransactions()).isFalse();
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 3개월 이상이면 월 단위이고 최근 12개월만 남기며, 앞선 거래의 잔액은 이어 받는다")
+    void trendMonthlyKeepsLatestTwelve() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                trendRow(
+                                        "2025-06-10T00:00:00",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "2000000",
+                                        "2000000"),
+                                trendRow(
+                                        "2026-03-05T00:00:00",
+                                        FundFlowTransactionType.WITHDRAWAL,
+                                        null,
+                                        null,
+                                        null,
+                                        "300000",
+                                        "-300000")));
+
+        FundFlowTrendResponseDTO result = service.getBalanceTrend(CUSTOMER_ID);
+
+        assertThat(result.getUnit()).isEqualTo(FundFlowTrendUnit.MONTH);
+        assertThat(result.getPoints()).hasSize(12);
+        assertThat(result.getPoints().get(0).getPeriodStart()).isEqualTo(LocalDate.of(2025, 12, 1));
+        assertThat(result.getPoints().get(0).getCash()).isEqualByComparingTo("2000000");
+        assertThat(result.getPoints().get(0).isHasTransactions()).isFalse();
+        var march = result.getPoints().get(3);
+        assertThat(march.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 3, 31));
+        assertThat(march.getCash()).isEqualByComparingTo("1700000");
+        assertThat(march.isHasTransactions()).isTrue();
+        var last = result.getPoints().get(11);
+        assertThat(last.getPeriodStart()).isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(last.getPeriodEnd()).isEqualTo(AS_OF_DATE);
+        assertThat(last.getInvested()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 매입금액은 같은 날에도 체결 시각 순으로 이동평균을 계산한다(수수료 제외, 매도는 평균가 유지)")
+    void trendInvestedFollowsExecutionOrderWithinSameDay() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        // 같은 날 안에서 매수(09:00) → 매도(10:00) → 매수(11:00). 구분 순서(매도 먼저)로 처리하면 값이 달라진다
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                trendRow(
+                                        "2026-11-10T11:00:00",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        1L,
+                                        "3",
+                                        "300",
+                                        "900",
+                                        "-900"),
+                                trendRow(
+                                        "2026-11-10T10:00:00",
+                                        FundFlowTransactionType.DOMESTIC_SELL,
+                                        1L,
+                                        "1",
+                                        "250",
+                                        "250",
+                                        "250"),
+                                trendRow(
+                                        "2026-11-10T09:00:00",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        1L,
+                                        "2",
+                                        "200",
+                                        "400",
+                                        "-400"),
+                                trendRow(
+                                        "2026-11-09T09:00:00",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        1L,
+                                        "4",
+                                        "100",
+                                        "400",
+                                        "-400"),
+                                trendRow(
+                                        "2026-11-09T00:00:00",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "5000",
+                                        "5000")));
+
+        FundFlowTrendResponseDTO result = service.getBalanceTrend(CUSTOMER_ID);
+
+        var last = result.getPoints().get(result.getPoints().size() - 1);
+        // 4주@100 → 2주@200 매수 평균 133.3333(6주) → 1주 매도 5주 → 3주@300 매수 평균 195.8333(8주) = 1566.6664
+        assertThat(last.getInvested()).isEqualByComparingTo("1567");
+        assertThat(last.getCash()).isEqualByComparingTo("3550"); // 5000 - 400 - 400 + 250 - 900
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 체결가가 없는 주문은 체결금액 ÷ 수량으로 평균가를 잡는다")
+    void trendFallsBackToAmountWhenPriceMissing() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(
+                        List.of(
+                                trendRow(
+                                        "2026-11-09T00:00:00",
+                                        FundFlowTransactionType.KRW_CONFIRMED,
+                                        null,
+                                        null,
+                                        null,
+                                        "5000",
+                                        "5000"),
+                                trendRow(
+                                        "2026-11-09T10:00:00",
+                                        FundFlowTransactionType.DOMESTIC_BUY,
+                                        1L,
+                                        "4",
+                                        null,
+                                        "1000",
+                                        "-1000")));
+
+        var last = service.getBalanceTrend(CUSTOMER_ID).getPoints().get(1);
+
+        assertThat(last.getInvested()).isEqualByComparingTo("1000");
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 원화 확정이 아직 없으면 기간 없이 hasKrwConfirmed=false")
+    void trendWithoutKrwConfirmed() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerTransactionRows(CUSTOMER_ID, CLOCK_DATE))
+                .thenReturn(List.of());
+
+        FundFlowTrendResponseDTO result = service.getBalanceTrend(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isTrue();
+        assertThat(result.isHasKrwConfirmed()).isFalse();
+        assertThat(result.getPoints()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("잔액 추이: 개설된 계좌가 없으면 hasAccount=false이고 원천 행은 조회하지 않는다")
+    void trendWithoutAccount() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(false);
+
+        FundFlowTrendResponseDTO result = service.getBalanceTrend(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isFalse();
+        assertThat(result.getPoints()).isEmpty();
+        verify(fundFlowMapper, never()).selectCustomerTransactionRows(any(), any());
+    }
+
+    private static FundFlowWithdrawalLotRowDTO lotRow(
+            long exchangeId, String finalAt, String paid, String remaining, String withdrawn) {
+        return FundFlowWithdrawalLotRowDTO.builder()
+                .exchangeId(exchangeId)
+                .finalAt(LocalDateTime.parse(finalAt))
+                .paidAmount(new BigDecimal(paid))
+                .remainingAmount(new BigDecimal(remaining))
+                .withdrawnAmount(new BigDecimal(withdrawn))
+                .build();
+    }
+
+    @Test
+    @DisplayName("인출 일정: 같은 납입일은 합치고 인출 가능일은 납입일 + 1년, 만기 당일 0시는 인출 가능으로 본다")
+    void withdrawalScheduleGroupsByPaidDate() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(true);
+        when(fundFlowMapper.selectCustomerWithdrawalLots(CUSTOMER_ID))
+                .thenReturn(
+                        List.of(
+                                lotRow(1, "2025-11-18T00:00:00", "7000000", "0", "7000000"),
+                                lotRow(2, "2026-04-28T00:00:00", "30000000", "28000000", "2000000"),
+                                lotRow(3, "2026-04-28T00:00:00", "10000000", "10000000", "0"),
+                                lotRow(4, "2026-06-08T00:00:00", "5000000", "5000000", "0")));
+
+        FundFlowWithdrawalScheduleResponseDTO result = service.getWithdrawalSchedule(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isTrue();
+        assertThat(result.getBusinessDate()).isEqualTo(CLOCK_DATE);
+        assertThat(result.getLots()).hasSize(3);
+        var first = result.getLots().get(0);
+        assertThat(first.getPaidDate()).isEqualTo(LocalDate.of(2025, 11, 18));
+        assertThat(first.getMaturityDate()).isEqualTo(LocalDate.of(2026, 11, 18));
+        assertThat(first.isMatured()).isTrue(); // 인출 처리와 같은 판정: 만기 시각이 지금과 같으면 인출 가능
+        assertThat(first.getRemainingAmount()).isEqualByComparingTo("0"); // 전량 인출된 건도 나온다
+        var merged = result.getLots().get(1);
+        assertThat(merged.getPaidAmount()).isEqualByComparingTo("40000000");
+        assertThat(merged.getWithdrawnAmount()).isEqualByComparingTo("2000000");
+        assertThat(merged.getRemainingAmount()).isEqualByComparingTo("38000000");
+        assertThat(merged.getMaturityDate()).isEqualTo(LocalDate.of(2027, 4, 28));
+        assertThat(merged.isMatured()).isFalse();
+    }
+
+    @Test
+    @DisplayName("인출 일정: 개설된 계좌가 없으면 hasAccount=false이고 납입건은 조회하지 않는다")
+    void withdrawalScheduleWithoutAccount() {
+        when(fundFlowMapper.existsCustomerOpenedAccount(CUSTOMER_ID)).thenReturn(false);
+
+        FundFlowWithdrawalScheduleResponseDTO result = service.getWithdrawalSchedule(CUSTOMER_ID);
+
+        assertThat(result.isHasAccount()).isFalse();
+        assertThat(result.getLots()).isEmpty();
+        verify(fundFlowMapper, never()).selectCustomerWithdrawalLots(any());
     }
 }
