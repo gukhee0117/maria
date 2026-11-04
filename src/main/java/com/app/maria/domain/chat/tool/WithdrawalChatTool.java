@@ -45,13 +45,13 @@ public class WithdrawalChatTool {
                         .filter(item -> !item.isMatured())
                         .forEach(
                                 item ->
-                                        sb.append(" / 1년 유지기간 만료일 ")
-                                                .append(item.getMaturesAt().toLocalDate())
-                                                .append(" (납입분 ")
+                                        sb.append(" / 1년 유지기간 만료 시각 ")
+                                                .append(item.getMaturesAt())
+                                                .append(" (해당 시각 이후부터 인출 가능, 납입분 ")
                                                 .append(fmt.format(item.getCurAmount()))
                                                 .append("원)"));
             }
-            sb.append(" / 조회 기준: ").append(dto.getAsOf().toLocalDate());
+            sb.append(" / 조회 기준: ").append(dto.getAsOf());
             return sb.toString();
         } catch (Exception e) {
             log.error("[CHAT_TOOL] withdrawal_schedule 조회 실패 customerId={}", customerId, e);
