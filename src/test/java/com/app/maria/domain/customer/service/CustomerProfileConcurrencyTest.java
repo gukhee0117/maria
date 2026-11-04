@@ -1,10 +1,13 @@
 package com.app.maria.domain.customer.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.request.CustomerProfileUpdateRequestDTO;
+import com.app.maria.domain.investorassessment.dto.response.InvestorAssessmentStatusResponseDTO;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.global.config.JpaConfig;
 import com.app.maria.global.config.PasswordEncoderConfig;
@@ -59,6 +62,19 @@ class CustomerProfileConcurrencyTest {
 
     @BeforeEach
     void createSchema() {
+        when(investorAssessmentService.getMine(any()))
+                .thenReturn(InvestorAssessmentStatusResponseDTO.unassigned());
+        jdbc.execute("DROP TABLE IF EXISTS investor_assessment");
+        jdbc.execute(
+                """
+                CREATE TABLE investor_assessment (
+                    investor_assessment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id BIGINT NOT NULL, total_score INT NOT NULL,
+                    investor_type VARCHAR(20) NOT NULL, answers_json VARCHAR(4000) NOT NULL,
+                    assessed_at TIMESTAMP NOT NULL,
+                    recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
         jdbc.execute("DROP TABLE IF EXISTS customer_auth_password");
         jdbc.execute("DROP TABLE IF EXISTS customer_auth");
         jdbc.execute("DROP TABLE IF EXISTS customer");

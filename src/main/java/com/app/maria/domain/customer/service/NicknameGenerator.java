@@ -14,7 +14,7 @@ final class NicknameGenerator {
 
     private NicknameGenerator() {}
 
-    /** 이미 쓰는 닉네임(taken)이 아닌 것을 돌려준다. 조합이 9만 가지라 30번 안에 못 찾는 일은 사실상 없다. */
+    /** 이미 쓰는 닉네임(taken)이 아닌 것을 돌려준다. 조합이 99만 가지라 30번 안에 못 찾는 일은 사실상 없다. */
     static String generate(Predicate<String> taken) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         for (int i = 0; i < MAX_TRIES; i++) {

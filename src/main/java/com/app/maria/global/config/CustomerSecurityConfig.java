@@ -101,7 +101,10 @@ public class CustomerSecurityConfig {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers(HttpMethod.GET, "/api/customer/csrf")
+                                auth.requestMatchers(
+                                                HttpMethod.GET,
+                                                "/api/customer/csrf",
+                                                "/api/customer/business-date")
                                         .permitAll()
                                         .requestMatchers(
                                                 HttpMethod.POST,

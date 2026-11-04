@@ -14,14 +14,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.dto.response.CustomerProfileResponseDTO;
+import com.app.maria.domain.customer.entity.InvestorType;
 import com.app.maria.domain.customer.service.CustomerProfileService;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,6 +53,28 @@ class CustomerProfileApiTest {
                         new CustomerPrincipal(7L, "hong1234", "홍길동"),
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))));
+    }
+
+    private static CustomerProfileResponseDTO profile(
+            String email, String nickname, CustomerProfileResponseDTO.AccountSummary account) {
+        LocalDateTime assessedAt = LocalDateTime.of(2026, 3, 19, 10, 0);
+        return new CustomerProfileResponseDTO(
+                "홍길동",
+                LocalDate.of(1990, 1, 1),
+                "010-1234-5678",
+                email,
+                nickname,
+                InvestorType.NEUTRAL,
+                true,
+                assessedAt,
+                assessedAt.plusMonths(24),
+                false,
+                50,
+                true,
+                List.of(
+                        new CustomerProfileResponseDTO.AssessmentHistoryItem(
+                                assessedAt, 50, InvestorType.NEUTRAL)),
+                account);
     }
 
     @Test
@@ -84,12 +109,14 @@ class CustomerProfileApiTest {
     void getsProfile() throws Exception {
         when(profileService.get(7L))
                 .thenReturn(
-                        new CustomerProfileResponseDTO(
-                                "홍길동",
-                                LocalDate.of(1990, 1, 1),
-                                "010-1234-5678",
+                        profile(
                                 "hong@example.com",
-                                "재빠른수달1234"));
+                                "재빠른수달1234",
+                                new CustomerProfileResponseDTO.AccountSummary(
+                                        "7319000024",
+                                        Status.OPENED,
+                                        LocalDateTime.of(2026, 3, 30, 10, 0),
+                                        LocalDateTime.of(2026, 3, 30, 10, 0))));
 
         mockMvc.perform(get(PROFILE).with(customerAuth()))
                 .andExpect(status().isOk())
@@ -97,7 +124,13 @@ class CustomerProfileApiTest {
                 .andExpect(jsonPath("$.data.birthDate").value("1990-01-01"))
                 .andExpect(jsonPath("$.data.phone").value("010-1234-5678"))
                 .andExpect(jsonPath("$.data.email").value("hong@example.com"))
-                .andExpect(jsonPath("$.data.nickname").value("재빠른수달1234"));
+                .andExpect(jsonPath("$.data.nickname").value("재빠른수달1234"))
+                .andExpect(jsonPath("$.data.investorType").value("NEUTRAL"))
+                .andExpect(jsonPath("$.data.totalScore").value(50))
+                .andExpect(jsonPath("$.data.investorTypePublic").value(true))
+                .andExpect(jsonPath("$.data.assessmentHistory[0].totalScore").value(50))
+                .andExpect(jsonPath("$.data.account.accountNo").value("7319000024"))
+                .andExpect(jsonPath("$.data.account.status").value("OPENED"));
     }
 
     @Test
@@ -119,13 +152,7 @@ class CustomerProfileApiTest {
     @DisplayName("수정: 이름·생년월일을 보내도 바꾸지 않는다(DTO에 없는 항목은 무시)")
     void ignoresIdentityFields() throws Exception {
         when(profileService.update(eq(7L), any()))
-                .thenReturn(
-                        new CustomerProfileResponseDTO(
-                                "홍길동",
-                                LocalDate.of(1990, 1, 1),
-                                "010-1234-5678",
-                                "new@example.com",
-                                null));
+                .thenReturn(profile("new@example.com", null, null));
 
         mockMvc.perform(
                         patch(PROFILE)
