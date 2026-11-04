@@ -45,11 +45,27 @@ class SecuritiesAssetPriceProviderTest {
     }
 
     @Test
-    void malformedAndDuplicateResponsesAreUnavailable() {
+    void malformedResponseIsUnavailable() {
         server.expect(requestTo(containsString("tickers=005930")))
                 .andRespond(
                         withSuccess(
                                 "{\"message\":\"ok\",\"data\":null}", MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> provider.getPrices(Set.of("005930")))
+                .hasFieldOrPropertyWithValue("errorType", ErrorType.ASSET_PRICE_UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void duplicateTickerIsContaminatedResponseAndFailsEntireLookup() {
+        server.expect(requestTo(containsString("tickers=005930")))
+                .andRespond(
+                        withSuccess(
+                                """
+                    {"data":[
+                      {"ticker":"005930","priceKrw":100,"priceAt":"2026-11-04T09:00:00"},
+                      {"ticker":"005930","priceKrw":200,"priceAt":"2026-11-04T09:00:00"}]}
+                    """,
+                                MediaType.APPLICATION_JSON));
         assertThatThrownBy(() -> provider.getPrices(Set.of("005930")))
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.ASSET_PRICE_UNAVAILABLE);
         server.verify();

@@ -11,9 +11,30 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 class AssetEventServiceTest {
+    @Test
+    void connectionTimeoutAndReconnectDelayAreConfiguredIndependently() throws Exception {
+        var briefing = mock(AssetBriefingService.class);
+        var mapper = new ObjectMapper();
+        var actual = new AssetEventService(briefing, mapper);
+        ReflectionTestUtils.setField(actual, "timeoutMs", 90000L);
+        assertThat(actual.subscribe(7L).getTimeout()).isEqualTo(90000L);
+        actual.stopPolling();
+
+        var emitter = mock(SseEmitter.class);
+        var service = new AssetEventService(briefing, mapper, () -> emitter);
+        ReflectionTestUtils.setField(service, "pollIntervalMs", 10000L);
+        ReflectionTestUtils.setField(service, "reconnectIntervalMs", 3500L);
+        service.subscribe(7L);
+        var event = ArgumentCaptor.forClass(SseEmitter.SseEventBuilder.class);
+        verify(emitter).send(event.capture());
+        assertThat(event.getValue().build().stream().map(v -> v.getData().toString()))
+                .anyMatch(value -> value.contains("retry:3500"));
+    }
+
     private CustomerAssetBriefingResponseDTO data(String amount, int hour) {
         return CustomerAssetBriefingResponseDTO.builder()
                 .accountId(3L)

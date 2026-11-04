@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,15 +25,21 @@ public class AssetEventService {
     private final ObjectMapper objectMapper;
     private final Supplier<SseEmitter> emitterFactory;
     private final Map<Long, Subscribers> customers = new ConcurrentHashMap<>();
-    private int pollCount;
+    private final AtomicInteger pollCount = new AtomicInteger();
     private ThreadPoolTaskScheduler scheduler;
 
     @Value("${custom.asset.events.poll-ms:2000}")
-    private long pollIntervalMs = 2000;
+    private long pollIntervalMs;
+
+    @Value("${custom.asset.events.reconnect-ms:2000}")
+    private long reconnectIntervalMs;
+
+    @Value("${custom.asset.events.timeout-ms:60000}")
+    private long timeoutMs;
 
     @Autowired
     public AssetEventService(AssetBriefingService briefingService, ObjectMapper objectMapper) {
-        this(briefingService, objectMapper, () -> new SseEmitter(60_000L));
+        this(briefingService, objectMapper, null);
     }
 
     AssetEventService(
@@ -47,7 +54,10 @@ public class AssetEventService {
     public synchronized SseEmitter subscribe(Long customerId) {
         Subscribers group = customers.computeIfAbsent(customerId, ignored -> new Subscribers());
         String id = UUID.randomUUID().toString();
-        SseEmitter emitter = emitterFactory.get();
+        SseEmitter emitter =
+                emitterFactory == null
+                        ? new SseEmitter(Math.max(1000, timeoutMs))
+                        : emitterFactory.get();
         group.emitters.put(id, emitter);
         Runnable remove = () -> remove(customerId, group, id);
         emitter.onCompletion(remove);
@@ -79,7 +89,7 @@ public class AssetEventService {
     }
 
     public void poll() {
-        boolean heartbeat = ++pollCount % 5 == 0;
+        boolean heartbeat = pollCount.incrementAndGet() % 5 == 0;
         customers.forEach(
                 (customerId, group) -> {
                     if (group.emitters.isEmpty()) return;
@@ -110,7 +120,11 @@ public class AssetEventService {
     private void send(
             Long customerId, Subscribers group, String id, SseEmitter emitter, String event) {
         try {
-            emitter.send(SseEmitter.event().name(event).reconnectTime(2000).data("refresh"));
+            emitter.send(
+                    SseEmitter.event()
+                            .name(event)
+                            .reconnectTime(Math.max(100, reconnectIntervalMs))
+                            .data("refresh"));
         } catch (IOException | IllegalStateException e) {
             remove(customerId, group, id);
             emitter.complete();

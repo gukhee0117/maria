@@ -53,6 +53,7 @@ public class SecuritiesAssetPriceProvider implements AssetPriceProvider {
                     if (row.priceKrw() == null
                             || row.priceKrw().signum() <= 0
                             || row.priceAt() == null) continue;
+                    // 같은 종목의 중복 가격은 오염된 응답으로 보고 전체 조회를 실패시킨다.
                     if (prices.putIfAbsent(row.ticker(), new Quote(row.priceKrw(), row.priceAt()))
                             != null) throw unavailable();
                 }
