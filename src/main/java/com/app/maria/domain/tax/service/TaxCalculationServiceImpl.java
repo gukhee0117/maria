@@ -14,7 +14,9 @@ import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
+import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.dto.response.CustomerTaxBasisResponseDTO;
 import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
@@ -207,6 +209,33 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public CustomerTaxBasisResponseDTO getCustomerTaxBasis(Long customerId) {
+        AccountDTO account = findCustomerAccount(customerId);
+        TaxCalculationInputs inputs = loadInputs(account);
+        TaxCalculationResultDTO result =
+                taxCalculator.calculate(
+                        inputs.sellLots(),
+                        inputs.taxRules(),
+                        inputs.externalTrades(),
+                        BenefitType.isReliefExcluded(account.getBenefit()));
+        TaxBreakdownDTO breakdown =
+                taxBreakdownAssembler.assemble(
+                        inputs.sellLots(), inputs.externalTrades(), inputs.taxRules());
+        return CustomerTaxBasisResponseDTO.of(
+                account.getAccountId(),
+                account.getBenefit(),
+                result,
+                breakdown.getPeriodBreakdown().stream()
+                        .filter(p -> overlapsYear(p, riaTaxProperties.getYear()))
+                        .toList(),
+                taxCalculator.basicDeduction(inputs.taxRules()),
+                taxCalculator.calculateGeneralTax(
+                        result.getOriginalGainAmount(), inputs.taxRules()),
+                clockService.now());
+    }
+
+    @Override
     public CustomerTaxBriefingResponseDTO.ExpectedTaxScenario getCustomerExpectedTaxBriefing(
             Long customerId) {
         AccountDTO account = findCustomerAccount(customerId);
@@ -221,6 +250,11 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
                 null,
                 expected.getExpectedFinalAt(),
                 expected.getHoldingCount());
+    }
+
+    /** 다른 연도의 RELIEF_RATE 규칙 행이 섞여 있어도 세액 연도와 겹치는 구간만 근거로 보여 준다. */
+    private static boolean overlapsYear(TaxPeriodBreakdownDTO period, int year) {
+        return period.getValidFrom().getYear() <= year && year <= period.getValidTo().getYear();
     }
 
     private AccountDTO findCustomerAccount(Long customerId) {

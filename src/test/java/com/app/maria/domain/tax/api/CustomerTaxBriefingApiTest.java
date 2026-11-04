@@ -9,6 +9,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
+import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
+import com.app.maria.domain.tax.dto.response.CustomerTaxBasisResponseDTO;
 import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.global.config.CustomerSecurityConfig;
@@ -165,5 +169,66 @@ class CustomerTaxBriefingApiTest {
                         LocalDate.of(2026, 10, 30),
                         2),
                 calculatedAt);
+    }
+
+    @Test
+    void basisRequiresCustomerAuthentication() throws Exception {
+        mockMvc.perform(get("/api/customer/tax/basis")).andExpect(status().isUnauthorized());
+        verify(taxCalculationService, never()).getCustomerTaxBasis(CUSTOMER_ID);
+    }
+
+    @Test
+    void basisReturnsFiveStepValuesAndBandsForAuthenticatedCustomer() throws Exception {
+        var result =
+                TaxCalculationResultDTO.builder()
+                        .originalGainAmount(new BigDecimal("32000000"))
+                        .weightedGain(new BigDecimal("27800000"))
+                        .weightedSell(new BigDecimal("43000000"))
+                        .weightedExternalAmount(new BigDecimal("11000000"))
+                        .adjustRatio(new BigDecimal("0.7442"))
+                        .finalDeduction(new BigDecimal("20690000"))
+                        .finalTax(new BigDecimal("1939000"))
+                        .build();
+        var band =
+                TaxPeriodBreakdownDTO.builder()
+                        .validFrom(LocalDate.of(2026, 6, 1))
+                        .validTo(LocalDate.of(2026, 7, 31))
+                        .weight(new BigDecimal("0.8"))
+                        .sellAmount(new BigDecimal("10000000"))
+                        .gainAmount(new BigDecimal("6000000"))
+                        .build();
+        when(taxCalculationService.getCustomerTaxBasis(CUSTOMER_ID))
+                .thenReturn(
+                        CustomerTaxBasisResponseDTO.of(
+                                1L,
+                                BenefitType.POSSIBLE,
+                                result,
+                                List.of(band),
+                                new BigDecimal("2500000"),
+                                new BigDecimal("6490000"),
+                                LocalDateTime.of(2026, 11, 4, 9, 0)));
+
+        mockMvc.perform(
+                        get("/api/customer/tax/basis")
+                                .param("accountId", "999")
+                                .with(customerAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weightedSell").value(43000000))
+                .andExpect(jsonPath("$.data.preAdjustDeduction").value(27800000))
+                .andExpect(jsonPath("$.data.weightedNetPurchase").value(11000000))
+                .andExpect(jsonPath("$.data.adjustRatio").value(0.7442))
+                .andExpect(jsonPath("$.data.finalDeduction").value(20690000))
+                .andExpect(jsonPath("$.data.totalGain").value(32000000))
+                .andExpect(jsonPath("$.data.basicDeduction").value(2500000))
+                .andExpect(jsonPath("$.data.reliefAmount").value(4551000))
+                .andExpect(jsonPath("$.data.benefit").value("POSSIBLE"))
+                .andExpect(jsonPath("$.data.reliefExcluded").value(false))
+                .andExpect(jsonPath("$.data.bands[0].validFrom").value("2026-06-01"))
+                .andExpect(jsonPath("$.data.bands[0].fromMonth").value(6))
+                .andExpect(jsonPath("$.data.bands[0].toMonth").value(7))
+                .andExpect(jsonPath("$.data.bands[0].weightRate").value(0.8))
+                .andExpect(jsonPath("$.data.bands[0].sellAmount").value(10000000))
+                .andExpect(jsonPath("$.data.bands[0].gain").value(6000000));
+        verify(taxCalculationService).getCustomerTaxBasis(CUSTOMER_ID);
     }
 }

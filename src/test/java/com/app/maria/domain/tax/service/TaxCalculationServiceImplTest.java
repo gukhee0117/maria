@@ -30,10 +30,13 @@ import com.app.maria.domain.settlement.component.SettlementBusinessDayCalculator
 import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
+import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
+import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
+import com.app.maria.domain.tax.dto.response.CustomerTaxBasisResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationSaveResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxExpectedReliefResponseDTO;
@@ -742,5 +745,147 @@ class TaxCalculationServiceImplTest {
         assertThatThrownBy(() -> taxCalculationService.getCustomerExpectedTaxBriefing(7L))
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.ACCOUNT_NOT_FOUND);
         verifyNoInteractions(taxSnapshotMapper, taxMapper, kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    @DisplayName("세액 계산 근거: 5단계 중간값과 구간 줄을 지금 입력으로 다시 계산해 한 응답에 담는다")
+    void 계산_근거() {
+        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.of(account(null)));
+        stubTaxYearAndClock();
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(
+                        List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of(externalBuy(LocalDate.of(2026, 6, 15), "10000000")));
+        when(taxBreakdownAssembler.assemble(anyList(), anyList(), anyList()))
+                .thenReturn(
+                        TaxBreakdownDTO.builder()
+                                .periodBreakdown(
+                                        List.of(
+                                                TaxPeriodBreakdownDTO.builder()
+                                                        .validFrom(LocalDate.of(2026, 1, 1))
+                                                        .validTo(LocalDate.of(2026, 5, 31))
+                                                        .weight(new BigDecimal("1.0"))
+                                                        .sellAmount(new BigDecimal("30000000"))
+                                                        .gainAmount(new BigDecimal("20000000"))
+                                                        .build(),
+                                                TaxPeriodBreakdownDTO.builder()
+                                                        .validFrom(LocalDate.of(2026, 6, 1))
+                                                        .validTo(LocalDate.of(2026, 7, 31))
+                                                        .weight(new BigDecimal("0.8"))
+                                                        .sellAmount(BigDecimal.ZERO)
+                                                        .gainAmount(BigDecimal.ZERO)
+                                                        .build()))
+                                .build());
+
+        CustomerTaxBasisResponseDTO basis = taxCalculationService.getCustomerTaxBasis(7L);
+        TaxCalculationResultDTO expected =
+                taxCalculator.calculate(
+                        List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")),
+                        allSeedRules(),
+                        List.of(externalBuy(LocalDate.of(2026, 6, 15), "10000000")),
+                        false);
+
+        assertThat(basis.getAccountId()).isEqualTo(ACCOUNT_ID);
+        assertThat(basis.getWeightedSell()).isEqualByComparingTo(expected.getWeightedSell());
+        assertThat(basis.getPreAdjustDeduction()).isEqualByComparingTo(expected.getWeightedGain());
+        assertThat(basis.getWeightedNetPurchase())
+                .isEqualByComparingTo(expected.getWeightedExternalAmount());
+        assertThat(basis.getAdjustRatio()).isEqualByComparingTo(expected.getAdjustRatio());
+        assertThat(basis.getFinalDeduction()).isEqualByComparingTo(expected.getFinalDeduction());
+        assertThat(basis.getTotalGain()).isEqualByComparingTo(expected.getOriginalGainAmount());
+        assertThat(basis.getFinalTax()).isEqualByComparingTo(expected.getFinalTax());
+        assertThat(basis.getBasicDeduction()).isEqualByComparingTo("2500000");
+        assertThat(basis.getGeneralTax())
+                .isEqualByComparingTo(
+                        taxCalculator.calculateGeneralTax(
+                                expected.getOriginalGainAmount(), allSeedRules()));
+        assertThat(basis.getReliefAmount())
+                .isEqualByComparingTo(basis.getGeneralTax().subtract(basis.getFinalTax()));
+        assertThat(basis.getWeightedSell().scale()).isEqualTo(2);
+        assertThat(basis.getTotalGain().scale()).isEqualTo(2);
+        assertThat(basis.getBenefit()).isNull();
+        assertThat(basis.isReliefExcluded()).isFalse();
+        assertThat(basis.getBands()).hasSize(2);
+        assertThat(basis.getBands().get(1).getValidFrom()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(basis.getBands().get(1).getFromMonth()).isEqualTo(6);
+        assertThat(basis.getBands().get(1).getToMonth()).isEqualTo(7);
+        assertThat(basis.getBands().get(1).getWeightRate()).isEqualByComparingTo("0.8");
+        assertThat(basis.getBands().get(0).getSellAmount()).isEqualByComparingTo("30000000");
+        assertThat(basis.getBands().get(0).getGain()).isEqualByComparingTo("20000000");
+        assertThat(basis.getCalculatedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("세액 계산 근거: RIA 계좌가 없으면 ACCOUNT_NOT_FOUND다")
+    void 계산_근거_계좌없음() {
+        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> taxCalculationService.getCustomerTaxBasis(7L))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
+    }
+
+    @Test
+    @DisplayName("세액 계산 근거: 혜택 배제(IMPOSSIBLE) 계좌는 benefit과 reliefExcluded로 알리고 조정비율·최종공제가 0이다")
+    void 계산_근거_혜택배제() {
+        when(accountMapper.selectByCustomerId(7L))
+                .thenReturn(Optional.of(account(BenefitType.IMPOSSIBLE)));
+        stubTaxYearAndClock();
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(
+                        List.of(lot(LocalDate.of(2026, 3, 10), "30000000", "100", "1000", "100")));
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(List.of(ACCOUNT_ID), TAX_YEAR, NOW))
+                .thenReturn(List.of());
+        when(taxBreakdownAssembler.assemble(anyList(), anyList(), anyList()))
+                .thenReturn(TaxBreakdownDTO.builder().periodBreakdown(List.of()).build());
+
+        CustomerTaxBasisResponseDTO basis = taxCalculationService.getCustomerTaxBasis(7L);
+
+        assertThat(basis.getBenefit()).isEqualTo(BenefitType.IMPOSSIBLE);
+        assertThat(basis.isReliefExcluded()).isTrue();
+        assertThat(basis.getFinalDeduction()).isEqualByComparingTo("0");
+        assertThat(basis.getReliefAmount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("세액 계산 근거: 세액 연도와 겹치지 않는 다른 연도의 구간 행은 근거에서 뺀다")
+    void 계산_근거_다른연도_구간제외() {
+        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.of(account(null)));
+        stubTaxYearAndClock();
+        when(taxMapper.selectFinalizedLotsByAccountIdsAndYear(anyList(), anyInt(), any()))
+                .thenReturn(List.of());
+        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+        when(taxMapper.selectExternalBuysByAccountIdsAndYear(anyList(), anyInt(), any()))
+                .thenReturn(List.of());
+        when(taxBreakdownAssembler.assemble(anyList(), anyList(), anyList()))
+                .thenReturn(
+                        TaxBreakdownDTO.builder()
+                                .periodBreakdown(
+                                        List.of(
+                                                TaxPeriodBreakdownDTO.builder()
+                                                        .validFrom(LocalDate.of(2026, 1, 1))
+                                                        .validTo(LocalDate.of(2026, 5, 31))
+                                                        .weight(BigDecimal.ONE)
+                                                        .sellAmount(BigDecimal.ZERO)
+                                                        .gainAmount(BigDecimal.ZERO)
+                                                        .externalNetBuyAmount(BigDecimal.ZERO)
+                                                        .build(),
+                                                TaxPeriodBreakdownDTO.builder()
+                                                        .validFrom(LocalDate.of(2027, 1, 1))
+                                                        .validTo(LocalDate.of(2027, 5, 31))
+                                                        .weight(BigDecimal.ONE)
+                                                        .sellAmount(BigDecimal.ZERO)
+                                                        .gainAmount(BigDecimal.ZERO)
+                                                        .externalNetBuyAmount(BigDecimal.ZERO)
+                                                        .build()))
+                                .build());
+
+        CustomerTaxBasisResponseDTO basis = taxCalculationService.getCustomerTaxBasis(7L);
+
+        assertThat(basis.getBands()).hasSize(1);
+        assertThat(basis.getBands().get(0).getValidFrom()).isEqualTo(LocalDate.of(2026, 1, 1));
     }
 }
