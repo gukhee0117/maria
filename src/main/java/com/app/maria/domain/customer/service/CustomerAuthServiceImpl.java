@@ -1,5 +1,6 @@
 package com.app.maria.domain.customer.service;
 
+import com.app.maria.domain.customer.dto.request.ContactRule;
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.entity.CustomerAuthEntity;
@@ -68,6 +69,14 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                                                             request.getBirthDate(),
                                                             ciHash,
                                                             businessClockService.now())));
+            // 새 고객이든 기존(시드) 고객이든 가입 때 적은 연락처를 저장한다.
+            customer.changeContact(
+                    ContactRule.normalizePhone(request.getPhone()), request.getEmail());
+            // ponytail: 확인과 저장 사이에 같은 닉네임이 생기면 UNIQUE 위반으로 가입이 실패한다(재가입하면 됨).
+            if (customer.getNickname() == null) {
+                customer.assignNickname(
+                        NicknameGenerator.generate(customerRepository::existsByNickname));
+            }
             CustomerAuthEntity auth =
                     customerAuthRepository.saveAndFlush(
                             CustomerAuthEntity.newLocal(

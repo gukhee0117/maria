@@ -632,6 +632,12 @@ class CommunityPostServiceTest {
         PostResponseDTO retried = service.retryKkiru(me, post.getCommunityPostId());
 
         assertThat(retried.kkiruStatus()).isEqualTo(KkiruStatus.PENDING);
+        assertThat(
+                        postRepository
+                                .findById(post.getCommunityPostId())
+                                .orElseThrow()
+                                .getKkiruRetryCount())
+                .isEqualTo(1);
         assertThat(postCount()).isEqualTo(before);
         List<KkiruCallRequestedEvent> published =
                 events.stream(KkiruCallRequestedEvent.class).toList();
@@ -714,16 +720,46 @@ class CommunityPostServiceTest {
     }
 
     @Test
-    @DisplayName("다시 묻기는 호출 한도를 쓰지 않는다(하루 한도에 걸린 상태에서도 된다)")
-    void retryKkiruIgnoresDailyLimit() {
-        CommunityPostEntity failed = failedPost(me);
-        for (int i = 0; i < 19; i++) {
+    @DisplayName("다시 묻기도 하루 호출 예산을 쓴다: 오늘 만든 행 19개면 한 번은 되고 그다음은 막힌다")
+    void retryKkiruCountsTowardDailyLimit() {
+        CommunityPostEntity first = failedPost(me);
+        CommunityPostEntity second = failedPost(me);
+        for (int i = 0; i < 17; i++) {
             postRepository.save(
                     CommunityPostEntity.write(me, "000660", "@끼루 질문", KkiruStatus.ANSWERED, NOW));
         }
         entityManager.flush();
 
-        assertThat(service.retryKkiru(me, failed.getCommunityPostId()).kkiruStatus())
+        assertThat(service.retryKkiru(me, first.getCommunityPostId()).kkiruStatus())
                 .isEqualTo(KkiruStatus.PENDING);
+        assertError(
+                () -> service.retryKkiru(me, second.getCommunityPostId()),
+                ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    @DisplayName("며칠 전에 만든 FAILED 글을 많이 다시 물어도 오늘 20번을 넘지 못한다(리뷰 재현 시나리오)")
+    void retryKkiruOldRowsCannotExceedDailyLimit() {
+        List<CommunityPostEntity> oldFailed = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            oldFailed.add(
+                    postRepository.save(
+                            CommunityPostEntity.write(
+                                    me,
+                                    "000660",
+                                    "@끼루 공시 있나요?",
+                                    KkiruStatus.FAILED,
+                                    NOW.minusDays(2))));
+        }
+        entityManager.flush();
+
+        for (int i = 0; i < 20; i++) {
+            assertThat(service.retryKkiru(me, oldFailed.get(i).getCommunityPostId()).kkiruStatus())
+                    .isEqualTo(KkiruStatus.PENDING);
+        }
+        assertError(
+                () -> service.retryKkiru(me, oldFailed.get(20).getCommunityPostId()),
+                ErrorType.COMMUNITY_KKIRU_LIMIT_EXCEEDED);
+        assertThat(events.stream(KkiruCallRequestedEvent.class).count()).isEqualTo(20);
     }
 }

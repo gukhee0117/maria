@@ -40,6 +40,11 @@ public enum ErrorType {
     CUSTOMER_SIGNUP_FAILED(HttpStatus.BAD_REQUEST, "가입 정보를 확인해 주세요.", LogLevel.WARN),
     CUSTOMER_LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.", LogLevel.WARN),
     CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    // 비밀번호 변경. 401이 아닌 400이다: 화면이 401을 세션 만료로 처리하기 때문.
+    CUSTOMER_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
+    CUSTOMER_PASSWORD_NOT_SET(
+            HttpStatus.BAD_REQUEST, "비밀번호로 로그인하는 계정이 아니라 비밀번호를 바꿀 수 없습니다.", LogLevel.WARN),
+    CUSTOMER_PASSWORD_UNCHANGED(HttpStatus.BAD_REQUEST, "새 비밀번호가 현재 비밀번호와 같습니다.", LogLevel.WARN),
 
     // 계좌
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "계좌 정보를 찾을 수 없습니다.", LogLevel.WARN),
@@ -77,6 +82,7 @@ public enum ErrorType {
             HttpStatus.INTERNAL_SERVER_ERROR, "계좌 혜택 변경 결과가 올바르지 않습니다.", LogLevel.ERROR),
 
     // 세금
+    TAX_SNAPSHOT_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 저장된 세액 계산 자료가 없습니다.", LogLevel.WARN),
     TAX_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "유효한 세액 규칙을 찾지 못했습니다.", LogLevel.WARN),
     TAX_FINAL_REPORT_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정신고된 계좌입니다.", LogLevel.WARN),
     TAX_EARLY_WITHDRAWAL_CLAWBACK_ALREADY_EXISTS(

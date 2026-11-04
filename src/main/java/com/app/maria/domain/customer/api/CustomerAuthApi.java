@@ -4,6 +4,7 @@ import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerMeResponseDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
+import com.app.maria.global.exception.AppException;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -88,9 +90,23 @@ public class CustomerAuthApi {
             @Valid @RequestBody CustomerSignupRequestDTO body,
             HttpServletRequest request,
             HttpServletResponse response) {
-        CustomerPrincipal principal = customerAuthService.signup(body);
+        CustomerPrincipal principal = signupRetryingOnConflict(body);
         establishSession(principal, request, response);
         return ApiResponseDTO.of("가입 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+    }
+
+    // 서버가 만드는 닉네임이 동시에 겹치면 DB UNIQUE 위반으로 가입 트랜잭션이 통째로 취소된다. 트랜잭션 안에서는 다시 시도할 수 없어서 여기서 한 번만 다시
+    // 부른다.
+    // 진짜 중복(아이디 등)이면 두 번째 호출이 정확한 오류(예: 아이디 중복)로 끝난다.
+    private CustomerPrincipal signupRetryingOnConflict(CustomerSignupRequestDTO body) {
+        try {
+            return customerAuthService.signup(body);
+        } catch (AppException e) {
+            if (!(e.getCause() instanceof DataIntegrityViolationException)) {
+                throw e;
+            }
+            return customerAuthService.signup(body);
+        }
     }
 
     // 이 요청이 세션을 접근한 시점부터 유휴 시간이 다시 시작되므로 만료 시각 = 지금 + 유휴 허용 시간.

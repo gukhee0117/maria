@@ -83,7 +83,9 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
 
     /** 내 댓글의 끼루 호출 다시 묻기. 글 쪽과 같은 규칙에 더해 그 댓글이 달린 글도 보여야 한다. */
     @Override
-    @Transactional(transactionManager = "jpaTransactionManager")
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            isolation = Isolation.READ_COMMITTED)
     public CommentResponseDTO retryKkiru(Long customerId, Long commentId) {
         CommunityCommentEntity comment =
                 commentRepository
@@ -106,7 +108,8 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
                 || !postVisible) {
             throw new AppException(ErrorType.COMMUNITY_KKIRU_RETRY_NOT_ALLOWED, commentId);
         }
-        comment.moveKkiruStatus(KkiruStatus.PENDING);
+        kkiruCallPlanner.requireRetryLimits(customerId, comment.getKkiruRetryCount());
+        comment.restartKkiru();
         events.publishEvent(new KkiruCallRequestedEvent(comment.getCommunityPostId(), commentId));
         return assembler.assemble(List.of(comment), customerId).get(0);
     }
