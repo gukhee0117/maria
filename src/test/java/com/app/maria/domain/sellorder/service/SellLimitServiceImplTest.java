@@ -25,6 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class SellLimitServiceImplTest {
@@ -225,5 +227,19 @@ class SellLimitServiceImplTest {
         assertThatThrownBy(() -> sellLimitService.getStatusByCustomerId(7L))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
+    }
+
+    @Test
+    @DisplayName("한도 조회 경로는 myData HTTP 호출 동안 DB 커넥션을 쥐지 않도록 트랜잭션 밖(NOT_SUPPORTED)이다")
+    void limitQueriesRunOutsideTransaction() throws Exception {
+        for (var method :
+                new java.lang.reflect.Method[] {
+                    SellLimitServiceImpl.class.getMethod("getRemainingLimit", Long.class),
+                    SellLimitServiceImpl.class.getMethod("getStatusByCustomerId", Long.class)
+                }) {
+            Transactional tx = method.getAnnotation(Transactional.class);
+            assertThat(tx).as(method.getName()).isNotNull();
+            assertThat(tx.propagation()).as(method.getName()).isEqualTo(Propagation.NOT_SUPPORTED);
+        }
     }
 }
