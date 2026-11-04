@@ -3,6 +3,9 @@ package com.app.maria.domain.chat.service;
 import com.app.maria.domain.chat.dto.request.ChatRequestDTO;
 import com.app.maria.domain.chat.dto.request.MessageDTO;
 import com.app.maria.domain.chat.tool.AccountChatTool;
+import com.app.maria.domain.chat.tool.SellLimitChatTool;
+import com.app.maria.domain.chat.tool.TaxChatTool;
+import com.app.maria.domain.chat.tool.WithdrawalChatTool;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,14 +26,23 @@ public class KkiruChatServiceImpl implements KkiruChatService {
     private final ChatClient chatClient;
     private final BusinessClockService businessClockService;
     private final AccountChatTool accountChatTool;
+    private final WithdrawalChatTool withdrawalChatTool;
+    private final SellLimitChatTool sellLimitChatTool;
+    private final TaxChatTool taxChatTool;
 
     public KkiruChatServiceImpl(
             @Qualifier("kkiruChatClient") ChatClient chatClient,
             BusinessClockService businessClockService,
-            AccountChatTool accountChatTool) {
+            AccountChatTool accountChatTool,
+            WithdrawalChatTool withdrawalChatTool,
+            SellLimitChatTool sellLimitChatTool,
+            TaxChatTool taxChatTool) {
         this.chatClient = chatClient;
         this.businessClockService = businessClockService;
         this.accountChatTool = accountChatTool;
+        this.withdrawalChatTool = withdrawalChatTool;
+        this.sellLimitChatTool = sellLimitChatTool;
+        this.taxChatTool = taxChatTool;
     }
 
     @Override
@@ -43,7 +55,7 @@ public class KkiruChatServiceImpl implements KkiruChatService {
                 .prompt()
                 .messages(messages)
                 .user(request.getQuestion())
-                .tools(accountChatTool)
+                .tools(accountChatTool, withdrawalChatTool, sellLimitChatTool, taxChatTool)
                 .toolContext(buildCtx(customerId))
                 .stream()
                 .content();
