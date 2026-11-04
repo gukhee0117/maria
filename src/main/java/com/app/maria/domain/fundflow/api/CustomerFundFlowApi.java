@@ -4,6 +4,9 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerAllocationResp
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowTrendResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 import com.app.maria.domain.fundflow.service.CustomerFundFlowService;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
@@ -55,5 +58,34 @@ public class CustomerFundFlowApi {
                 ApiResponseDTO.of(
                         "내 예상 세금 혜택 조회 성공",
                         customerFundFlowService.getRelief(principal.customerId())));
+    }
+
+    @GetMapping("/transactions")
+    public ResponseEntity<ApiResponseDTO<FundFlowTransactionsResponseDTO>> getTransactions(
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "내 자금 이동 내역 조회 성공",
+                        customerFundFlowService.getTransactions(principal.customerId())));
+    }
+
+    @GetMapping("/balance-trend")
+    public ResponseEntity<ApiResponseDTO<FundFlowTrendResponseDTO>> getBalanceTrend(
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "내 잔액 추이 조회 성공",
+                        customerFundFlowService.getBalanceTrend(principal.customerId())));
+    }
+
+    @GetMapping("/withdrawal-schedule")
+    public ResponseEntity<ApiResponseDTO<FundFlowWithdrawalScheduleResponseDTO>>
+            getWithdrawalSchedule(
+                    @AuthenticationPrincipal(errorOnInvalidType = true)
+                            CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "내 인출 가능 일정 조회 성공",
+                        customerFundFlowService.getWithdrawalSchedule(principal.customerId())));
     }
 }
