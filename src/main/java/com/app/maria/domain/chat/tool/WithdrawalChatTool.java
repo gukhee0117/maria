@@ -17,8 +17,9 @@ public class WithdrawalChatTool {
 
     private final CustomerWithdrawalService withdrawalService;
 
-    @Tool(name = "withdrawal_schedule",
-          description = "로그인한 고객의 인출 가능 금액, 묶인 원금, 납입 건별 1년 유지기간 만료일을 조회합니다.")
+    @Tool(
+            name = "withdrawal_schedule",
+            description = "로그인한 고객의 인출 가능 금액, 묶인 원금, 납입 건별 1년 유지기간 만료일을 조회합니다.")
     public String getWithdrawalSchedule(ToolContext context) {
         Object raw = context.getContext().get("customerId");
         if (raw == null) {
@@ -33,19 +34,22 @@ public class WithdrawalChatTool {
 
             StringBuilder sb = new StringBuilder();
             sb.append("세제혜택 불이익 없이 인출 가능: ")
-              .append(fmt.format(dto.getWithdrawableWithoutPenalty())).append("원");
+                    .append(fmt.format(dto.getWithdrawableWithoutPenalty()))
+                    .append("원");
             sb.append(" / 1년 미경과 묶인 원금: ")
-              .append(fmt.format(dto.getImmaturePrincipalAmount())).append("원");
+                    .append(fmt.format(dto.getImmaturePrincipalAmount()))
+                    .append("원");
 
             if (dto.getLeftAmounts() != null) {
                 dto.getLeftAmounts().stream()
                         .filter(item -> !item.isMatured())
-                        .forEach(item ->
-                                sb.append(" / 1년 유지기간 만료일 ")
-                                  .append(item.getMaturesAt().toLocalDate())
-                                  .append(" (납입분 ")
-                                  .append(fmt.format(item.getCurAmount()))
-                                  .append("원)"));
+                        .forEach(
+                                item ->
+                                        sb.append(" / 1년 유지기간 만료일 ")
+                                                .append(item.getMaturesAt().toLocalDate())
+                                                .append(" (납입분 ")
+                                                .append(fmt.format(item.getCurAmount()))
+                                                .append("원)"));
             }
             sb.append(" / 조회 기준: ").append(dto.getAsOf().toLocalDate());
             return sb.toString();

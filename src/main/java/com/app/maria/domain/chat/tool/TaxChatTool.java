@@ -19,8 +19,10 @@ public class TaxChatTool {
 
     private final TaxCalculationService taxCalculationService;
 
-    @Tool(name = "tax_estimate",
-          description = "로그인한 고객의 RIA 예상 감면세액과 예상 납부 세액을 조회합니다. 가장 최근 세액 스냅샷 기반 예상값이며, 확정신고 결과가 아닙니다.")
+    @Tool(
+            name = "tax_estimate",
+            description =
+                    "로그인한 고객의 RIA 예상 감면세액과 예상 납부 세액을 조회합니다. 가장 최근 세액 스냅샷 기반 예상값이며, 확정신고 결과가 아닙니다.")
     public String getTaxEstimate(ToolContext context) {
         Object raw = context.getContext().get("customerId");
         if (raw == null) {
@@ -33,9 +35,14 @@ public class TaxChatTool {
             CustomerTaxBriefingResponseDTO dto =
                     taxCalculationService.getCustomerTaxBriefing(customerId);
             CustomerTaxBriefingResponseDTO.TaxScenario current = dto.getCurrent();
-            return "예상 감면세액: " + fmt.format(current.getReliefAmount()) + "원"
-                    + " / 예상 납부 세액: " + fmt.format(current.getRiaTax()) + "원"
-                    + " / 계산 기준: " + dto.getCalculatedAt().toLocalDate();
+            return "예상 감면세액: "
+                    + fmt.format(current.getReliefAmount())
+                    + "원"
+                    + " / 예상 납부 세액: "
+                    + fmt.format(current.getRiaTax())
+                    + "원"
+                    + " / 계산 기준: "
+                    + dto.getCalculatedAt().toLocalDate();
         } catch (AppException e) {
             if (e.getErrorType() == ErrorType.TAX_SNAPSHOT_NOT_FOUND) {
                 return "아직 예상 세액이 계산되지 않았어요. 세액예상 페이지에서 먼저 조회해 보세요.";
