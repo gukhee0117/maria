@@ -20,14 +20,19 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 /**
- * D2(현금 직접입금 차단): account.amount를 SET 절에서 변경하는 <update>가 아래 3개 외에 새로 생기면 실패한다. 이 3개는 전부 실제 매도/환전/인출
- * 레코드에서 계산된 값만 반영하며, 임의 금액을 받는 입금 경로는 없다. 새 write path를 추가하려면 이 목록에 의도적으로 추가해야 한다(실수로 생긴 직접입금 경로
- * 차단).
+ * D2(현금 직접입금 차단): account.amount를 SET 절에서 변경하는 <update>가 아래 4개 외에 새로 생기면 실패한다. 이 4개는 전부 실제
+ * 매도/환전/인출/주문 체결 레코드에서 계산된 값만 반영하며, 임의 금액을 받는 입금 경로는 없다. 새 write path를 추가하려면 이 목록에 의도적으로 추가해야
+ * 한다(실수로 생긴 직접입금 경로 차단).
  */
 class AccountAmountWritePathTest {
 
     private static final Set<String> ALLOWED_ACCOUNT_AMOUNT_WRITERS =
-            Set.of("updateProvisionalAmount", "replaceAccountAmount", "deductAccountAmount");
+            Set.of(
+                    "updateProvisionalAmount",
+                    "replaceAccountAmount",
+                    "deductAccountAmount",
+                    // 패키지 주문 체결: 금액을 받지 않고 이미 기록된 체결 주문(domestic_order.amount)에서만 읽는다
+                    "applyOrderAmount");
 
     private static final Pattern TARGETS_ACCOUNT_TABLE =
             Pattern.compile("(?i)\\bupdate\\s+account\\b");
@@ -40,7 +45,7 @@ class AccountAmountWritePathTest {
     private static final Pattern PARAMETER_PLACEHOLDER = Pattern.compile("^#\\{.*}$");
 
     @Test
-    @DisplayName("account.amount를 SET 절에서 변경하는 <update>는 정해진 3개(가환전/확정산/인출 차감)뿐이다")
+    @DisplayName("account.amount를 SET 절에서 변경하는 <update>는 정해진 4개(가환전/확정산/인출 차감/주문 체결)뿐이다")
     void onlyKnownWritersModifyAccountAmount() throws Exception {
         Set<String> actualWriters = new HashSet<>();
 

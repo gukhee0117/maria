@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.stockpackage.mapper.StockPackageMapper">
+
+    <insert id="insertPackage" useGeneratedKeys="true" keyProperty="stockPackageId">
+        INSERT INTO stock_package (customer_id, name, total_amount, created_at, updated_at)
+        VALUES (#{customerId}, #{name}, #{totalAmount}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <insert id="insertItems">
+        INSERT INTO stock_package_item
+            (stock_package_id, domestic_product_id, weight, unsuitable_confirmed_at, created_at)
+        VALUES
+        <foreach collection="items" item="item" separator=",">
+            (#{stockPackageId}, #{item.domesticProductId}, #{item.weight},
+             #{item.unsuitableConfirmedAt}, #{item.createdAt})
+        </foreach>
+    </insert>
+
+    <select id="selectSummariesByCustomerId"
+            resultType="com.app.maria.domain.stockpackage.vo.StockPackageVO">
+        SELECT sp.stock_package_id, sp.customer_id, sp.name, sp.total_amount,
+               sp.created_at, sp.updated_at,
+               (SELECT COUNT(*) FROM stock_package_item spi
+                 WHERE spi.stock_package_id = sp.stock_package_id) AS item_count
+        FROM stock_package sp
+        WHERE sp.customer_id = #{customerId}
+        ORDER BY sp.created_at DESC, sp.stock_package_id DESC
+    </select>
+
+    <select id="selectByIdAndCustomerId"
+            resultType="com.app.maria.domain.stockpackage.vo.StockPackageVO">
+        SELECT stock_package_id, customer_id, name, total_amount, created_at, updated_at
+        FROM stock_package
+        WHERE stock_package_id = #{stockPackageId}
+          AND customer_id = #{customerId}
+    </select>
+
+    <select id="selectByIdAndCustomerIdForUpdate"
+            resultType="com.app.maria.domain.stockpackage.vo.StockPackageVO">
+        SELECT stock_package_id, customer_id, name, total_amount, created_at, updated_at
+        FROM stock_package
+        WHERE stock_package_id = #{stockPackageId}
+          AND customer_id = #{customerId}
+        FOR UPDATE
+    </select>
+
+    <select id="selectItemsByPackageId"
+            resultType="com.app.maria.domain.stockpackage.vo.StockPackageItemVO">
+        SELECT spi.stock_package_item_id, spi.stock_package_id, spi.domestic_product_id,
+               dp.ticker, dp.name, dp.type, dp.market, spi.weight, spi.unsuitable_confirmed_at,
+               spi.created_at
+        FROM stock_package_item spi
+        JOIN domestic_product dp ON dp.domestic_product_id = spi.domestic_product_id
+        WHERE spi.stock_package_id = #{stockPackageId}
+        ORDER BY spi.stock_package_item_id
+    </select>
+
+    <update id="updatePackage">
+        UPDATE stock_package
+        SET name = #{name},
+            total_amount = #{totalAmount},
+            updated_at = #{updatedAt}
+        WHERE stock_package_id = #{stockPackageId}
+          AND customer_id = #{customerId}
+    </update>
+
+    <delete id="deleteItemsByPackageId">
+        DELETE FROM stock_package_item WHERE stock_package_id = #{stockPackageId}
+    </delete>
+
+    <delete id="deletePackage">
+        DELETE FROM stock_package
+        WHERE stock_package_id = #{stockPackageId}
+          AND customer_id = #{customerId}
+    </delete>
+
+    <select id="selectProductsByIds"
+            resultType="com.app.maria.domain.stockpackage.vo.StockProductVO">
+        SELECT domestic_product_id, ticker, name, type, domestic_stock_ratio, inception_date,
+               sector_name
+        FROM domestic_product
+        WHERE domestic_product_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="selectThemesByProductIds"
+            resultType="com.app.maria.domain.stockpackage.vo.StockProductThemeVO">
+        SELECT dpt.domestic_product_id, st.name AS theme_name
+        FROM domestic_product_theme dpt
+        JOIN stock_theme st ON st.stock_theme_id = dpt.stock_theme_id
+        WHERE dpt.domestic_product_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY dpt.domestic_product_id, st.name
+    </select>
+
+    <select id="countOrdersByPackageId" resultType="int">
+        SELECT COUNT(*) FROM domestic_order WHERE stock_package_id = #{stockPackageId}
+    </select>
+
+</mapper>

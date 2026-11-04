@@ -225,6 +225,30 @@ public enum ErrorType {
     // 출고
     OUTBOUND_NO_AVAILABLE_QTY(HttpStatus.BAD_REQUEST, "출고 가능한 수량이 없습니다.", LogLevel.WARN),
 
+    // 주식 패키지 (다른 고객의 패키지는 존재 여부를 노출하지 않는다.)
+    STOCK_PACKAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "패키지를 찾을 수 없습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_WEIGHT_SUM_INVALID(
+            HttpStatus.BAD_REQUEST, "종목 비중의 합이 100%여야 합니다.", LogLevel.WARN),
+    STOCK_PACKAGE_ITEM_DUPLICATED(HttpStatus.BAD_REQUEST, "같은 종목을 두 번 담을 수 없습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_PRODUCT_NOT_PURCHASABLE(
+            HttpStatus.BAD_REQUEST, "RIA 계좌에서 살 수 없는 종목이 포함되어 있습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_GRADE_UNAVAILABLE(
+            HttpStatus.BAD_REQUEST, "위험등급이 없어 담을 수 없는 종목이 포함되어 있습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_PROFILE_REQUIRED(
+            HttpStatus.BAD_REQUEST, "투자성향 진단이 없거나 만료되어 종목을 담을 수 없습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_UNSUITABLE_NOT_CONFIRMED(
+            HttpStatus.BAD_REQUEST, "내 투자성향보다 위험한 종목은 확인 후 담을 수 있습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_HAS_ORDERS(HttpStatus.CONFLICT, "주문 내역이 있는 패키지는 삭제할 수 없습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_CANDIDATE_FILTER_INVALID(
+            HttpStatus.BAD_REQUEST, "후보 조건의 위험등급 범위가 올바르지 않습니다.", LogLevel.WARN),
+    STOCK_PACKAGE_QUOTE_INVALID(
+            HttpStatus.BAD_REQUEST, "현재가를 조회할 종목 코드가 올바르지 않습니다.", LogLevel.WARN),
+    STOCK_ORDER_REQUEST_INVALID(HttpStatus.BAD_REQUEST, "주문 내용이 올바르지 않습니다.", LogLevel.WARN),
+    STOCK_ORDER_ITEM_NOT_IN_PACKAGE(
+            HttpStatus.BAD_REQUEST, "패키지에 담지 않은 종목은 주문할 수 없습니다.", LogLevel.WARN),
+    STOCK_ORDER_ACCOUNT_NOT_OPEN(HttpStatus.CONFLICT, "개설된 RIA 계좌가 있어야 주문할 수 있습니다.", LogLevel.WARN),
+    STOCK_ORDER_MARKET_CLOSED(HttpStatus.CONFLICT, "지금은 주문할 수 있는 시간이 아닙니다.", LogLevel.WARN),
+
     // 커뮤니티
     COMMUNITY_TEXT_BANNED(HttpStatus.BAD_REQUEST, "사용할 수 없는 표현이 포함되어 있습니다.", LogLevel.WARN),
     COMMUNITY_CONTENT_INVALID(
