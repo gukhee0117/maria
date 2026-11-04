@@ -2,6 +2,7 @@ package com.app.maria.domain.withdrawal.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
@@ -14,7 +15,6 @@ import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.clock.service.BusinessClockService;
-import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
@@ -70,10 +70,12 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
 
         List<LeftAmountItem> leftAmounts =
                 leftAmountDTOs.stream()
-                        .map(la -> new LeftAmountItem(
-                                la.getFinalAt(),
-                                la.getCurAmount(),
-                                !la.getFinalAt().plusYears(1).isAfter(now)))
+                        .map(
+                                la ->
+                                        new LeftAmountItem(
+                                                la.getFinalAt(),
+                                                la.getCurAmount(),
+                                                !la.getFinalAt().plusYears(1).isAfter(now)))
                         .toList();
 
         BigDecimal totalPrincipal =
@@ -81,7 +83,8 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
                         .map(LeftAmountItem::getCurAmount)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
         // WithdrawalProcessor와 동일한 순서: (잔고 − 원금 − 가환전).max(0)
-        BigDecimal earnings = cashAmount.subtract(totalPrincipal).subtract(provisionalTotal).max(BigDecimal.ZERO);
+        BigDecimal earnings =
+                cashAmount.subtract(totalPrincipal).subtract(provisionalTotal).max(BigDecimal.ZERO);
 
         BigDecimal maturedPrincipal =
                 leftAmounts.stream()
