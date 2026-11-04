@@ -99,6 +99,6 @@ public final class StockConditionNormalizer {
 
     /** 공백과 대소문자 차이만 무시하고 같은 이름으로 본다. */
     private static String key(String name) {
-        return name.replaceAll("\s+", "").toLowerCase(Locale.ROOT);
+        return name.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
 }

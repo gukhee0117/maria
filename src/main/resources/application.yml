@@ -129,13 +129,6 @@ custom:
     snapshot-cron: "0 0 2 * * *"
     zone: "Asia/Seoul"
     year: 2026
-# GoldenScenarioTest 전용 — securities(증권사) DB 직접 접속 정보.
-securities:
-  jdbc:
-    url: ${SECURITIES_DB_URL:jdbc:mariadb://localhost:3306/securities}
-    username: ${SECURITIES_DB_USERNAME:root}
-    password: ${SECURITIES_DB_PASSWORD:secret}
-    initialize-schema: never
 sql:
   init:
     mode: never

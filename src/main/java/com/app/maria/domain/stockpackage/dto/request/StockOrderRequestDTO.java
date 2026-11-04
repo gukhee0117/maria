@@ -2,6 +2,7 @@ package com.app.maria.domain.stockpackage.dto.request;
 
 import com.app.maria.domain.domestic.type.DomesticOrderSide;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -19,9 +20,9 @@ public record StockOrderRequestDTO(
         @NotBlank @Size(max = 36) @Pattern(regexp = "[A-Za-z0-9-]+") String idempotencyKey,
         @NotEmpty @Size(max = 20) List<@NotNull @Valid Item> items) {
 
-    /** qty는 정수 주만 받는다(소수는 서비스에서 거부). */
+    /** qty는 정수 주만 받는다(정수 9자리까지, 소수·지수 표기로 큰 값은 검증에서 거부). */
     public record Item(
             @NotNull Long domesticProductId,
             @NotNull DomesticOrderSide side,
-            @NotNull @Positive BigDecimal qty) {}
+            @NotNull @Positive @Digits(integer = 9, fraction = 0) BigDecimal qty) {}
 }

@@ -31,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -97,8 +98,17 @@ public class StockOrderServiceImpl implements StockOrderService {
                 stockPackageMapper.selectItemsByPackageId(stockPackageId).stream()
                         .map(StockPackageItemVO::getDomesticProductId)
                         .collect(Collectors.toSet());
+        // 패키지에서 뺀 종목도 이 패키지로 이미 산 적이 있으면 팔 수 있어야 한다(매수는 소속 종목만)
+        Set<Long> sellableProductIds = new HashSet<>(packageProductIds);
+        if (request.items().stream().anyMatch(i -> i.side() == DomesticOrderSide.SELL)) {
+            stockOrderMapper.selectExecutedByPackageAsc(stockPackageId).stream()
+                    .map(StockOrderVO::getDomesticProductId)
+                    .forEach(sellableProductIds::add);
+        }
         for (StockOrderRequestDTO.Item item : request.items()) {
-            if (!packageProductIds.contains(item.domesticProductId())) {
+            Set<Long> allowed =
+                    item.side() == DomesticOrderSide.SELL ? sellableProductIds : packageProductIds;
+            if (!allowed.contains(item.domesticProductId())) {
                 throw new AppException(ErrorType.STOCK_ORDER_ITEM_NOT_IN_PACKAGE);
             }
         }
@@ -145,6 +155,9 @@ public class StockOrderServiceImpl implements StockOrderService {
                 accountMapper
                         .selectByCustomerId(customerId)
                         .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND));
+        if (!account.getStatus().canTrade() || account.getOpenedAt() == null) {
+            throw new AppException(ErrorType.STOCK_ORDER_ACCOUNT_NOT_OPEN);
+        }
         LocalDate today = businessClockService.now().toLocalDate();
         List<TaxRuleDTO> rules = taxMapper.selectTaxRules();
         return new StockOrderFeeResponseDTO(
