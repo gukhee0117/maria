@@ -17,8 +17,6 @@ public class AccountChatTool {
 
     private final AccountMapper accountMapper;
 
-    private static final NumberFormat KRW = NumberFormat.getIntegerInstance(Locale.KOREA);
-
     @Tool(name = "account_summary", description = "로그인한 고객의 RIA 계좌 예수금·상태·혜택 여부를 조회합니다.")
     public String getAccountSummary(ToolContext context) {
         Object raw = context.getContext().get("customerId");
@@ -28,6 +26,7 @@ public class AccountChatTool {
         }
         Long customerId = (Long) raw;
         try {
+            NumberFormat KRW = NumberFormat.getIntegerInstance(Locale.KOREA);
             return accountMapper
                     .selectByCustomerId(customerId)
                     .map(
