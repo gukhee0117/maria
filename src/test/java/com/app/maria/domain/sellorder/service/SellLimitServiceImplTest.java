@@ -9,6 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.app.maria.domain.account.dto.AccountDTO;
+import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
+import com.app.maria.domain.sellorder.dto.response.SellLimitStatusDTO;
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.exception.AppException;
@@ -28,6 +32,8 @@ class SellLimitServiceImplTest {
     @Mock SellLimitMapper sellLimitMapper;
 
     @Mock MydataClient mydataClient;
+
+    @Mock AccountMapper accountMapper;
 
     @InjectMocks SellLimitServiceImpl sellLimitService;
 
@@ -145,5 +151,79 @@ class SellLimitServiceImplTest {
                 .hasMessage(ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND.getMessage());
 
         verifyNoInteractions(mydataClient);
+    }
+
+    private static AccountDTO account(Status status, String limitAmount) {
+        return AccountDTO.builder()
+                .accountId(100L)
+                .customerId(7L)
+                .status(status)
+                .limitAmount(new BigDecimal(limitAmount))
+                .build();
+    }
+
+    @Test
+    @DisplayName("고객 매도 한도: 설정한도가 더 빡빡하면 설정한도 − 누적이 남은 한도다")
+    void statusRemainingIsLimitMinusUsedWhenAccountLimitBinds() {
+        when(accountMapper.selectByCustomerId(7L))
+                .thenReturn(Optional.of(account(Status.OPENED, "30000000")));
+        when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
+        when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("12000000"));
+        when(mydataClient.getExternalSellTotal("ci")).thenReturn(BigDecimal.ZERO);
+
+        SellLimitStatusDTO status = sellLimitService.getStatusByCustomerId(7L);
+
+        assertThat(status.limitAmount()).isEqualByComparingTo("30000000");
+        assertThat(status.usedAmount()).isEqualByComparingTo("12000000");
+        assertThat(status.remainingLimit()).isEqualByComparingTo("18000000");
+    }
+
+    @Test
+    @DisplayName("고객 매도 한도: 타사 누적 매도 때문에 5천만 상한이 더 빡빡하면 그 값이 남은 한도다")
+    void statusRemainingIsCappedByGlobalLimitWhenExternalSellIsLarge() {
+        when(accountMapper.selectByCustomerId(7L))
+                .thenReturn(Optional.of(account(Status.OPENED, "50000000")));
+        when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
+        when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("10000000"));
+        when(mydataClient.getExternalSellTotal("ci")).thenReturn(new BigDecimal("35000000"));
+
+        assertThat(sellLimitService.getStatusByCustomerId(7L).remainingLimit())
+                .isEqualByComparingTo("5000000");
+    }
+
+    @Test
+    @DisplayName("고객 매도 한도: 이미 넘었으면 남은 한도는 음수가 아니라 0이다")
+    void statusRemainingIsNeverNegative() {
+        when(accountMapper.selectByCustomerId(7L))
+                .thenReturn(Optional.of(account(Status.OPENED, "50000000")));
+        when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
+        when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("40000000"));
+        when(mydataClient.getExternalSellTotal("ci")).thenReturn(new BigDecimal("20000000"));
+
+        assertThat(sellLimitService.getStatusByCustomerId(7L).remainingLimit())
+                .isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("고객 매도 한도: OPENED가 아닌 계좌는 매도 주문과 같은 예외이고 myData를 부르지 않는다")
+    void statusRejectsAccountThatCannotTrade() {
+        when(accountMapper.selectByCustomerId(7L))
+                .thenReturn(Optional.of(account(Status.CLOSED, "50000000")));
+
+        assertThatThrownBy(() -> sellLimitService.getStatusByCustomerId(7L))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_STATE_NOT_ALLOWED.getMessage());
+
+        verifyNoInteractions(mydataClient);
+    }
+
+    @Test
+    @DisplayName("고객 매도 한도: RIA 계좌가 없으면 ACCOUNT_NOT_FOUND다")
+    void statusRejectsCustomerWithoutAccount() {
+        when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> sellLimitService.getStatusByCustomerId(7L))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_NOT_FOUND.getMessage());
     }
 }

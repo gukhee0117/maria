@@ -1,6 +1,8 @@
 package com.app.maria.domain.sellorder.service;
 
+import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.sellorder.dto.response.SellLimitStatusDTO;
 import com.app.maria.domain.sellorder.mapper.SellLimitMapper;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.exception.AppException;
@@ -58,6 +60,29 @@ public class SellLimitServiceImpl implements SellLimitService {
 
     @Override
     public BigDecimal getRemainingLimit(Long accountId) {
+        AccountDTO account =
+                accountMapper
+                        .selectByAccountId(accountId)
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
+        return statusOf(account).remainingLimit();
+    }
+
+    @Override
+    public SellLimitStatusDTO getStatusByCustomerId(Long customerId) {
+        AccountDTO account =
+                accountMapper
+                        .selectByCustomerId(customerId)
+                        .orElseThrow(
+                                () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
+        if (!account.getStatus().canTrade()) {
+            throw new AppException(ErrorType.ACCOUNT_STATE_NOT_ALLOWED, account.getStatus());
+        }
+        return statusOf(account);
+    }
+
+    private SellLimitStatusDTO statusOf(AccountDTO account) {
+        Long accountId = account.getAccountId();
         String ciHash =
                 sellLimitMapper
                         .selectCiHashByAccountId(accountId)
@@ -70,18 +95,15 @@ public class SellLimitServiceImpl implements SellLimitService {
         // 조회 실패 시 AppException 전파 — 한도 불명 상태에서 추천 반환하지 않음
         BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
 
-        BigDecimal limitAmount =
-                accountMapper
-                        .selectByAccountId(accountId)
-                        .orElseThrow(() -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId))
-                        .getLimitAmount();
-
+        BigDecimal limitAmount = account.getLimitAmount();
         BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);
 
-        return MAX_TOTAL_SELL_LIMIT
-                .subtract(usedAmount)
-                .subtract(externalSum)
-                .min(limitAmount.subtract(usedAmount))
-                .max(BigDecimal.ZERO);
+        BigDecimal remaining =
+                MAX_TOTAL_SELL_LIMIT
+                        .subtract(usedAmount)
+                        .subtract(externalSum)
+                        .min(limitAmount.subtract(usedAmount))
+                        .max(BigDecimal.ZERO);
+        return new SellLimitStatusDTO(limitAmount, usedAmount, remaining);
     }
 }
