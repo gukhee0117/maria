@@ -10,6 +10,7 @@ import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -58,6 +59,8 @@ public class SellLimitServiceImpl implements SellLimitService {
         return withinAccountLimit && withinGlobalCap;
     }
 
+    // 조회 전용이고 락이 없다. myData HTTP 호출 동안 DB 커넥션을 쥐지 않도록 트랜잭션 밖에서 실행한다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public BigDecimal getRemainingLimit(Long accountId) {
         AccountDTO account =
@@ -68,6 +71,8 @@ public class SellLimitServiceImpl implements SellLimitService {
         return statusOf(account).remainingLimit();
     }
 
+    // 조회 전용이고 락이 없다. myData HTTP 호출 동안 DB 커넥션을 쥐지 않도록 트랜잭션 밖에서 실행한다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public SellLimitStatusDTO getStatusByCustomerId(Long customerId) {
         AccountDTO account =
