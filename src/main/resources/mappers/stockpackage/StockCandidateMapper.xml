@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.stockpackage.mapper.StockCandidateMapper">
+
+    <select id="selectCandidateProducts"
+            resultType="com.app.maria.domain.stockpackage.vo.StockCandidateProductVO">
+        SELECT dp.domestic_product_id, dp.ticker, dp.name, dp.market, dp.type,
+               dp.domestic_stock_ratio, dp.inception_date, dp.sector_name
+        FROM domestic_product dp
+        <where>
+            <if test="types != null and !types.isEmpty()">
+                dp.type IN
+                <foreach collection="types" item="t" open="(" separator="," close=")">
+                    #{t}
+                </foreach>
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (dp.name LIKE CONCAT('%', #{keyword}, '%')
+                     OR dp.ticker LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="themes != null and !themes.isEmpty()">
+                AND EXISTS (
+                    SELECT 1
+                    FROM domestic_product_theme dpt
+                    JOIN stock_theme st ON st.stock_theme_id = dpt.stock_theme_id
+                    WHERE dpt.domestic_product_id = dp.domestic_product_id
+                      AND st.name IN
+                      <foreach collection="themes" item="theme" open="(" separator="," close=")">
+                          #{theme}
+                      </foreach>
+                )
+            </if>
+        </where>
+        ORDER BY dp.name, dp.ticker
+    </select>
+
+    <select id="selectThemeNames" resultType="string">
+        SELECT name FROM stock_theme ORDER BY name
+    </select>
+
+</mapper>
