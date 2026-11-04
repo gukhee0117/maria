@@ -29,8 +29,8 @@ public class TaxChatTool {
             log.warn("[CHAT_TOOL] tax_estimate: customerId 없음");
             return "조회 실패: 고객 정보를 확인할 수 없어요.";
         }
-        Long customerId = (Long) raw;
         try {
+            Long customerId = ((Number) raw).longValue();
             NumberFormat fmt = NumberFormat.getIntegerInstance(Locale.KOREA);
             CustomerTaxBriefingResponseDTO dto =
                     taxCalculationService.getCustomerTaxBriefing(customerId);

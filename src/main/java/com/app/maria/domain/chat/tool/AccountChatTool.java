@@ -24,8 +24,8 @@ public class AccountChatTool {
             log.warn("[CHAT_TOOL] customerId 없음 — 비로그인 또는 ToolContext 미전달");
             return "조회 실패: 고객 정보를 확인할 수 없어요.";
         }
-        Long customerId = (Long) raw;
         try {
+            Long customerId = ((Number) raw).longValue();
             NumberFormat KRW = NumberFormat.getIntegerInstance(Locale.KOREA);
             return accountMapper
                     .selectByCustomerId(customerId)

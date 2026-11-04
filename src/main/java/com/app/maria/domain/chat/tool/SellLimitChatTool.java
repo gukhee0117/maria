@@ -26,8 +26,8 @@ public class SellLimitChatTool {
             log.warn("[CHAT_TOOL] sell_limit: customerId 없음");
             return "조회 실패: 고객 정보를 확인할 수 없어요.";
         }
-        Long customerId = (Long) raw;
         try {
+            Long customerId = ((Number) raw).longValue();
             NumberFormat fmt = NumberFormat.getIntegerInstance(Locale.KOREA);
             SellLimitStatusDTO dto = sellLimitService.getStatusByCustomerId(customerId);
             return "계좌 설정 한도: "

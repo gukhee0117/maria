@@ -30,7 +30,7 @@ public class KkiruChatController {
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(
             @Valid @RequestBody ChatRequestDTO request,
-            @AuthenticationPrincipal CustomerPrincipal principal) {
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
         Long customerId = principal != null ? principal.customerId() : null;
         SseEmitter emitter = new SseEmitter(180_000L);
 
