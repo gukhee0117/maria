@@ -61,19 +61,15 @@ class CustomerInboundApiTest {
                         .processedAt(LocalDateTime.of(2026, 11, 3, 10, 0))
                         .build();
         ForeignProductDTO product =
-                ForeignProductDTO.builder()
-                        .foreignProductId(1L)
-                        .ticker("AAPL")
-                        .name("애플")
-                        .build();
+                ForeignProductDTO.builder().foreignProductId(1L).ticker("AAPL").name("애플").build();
         return new CustomerInboundSubmitResponseDTO(inbound, product, List.of());
     }
 
     // ── requestedQty JSON 타입 coercion ──────────────────────────────────────
 
     /**
-     * Jackson이 JSON 문자열 "100.5000"을 BigDecimal requestedQty에 역직렬화할 수 있는지 확인.
-     * 프론트엔드가 requestedQty를 string으로 전송하므로 400이 반환되면 안 됨.
+     * Jackson이 JSON 문자열 "100.5000"을 BigDecimal requestedQty에 역직렬화할 수 있는지 확인. 프론트엔드가 requestedQty를
+     * string으로 전송하므로 400이 반환되면 안 됨.
      */
     @Test
     void submit_requestedQtyAsString_isAccepted() throws Exception {
