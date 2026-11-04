@@ -6,6 +6,7 @@ import com.app.maria.domain.settlement.dto.response.CustomerSettlementResponseDT
 import com.app.maria.domain.settlement.mapper.CustomerSettlementMapper;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
+import com.app.maria.global.response.PageParam;
 import com.app.maria.global.response.PageResponseDTO;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CustomerSettlementServiceImpl implements CustomerSettlementService {
-
-    private static final int MAX_PAGE_SIZE = 100;
 
     private final AccountMapper accountMapper;
     private final CustomerSettlementMapper customerSettlementMapper;
@@ -30,13 +29,12 @@ public class CustomerSettlementServiceImpl implements CustomerSettlementService 
                         .selectByCustomerId(customerId)
                         .orElseThrow(
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
-        int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        PageParam paging = PageParam.of(page, size);
 
         List<CustomerSettlementResponseDTO> content =
                 customerSettlementMapper.selectByAccountId(
-                        account.getAccountId(), (long) safePage * safeSize, safeSize);
+                        account.getAccountId(), paging.offset(), paging.size());
         int total = customerSettlementMapper.countByAccountId(account.getAccountId());
-        return PageResponseDTO.of(content, total, safePage, safeSize);
+        return PageResponseDTO.of(content, total, paging.page(), paging.size());
     }
 }
