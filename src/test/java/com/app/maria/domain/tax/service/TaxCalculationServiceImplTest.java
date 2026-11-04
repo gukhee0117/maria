@@ -12,11 +12,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -31,7 +29,6 @@ import com.app.maria.domain.tax.batch.TaxSnapshotJobLauncher;
 import com.app.maria.domain.tax.dto.ExternalBuyDTO;
 import com.app.maria.domain.tax.dto.SellLotDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
-import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.dto.TaxSnapshotDTO;
 import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
@@ -101,6 +98,8 @@ class TaxCalculationServiceImplTest {
     @Mock ExchangeRateClient exchangeRateClient;
 
     @Mock SettlementBusinessDayCalculator settlementBusinessDayCalculator;
+
+    @Mock TaxExpectedSnapshotReader expectedSnapshotReader;
 
     @InjectMocks TaxCalculationServiceImpl taxCalculationService;
 
@@ -709,34 +708,104 @@ class TaxCalculationServiceImplTest {
     }
 
     @Test
-    void expectedBriefingReusesPreviewForCustomersOwnAccount() {
-        when(accountMapper.selectByCustomerId(7L))
-                .thenReturn(Optional.of(account(BenefitType.POSSIBLE)));
-        var service = spy(taxCalculationService);
-        var result =
-                TaxCalculationResultDTO.builder()
-                        .originalGainAmount(new BigDecimal("20000000"))
-                        .finalTax(new BigDecimal("1234500"))
-                        .build();
-        doReturn(TaxExpectedReliefResponseDTO.of(ACCOUNT_ID, LocalDate.of(2026, 8, 6), result, 2))
-                .when(service)
-                .previewExpectedRelief(ACCOUNT_ID);
-        when(taxMapper.selectTaxRules()).thenReturn(allSeedRules());
+    void customerProjectionCombinesFinalizedAndHeldGainsWithOneBasicDeduction() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", true);
 
-        var response = service.getCustomerExpectedTaxBriefing(7L);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
 
-        verify(service).previewExpectedRelief(ACCOUNT_ID);
-        assertThat(response.getGeneralTax()).isEqualByComparingTo("3850000");
-        assertThat(response.getReliefAmount()).isEqualByComparingTo("2615500");
-        assertThat(response.getAdditionalReliefAmount()).isNull();
-        assertThat(response.getHoldingCount()).isEqualTo(2);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("770000");
+        assertThat(response.getRiaTax()).isEqualByComparingTo("110000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("660000");
+        assertThat(response.getFinalizedReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getHoldingCount()).isEqualTo(1);
         assertThat(response.getExpectedFinalAt()).isEqualTo(LocalDate.of(2026, 8, 6));
-        verifyNoInteractions(taxSnapshotMapper);
+        verify(expectedSnapshotReader).readCustomer(7L);
+        verify(kisPriceClient, times(1)).getPreviousClose("NAS", "AAPL");
+        verify(exchangeRateClient, times(1)).getBaseRate("USD");
+        verifyNoInteractions(taxMapper, taxSnapshotMapper);
+    }
+
+    @Test
+    void customerProjectionOffsetsHeldLossAndKeepsSignedReliefChange() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "400", true);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("110000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("110000");
+        assertThat(response.getFinalizedReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("-220000");
+    }
+
+    @Test
+    void customerProjectionWithoutHoldingsKeepsFinalizedTotalsWithoutPriceRequests() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", false);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("330000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("330000");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("0");
+        assertThat(response.getHoldingCount()).isZero();
+        verifyNoInteractions(kisPriceClient, exchangeRateClient);
+    }
+
+    @Test
+    void customerProjectionWithRevokedBenefitHasNoReliefOnEitherComponent() {
+        stubCustomerProjection(BenefitType.IMPOSSIBLE, "100", true);
+        var response = taxCalculationService.getCustomerExpectedTaxBriefing(7L);
+        assertThat(response.getGeneralTax()).isEqualByComparingTo("770000");
+        assertThat(response.getRiaTax()).isEqualByComparingTo("770000");
+        assertThat(response.getReliefAmount()).isEqualByComparingTo("0");
+        assertThat(response.getAdditionalReliefAmount()).isEqualByComparingTo("0");
+    }
+
+    private void stubCustomerProjection(BenefitType benefit, String purchasePrice, boolean held) {
+        lenient().when(clockService.now()).thenReturn(NOW);
+        var holdings =
+                held
+                        ? List.of(heldLot("AAPL", "NASDAQ", "USD", purchasePrice, "100", "100"))
+                        : List.<com.app.maria.domain.tax.dto.HeldLotDTO>of();
+        when(expectedSnapshotReader.readCustomer(7L))
+                .thenReturn(
+                        new TaxExpectedSnapshotReader.Snapshot(
+                                account(benefit),
+                                NOW,
+                                holdings,
+                                List.of(
+                                        lot(
+                                                LocalDate.of(2026, 8, 1),
+                                                "5000000",
+                                                "100",
+                                                "100",
+                                                "100")),
+                                allSeedRules(),
+                                List.of()));
+        when(settlementBusinessDayCalculator.calculateFinalAt(NOW))
+                .thenReturn(LocalDateTime.of(2026, 8, 6, 0, 0));
+        if (held) {
+            when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("150"));
+            when(exchangeRateClient.getBaseRate("USD")).thenReturn(new BigDecimal("200"));
+        }
+    }
+
+    @Test
+    void customerProjectionRequiresFinalizedCalculationResult() {
+        stubCustomerProjection(BenefitType.POSSIBLE, "100", true);
+        org.mockito.Mockito.doAnswer(
+                        invocation -> {
+                            List<?> lots = invocation.getArgument(0);
+                            return lots.size() == 1 ? null : invocation.callRealMethod();
+                        })
+                .when(taxCalculator)
+                .calculate(anyList(), anyList(), anyList(), anyBoolean());
+        assertThatThrownBy(() -> taxCalculationService.getCustomerExpectedTaxBriefing(7L))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("finalized");
     }
 
     @Test
     void customerWithoutAccountCannotRequestEitherBriefing() {
         when(accountMapper.selectByCustomerId(7L)).thenReturn(Optional.empty());
+        when(expectedSnapshotReader.readCustomer(7L))
+                .thenThrow(new AppException(ErrorType.ACCOUNT_NOT_FOUND, 7L));
         assertThatThrownBy(() -> taxCalculationService.getCustomerTaxBriefing(7L))
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.ACCOUNT_NOT_FOUND);
         assertThatThrownBy(() -> taxCalculationService.getCustomerExpectedTaxBriefing(7L))
