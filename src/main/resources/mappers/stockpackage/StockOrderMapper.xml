@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.stockpackage.mapper.StockOrderMapper">
+
+    <sql id="orderColumns">
+        o.domestic_order_id, o.account_id, o.domestic_product_id, o.stock_package_id, o.side,
+        o.qty, o.price, o.amount, o.fee_amount, o.tax_amount, o.channel, o.idempotency_key,
+        o.status, o.reject_reason, o.securities_trade_id, o.processed_at
+    </sql>
+
+    <insert id="insertOrder" useGeneratedKeys="true" keyProperty="domesticOrderId">
+        INSERT INTO domestic_order
+            (account_id, domestic_product_id, stock_package_id, side, qty, price, amount,
+             fee_amount, tax_amount, channel, idempotency_key, status, reject_reason,
+             securities_trade_id, processed_at)
+        VALUES
+            (#{accountId}, #{domesticProductId}, #{stockPackageId}, #{side}, #{qty}, #{price},
+             #{amount}, #{feeAmount}, #{taxAmount}, #{channel}, #{idempotencyKey}, #{status},
+             #{rejectReason}, #{securitiesTradeId}, #{processedAt})
+    </insert>
+
+    <select id="selectByIdempotencyKey"
+            resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
+        SELECT <include refid="orderColumns"/>, p.ticker, p.name
+        FROM domestic_order o
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE o.account_id = #{accountId} AND o.idempotency_key = #{idempotencyKey}
+    </select>
+
+    <select id="selectOrdersByCustomer"
+            resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
+        SELECT <include refid="orderColumns"/>, p.ticker, p.name, sp.name AS package_name
+        FROM domestic_order o
+        JOIN stock_package sp ON sp.stock_package_id = o.stock_package_id
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE sp.customer_id = #{customerId}
+          AND o.channel = 'CUSTOMER'
+        <if test="stockPackageId != null">
+          AND o.stock_package_id = #{stockPackageId}
+        </if>
+        ORDER BY o.processed_at DESC, o.domestic_order_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectExecutedByPackageAsc"
+            resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
+        SELECT <include refid="orderColumns"/>, p.ticker, p.name, p.type AS product_type, p.market
+        FROM domestic_order o
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE o.stock_package_id = #{stockPackageId}
+          AND o.channel = 'CUSTOMER'
+          AND o.status = 'EXECUTED'
+        ORDER BY o.processed_at, o.domestic_order_id
+    </select>
+
+    <select id="selectExecutedByCustomerAsc"
+            resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
+        SELECT <include refid="orderColumns"/>, p.ticker, p.name, p.type AS product_type, p.market
+        FROM domestic_order o
+        JOIN stock_package sp ON sp.stock_package_id = o.stock_package_id
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE sp.customer_id = #{customerId}
+          AND o.channel = 'CUSTOMER'
+          AND o.status = 'EXECUTED'
+        ORDER BY o.processed_at, o.domestic_order_id
+    </select>
+
+    <select id="sumProvisionalAmount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(provisional_amount), 0)
+        FROM krw_exchange
+        WHERE account_id = #{accountId} AND settlement_status = 'PROVISIONAL'
+    </select>
+
+    <select id="selectBalanceForUpdate"
+            resultType="com.app.maria.domain.stockpackage.vo.StockBalanceVO">
+        SELECT domestic_stock_balance_id, account_id, domestic_product_id, qty, status,
+               last_purchase_date, avg_purchase_price
+        FROM domestic_stock_balance
+        WHERE account_id = #{accountId} AND domestic_product_id = #{domesticProductId}
+        ORDER BY domestic_stock_balance_id
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <insert id="insertBalance" useGeneratedKeys="true" keyProperty="domesticStockBalanceId">
+        INSERT INTO domestic_stock_balance
+            (account_id, domestic_product_id, qty, status, last_purchase_date, avg_purchase_price)
+        VALUES
+            (#{accountId}, #{domesticProductId}, #{qty}, #{status}, #{lastPurchaseDate},
+             #{avgPurchasePrice})
+    </insert>
+
+    <update id="updateBalance">
+        UPDATE domestic_stock_balance
+        SET qty = #{qty}, status = #{status}, last_purchase_date = #{lastPurchaseDate},
+            avg_purchase_price = #{avgPurchasePrice}
+        WHERE domestic_stock_balance_id = #{domesticStockBalanceId}
+    </update>
+
+    <update id="applyOrderAmount">
+        UPDATE account a
+        SET amount = a.amount + COALESCE((
+            SELECT o.amount FROM domestic_order o
+            WHERE o.domestic_order_id = #{domesticOrderId}
+              AND o.account_id = a.account_id
+              AND o.status = 'EXECUTED'), 0)
+        WHERE a.account_id = #{accountId}
+    </update>
+</mapper>

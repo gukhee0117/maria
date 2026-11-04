@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.stockpackage.mapper.StockTendencyMapper">
+
+    <select id="selectTradeSummariesByCustomerId"
+            resultType="com.app.maria.domain.stockpackage.vo.TradeProductSummaryVO">
+        SELECT o.domestic_product_id,
+               dp.sector_name,
+               COALESCE(SUM(CASE WHEN o.side = 'BUY' THEN ABS(o.amount) - o.fee_amount ELSE 0 END), 0)
+                   AS buy_amount,
+               COALESCE(SUM(CASE WHEN o.side = 'BUY' THEN 1 ELSE 0 END), 0) AS buy_count,
+               COALESCE(SUM(CASE WHEN o.side = 'SELL' THEN 1 ELSE 0 END), 0) AS sell_count
+        FROM domestic_order o
+        JOIN account a ON a.account_id = o.account_id
+        JOIN domestic_product dp ON dp.domestic_product_id = o.domestic_product_id
+        WHERE a.customer_id = #{customerId}
+          AND o.status = 'EXECUTED'
+        GROUP BY o.domestic_product_id, dp.sector_name
+        ORDER BY o.domestic_product_id
+    </select>
+
+    <select id="selectTradePeriodByCustomerId"
+            resultType="com.app.maria.domain.stockpackage.vo.TradePeriodVO">
+        SELECT COUNT(*) AS order_count,
+               MIN(o.processed_at) AS first_processed_at
+        FROM domestic_order o
+        JOIN account a ON a.account_id = o.account_id
+        WHERE a.customer_id = #{customerId}
+          AND o.status = 'EXECUTED'
+    </select>
+
+</mapper>
