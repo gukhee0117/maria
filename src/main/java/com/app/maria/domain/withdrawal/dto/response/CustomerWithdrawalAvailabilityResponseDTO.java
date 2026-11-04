@@ -43,11 +43,11 @@ public class CustomerWithdrawalAvailabilityResponseDTO {
         private final BigDecimal curAmount;
         private final boolean matured;
 
-        public LeftAmountItem(LocalDateTime finalAt, BigDecimal curAmount, LocalDateTime now) {
+        public LeftAmountItem(LocalDateTime finalAt, BigDecimal curAmount, boolean matured) {
             this.finalAt = finalAt;
             this.maturesAt = finalAt.plusYears(1);
             this.curAmount = curAmount;
-            this.matured = !finalAt.plusYears(1).isAfter(now);
+            this.matured = matured;
         }
     }
 }
