@@ -2,6 +2,7 @@ package com.app.maria.domain.withdrawal.api;
 
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
+import com.app.maria.domain.withdrawal.dto.response.CustomerWithdrawalAvailabilityResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
 import com.app.maria.domain.withdrawal.service.CustomerWithdrawalService;
@@ -35,6 +36,17 @@ public class CustomerWithdrawalApi {
                 ApiResponseDTO.of(
                         "인출 목적지 계좌 목록 조회 성공",
                         customerWithdrawalService.getDestinationAccounts(principal.customerId())));
+    }
+
+    @GetMapping("/withdrawals/availability")
+    public ResponseEntity<ApiResponseDTO<CustomerWithdrawalAvailabilityResponseDTO>>
+            getAvailability(
+                    @AuthenticationPrincipal(errorOnInvalidType = true)
+                            CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "인출 가능 금액 조회 성공",
+                        customerWithdrawalService.getAvailability(principal.customerId())));
     }
 
     @PostMapping("/withdrawals")

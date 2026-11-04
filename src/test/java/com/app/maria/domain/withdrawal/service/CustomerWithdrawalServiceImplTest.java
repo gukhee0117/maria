@@ -9,19 +9,25 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.account.type.Status;
+import com.app.maria.domain.withdrawal.dto.LeftAmountDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalAllocationDTO;
 import com.app.maria.domain.withdrawal.dto.WithdrawalResultDTO;
 import com.app.maria.domain.withdrawal.dto.request.CustomerWithdrawalRequestDTO;
 import com.app.maria.domain.withdrawal.dto.request.WithdrawalRequestDTO;
+import com.app.maria.domain.withdrawal.dto.response.CustomerWithdrawalAvailabilityResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalDetailResponseDTO;
 import com.app.maria.domain.withdrawal.dto.response.WithdrawalListResponseDTO;
+import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import com.app.maria.domain.withdrawal.type.WithdrawalStatus;
 import com.app.maria.global.client.generalaccount.GeneralAccountClient;
 import com.app.maria.global.client.generalaccount.dto.response.GeneralAccountResponseDTO;
 import com.app.maria.global.client.generalaccount.type.GeneralAccountStatus;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -42,15 +48,30 @@ class CustomerWithdrawalServiceImplTest {
 
     @Mock private AccountMapper accountMapper;
     @Mock private WithdrawalService withdrawalService;
+    @Mock private WithdrawalMapper withdrawalMapper;
+    @Mock private BusinessClockService businessClockService;
     @Mock private GeneralAccountClient generalAccountClient;
 
     @InjectMocks private CustomerWithdrawalServiceImpl service;
 
     // ── stubs ──────────────────────────────────────────────────────────────
 
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 4, 12, 0);
+
     private void stubAccount() {
         AccountDTO account = AccountDTO.builder().accountId(ACCOUNT_ID).build();
         when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(account));
+    }
+
+    private void stubOpenedAccount(BigDecimal amount) {
+        AccountDTO account =
+                AccountDTO.builder()
+                        .accountId(ACCOUNT_ID)
+                        .status(Status.OPENED)
+                        .amount(amount)
+                        .build();
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(account));
+        when(businessClockService.now()).thenReturn(NOW);
     }
 
     private void stubCiHash() {
@@ -247,5 +268,106 @@ class CustomerWithdrawalServiceImplTest {
                                         .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
 
         verify(withdrawalService, never()).getWithdrawalByIdAndAccountId(any(), any());
+    }
+
+    // ── getAvailability ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("원금이 없고 잔고 전액이 수익금인 경우 earningsAmount = cashAmount")
+    void getAvailability_earningsOnly() {
+        // cashAmount=100, provisional=0, leftAmounts=[]
+        stubOpenedAccount(new BigDecimal("100"));
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(BigDecimal.ZERO);
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of());
+
+        CustomerWithdrawalAvailabilityResponseDTO result = service.getAvailability(CUSTOMER_ID);
+
+        assertThat(result.getCashAmount()).isEqualByComparingTo("100");
+        assertThat(result.getRequestableAmount()).isEqualByComparingTo("100");
+        assertThat(result.getEarningsAmount()).isEqualByComparingTo("100");
+        assertThat(result.getWithdrawableWithoutPenalty()).isEqualByComparingTo("100");
+        assertThat(result.getImmaturePrincipalAmount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("1년 경과 원금만 있는 경우 수익금=0, 패널티없이 인출가능=원금")
+    void getAvailability_maturedPrincipalOnly() {
+        // cashAmount=50, principal=50 (finalAt 2년 전 → matured=true), provisional=0
+        BigDecimal principal = new BigDecimal("50");
+        LocalDateTime finalAt = NOW.minusYears(2); // 1년 이미 경과
+        LeftAmountDTO leftAmount =
+                LeftAmountDTO.builder()
+                        .leftAmountId(1L)
+                        .curAmount(principal)
+                        .finalAt(finalAt)
+                        .build();
+
+        stubOpenedAccount(principal);
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(BigDecimal.ZERO);
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(leftAmount));
+
+        CustomerWithdrawalAvailabilityResponseDTO result = service.getAvailability(CUSTOMER_ID);
+
+        assertThat(result.getEarningsAmount()).isEqualByComparingTo("0");
+        assertThat(result.getWithdrawableWithoutPenalty()).isEqualByComparingTo("50");
+        assertThat(result.getImmaturePrincipalAmount()).isEqualByComparingTo("0");
+        assertThat(result.getLeftAmounts()).hasSize(1);
+        assertThat(result.getLeftAmounts().get(0).isMatured()).isTrue();
+    }
+
+    @Test
+    @DisplayName("가환전(PROVISIONAL)이 있으면 requestableAmount와 earningsAmount에서 차감된다")
+    void getAvailability_provisionalDeducted() {
+        // cashAmount=100, principal=60 (미성숙), provisional=20
+        BigDecimal cashAmount = new BigDecimal("100");
+        BigDecimal principal = new BigDecimal("60");
+        BigDecimal provisional = new BigDecimal("20");
+        LocalDateTime finalAt = NOW.plusMonths(6); // 아직 1년 미경과
+        LeftAmountDTO leftAmount =
+                LeftAmountDTO.builder()
+                        .leftAmountId(2L)
+                        .curAmount(principal)
+                        .finalAt(finalAt)
+                        .build();
+
+        stubOpenedAccount(cashAmount);
+        when(withdrawalMapper.selectProvisionalAmountByAccountId(ACCOUNT_ID))
+                .thenReturn(provisional);
+        when(withdrawalMapper.selectAvailableLeftAmountsByAccountId(ACCOUNT_ID))
+                .thenReturn(List.of(leftAmount));
+
+        CustomerWithdrawalAvailabilityResponseDTO result = service.getAvailability(CUSTOMER_ID);
+
+        // requestableAmount = cashAmount - provisional = 100 - 20 = 80
+        assertThat(result.getRequestableAmount()).isEqualByComparingTo("80");
+        // earnings = cashAmount - principal - provisional = 100 - 60 - 20 = 20
+        assertThat(result.getEarningsAmount()).isEqualByComparingTo("20");
+        assertThat(result.getImmaturePrincipalAmount()).isEqualByComparingTo("60");
+        assertThat(result.getLeftAmounts().get(0).isMatured()).isFalse();
+    }
+
+    @Test
+    @DisplayName("계좌 상태가 OPENED가 아니면 ACCOUNT_STATUS_NOT_WITHDRAWABLE 예외를 던진다")
+    void getAvailability_notOpened_throwsAccountStatusNotWithdrawable() {
+        AccountDTO account =
+                AccountDTO.builder()
+                        .accountId(ACCOUNT_ID)
+                        .status(Status.APPLIED)
+                        .amount(BigDecimal.ZERO)
+                        .build();
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> service.getAvailability(CUSTOMER_ID))
+                .isInstanceOf(AppException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AppException) ex).getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_STATUS_NOT_WITHDRAWABLE));
+
+        verify(withdrawalMapper, never()).selectAvailableLeftAmountsByAccountId(any());
     }
 }
