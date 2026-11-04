@@ -21,11 +21,12 @@ public class AccountChatTool {
 
     @Tool(name = "account_summary", description = "로그인한 고객의 RIA 계좌 예수금·상태·혜택 여부를 조회합니다.")
     public String getAccountSummary(ToolContext context) {
-        if (!context.getContext().containsKey("customerId")) {
-            log.warn("[CHAT_TOOL] customerId 없음 — ToolContext 미전달");
+        Object raw = context.getContext().get("customerId");
+        if (raw == null) {
+            log.warn("[CHAT_TOOL] customerId 없음 — 비로그인 또는 ToolContext 미전달");
             return "조회 실패: 고객 정보를 확인할 수 없어요.";
         }
-        Long customerId = (Long) context.getContext().get("customerId");
+        Long customerId = (Long) raw;
         try {
             return accountMapper
                     .selectByCustomerId(customerId)

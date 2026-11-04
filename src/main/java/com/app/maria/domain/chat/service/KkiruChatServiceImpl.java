@@ -5,6 +5,7 @@ import com.app.maria.domain.chat.dto.request.MessageDTO;
 import com.app.maria.domain.chat.tool.AccountChatTool;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.chat.client.ChatClient;
@@ -43,9 +44,16 @@ public class KkiruChatServiceImpl implements KkiruChatService {
                 .messages(messages)
                 .user(request.getQuestion())
                 .tools(accountChatTool)
-                .toolContext(Map.of("customerId", customerId))
+                .toolContext(buildCtx(customerId))
                 .stream()
                 .content();
+    }
+
+    /** Map.of()는 null 값을 허용하지 않으므로 HashMap 사용 (비로그인 시 customerId = null). */
+    private static Map<String, Object> buildCtx(Long customerId) {
+        Map<String, Object> ctx = new HashMap<>();
+        ctx.put("customerId", customerId);
+        return ctx;
     }
 
     private Message toMessage(MessageDTO dto) {
