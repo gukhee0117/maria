@@ -2,6 +2,7 @@ package com.app.maria.domain.asset.dto.response;
 
 import com.app.maria.domain.asset.vo.AssetBriefingVO;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -38,6 +39,28 @@ public class CustomerAssetBriefingResponseDTO {
     /** 평가손익 / 보유자산 매입금액 × 100, 소수 둘째 자리. 매입금액 0이면 null. */
     private BigDecimal valuationReturnRate;
 
+    /**
+     * 입고된 해외주식의 원화 평가액. 해외 시세·환율 연동 전에는 항상 null이다. 연동 뒤에도 "해외 보유가 없음"은 0이고 "보유는 있으나 시세를 못 받음"은
+     * null이다(시세 없는 종목을 0으로 대체하면 총자산이 작게 보인다).
+     */
+    private BigDecimal foreignHeldValuationAmount;
+
+    /**
+     * 총자산 = 예수금 + 국내 평가금액 + 입고 해외주식 평가액. 하나라도 null이면 null이다(현재가 없는 국내 보유 종목이 있어
+     * domesticValuationAmount가 null인 경우도 포함).
+     */
+    private BigDecimal totalAssetAmount;
+
+    /**
+     * 국내 보유 종목의 전일 대비 평가 변동. 금액은 원, 비율(domesticDayChangeRate)은 백분율(×100, 소수 둘째 자리,
+     * valuationReturnRate와 같은 방식), dayChangeBaseDate는 비교한 직전 거래일이다. 전일 종가가 없는 종목(당일 매수 등)이 있으면 셋 모두
+     * null이고 0으로 대체하지 않는다. 전일 종가 연동 전에는 항상 null이다.
+     */
+    private BigDecimal domesticDayChangeAmount;
+
+    private BigDecimal domesticDayChangeRate;
+    private LocalDate dayChangeBaseDate;
+
     /** 계산에 사용한 가장 이른/늦은 가격 기준시각. 무보유·가격 조회 불가이면 null. */
     private LocalDateTime valuationPriceFrom;
 
@@ -64,6 +87,11 @@ public class CustomerAssetBriefingResponseDTO {
         this.domesticValuationAmount = vo.getDomesticValuationAmount();
         this.valuationProfit = vo.getValuationProfit();
         this.valuationReturnRate = vo.getValuationReturnRate();
+        this.foreignHeldValuationAmount = vo.getForeignHeldValuationAmount();
+        this.totalAssetAmount = vo.getTotalAssetAmount();
+        this.domesticDayChangeAmount = vo.getDomesticDayChangeAmount();
+        this.domesticDayChangeRate = vo.getDomesticDayChangeRate();
+        this.dayChangeBaseDate = vo.getDayChangeBaseDate();
         this.valuationPriceFrom = vo.getValuationPriceFrom();
         this.valuationPriceTo = vo.getValuationPriceTo();
         this.monthlyPurchases =

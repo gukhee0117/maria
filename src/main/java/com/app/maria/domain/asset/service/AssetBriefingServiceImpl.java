@@ -45,6 +45,14 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
             unavailable.add("valuationProfit");
         }
         if (valuation.rate() == null) unavailable.add("valuationReturnRate");
+        // 해외 평가·전일 대비는 해외 시세·환율, 전일 종가 연동 전이라 값이 없다. 총자산은 이 값들이 모두 있어야 계산된다.
+        BigDecimal foreignValuation = null;
+        BigDecimal totalAsset = totalAssetOf(snapshot.cash(), valuation.amount(), foreignValuation);
+        unavailable.add("foreignHeldValuationAmount");
+        if (totalAsset == null) unavailable.add("totalAssetAmount");
+        unavailable.add("domesticDayChangeAmount");
+        unavailable.add("domesticDayChangeRate");
+        unavailable.add("dayChangeBaseDate");
         unavailable.add("packageDeviation");
         if (ratio == null) unavailable.add("investmentRatio");
         List<MonthlyPurchase> monthly =
@@ -68,6 +76,8 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
                         .domesticValuationAmount(valuation.amount())
                         .valuationProfit(valuation.profit())
                         .valuationReturnRate(valuation.rate())
+                        .foreignHeldValuationAmount(foreignValuation)
+                        .totalAssetAmount(totalAsset)
                         .valuationPriceFrom(valuation.priceFrom())
                         .valuationPriceTo(valuation.priceTo())
                         .monthlyPurchases(monthly)
@@ -75,6 +85,12 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
                         .calculatedAt(snapshot.calculatedAt())
                         .build();
         return new CustomerAssetBriefingResponseDTO(result);
+    }
+
+    /** 총자산 = 예수금 + 국내 평가금액 + 입고 해외주식 평가액. 모르는 항목이 있으면 합을 만들지 않는다. */
+    static BigDecimal totalAssetOf(BigDecimal cash, BigDecimal domestic, BigDecimal foreign) {
+        if (cash == null || domestic == null || foreign == null) return null;
+        return cash.add(domestic).add(foreign);
     }
 
     private Valuation calculateValuation(List<AssetHoldingDTO> holdings, BigDecimal cost) {
