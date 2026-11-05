@@ -23,6 +23,15 @@
         ORDER BY dsb.domestic_stock_balance_id
     </select>
 
+    <select id="selectHoldingRows" resultType="com.app.maria.domain.asset.dto.AssetHoldingRowDTO">
+        SELECT dp.ticker, dp.name, dp.sector_name AS sectorName, dp.type, dsb.status, dsb.qty,
+               dsb.avg_purchase_price AS avgPurchasePrice
+        FROM domestic_stock_balance dsb
+        JOIN domestic_product dp ON dp.domestic_product_id = dsb.domestic_product_id
+        WHERE <include refid="holdingFilter"/>
+        ORDER BY dsb.qty * dsb.avg_purchase_price DESC, dsb.domestic_stock_balance_id
+    </select>
+
     <select id="sumInflowByStatus" resultType="java.math.BigDecimal">
         SELECT COALESCE(SUM(final_amount), 0)
         FROM krw_exchange

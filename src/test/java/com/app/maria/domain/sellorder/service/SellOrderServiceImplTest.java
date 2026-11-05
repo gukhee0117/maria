@@ -615,4 +615,22 @@ class SellOrderServiceImplTest {
         assertThat(summary.getTodaySellAmountChangeRate()).isNull();
         assertThat(summary.getTodayExecutedCountChangeRate()).isNull();
     }
+
+    @Test
+    @DisplayName("관리자 행위자가 없는 고객 신청(adminId null)은 거부·체결 모두 감사로그를 남기지 않는다")
+    void placeSellOrderWithoutAdminActorWritesNoAuditLog() {
+        SellOrderRequestDTO request = validRequestBuilder().build();
+        when(inboundMapper.selectFifoLots(1L, 10L))
+                .thenReturn(List.of(lot(1L, "50", LocalDateTime.of(2026, 1, 1, 0, 0))));
+        when(foreignProductMapper.selectById(10L)).thenReturn(Optional.of(validProduct()));
+        stubPriceAndRate();
+        when(sellLimitService.isWithinSellLimit(any(), any())).thenReturn(false);
+        when(businessClockService.now()).thenReturn(NOW);
+
+        List<SellOrderResponseDTO> rejected = sellOrderService.placeSellOrder(null, request);
+
+        assertThat(rejected).hasSize(1);
+        assertThat(rejected.get(0).getStatus()).isEqualTo(SellOrderStatus.REJECTED);
+        verify(auditLogService, never()).log(any());
+    }
 }

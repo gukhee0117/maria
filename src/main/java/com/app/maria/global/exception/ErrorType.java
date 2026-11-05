@@ -124,6 +124,10 @@ public enum ErrorType {
             HttpStatus.BAD_GATEWAY, "일반계좌 확인 응답을 처리할 수 없습니다.", LogLevel.ERROR),
     GENERAL_ACCOUNT_API_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "일반계좌 확인 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
+    DOMESTIC_TRADE_API_INVALID_RESPONSE(
+            HttpStatus.BAD_GATEWAY, "국내 매매 내역 응답을 처리할 수 없습니다.", LogLevel.ERROR),
+    DOMESTIC_TRADE_API_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "국내 매매 내역을 증권사에서 가져올 수 없습니다.", LogLevel.ERROR),
     MYDATA_API_INVALID_RESPONSE(HttpStatus.BAD_GATEWAY, "myData 응답을 처리할 수 없습니다.", LogLevel.ERROR),
     MYDATA_API_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "myData 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),

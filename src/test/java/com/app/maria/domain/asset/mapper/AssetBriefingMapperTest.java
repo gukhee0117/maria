@@ -248,4 +248,27 @@ class AssetBriefingMapperTest {
                                                 + "(11,1,'BUY',1,NULL,NULL,'CUSTOMER','missing-reason','REJECTED',NULL,'2026-10-01 09:00:00')"))
                 .isInstanceOf(SQLException.class);
     }
+
+    @Test
+    void holdingRowsCarryProductAndPositionOrderedByPurchaseAmountAndSkipSoldOutAndOtherAccounts()
+            throws Exception {
+        sql("UPDATE domestic_product SET sector_name = '반도체' WHERE domestic_product_id = 1");
+        holding(11, 1L, "10", "100", "HOLDING"); // 매입 1,000
+        holding(11, 2L, "3", "1000", "TRADE_RESTRICTED"); // 매입 3,000 (제일 큼)
+        holding(11, 2L, "100", "999", "SOLD_OUT");
+        holding(11, 1L, "0", "999", "HOLDING");
+        holding(12, 1L, "5", "500", "HOLDING");
+
+        var rows = mapper.selectHoldingRows(11L, AssetBriefingMapper.ACTIVE_HOLDING_STATUSES);
+
+        assertThat(rows).extracting(row -> row.getTicker()).containsExactly("000660", "005930");
+        var first = rows.get(0);
+        assertThat(first.getName()).isEqualTo("SK하이닉스");
+        assertThat(first.getStatus().name()).isEqualTo("TRADE_RESTRICTED");
+        assertThat(first.getQty()).isEqualByComparingTo("3");
+        assertThat(first.getAvgPurchasePrice()).isEqualByComparingTo("1000");
+        var second = rows.get(1);
+        assertThat(second.getSectorName()).isEqualTo("반도체");
+        assertThat(second.getType().name()).isEqualTo("STOCK");
+    }
 }

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.app.maria.domain.settlement.mapper.CustomerSettlementMapper">
+
+    <select id="selectByAccountId"
+            resultType="com.app.maria.domain.settlement.dto.response.CustomerSettlementResponseDTO">
+        SELECT ke.exchange_id, ke.order_id, fp.ticker, fp.name AS name, so.sell_qty,
+               ke.provisional_amount, ke.provisional_at, ke.final_amount, ke.final_at,
+               ke.settlement_status
+        FROM krw_exchange ke
+            LEFT JOIN sell_order so ON so.order_id = ke.order_id
+            LEFT JOIN foreign_product fp ON fp.foreign_product_id = so.foreign_product_id
+        WHERE ke.account_id = #{accountId}
+        ORDER BY ke.provisional_at DESC, ke.exchange_id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByAccountId" parameterType="Long" resultType="int">
+        SELECT COUNT(*)
+        FROM krw_exchange
+        WHERE account_id = #{accountId}
+    </select>
+
+</mapper>

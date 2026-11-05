@@ -100,6 +100,11 @@ class AssetBriefingServiceImplTest {
                         "domesticValuationAmount",
                         "valuationProfit",
                         "valuationReturnRate",
+                        "foreignHeldValuationAmount",
+                        "totalAssetAmount",
+                        "domesticDayChangeAmount",
+                        "domesticDayChangeRate",
+                        "dayChangeBaseDate",
                         "packageDeviation");
         assertThat(result.getMonthlyPurchases())
                 .singleElement()
@@ -213,7 +218,14 @@ class AssetBriefingServiceImplTest {
         assertThat(result.getCashAmount()).isEqualByComparingTo("12345");
         assertThat(result.getValuationPriceFrom()).isEqualTo(NOW.minusMinutes(2));
         assertThat(result.getValuationPriceTo()).isEqualTo(NOW.minusMinutes(1));
-        assertThat(result.getUnavailableFields()).containsExactly("packageDeviation");
+        assertThat(result.getUnavailableFields())
+                .containsExactly(
+                        "foreignHeldValuationAmount",
+                        "totalAssetAmount",
+                        "domesticDayChangeAmount",
+                        "domesticDayChangeRate",
+                        "dayChangeBaseDate",
+                        "packageDeviation");
     }
 
     @Test
@@ -345,6 +357,11 @@ class AssetBriefingServiceImplTest {
                         "domesticValuationAmount",
                         "valuationProfit",
                         "valuationReturnRate",
+                        "foreignHeldValuationAmount",
+                        "totalAssetAmount",
+                        "domesticDayChangeAmount",
+                        "domesticDayChangeRate",
+                        "dayChangeBaseDate",
                         "packageDeviation");
         assertThat(output.getAll()).doesNotContain("SECRET_TEST");
     }
@@ -363,5 +380,41 @@ class AssetBriefingServiceImplTest {
         var error = new AppException(ErrorType.ACCOUNT_NOT_FOUND);
         when(priceProvider.getPrices(anySet())).thenThrow(error);
         assertThatThrownBy(() -> service.getBriefing(7L)).isSameAs(error);
+    }
+
+    @Test
+    void totalAssetIsSumOfCashDomesticAndForeignOnlyWhenAllKnown() {
+        assertThat(
+                        AssetBriefingServiceImpl.totalAssetOf(
+                                new BigDecimal("1000"),
+                                new BigDecimal("2000"),
+                                new BigDecimal("3000")))
+                .isEqualByComparingTo("6000");
+        assertThat(AssetBriefingServiceImpl.totalAssetOf(null, BigDecimal.ONE, BigDecimal.ONE))
+                .isNull();
+        assertThat(AssetBriefingServiceImpl.totalAssetOf(BigDecimal.ONE, null, BigDecimal.ONE))
+                .isNull();
+        assertThat(AssetBriefingServiceImpl.totalAssetOf(BigDecimal.ONE, BigDecimal.ONE, null))
+                .isNull();
+    }
+
+    @Test
+    void foreignValuationTotalAssetAndDayChangeAreNullUntilPriceSourcesExist() {
+        stubAmounts("1980.75", "5000");
+
+        var result = service.getBriefing(7L);
+
+        assertThat(result.getForeignHeldValuationAmount()).isNull();
+        assertThat(result.getTotalAssetAmount()).isNull();
+        assertThat(result.getDomesticDayChangeAmount()).isNull();
+        assertThat(result.getDomesticDayChangeRate()).isNull();
+        assertThat(result.getDayChangeBaseDate()).isNull();
+        assertThat(result.getUnavailableFields())
+                .contains(
+                        "foreignHeldValuationAmount",
+                        "totalAssetAmount",
+                        "domesticDayChangeAmount",
+                        "domesticDayChangeRate",
+                        "dayChangeBaseDate");
     }
 }
