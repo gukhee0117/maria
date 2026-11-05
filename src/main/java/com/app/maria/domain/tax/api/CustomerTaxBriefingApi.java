@@ -1,5 +1,6 @@
 package com.app.maria.domain.tax.api;
 
+import com.app.maria.domain.tax.dto.response.CustomerTaxBasisResponseDTO;
 import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -28,6 +29,15 @@ public class CustomerTaxBriefingApi {
                         "예상 감면세액 계산 성공",
                         taxCalculationService.getCustomerExpectedTaxBriefing(
                                 principal.customerId())));
+    }
+
+    @GetMapping("/basis")
+    public ResponseEntity<ApiResponseDTO<CustomerTaxBasisResponseDTO>> getBasis(
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "세액 계산 근거 조회 성공",
+                        taxCalculationService.getCustomerTaxBasis(principal.customerId())));
     }
 
     @GetMapping("/briefing")

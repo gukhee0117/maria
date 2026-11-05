@@ -112,4 +112,37 @@ class RiskGradeServiceTest {
         assertThatThrownBy(() -> service.findUsableByTicker("005930"))
                 .isInstanceOf(AppException.class);
     }
+
+    @Test
+    void findUsableByTickersReturnsOnlyUsableRequestedTickersWithoutReadingAll() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(32400);
+        when(mapper.findByTicker("005930")).thenReturn(row(1));
+        when(mapper.findByTicker("000660")).thenReturn(row(0));
+        when(mapper.findByTicker("999999")).thenReturn(null);
+        var service =
+                new RiskGradeServiceImpl(
+                        mapper,
+                        RiskTestSupport.calendar(),
+                        RiskTestSupport.clock("2026-10-26T17:00:00+09:00"));
+
+        var result = service.findUsableByTickers(java.util.Set.of("005930", "000660", "999999"));
+
+        assertThat(result).containsOnlyKeys("005930"); // version 0, 자료 없음은 빠진다
+        verify(mapper, never()).findAll();
+    }
+
+    @Test
+    void findUsableByTickersFailsClosedOnWrongTimezone() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(0);
+        var service =
+                new RiskGradeServiceImpl(
+                        mapper,
+                        RiskTestSupport.calendar(),
+                        RiskTestSupport.clock("2026-10-26T17:00:00+09:00"));
+
+        assertThatThrownBy(() -> service.findUsableByTickers(java.util.Set.of("005930")))
+                .isInstanceOf(AppException.class);
+    }
 }

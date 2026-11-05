@@ -8,4 +8,14 @@
         WHERE domestic_product_id = #{domesticProductId}
     </select>
 
+    <select id="selectByTickers" resultType="DomesticProductDTO">
+        SELECT domestic_product_id, ticker, name, market, type, domestic_stock_ratio, inception_date
+        FROM domestic_product
+        WHERE ticker IN
+        <foreach item="ticker" collection="tickers" open="(" separator="," close=")">
+            #{ticker}
+        </foreach>
+        ORDER BY domestic_product_id
+    </select>
+
 </mapper>

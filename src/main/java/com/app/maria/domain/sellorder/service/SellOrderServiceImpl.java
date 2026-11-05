@@ -228,6 +228,10 @@ public class SellOrderServiceImpl implements SellOrderService {
 
     private void logSellOrder(
             Long adminId, SellOrderDTO order, SellOrderAuditLogReasonCode reasonCode) {
+        // 고객 신청은 관리자 행위자가 없다(adminId null). 고객 감사 actor가 정해질 때까지 감사 로그를 남기지 않는다.
+        if (adminId == null) {
+            return;
+        }
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(adminId)

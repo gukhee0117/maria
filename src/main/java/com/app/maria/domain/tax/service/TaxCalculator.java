@@ -18,6 +18,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class TaxCalculator {
 
+    public BigDecimal basicDeduction(List<TaxRuleDTO> taxRules) {
+        return findConstantRuleValue(taxRules, TaxRuleType.BASIC_DEDUCTION);
+    }
+
     public BigDecimal calculateGeneralTax(BigDecimal originalGain, List<TaxRuleDTO> taxRules) {
         return finalTax(originalGain, BigDecimal.ZERO, taxRules);
     }

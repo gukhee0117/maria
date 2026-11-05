@@ -9,11 +9,16 @@ import com.app.maria.domain.risk.type.RiskDataStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class RiskGradeServiceImpl implements RiskGradeService {
     private final StockRiskGradeMapper mapper;
@@ -35,6 +40,24 @@ public class RiskGradeServiceImpl implements RiskGradeService {
                 .map(row -> toUsable(row, context))
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, UsableRiskGradeDTO> findUsableByTickers(Set<String> tickers) {
+        var context = context();
+        Map<String, UsableRiskGradeDTO> usable = new LinkedHashMap<>();
+        for (String ticker : tickers) {
+            try {
+                Optional.ofNullable(mapper.findByTicker(ticker))
+                        .flatMap(row -> toUsable(row, context))
+                        .ifPresent(grade -> usable.put(ticker, grade));
+            } catch (AppException e) {
+                // 이 종목의 자료만 깨진 경우(달력에 없는 priceTo 등): 나머지 종목은 계속 쓴다.
+                log.warn("위험등급 자료 이상으로 제외: {} ({})", ticker, e.getErrorType());
+            }
+        }
+        return usable;
     }
 
     @Override

@@ -109,6 +109,37 @@ class DomesticProductMapperTest {
         assertThat(result).isEmpty();
     }
 
+    @Test
+    @DisplayName("ticker 여러 개로 종목을 한꺼번에 조회하고 마스터에 없는 ticker는 결과에서 빠진다")
+    void selectByTickersReturnsOnlyKnownTickers() throws SQLException {
+        insertProduct(1L, "005930", "삼성전자", "KOSPI", "STOCK", null, null);
+        insertProduct(2L, "000660", "SK하이닉스", "KOSPI", "STOCK", null, null);
+        insertProduct(3L, "035420", "NAVER", "KOSPI", "STOCK", null, null);
+
+        java.util.List<DomesticProductDTO> result =
+                domesticProductMapper.selectByTickers(
+                        java.util.Set.of("005930", "035420", "999999"));
+
+        assertThat(result)
+                .extracting(DomesticProductDTO::getTicker)
+                .containsExactlyInAnyOrder("005930", "035420");
+        assertThat(result)
+                .extracting(DomesticProductDTO::getName)
+                .containsExactlyInAnyOrder("삼성전자", "NAVER");
+    }
+
+    @Test
+    @DisplayName("같은 ticker가 둘이면 domestic_product_id 순으로 돌려줘 서비스의 첫 값이 항상 같다")
+    void selectByTickersOrdersByProductId() throws SQLException {
+        insertProduct(9L, "005930", "나중 행", "KOSPI", "STOCK", null, null);
+        insertProduct(4L, "005930", "먼저 행", "KOSPI", "STOCK", null, null);
+
+        java.util.List<DomesticProductDTO> result =
+                domesticProductMapper.selectByTickers(java.util.Set.of("005930"));
+
+        assertThat(result).extracting(DomesticProductDTO::getName).containsExactly("먼저 행", "나중 행");
+    }
+
     private void insertProduct(
             Long id,
             String ticker,

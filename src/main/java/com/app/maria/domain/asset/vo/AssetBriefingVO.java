@@ -1,6 +1,7 @@
 package com.app.maria.domain.asset.vo;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
@@ -18,6 +19,11 @@ public class AssetBriefingVO {
     private final BigDecimal domesticValuationAmount;
     private final BigDecimal valuationProfit;
     private final BigDecimal valuationReturnRate;
+    private final BigDecimal foreignHeldValuationAmount;
+    private final BigDecimal totalAssetAmount;
+    private final BigDecimal domesticDayChangeAmount;
+    private final BigDecimal domesticDayChangeRate;
+    private final LocalDate dayChangeBaseDate;
     private final LocalDateTime valuationPriceFrom;
     private final LocalDateTime valuationPriceTo;
     @Builder.Default private final List<MonthlyPurchase> monthlyPurchases = List.of();

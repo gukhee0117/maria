@@ -1,6 +1,7 @@
 package com.app.maria.domain.asset.mapper;
 
 import com.app.maria.domain.asset.dto.AssetHoldingDTO;
+import com.app.maria.domain.asset.dto.AssetHoldingRowDTO;
 import com.app.maria.domain.asset.dto.AssetMonthlyPurchaseDTO;
 import com.app.maria.domain.domestic.type.DomesticOrderSide;
 import com.app.maria.domain.domestic.type.DomesticOrderStatus;
@@ -37,6 +38,11 @@ public interface AssetBriefingMapper {
         return selectMonthlyPurchasesByStatus(
                 accountId, asOf, DomesticOrderSide.BUY, DomesticOrderStatus.EXECUTED);
     }
+
+    /** 보유 종목 표용. 매입금액(수량 × 평균매입가) 큰 순서다. */
+    List<AssetHoldingRowDTO> selectHoldingRows(
+            @Param("accountId") Long accountId,
+            @Param("holdingStatuses") List<DomesticStockStatus> holdingStatuses);
 
     BigDecimal sumHoldingCostByStatuses(
             @Param("accountId") Long accountId,

@@ -24,7 +24,10 @@ public class RestClientConfig {
     @Bean
     @Qualifier("returnSecuritiesRestClient")
     public RestClient returnSecuritiesRestClient(RestClient.Builder builder) {
-        return builder.baseUrl(returnsSecurityUrl).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(3));
+        requestFactory.setReadTimeout(Duration.ofSeconds(5));
+        return builder.baseUrl(returnsSecurityUrl).requestFactory(requestFactory).build();
     }
 
     @Bean
