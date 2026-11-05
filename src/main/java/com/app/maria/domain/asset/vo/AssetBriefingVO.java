@@ -24,6 +24,7 @@ public class AssetBriefingVO {
     private final BigDecimal domesticDayChangeAmount;
     private final BigDecimal domesticDayChangeRate;
     private final LocalDate dayChangeBaseDate;
+    private final String dayChangePriceSource;
     private final LocalDateTime valuationPriceFrom;
     private final LocalDateTime valuationPriceTo;
     @Builder.Default private final List<MonthlyPurchase> monthlyPurchases = List.of();

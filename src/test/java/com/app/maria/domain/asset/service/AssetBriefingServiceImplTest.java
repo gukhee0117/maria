@@ -11,6 +11,13 @@ import com.app.maria.domain.asset.dto.AssetMonthlyPurchaseDTO;
 import com.app.maria.domain.asset.mapper.AssetBriefingMapper;
 import com.app.maria.domain.asset.price.AssetPriceProvider;
 import com.app.maria.domain.asset.price.AssetPriceProvider.Quote;
+import com.app.maria.domain.tax.dto.HeldLotDTO;
+import com.app.maria.domain.tax.mapper.TaxMapper;
+import com.app.maria.global.client.exchange.ExchangeRateClient;
+import com.app.maria.global.client.exchange.RateWithDate;
+import com.app.maria.global.client.kis.DomesticQuote;
+import com.app.maria.global.client.kis.KisDomesticPriceClient;
+import com.app.maria.global.client.kis.KisPriceClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -43,14 +50,25 @@ class AssetBriefingServiceImplTest {
     @Mock AssetBriefingMapper mapper;
     @Mock BusinessClockService clock;
     @Mock AssetPriceProvider priceProvider;
+    @Mock TaxMapper taxMapper;
+    @Mock KisDomesticPriceClient kisDomesticPriceClient;
+    @Mock KisPriceClient kisPriceClient;
+    @Mock ExchangeRateClient exchangeRateClient;
     AssetBriefingServiceImpl service;
 
     @BeforeEach
     void setup() {
         service =
                 new AssetBriefingServiceImpl(
-                        new AssetBriefingSnapshotReader(accountMapper, mapper, clock),
-                        priceProvider);
+                        new AssetBriefingSnapshotReader(accountMapper, mapper, clock, taxMapper),
+                        priceProvider,
+                        kisDomesticPriceClient,
+                        kisPriceClient,
+                        exchangeRateClient);
+        // 기본: 국내 현재가·기준가는 못 받는 상태(해외 보유 없음 → 해외 평가 0). 개별 테스트가 덮어쓴다.
+        lenient()
+                .when(kisDomesticPriceClient.getQuote(any()))
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND, "x"));
     }
 
     private void stubAmounts(String cost, String inflow) {
@@ -100,7 +118,6 @@ class AssetBriefingServiceImplTest {
                         "domesticValuationAmount",
                         "valuationProfit",
                         "valuationReturnRate",
-                        "foreignHeldValuationAmount",
                         "totalAssetAmount",
                         "domesticDayChangeAmount",
                         "domesticDayChangeRate",
@@ -220,8 +237,6 @@ class AssetBriefingServiceImplTest {
         assertThat(result.getValuationPriceTo()).isEqualTo(NOW.minusMinutes(1));
         assertThat(result.getUnavailableFields())
                 .containsExactly(
-                        "foreignHeldValuationAmount",
-                        "totalAssetAmount",
                         "domesticDayChangeAmount",
                         "domesticDayChangeRate",
                         "dayChangeBaseDate",
@@ -357,7 +372,6 @@ class AssetBriefingServiceImplTest {
                         "domesticValuationAmount",
                         "valuationProfit",
                         "valuationReturnRate",
-                        "foreignHeldValuationAmount",
                         "totalAssetAmount",
                         "domesticDayChangeAmount",
                         "domesticDayChangeRate",
@@ -398,23 +412,113 @@ class AssetBriefingServiceImplTest {
                 .isNull();
     }
 
+    private static HeldLotDTO lot(long productId, String ticker, String qty) {
+        return HeldLotDTO.builder()
+                .foreignProductId(productId)
+                .ticker(ticker)
+                .market("NASDAQ")
+                .currency("USD")
+                .currentQty(new BigDecimal(qty))
+                .build();
+    }
+
     @Test
-    void foreignValuationTotalAssetAndDayChangeAreNullUntilPriceSourcesExist() {
-        stubAmounts("1980.75", "5000");
+    void foreignValuationIsQtyTimesPreviousCloseTimesFxAndFeedsTotalAsset() {
+        stubAmounts("0", "5000");
+        when(taxMapper.selectHeldLotsByAccountId(11L))
+                .thenReturn(List.of(lot(1L, "AAPL", "2"), lot(1L, "AAPL", "1")));
+        when(exchangeRateClient.getBaseRateWithDate("USD"))
+                .thenReturn(new RateWithDate(new BigDecimal("1400"), null));
+        when(kisPriceClient.getPreviousClose("NAS", "AAPL")).thenReturn(new BigDecimal("200"));
+
+        var result = service.getBriefing(7L);
+
+        // 3주 × 200 × 1400 = 840,000. 총자산 = 예수금 12,345 + 국내 0 + 840,000.
+        assertThat(result.getForeignHeldValuationAmount()).isEqualByComparingTo("840000");
+        assertThat(result.getTotalAssetAmount()).isEqualByComparingTo("852345");
+        verify(kisPriceClient, times(1)).getPreviousClose("NAS", "AAPL");
+    }
+
+    @Test
+    void foreignPriceFailureLeavesForeignAndTotalAssetNull() {
+        stubAmounts("0", "5000");
+        when(taxMapper.selectHeldLotsByAccountId(11L)).thenReturn(List.of(lot(1L, "AAPL", "2")));
+        when(exchangeRateClient.getBaseRateWithDate("USD"))
+                .thenReturn(new RateWithDate(new BigDecimal("1400"), null));
+        when(kisPriceClient.getPreviousClose(any(), any()))
+                .thenThrow(new AppException(ErrorType.KIS_PRICE_NOT_FOUND, "AAPL"));
 
         var result = service.getBriefing(7L);
 
         assertThat(result.getForeignHeldValuationAmount()).isNull();
         assertThat(result.getTotalAssetAmount()).isNull();
+        assertThat(result.getUnavailableFields())
+                .contains("foreignHeldValuationAmount", "totalAssetAmount");
+    }
+
+    @Test
+    void noForeignLotsMeansZeroForeignValuationNotUnknown() {
+        stubAmounts("0", "5000");
+
+        var result = service.getBriefing(7L);
+
+        assertThat(result.getForeignHeldValuationAmount()).isEqualByComparingTo("0");
+        assertThat(result.getTotalAssetAmount()).isEqualByComparingTo("12345");
+    }
+
+    @Test
+    void domesticDayChangeSumsQtyTimesPriceMinusBaseAndRateUsesBaseValue() {
+        stubAmounts("1980.75", "5000");
+        when(mapper.selectHoldings(11L))
+                .thenReturn(List.of(holding("005930", "2"), holding("000660", "3")));
+        doReturn(new DomesticQuote("005930", bd("110"), bd("100"), bd("130"), bd("70")))
+                .when(kisDomesticPriceClient)
+                .getQuote("005930");
+        doReturn(new DomesticQuote("000660", bd("90"), bd("100"), bd("130"), bd("70")))
+                .when(kisDomesticPriceClient)
+                .getQuote("000660");
+
+        var result = service.getBriefing(7L);
+
+        // 2×(110-100) + 3×(90-100) = -10, 기준 평가 500 → -2.00%
+        assertThat(result.getDomesticDayChangeAmount()).isEqualByComparingTo("-10");
+        assertThat(result.getDomesticDayChangeRate()).isEqualByComparingTo("-2.00");
+        assertThat(result.getDayChangeBaseDate()).isNull();
+        // 평가금액은 저장 가격, 전일 대비는 KIS 실시간이라 기준이 다름을 응답에서 구분한다.
+        assertThat(result.getDayChangePriceSource()).isEqualTo("KIS_LIVE");
+        assertThat(result.getUnavailableFields())
+                .contains("dayChangeBaseDate")
+                .doesNotContain("domesticDayChangeAmount", "domesticDayChangeRate");
+    }
+
+    @Test
+    void dayChangeIsNullWhenAnyHoldingQuoteIsMissing() {
+        stubAmounts("1980.75", "5000");
+        when(mapper.selectHoldings(11L))
+                .thenReturn(List.of(holding("005930", "2"), holding("000660", "3")));
+        doReturn(new DomesticQuote("005930", bd("110"), bd("100"), bd("130"), bd("70")))
+                .when(kisDomesticPriceClient)
+                .getQuote("005930");
+        // 000660은 기본 스텁(조회 실패)
+
+        var result = service.getBriefing(7L);
+
         assertThat(result.getDomesticDayChangeAmount()).isNull();
         assertThat(result.getDomesticDayChangeRate()).isNull();
-        assertThat(result.getDayChangeBaseDate()).isNull();
-        assertThat(result.getUnavailableFields())
-                .contains(
-                        "foreignHeldValuationAmount",
-                        "totalAssetAmount",
-                        "domesticDayChangeAmount",
-                        "domesticDayChangeRate",
-                        "dayChangeBaseDate");
+        assertThat(result.getDayChangePriceSource()).isNull();
+    }
+
+    @Test
+    void noHoldingsMeansZeroDayChangeAndUnknownRate() {
+        stubAmounts("0", "5000");
+
+        var result = service.getBriefing(7L);
+
+        assertThat(result.getDomesticDayChangeAmount()).isEqualByComparingTo("0");
+        assertThat(result.getDomesticDayChangeRate()).isNull();
+    }
+
+    private static BigDecimal bd(String v) {
+        return new BigDecimal(v);
     }
 }

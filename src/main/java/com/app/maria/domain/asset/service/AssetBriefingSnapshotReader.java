@@ -5,6 +5,8 @@ import com.app.maria.domain.account.type.Status;
 import com.app.maria.domain.asset.dto.AssetHoldingDTO;
 import com.app.maria.domain.asset.dto.AssetMonthlyPurchaseDTO;
 import com.app.maria.domain.asset.mapper.AssetBriefingMapper;
+import com.app.maria.domain.tax.dto.HeldLotDTO;
+import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -22,6 +24,7 @@ public class AssetBriefingSnapshotReader {
     private final AccountMapper accountMapper;
     private final AssetBriefingMapper mapper;
     private final BusinessClockService clock;
+    private final TaxMapper taxMapper;
 
     @Transactional(readOnly = true)
     public Snapshot read(Long customerId) {
@@ -36,12 +39,14 @@ public class AssetBriefingSnapshotReader {
         BigDecimal inflow = mapper.sumFinalizedInflow(accountId, now);
         var holdings = mapper.selectHoldings(accountId);
         var monthly = mapper.selectMonthlyPurchases(accountId, now);
+        var foreignLots = taxMapper.selectHeldLotsByAccountId(accountId);
         return new Snapshot(
                 accountId,
                 account.getAmount(),
                 cost,
                 inflow,
                 List.copyOf(holdings),
+                List.copyOf(foreignLots),
                 List.copyOf(monthly),
                 now);
     }
@@ -52,6 +57,7 @@ public class AssetBriefingSnapshotReader {
             BigDecimal cost,
             BigDecimal inflow,
             List<AssetHoldingDTO> holdings,
+            List<HeldLotDTO> foreignLots,
             List<AssetMonthlyPurchaseDTO> monthly,
             LocalDateTime calculatedAt) {}
 }

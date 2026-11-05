@@ -40,8 +40,8 @@ public class CustomerAssetBriefingResponseDTO {
     private BigDecimal valuationReturnRate;
 
     /**
-     * 입고된 해외주식의 원화 평가액. 해외 시세·환율 연동 전에는 항상 null이다. 연동 뒤에도 "해외 보유가 없음"은 0이고 "보유는 있으나 시세를 못 받음"은
-     * null이다(시세 없는 종목을 0으로 대체하면 총자산이 작게 보인다).
+     * 입고된 해외주식의 원화 평가액(수량 × KIS 전일종가 × 환율). "해외 보유가 없음"은 0이고 "보유는 있으나 시세를 못 받음"은 null이다(시세 없는 종목을
+     * 0으로 대체하면 총자산이 작게 보인다).
      */
     private BigDecimal foreignHeldValuationAmount;
 
@@ -53,13 +53,19 @@ public class CustomerAssetBriefingResponseDTO {
 
     /**
      * 국내 보유 종목의 전일 대비 평가 변동. 금액은 원, 비율(domesticDayChangeRate)은 백분율(×100, 소수 둘째 자리,
-     * valuationReturnRate와 같은 방식), dayChangeBaseDate는 비교한 직전 거래일이다. 전일 종가가 없는 종목(당일 매수 등)이 있으면 셋 모두
-     * null이고 0으로 대체하지 않는다. 전일 종가 연동 전에는 항상 null이다.
+     * valuationReturnRate와 같은 방식), dayChangeBaseDate는 비교한 직전 거래일이다. 금액·비율은 KIS 현재가와 기준가(전일 종가)로
+     * 계산하고, 시세를 못 받은 종목이 있으면 null(0으로 대체하지 않는다). KIS 응답에 기준일이 없어 dayChangeBaseDate는 항상 null이다.
      */
     private BigDecimal domesticDayChangeAmount;
 
     private BigDecimal domesticDayChangeRate;
     private LocalDate dayChangeBaseDate;
+
+    /**
+     * 전일 대비 계산에 쓴 시세 출처. 전일 대비는 KIS 실시간 현재가·기준가(KIS_LIVE)로 계산하고, 평가금액은 증권사 저장
+     * 가격(valuationPriceFrom/To)으로 계산해 서로 다른 기준이다. 전일 대비 금액이 null이면 null.
+     */
+    private String dayChangePriceSource;
 
     /** 계산에 사용한 가장 이른/늦은 가격 기준시각. 무보유·가격 조회 불가이면 null. */
     private LocalDateTime valuationPriceFrom;
@@ -92,6 +98,7 @@ public class CustomerAssetBriefingResponseDTO {
         this.domesticDayChangeAmount = vo.getDomesticDayChangeAmount();
         this.domesticDayChangeRate = vo.getDomesticDayChangeRate();
         this.dayChangeBaseDate = vo.getDayChangeBaseDate();
+        this.dayChangePriceSource = vo.getDayChangePriceSource();
         this.valuationPriceFrom = vo.getValuationPriceFrom();
         this.valuationPriceTo = vo.getValuationPriceTo();
         this.monthlyPurchases =
