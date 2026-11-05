@@ -61,6 +61,12 @@ public class CustomerAssetBriefingResponseDTO {
     private BigDecimal domesticDayChangeRate;
     private LocalDate dayChangeBaseDate;
 
+    /**
+     * 전일 대비 계산에 쓴 시세 출처. 전일 대비는 KIS 실시간 현재가·기준가(KIS_LIVE)로 계산하고, 평가금액은 증권사 저장
+     * 가격(valuationPriceFrom/To)으로 계산해 서로 다른 기준이다. 전일 대비 금액이 null이면 null.
+     */
+    private String dayChangePriceSource;
+
     /** 계산에 사용한 가장 이른/늦은 가격 기준시각. 무보유·가격 조회 불가이면 null. */
     private LocalDateTime valuationPriceFrom;
 
@@ -92,6 +98,7 @@ public class CustomerAssetBriefingResponseDTO {
         this.domesticDayChangeAmount = vo.getDomesticDayChangeAmount();
         this.domesticDayChangeRate = vo.getDomesticDayChangeRate();
         this.dayChangeBaseDate = vo.getDayChangeBaseDate();
+        this.dayChangePriceSource = vo.getDayChangePriceSource();
         this.valuationPriceFrom = vo.getValuationPriceFrom();
         this.valuationPriceTo = vo.getValuationPriceTo();
         this.monthlyPurchases =

@@ -91,6 +91,7 @@ public class AssetBriefingServiceImpl implements AssetBriefingService {
                         .totalAssetAmount(totalAsset)
                         .domesticDayChangeAmount(dayChange.amount())
                         .domesticDayChangeRate(dayChange.rate())
+                        .dayChangePriceSource(dayChange.amount() == null ? null : "KIS_LIVE")
                         .valuationPriceFrom(valuation.priceFrom())
                         .valuationPriceTo(valuation.priceTo())
                         .monthlyPurchases(monthly)

@@ -484,6 +484,8 @@ class AssetBriefingServiceImplTest {
         assertThat(result.getDomesticDayChangeAmount()).isEqualByComparingTo("-10");
         assertThat(result.getDomesticDayChangeRate()).isEqualByComparingTo("-2.00");
         assertThat(result.getDayChangeBaseDate()).isNull();
+        // 평가금액은 저장 가격, 전일 대비는 KIS 실시간이라 기준이 다름을 응답에서 구분한다.
+        assertThat(result.getDayChangePriceSource()).isEqualTo("KIS_LIVE");
         assertThat(result.getUnavailableFields())
                 .contains("dayChangeBaseDate")
                 .doesNotContain("domesticDayChangeAmount", "domesticDayChangeRate");
@@ -503,6 +505,7 @@ class AssetBriefingServiceImplTest {
 
         assertThat(result.getDomesticDayChangeAmount()).isNull();
         assertThat(result.getDomesticDayChangeRate()).isNull();
+        assertThat(result.getDayChangePriceSource()).isNull();
     }
 
     @Test
