@@ -343,6 +343,89 @@
         WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
     </select>
 
+    <select id="existsCustomerOpenedAccount" resultType="boolean">
+        SELECT EXISTS (
+        SELECT 1 FROM account a
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+        )
+    </select>
+
+    <!-- 고객: 자금 이동 내역 원천 행. 예수금 변동액(cashAmount)은 /summary 의 예수금 계산식과 같은 기준이다.
+         국내 주문은 stock_package_id·channel 로 거르지 않는다(/summary 도 거르지 않는다).
+         일자 조건은 모두 업무시계 날짜 미만(clockDate) -->
+    <select id="selectCustomerTransactionRows" resultType="FundFlowTransactionRowDTO">
+        SELECT
+        DATE(k.final_at) AS eventDate,
+        'KRW_CONFIRMED' AS type,
+        NULL AS domesticProductId,
+        NULL AS productName,
+        NULL AS qty,
+        NULL AS price,
+        k.final_amount AS amount,
+        0 AS feeAmount,
+        0 AS taxAmount,
+        k.final_amount AS cashAmount,
+        k.final_at AS eventAt
+        FROM krw_exchange k
+        JOIN account a ON a.account_id = k.account_id
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+        AND k.settlement_status = 'FINALIZED' AND k.final_at &lt; #{clockDate}
+        UNION ALL
+        SELECT
+        DATE(o.processed_at),
+        CASE o.side WHEN 'BUY' THEN 'DOMESTIC_BUY' ELSE 'DOMESTIC_SELL' END,
+        o.domestic_product_id,
+        p.name,
+        o.qty,
+        o.price,
+        CASE o.side WHEN 'BUY' THEN ABS(o.amount) - o.fee_amount
+        ELSE o.amount + o.fee_amount + o.tax_amount END,
+        o.fee_amount,
+        o.tax_amount,
+        CASE o.side WHEN 'BUY' THEN -ABS(o.amount) ELSE o.amount END,
+        o.processed_at
+        FROM domestic_order o
+        JOIN account a ON a.account_id = o.account_id
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+        AND o.status = 'EXECUTED' AND o.processed_at &lt; #{clockDate}
+        UNION ALL
+        SELECT
+        DATE(w.processed_at),
+        'WITHDRAWAL',
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        w.requested_amount,
+        0,
+        0,
+        -w.requested_amount,
+        w.processed_at
+        FROM withdrawal w
+        JOIN account a ON a.account_id = w.account_id
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+        AND w.status = 'COMPLETED' AND w.processed_at &lt; #{clockDate}
+    </select>
+
+    <!-- 고객: 납입건별 처음 납입액·남은 원금·FIFO 인출 배분액(읽기 전용).
+         조건은 WithdrawalMapper.selectAvailableLeftAmountsByAccountId 와 같되, 전량 인출된 건(cur_amount = 0)도 낸다 -->
+    <select id="selectCustomerWithdrawalLots" resultType="FundFlowWithdrawalLotRowDTO">
+        SELECT
+        k.exchange_id AS exchangeId,
+        k.final_at AS finalAt,
+        k.final_amount AS paidAmount,
+        la.cur_amount AS remainingAmount,
+        COALESCE((SELECT SUM(wa.allocated_amount) FROM withdrawal_allocation wa
+        WHERE wa.left_amount_id = la.left_amount_id), 0) AS withdrawnAmount
+        FROM krw_exchange k
+        JOIN account a ON a.account_id = k.account_id
+        JOIN left_amount la ON la.exchange_id = k.exchange_id
+        WHERE a.customer_id = #{customerId} AND a.opened_at IS NOT NULL
+        AND k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL
+        ORDER BY k.final_at ASC, k.exchange_id ASC
+    </select>
+
     <!-- 고객: 내 예상 세금 혜택. tax_snapshot 은 표시용 캐시 -->
     <select id="selectCustomerRelief" resultType="FundFlowCustomerReliefDTO">
         SELECT

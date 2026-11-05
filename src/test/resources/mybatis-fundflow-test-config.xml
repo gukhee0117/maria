@@ -26,5 +26,6 @@
 
     <mappers>
         <mapper resource="mappers/fundflow/FundFlowMapper.xml"/>
+        <mapper resource="mappers/withdrawal/WithdrawalMapper.xml"/>
     </mappers>
 </configuration>
