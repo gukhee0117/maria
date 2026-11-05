@@ -21,6 +21,30 @@ MARIA.status = (function () {
         IMPOSSIBLE: "제외",
         UNCLASSIFIED: "대기"
     };
+    var ACCOUNT_STATUS_LABEL = {
+        APPLIED: "심사 대기",
+        OPENED: "개설 완료",
+        REJECTED: "반려",
+        CLOSURE_REQUESTED: "해지 접수",
+        CLOSED: "해지"
+    };
+    var ACCOUNT_STATUS_TONE = {
+        APPLIED: "info",
+        OPENED: "ok",
+        REJECTED: "fail",
+        CLOSURE_REQUESTED: "warn",
+        CLOSED: "off"
+    };
+    var ACCOUNT_CLOSURE_STATUS_LABEL = {
+        REQUESTED: "해지 접수",
+        COMPLETED: "해지 완료",
+        REJECTED: "해지 반려"
+    };
+    var ACCOUNT_CLOSURE_STATUS_TONE = {
+        REQUESTED: "info",
+        COMPLETED: "ok",
+        REJECTED: "fail"
+    };
 
     // 종목 구분 (StockType): 원본 화면 표기(해외주식 / 해외ETF / 해외펀드)에 맞춘다
     var STOCK_TYPE_LABEL = {
@@ -387,6 +411,18 @@ MARIA.status = (function () {
 
         benefitLabel: function (benefit) {
             return pick(BENEFIT_LABEL, benefit, BENEFIT_LABEL.UNCLASSIFIED);
+        },
+        accountStatusLabel: function (status) {
+            return pick(ACCOUNT_STATUS_LABEL, status, "-");
+        },
+        accountStatusTone: function (status) {
+            return ACCOUNT_STATUS_TONE[String(status || "").toUpperCase()] || "off";
+        },
+        accountClosureStatusLabel: function (status) {
+            return pick(ACCOUNT_CLOSURE_STATUS_LABEL, status, "-");
+        },
+        accountClosureStatusTone: function (status) {
+            return ACCOUNT_CLOSURE_STATUS_TONE[String(status || "").toUpperCase()] || "off";
         },
         stockTypeLabel: function (type) {
             return pick(STOCK_TYPE_LABEL, type, "-");
