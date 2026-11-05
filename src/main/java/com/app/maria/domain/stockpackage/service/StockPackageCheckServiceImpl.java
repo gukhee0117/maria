@@ -2,7 +2,6 @@ package com.app.maria.domain.stockpackage.service;
 
 import com.app.maria.domain.investorassessment.dto.response.InvestorAssessmentStatusResponseDTO;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
-import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.service.RiskGradeService;
 import com.app.maria.domain.stockpackage.dto.request.StockPackageCheckRequestDTO;
 import com.app.maria.domain.stockpackage.dto.request.StockPackageCheckRequestDTO.Item;
@@ -67,7 +66,7 @@ public class StockPackageCheckServiceImpl implements StockPackageCheckService {
         Map<Long, StockProductVO> products =
                 stockPackageMapper.selectProductsByIds(productIds).stream()
                         .collect(Collectors.toMap(StockProductVO::getDomesticProductId, p -> p));
-        Map<Long, Integer> grades = gradeByProduct();
+        Map<Long, Integer> grades = gradeByProduct(productIds);
         for (Long productId : productIds) {
             if (!products.containsKey(productId)) {
                 throw new AppException(ErrorType.DOMESTIC_PRODUCT_NOT_FOUND, productId);
@@ -237,12 +236,7 @@ public class StockPackageCheckServiceImpl implements StockPackageCheckService {
         return InvestorRiskRange.of(status.getInvestorType());
     }
 
-    private Map<Long, Integer> gradeByProduct() {
-        return riskGradeService.findUsable().stream()
-                .collect(
-                        Collectors.toMap(
-                                UsableRiskGradeDTO::domesticProductId,
-                                UsableRiskGradeDTO::riskGrade,
-                                (a, b) -> a));
+    private Map<Long, Integer> gradeByProduct(java.util.Collection<Long> productIds) {
+        return riskGradeService.findUsableGrades(productIds);
     }
 }

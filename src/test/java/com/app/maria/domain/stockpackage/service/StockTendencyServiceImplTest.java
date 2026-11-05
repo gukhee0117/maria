@@ -48,6 +48,11 @@ class StockTendencyServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .doCallRealMethod()
+                .when(riskGradeService)
+                .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
+        org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
         when(clock.now()).thenReturn(NOW);
         // 위험중립형(4등급까지). 1번 종목 5등급, 2번 종목 2등급, 3번은 등급 없음
         when(assessmentService.getMine(CUSTOMER_ID))

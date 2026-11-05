@@ -75,14 +75,26 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                 candidateMapper.selectCandidateProducts(
                         types, themes, escapeLike(request.keyword()));
 
+        List<UsableRiskGradeDTO> metricRows;
+        try {
+            metricRows = riskGradeService.findUsable();
+        } catch (AppException e) {
+            if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+            metricRows = List.of();
+        }
         Map<Long, UsableRiskGradeDTO> grades =
-                riskGradeService.findUsable().stream()
+                metricRows.stream()
                         .collect(
                                 Collectors.toMap(
                                         UsableRiskGradeDTO::domesticProductId,
                                         g -> g,
                                         (a, b) -> a));
 
+        Map<Long, Integer> classifications =
+                riskGradeService.findUsableGrades(
+                        products.stream()
+                                .map(StockCandidateProductVO::getDomesticProductId)
+                                .toList());
         List<StockCandidateProductVO> matched = new ArrayList<>();
         for (StockCandidateProductVO p : products) {
             if (!purchaseEligibilityService.isPurchasable(
@@ -90,13 +102,13 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                 continue;
             }
             UsableRiskGradeDTO g = grades.get(p.getDomesticProductId());
-            if (g == null) {
+            if (!classifications.containsKey(p.getDomesticProductId())) {
                 // 등급이 없는 상품은 등급 조건이나 성향 범위를 판단할 수 없어, 그런 조건이 없을 때만 보인다.
                 if (gradeFiltered || restrictToProfile) {
                     continue;
                 }
             } else {
-                int grade = g.riskGrade();
+                int grade = classifications.get(p.getDomesticProductId());
                 if ((minGrade != null && grade < minGrade)
                         || (maxGrade != null && grade > maxGrade)
                         || (restrictToProfile && !range.get().allows(grade))) {
@@ -120,7 +132,7 @@ public class StockCandidateServiceImpl implements StockCandidateService {
         List<Row> rows = new ArrayList<>();
         for (StockCandidateProductVO p : matched) {
             UsableRiskGradeDTO g = grades.get(p.getDomesticProductId());
-            Integer grade = g == null ? null : g.riskGrade();
+            Integer grade = classifications.get(p.getDomesticProductId());
             rows.add(
                     new Row(
                             p.getDomesticProductId(),
@@ -131,7 +143,7 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                             p.getSectorName(),
                             themesByProduct.getOrDefault(p.getDomesticProductId(), List.of()),
                             grade,
-                            g == null
+                            g == null || g.volatility() == null
                                     ? null
                                     : g.volatility()
                                             .multiply(HUNDRED)

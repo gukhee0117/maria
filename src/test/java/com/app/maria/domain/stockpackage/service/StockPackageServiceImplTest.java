@@ -60,6 +60,11 @@ class StockPackageServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .doCallRealMethod()
+                .when(riskGradeService)
+                .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
+        org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
         when(clock.now()).thenReturn(NOW);
         // 기본: 중립형(4등급까지), 유효한 진단, 종목 1(5등급)과 2(2등급), 모두 구매 가능
         when(assessmentService.getMine(CUSTOMER_ID)).thenReturn(assessed(InvestorType.NEUTRAL));
