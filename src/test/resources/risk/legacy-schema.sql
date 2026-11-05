@@ -3,7 +3,9 @@ DROP TABLE IF EXISTS stock_risk_grade;
 DROP TABLE IF EXISTS domestic_product;
 CREATE TABLE domestic_product (
     domestic_product_id BIGINT NOT NULL PRIMARY KEY,
-    ticker VARCHAR(20) NOT NULL
+    ticker VARCHAR(20) NOT NULL,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    type VARCHAR(10) NOT NULL DEFAULT 'STOCK'
 ) ENGINE=InnoDB;
 CREATE TABLE stock_risk_grade (
     domestic_product_id BIGINT NOT NULL PRIMARY KEY,
@@ -17,4 +19,4 @@ CREATE TABLE stock_risk_grade (
     CONSTRAINT fk_test_risk_product FOREIGN KEY(domestic_product_id) REFERENCES domestic_product(domestic_product_id),
     CONSTRAINT chk_srg_grade CHECK(risk_grade BETWEEN 1 AND 6)
 ) ENGINE=InnoDB;
-INSERT INTO domestic_product VALUES (1,'005930'),(2,'000660');
+INSERT INTO domestic_product (domestic_product_id,ticker) VALUES (1,'005930'),(2,'000660');

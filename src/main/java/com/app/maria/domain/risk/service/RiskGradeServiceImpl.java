@@ -1,7 +1,10 @@
 package com.app.maria.domain.risk.service;
 
+import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.domain.risk.calendar.KrxTradingCalendar;
 import com.app.maria.domain.risk.clock.RiskMarketClock;
+import com.app.maria.domain.risk.dto.RiskGradeClassificationDTO;
+import com.app.maria.domain.risk.dto.RiskProductDTO;
 import com.app.maria.domain.risk.dto.StockRiskGradeDTO;
 import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.mapper.StockRiskGradeMapper;
@@ -9,8 +12,13 @@ import com.app.maria.domain.risk.type.RiskDataStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +27,21 @@ public class RiskGradeServiceImpl implements RiskGradeService {
     private final StockRiskGradeMapper mapper;
     private final KrxTradingCalendar calendar;
     private final RiskMarketClock clock;
+    private final CurrentStockRiskService stockClassifications;
+    private static final Logger log = LoggerFactory.getLogger(RiskGradeServiceImpl.class);
 
     public RiskGradeServiceImpl(
             StockRiskGradeMapper mapper, KrxTradingCalendar calendar, RiskMarketClock clock) {
+        this(mapper, calendar, clock, null);
+    }
+
+    @Autowired
+    public RiskGradeServiceImpl(
+            StockRiskGradeMapper mapper,
+            KrxTradingCalendar calendar,
+            RiskMarketClock clock,
+            CurrentStockRiskService stockClassifications) {
+        this.stockClassifications = stockClassifications;
         this.mapper = mapper;
         this.calendar = calendar;
         this.clock = clock;
@@ -43,6 +63,78 @@ public class RiskGradeServiceImpl implements RiskGradeService {
         var context = context();
         return Optional.ofNullable(mapper.findByTicker(ticker))
                 .flatMap(row -> toUsable(row, context));
+    }
+
+    @Override
+    public Map<Long, Integer> findUsableGrades() {
+        return resolveGrades(null);
+    }
+
+    @Override
+    public Map<Long, Integer> findUsableGrades(java.util.Collection<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) return Map.of();
+        return resolveGrades(java.util.Set.copyOf(productIds));
+    }
+
+    private Map<Long, Integer> resolveGrades(java.util.Set<Long> requested) {
+        var products =
+                mapper.findProducts().stream()
+                        .filter(p -> requested == null || requested.contains(p.domesticProductId()))
+                        .toList();
+        var result = new HashMap<Long, Integer>();
+        if (products.stream().anyMatch(p -> p.type() == Type.FUND)) {
+            try {
+                for (var g : findUsable()) result.put(g.domesticProductId(), g.riskGrade());
+            } catch (AppException e) {
+                if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+                log.warn("RISK_METRICS_UNAVAILABLE code={}", e.getErrorType().name());
+            }
+        }
+        for (var p : products) {
+            if (p.type() == Type.STOCK) {
+                result.remove(p.domesticProductId());
+                currentStock(p).ifPresent(g -> result.put(g.domesticProductId(), g.riskGrade()));
+            } else if (p.type() != Type.FUND) {
+                result.remove(p.domesticProductId());
+            }
+        }
+        return Map.copyOf(result);
+    }
+
+    @Override
+    public Optional<RiskGradeClassificationDTO> findClassificationByTicker(String ticker) {
+        if (ticker == null || !ticker.matches("[0-9]{6}")) return Optional.empty();
+        var product = mapper.findProductByTicker(ticker);
+        if (product == null) return Optional.empty();
+        if (product.type() == Type.STOCK) return currentStock(product);
+        if (product.type() != Type.FUND) return Optional.empty();
+        return findUsableByTicker(ticker)
+                .map(
+                        g ->
+                                new RiskGradeClassificationDTO(
+                                        g.domesticProductId(),
+                                        g.ticker(),
+                                        g.name(),
+                                        g.riskGrade(),
+                                        "FUND_VAR_OR_ASSET"));
+    }
+
+    private Optional<RiskGradeClassificationDTO> currentStock(RiskProductDTO product) {
+        if (stockClassifications == null) throw new AppException(ErrorType.RISK_INVALID_RESPONSE);
+        try {
+            var current = stockClassifications.findCurrent(product.ticker());
+            return Optional.of(
+                    new RiskGradeClassificationDTO(
+                            product.domesticProductId(),
+                            product.ticker(),
+                            product.name(),
+                            current.riskGrade(),
+                            "STOCK_RULE_CURRENT_STATUS"));
+        } catch (AppException e) {
+            if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+            log.warn("RISK_STOCK_CLASSIFICATION_UNAVAILABLE code={}", e.getErrorType().name());
+            return Optional.empty();
+        }
     }
 
     private record Context(KrxTradingCalendar.Snapshot snapshot, LocalDate reference) {}

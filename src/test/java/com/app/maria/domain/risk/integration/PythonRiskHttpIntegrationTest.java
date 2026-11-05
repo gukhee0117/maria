@@ -247,6 +247,33 @@ class PythonRiskHttpIntegrationTest {
     }
 
     @Test
+    void currentStockClassificationSurvivesMetricExpiryAndRefreshesWarnings() throws Exception {
+        pull();
+        setTime("2026-11-05T15:40:00+09:00");
+        assertThat(reader().findUsableByTicker("005930")).isEmpty();
+        var classifications =
+                new PythonStockClassificationClient(
+                        RestClient.builder().baseUrl(baseUrl).build(), properties);
+        var live = new CurrentStockRiskService(classifications, clock);
+        var split = new RiskGradeServiceImpl(mapper, calendar, clock, live);
+        assertThat(split.findClassificationByTicker("005930"))
+                .get()
+                .satisfies(g -> assertThat(g.riskGrade()).isEqualTo(2));
+        Files.writeString(
+                directory.resolve("stock-status.json"),
+                "{\"005930\":true}",
+                StandardCharsets.UTF_8);
+        setTime("2026-11-05T15:41:01+09:00");
+        assertThat(split.findClassificationByTicker("005930"))
+                .get()
+                .satisfies(g -> assertThat(g.riskGrade()).isEqualTo(1));
+        assertThat(split.findUsableByTicker("005930")).isEmpty();
+        Files.createFile(directory.resolve("status-unavailable"));
+        setTime("2026-11-05T15:42:02+09:00");
+        assertThat(split.findClassificationByTicker("005930")).isEmpty();
+    }
+
+    @Test
     void actualPythonResponseMatchesDtoDuplicateCorrectionAndPartialPublication() throws Exception {
         var first = client.fetch();
         assertThat(first).hasSize(1);
