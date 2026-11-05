@@ -18,12 +18,6 @@ $(function () {
         STARTING: "info",
         STOPPED: "off"
     };
-    var BENEFIT_TONE = {
-        POSSIBLE: "ok",
-        REDUCED: "warn",
-        IMPOSSIBLE: "off",
-        UNCLASSIFIED: "info"
-    };
     var AMOUNT_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
 
     var accountMap = {};
@@ -134,8 +128,7 @@ $(function () {
     }
 
     function benefitChip(benefit) {
-        var key = String(benefit || "UNCLASSIFIED").toUpperCase();
-        return '<span class="adm-chip adm-chip-' + (BENEFIT_TONE[key] || "off") +
+        return '<span class="adm-chip adm-chip-' + MARIA.status.benefitTone(benefit) +
             ' tax-benefit-chip">' + escapeHtml(MARIA.status.benefitLabel(benefit)) + "</span>";
     }
 
