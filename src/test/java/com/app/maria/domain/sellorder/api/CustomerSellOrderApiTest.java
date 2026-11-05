@@ -1,13 +1,23 @@
 package com.app.maria.domain.sellorder.api;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
+import com.app.maria.domain.sellorder.dto.SellOrderDTO;
 import com.app.maria.domain.sellorder.dto.response.CustomerSellOrderResponseDTO;
+import com.app.maria.domain.sellorder.dto.response.CustomerSellOrderResultResponseDTO;
+import com.app.maria.domain.sellorder.dto.response.SellOrderResponseDTO;
 import com.app.maria.domain.sellorder.service.CustomerSellOrderService;
 import com.app.maria.domain.sellorder.type.SellOrderStatus;
 import com.app.maria.global.config.CustomerSecurityConfig;
@@ -71,5 +81,86 @@ class CustomerSellOrderApiTest {
                 .andExpect(jsonPath("$.data.content[0].orderAmount").value(300))
                 .andExpect(jsonPath("$.data.content[0].status").value("EXECUTED"))
                 .andExpect(jsonPath("$.data.content[0].processedAt").value("2026-03-09T10:00:00"));
+    }
+
+    private static final String BODY_OK = "{\"foreignProductId\": 10, \"sellQty\": 5}";
+
+    @Test
+    @DisplayName("매도 신청: 로그인하지 않으면 401이다")
+    void placeRequiresLogin() throws Exception {
+        mockMvc.perform(
+                        post(SELL_ORDERS)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(BODY_OK))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(customerSellOrderService);
+    }
+
+    @Test
+    @DisplayName("매도 신청: CSRF 토큰이 없으면 서비스를 부르지 않고 거부한다")
+    void placeRequiresCsrf() throws Exception {
+        mockMvc.perform(
+                        post(SELL_ORDERS)
+                                .with(customerAuth())
+                                .contentType(APPLICATION_JSON)
+                                .content(BODY_OK))
+                .andExpect(status().is4xxClientError());
+        verifyNoInteractions(customerSellOrderService);
+    }
+
+    @Test
+    @DisplayName("매도 신청: 종목이나 수량이 없거나 수량이 0 이하면 400이고 서비스를 부르지 않는다")
+    void placeValidatesBody() throws Exception {
+        for (String body :
+                new String[] {
+                    "{\"sellQty\": 5}",
+                    "{\"foreignProductId\": 10}",
+                    "{\"foreignProductId\": 10, \"sellQty\": 0}",
+                    "{\"foreignProductId\": 10, \"sellQty\": -1}"
+                }) {
+            mockMvc.perform(
+                            post(SELL_ORDERS)
+                                    .with(customerAuth())
+                                    .with(csrf())
+                                    .contentType(APPLICATION_JSON)
+                                    .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(customerSellOrderService);
+    }
+
+    @Test
+    @DisplayName("매도 신청: 로그인한 고객 본인으로 처리하고 체결 결과를 돌려준다(요청에 계좌 ID를 받지 않는다)")
+    void placeUsesAuthenticatedCustomerAndReturnsResult() throws Exception {
+        SellOrderResponseDTO executed =
+                new SellOrderResponseDTO(
+                        SellOrderDTO.builder()
+                                .orderId(1L)
+                                .inboundDetailId(501L)
+                                .accountId(100L)
+                                .foreignProductId(10L)
+                                .sellQty(new BigDecimal("5"))
+                                .basePrice(new BigDecimal("200"))
+                                .status(SellOrderStatus.EXECUTED)
+                                .processedAt(LocalDateTime.of(2026, 11, 4, 10, 0))
+                                .build());
+        when(customerSellOrderService.placeOrder(eq(7L), any()))
+                .thenReturn(CustomerSellOrderResultResponseDTO.of(List.of(executed)));
+
+        mockMvc.perform(
+                        post(SELL_ORDERS)
+                                .with(customerAuth())
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(
+                                        "{\"foreignProductId\": 10, \"sellQty\": 5, \"accountId\": 999}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EXECUTED"))
+                .andExpect(jsonPath("$.data.totalQty").value(5))
+                .andExpect(jsonPath("$.data.totalAmount").value(1000.00))
+                .andExpect(jsonPath("$.data.orders[0].orderId").value(1))
+                .andExpect(jsonPath("$.data.orders[0].inboundDetailId").value(501));
+        verify(customerSellOrderService).placeOrder(eq(7L), any());
     }
 }
