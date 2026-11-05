@@ -272,6 +272,50 @@
 - `buckets.share`는 `totalValue`(보유 종목 매입금액 + 예수금) 대비, `sectors.share`는 `holdingsCost` 대비다.
 - `sectors`는 주식 업종 상위 3이며 업종이 없으면 `기타`로 묶는다. 본인 `OPENED` 계좌의 보유(`qty > 0`)만 센다.
 
+### 3-5. `GET /api/customer/fund-flow/transactions` — 내 자금 이동 내역
+
+고객 "자금 이동 내역" 타임라인용. 원화 확정·국내 매도·국내 매수·인출을 거래 후 예수금과 함께 시간순으로 준다. 계좌 ID는 받지 않고 로그인 고객의 개설 계좌만 조회한다.
+
+```json
+"data": {
+  "asOfDate": "2026-11-18",
+  "hasAccount": true,
+  "items": [
+    { "date": "2026-10-23", "type": "KRW_CONFIRMED", "amount": 47016155, "cashAfter": 47016155,
+      "title": null, "details": [] },
+    { "date": "2026-10-23", "type": "DOMESTIC_BUY", "amount": -7295291, "cashAfter": 39720864,
+      "title": "삼성전자 외 1",
+      "details": [ { "name": "삼성전자", "qty": 22, "amount": 4741000, "feeAmount": 189, "taxAmount": 0 } ] }
+  ],
+  "basis": "..."
+}
+```
+- `items`는 **오래된 순**이다(화면은 뒤집어서 최신순으로 쓴다). 계좌가 없으면 `hasAccount: false`, `items: []`.
+- 같은 날·같은 구분은 한 줄로 합친다(쪼개진 원화 확정은 일자별 합계, 국내 매수·매도는 종목별로 합친 `details`와 대표 `title` "OO 외 N"). 대표 종목은 금액이 큰 종목이다.
+- `amount`는 **예수금 변동액**(+입금/−출금)이다. 국내 매수는 수수료 포함, 국내 매도는 수수료·거래세를 뺀 순액이라 `/summary`의 예수금 계산식과 같다. `details.amount`는 체결금액(수수료 제외)이다.
+- 같은 날 처리 순서는 `KRW_CONFIRMED → DOMESTIC_SELL → DOMESTIC_BUY → WITHDRAWAL`로 고정이고, `cashAfter`는 이 순서로 누적한다.
+- 집계 기준은 `/summary`와 같다(업무시계 날짜 미만, 확정된 원화·체결된 주문·완료된 인출). 국내 주문은 `stock_package_id`·`channel`로 거르지 않는다(생성기 체결 포함). 마지막 `cashAfter`는 `/summary`의 `cashBalance`와 같아야 한다.
+
+### 3-6. `GET /api/customer/fund-flow/withdrawal-schedule` — 내 인출 가능 일정
+
+고객 "인출 가능 일정" 타임라인(간트)용. 납입일(원화 환전 대금결제일)별 합계를 준다. 계좌 ID는 받지 않는다. 인출 패키지 코드는 읽기만 하고 고치지 않는다.
+
+```json
+"data": {
+  "businessDate": "2026-11-19",
+  "hasAccount": true,
+  "lots": [
+    { "paidDate": "2026-04-28", "maturityDate": "2027-04-28", "paidAmount": 30000000,
+      "withdrawnAmount": 0, "remainingAmount": 30000000, "matured": false }
+  ],
+  "basis": "..."
+}
+```
+- `lots`는 납입일 오름차순이고 같은 납입일(`krw_exchange.final_at`의 날짜)은 합친다. 인출 가능일은 납입일 + 1년이다.
+- `paidAmount`는 처음 납입액(`krw_exchange.final_amount`), `remainingAmount`는 인출 후 남은 원금(`left_amount.cur_amount`), `withdrawnAmount`는 FIFO 배분 합계(`withdrawal_allocation.left_amount_id` 기준, 수익금 배분은 제외)다. 전량 인출된 건(`remainingAmount = 0`)도 포함한다.
+- `matured`는 인출 처리와 같은 판정(`!final_at + 1년 > 업무시계 현재`)이다. 계좌가 없으면 `hasAccount: false`, `lots: []`.
+- 남은 원금이 있는 건의 합계는 `GET /api/customer/withdrawals/availability`의 `leftAmounts` 합계와 같다(테스트로 대조). 화면의 "지금 인출 가능 금액·1년 유지 중인 납입금·다음 인출 가능일"은 그 API 값을 그대로 쓴다.
+
 ---
 
 ## 4. 구현 계획

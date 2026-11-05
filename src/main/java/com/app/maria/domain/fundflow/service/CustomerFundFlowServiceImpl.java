@@ -10,14 +10,24 @@ import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthlyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowTransactionDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowTransactionRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowTransactionsDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalScheduleDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
 import com.app.maria.domain.fundflow.type.LeakageCategory;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -36,6 +46,7 @@ public class CustomerFundFlowServiceImpl implements CustomerFundFlowService {
     private static final String FUND_TYPE = "FUND";
     private static final String OTHER_SECTOR = "기타";
     private static final int SECTOR_TOP = 3;
+    private static final int AVG_PRICE_SCALE = 4;
 
     private final FundFlowMapper fundFlowMapper;
     private final BusinessClockService businessClockService;
@@ -151,6 +162,145 @@ public class CustomerFundFlowServiceImpl implements CustomerFundFlowService {
                                         bucket("예수금", cash, total)))
                         .sectors(sectors)
                         .build());
+    }
+
+    @Override
+    public FundFlowTransactionsResponseDTO getTransactions(Long customerId) {
+        FundFlowFilterDTO filter = buildFilter();
+        if (!fundFlowMapper.existsCustomerOpenedAccount(customerId)) {
+            return new FundFlowTransactionsResponseDTO(
+                    FundFlowTransactionsDTO.builder()
+                            .asOfDate(filter.getAsOfDate())
+                            .hasAccount(false)
+                            .items(List.of())
+                            .build());
+        }
+
+        List<FundFlowTransactionRowDTO> rows = sortedRows(customerId, filter);
+
+        List<FundFlowTransactionDTO> items = new ArrayList<>();
+        BigDecimal cash = BigDecimal.ZERO;
+        int start = 0;
+        while (start < rows.size()) {
+            FundFlowTransactionRowDTO head = rows.get(start);
+            int end = start;
+            BigDecimal amount = BigDecimal.ZERO;
+            while (end < rows.size()
+                    && rows.get(end).getEventDate().equals(head.getEventDate())
+                    && rows.get(end).getType() == head.getType()) {
+                amount = amount.add(rows.get(end).getCashAmount());
+                end++;
+            }
+            cash = cash.add(amount);
+            List<FundFlowTransactionRowDTO> details =
+                    head.getType().hasProducts()
+                            ? productDetails(rows.subList(start, end))
+                            : List.of();
+            items.add(
+                    FundFlowTransactionDTO.builder()
+                            .date(head.getEventDate())
+                            .type(head.getType())
+                            .amount(amount)
+                            .cashAfter(cash)
+                            .title(productTitle(details))
+                            .details(details)
+                            .build());
+            start = end;
+        }
+        return new FundFlowTransactionsResponseDTO(
+                FundFlowTransactionsDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .hasAccount(true)
+                        .items(items)
+                        .build());
+    }
+
+    @Override
+    public FundFlowWithdrawalScheduleResponseDTO getWithdrawalSchedule(Long customerId) {
+        LocalDateTime now = businessClockService.now();
+        if (!fundFlowMapper.existsCustomerOpenedAccount(customerId)) {
+            return new FundFlowWithdrawalScheduleResponseDTO(
+                    FundFlowWithdrawalScheduleDTO.builder()
+                            .businessDate(now.toLocalDate())
+                            .hasAccount(false)
+                            .lots(List.of())
+                            .build());
+        }
+        // 납입일(결제일) 단위로 합친다. 쿼리가 납입일 오름차순으로 주므로 순서를 그대로 쓴다.
+        Map<LocalDate, FundFlowWithdrawalLotDTO> byDate = new LinkedHashMap<>();
+        for (FundFlowWithdrawalLotRowDTO row :
+                fundFlowMapper.selectCustomerWithdrawalLots(customerId)) {
+            LocalDate paidDate = row.getFinalAt().toLocalDate();
+            // 인출 처리와 같은 판정: 납입일시 + 1년이 지금(업무시계) 이전이거나 같으면 인출 가능
+            boolean matured = !row.getFinalAt().plusYears(1).isAfter(now);
+            FundFlowWithdrawalLotDTO lot =
+                    byDate.computeIfAbsent(
+                            paidDate,
+                            d ->
+                                    FundFlowWithdrawalLotDTO.builder()
+                                            .paidDate(d)
+                                            .maturityDate(d.plusYears(1))
+                                            .paidAmount(BigDecimal.ZERO)
+                                            .withdrawnAmount(BigDecimal.ZERO)
+                                            .remainingAmount(BigDecimal.ZERO)
+                                            .matured(true)
+                                            .build());
+            lot.setPaidAmount(lot.getPaidAmount().add(row.getPaidAmount()));
+            lot.setWithdrawnAmount(lot.getWithdrawnAmount().add(row.getWithdrawnAmount()));
+            lot.setRemainingAmount(lot.getRemainingAmount().add(row.getRemainingAmount()));
+            lot.setMatured(lot.isMatured() && matured);
+        }
+        return new FundFlowWithdrawalScheduleResponseDTO(
+                FundFlowWithdrawalScheduleDTO.builder()
+                        .businessDate(now.toLocalDate())
+                        .hasAccount(true)
+                        .lots(new ArrayList<>(byDate.values()))
+                        .build());
+    }
+
+    /** 같은 날 안에서는 구분 선언 순서(원화 확정 → 국내 매도 → 국내 매수 → 인출)로 늘어놓는다. */
+    private List<FundFlowTransactionRowDTO> sortedRows(Long customerId, FundFlowFilterDTO filter) {
+        List<FundFlowTransactionRowDTO> rows =
+                new ArrayList<>(
+                        fundFlowMapper.selectCustomerTransactionRows(
+                                customerId, filter.getClockDate()));
+        rows.sort(
+                Comparator.comparing(FundFlowTransactionRowDTO::getEventDate)
+                        .thenComparing(FundFlowTransactionRowDTO::getType));
+        return rows;
+    }
+
+    /** 같은 날·같은 구분의 주문을 종목별로 합친다. 금액이 큰 종목부터, 같으면 종목명 순. */
+    private List<FundFlowTransactionRowDTO> productDetails(List<FundFlowTransactionRowDTO> group) {
+        Map<Long, FundFlowTransactionRowDTO> byProduct = new LinkedHashMap<>();
+        for (FundFlowTransactionRowDTO row : group) {
+            byProduct.merge(
+                    row.getDomesticProductId(),
+                    row.toBuilder().build(),
+                    (a, b) -> {
+                        a.setQty(a.getQty().add(b.getQty()));
+                        a.setAmount(a.getAmount().add(b.getAmount()));
+                        a.setFeeAmount(a.getFeeAmount().add(b.getFeeAmount()));
+                        a.setTaxAmount(a.getTaxAmount().add(b.getTaxAmount()));
+                        a.setCashAmount(a.getCashAmount().add(b.getCashAmount()));
+                        return a;
+                    });
+        }
+        return byProduct.values().stream()
+                .sorted(
+                        Comparator.comparing(FundFlowTransactionRowDTO::getAmount)
+                                .reversed()
+                                .thenComparing(FundFlowTransactionRowDTO::getProductName))
+                .toList();
+    }
+
+    /** "OO 외 N" — 종목이 하나면 종목명만, 종목 내역이 없는 구분이면 null. */
+    private String productTitle(List<FundFlowTransactionRowDTO> details) {
+        if (details.isEmpty()) {
+            return null;
+        }
+        String first = details.get(0).getProductName();
+        return details.size() == 1 ? first : first + " 외 " + (details.size() - 1);
     }
 
     private FundFlowBucketDTO bucket(String label, BigDecimal value, BigDecimal total) {

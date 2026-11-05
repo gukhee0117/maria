@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelStageDTO;
+import com.app.maria.domain.fundflow.type.FundFlowTransactionType;
+import com.app.maria.domain.withdrawal.mapper.WithdrawalMapper;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
@@ -470,6 +472,234 @@ class FundFlowMapperTest {
     }
 
     @Test
+    @DisplayName("고객: 개설된 본인 계좌가 있을 때만 true다(신청만 한 계좌·계좌 없는 고객은 false)")
+    void existsCustomerOpenedAccount() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-04-01 10:00:00", null);
+        insertCustomer(3L);
+
+        assertThat(fundFlowMapper.existsCustomerOpenedAccount(1L)).isTrue();
+        assertThat(fundFlowMapper.existsCustomerOpenedAccount(2L)).isFalse();
+        assertThat(fundFlowMapper.existsCustomerOpenedAccount(3L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("고객: 거래 행은 확정된 원화·체결된 주문·완료된 인출만, 업무시계 날짜 미만·본인 계좌만 낸다")
+    void selectCustomerTransactionRowsFiltersAndSigns() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        execute(
+                "INSERT INTO domestic_product (domestic_product_id, name, type) VALUES"
+                        + " (10, '삼성전자', 'STOCK'), (11, 'KODEX 200', 'FUND')");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-05-19 00:00:00'),"
+                        + " (1, 'FINALIZED', 500000, '2026-05-19 00:00:00'),"
+                        + " (1, 'PROVISIONAL', 300000, NULL),"
+                        + " (1, 'FINALIZED', 700000, '2026-11-18 00:00:00'),"
+                        + " (2, 'FINALIZED', 999999, '2026-05-19 00:00:00')");
+        // 패키지가 아닌 생성기 체결(stock_package_id NULL)과 패키지 체결을 모두 포함한다
+        insertTransactionOrder(
+                1L,
+                10L,
+                "BUY",
+                "EXECUTED",
+                "5",
+                -300500,
+                500,
+                0,
+                "GENERATOR",
+                null,
+                "2026-06-01 10:00:00");
+        insertTransactionOrder(
+                1L,
+                11L,
+                "BUY",
+                "EXECUTED",
+                "2",
+                -100200,
+                200,
+                0,
+                "CUSTOMER",
+                7L,
+                "2026-06-01 11:00:00");
+        insertTransactionOrder(
+                1L,
+                10L,
+                "SELL",
+                "EXECUTED",
+                "1",
+                59000,
+                500,
+                500,
+                "CUSTOMER",
+                7L,
+                "2026-06-02 10:00:00");
+        insertTransactionOrder(
+                1L, 10L, "BUY", "REJECTED", "1", 0, 0, 0, "CUSTOMER", 7L, "2026-06-03 10:00:00");
+        insertTransactionOrder(
+                1L,
+                10L,
+                "BUY",
+                "EXECUTED",
+                "1",
+                -99999,
+                0,
+                0,
+                "CUSTOMER",
+                7L,
+                "2026-11-18 00:00:00");
+        insertTransactionOrder(
+                2L,
+                10L,
+                "BUY",
+                "EXECUTED",
+                "1",
+                -88888,
+                0,
+                0,
+                "CUSTOMER",
+                7L,
+                "2026-06-01 10:00:00");
+        execute(
+                "INSERT INTO withdrawal (account_id, requested_amount, status, processed_at) VALUES"
+                        + " (1, 200000, 'COMPLETED', '2026-07-01 10:00:00'),"
+                        + " (1, 300000, 'REQUESTED', '2026-07-02 10:00:00'),"
+                        + " (2, 400000, 'COMPLETED', '2026-07-01 10:00:00')");
+
+        execute(
+                "UPDATE domestic_order SET price = 60100 WHERE account_id = 1 AND domestic_product_id = 10");
+
+        var rows = fundFlowMapper.selectCustomerTransactionRows(1L, CLOCK_DATE);
+
+        assertThat(rows).hasSize(6);
+        var krw =
+                rows.stream()
+                        .filter(r -> r.getType() == FundFlowTransactionType.KRW_CONFIRMED)
+                        .toList();
+        assertThat(krw).hasSize(2);
+        assertThat(krw)
+                .allSatisfy(r -> assertThat(r.getEventDate()).isEqualTo(LocalDate.of(2026, 5, 19)));
+        assertThat(krw.stream().map(r -> r.getCashAmount()).reduce(java.math.BigDecimal::add).get())
+                .isEqualByComparingTo("1500000");
+
+        var buys =
+                rows.stream()
+                        .filter(r -> r.getType() == FundFlowTransactionType.DOMESTIC_BUY)
+                        .toList();
+        assertThat(buys).hasSize(2);
+        var samsung = buys.stream().filter(r -> r.getDomesticProductId() == 10L).findFirst().get();
+        assertThat(samsung.getProductName()).isEqualTo("삼성전자");
+        assertThat(samsung.getQty()).isEqualByComparingTo("5");
+        assertThat(samsung.getAmount()).isEqualByComparingTo("300000"); // 체결금액 = |amount| - 수수료
+        assertThat(samsung.getFeeAmount()).isEqualByComparingTo("500");
+        assertThat(samsung.getCashAmount()).isEqualByComparingTo("-300500"); // 수수료 포함 출금
+        assertThat(samsung.getPrice()).isEqualByComparingTo("60100"); // 평균 매입가 재계산용 체결가
+        assertThat(samsung.getEventAt()).isNotNull(); // 같은 날 안의 실제 순서용 시각
+        assertThat(krw.get(0).getPrice()).isNull();
+
+        var sell =
+                rows.stream()
+                        .filter(r -> r.getType() == FundFlowTransactionType.DOMESTIC_SELL)
+                        .findFirst()
+                        .get();
+        assertThat(sell.getAmount()).isEqualByComparingTo("60000"); // 체결금액 = amount + 수수료 + 거래세
+        assertThat(sell.getTaxAmount()).isEqualByComparingTo("500");
+        assertThat(sell.getCashAmount()).isEqualByComparingTo("59000"); // 수수료·거래세를 뺀 순액 입금
+
+        var withdrawal =
+                rows.stream()
+                        .filter(r -> r.getType() == FundFlowTransactionType.WITHDRAWAL)
+                        .findFirst()
+                        .get();
+        assertThat(withdrawal.getEventDate()).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(withdrawal.getCashAmount()).isEqualByComparingTo("-200000");
+    }
+
+    @Test
+    @DisplayName("고객: 거래가 하나도 없으면 빈 목록이다")
+    void selectCustomerTransactionRowsEmpty() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+
+        assertThat(fundFlowMapper.selectCustomerTransactionRows(1L, CLOCK_DATE)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("고객: 납입건 일정은 인출이 있는 건·전량 인출된 건을 포함하고, 남은 원금은 인출 패키지의 availability 조회와 같다")
+    void selectCustomerWithdrawalLotsMatchesAvailabilityLeftAmounts() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-03-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (exchange_id, account_id, settlement_status, final_amount, final_at)"
+                        + " VALUES"
+                        + " (1, 1, 'FINALIZED', 30000000, '2026-04-28 00:00:00'),"
+                        + " (2, 1, 'FINALIZED', 10000000, '2026-06-08 00:00:00'),"
+                        + " (3, 1, 'FINALIZED', 5000000, '2026-06-08 00:00:00'),"
+                        + " (4, 1, 'FINALIZED', 7000000, '2026-03-12 00:00:00'),"
+                        + " (5, 1, 'PROVISIONAL', 999, NULL),"
+                        + " (6, 2, 'FINALIZED', 1111, '2026-04-28 00:00:00')");
+        // 1번 일부 인출(2,000,000), 4번 전량 인출, 2·3번 그대로
+        execute(
+                "INSERT INTO left_amount (left_amount_id, exchange_id, cur_amount) VALUES"
+                        + " (11, 1, 28000000), (12, 2, 10000000), (13, 3, 5000000),"
+                        + " (14, 4, 0), (16, 6, 1111)");
+        execute(
+                "INSERT INTO withdrawal_allocation (withdrawal_id, left_amount_id, allocated_amount,"
+                        + " withdrawal_at, type) VALUES"
+                        + " (1, 11, 2000000, '2026-09-01 10:00:00', 'MATURED_PRINCIPAL_INCLUDED'),"
+                        + " (1, 14, 7000000, '2026-09-01 10:00:00', 'MATURED_PRINCIPAL_INCLUDED'),"
+                        + " (1, NULL, 500000, '2026-09-01 10:00:00', 'EARNINGS_ONLY')");
+
+        var lots = fundFlowMapper.selectCustomerWithdrawalLots(1L);
+
+        // 납입일 오름차순, 전량 인출된 건(4번)도 포함, 가환전·타 고객 건은 제외
+        assertThat(lots).extracting(l -> l.getExchangeId()).containsExactly(4L, 1L, 2L, 3L);
+        var fullyWithdrawn = lots.get(0);
+        assertThat(fullyWithdrawn.getPaidAmount()).isEqualByComparingTo("7000000");
+        assertThat(fullyWithdrawn.getRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(fullyWithdrawn.getWithdrawnAmount()).isEqualByComparingTo("7000000");
+        var partial = lots.get(1);
+        assertThat(partial.getPaidAmount()).isEqualByComparingTo("30000000");
+        assertThat(partial.getRemainingAmount()).isEqualByComparingTo("28000000");
+        assertThat(partial.getWithdrawnAmount()).isEqualByComparingTo("2000000");
+        // 처음 납입액 = 남은 원금 + 인출 배분액 (EARNINGS_ONLY 배분은 납입건에 속하지 않는다)
+        assertThat(lots)
+                .allSatisfy(
+                        l ->
+                                assertThat(l.getPaidAmount())
+                                        .isEqualByComparingTo(
+                                                l.getRemainingAmount()
+                                                        .add(l.getWithdrawnAmount())));
+
+        // 인출 패키지(availability)가 쓰는 남은 원금 조회와 대조: 남은 원금이 있는 건은 같은 금액·같은 납입일시
+        var available =
+                sqlSession
+                        .getMapper(WithdrawalMapper.class)
+                        .selectAvailableLeftAmountsByAccountId(1L);
+        var remainingLots = lots.stream().filter(l -> l.getRemainingAmount().signum() > 0).toList();
+        assertThat(available).hasSameSizeAs(remainingLots);
+        for (int i = 0; i < available.size(); i++) {
+            assertThat(available.get(i).getExchangeId())
+                    .isEqualTo(remainingLots.get(i).getExchangeId());
+            assertThat(available.get(i).getCurAmount())
+                    .isEqualByComparingTo(remainingLots.get(i).getRemainingAmount());
+            assertThat(available.get(i).getFinalAt()).isEqualTo(remainingLots.get(i).getFinalAt());
+        }
+        assertThat(
+                        available.stream()
+                                .map(a -> a.getCurAmount())
+                                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add))
+                .isEqualByComparingTo("43000000");
+    }
+
+    @Test
     @DisplayName("스키마: 테스트용 테이블의 모든 컬럼이 db/01_ria_ddl.sql 에 같은 타입으로 있다")
     void fixtureSchemaMatchesCheckedInDdl() throws Exception {
         String ddl = Files.readString(Path.of("db/01_ria_ddl.sql"));
@@ -521,6 +751,8 @@ class FundFlowMapperTest {
                     "sell_order",
                     "domestic_order",
                     "krw_exchange",
+                    "left_amount",
+                    "withdrawal_allocation",
                     "withdrawal",
                     "fund_flow_monthly",
                     "tax_snapshot",
@@ -590,6 +822,37 @@ class FundFlowMapperTest {
                                 + " fee_amount, tax_amount, processed_at)"
                                 + " VALUES (%d, %d, '%s', 'EXECUTED', %d, %d, %d, '2026-06-01 10:00:00')")
                         .formatted(accountId, productId, side, amount, fee, tax));
+    }
+
+    private void insertTransactionOrder(
+            Long accountId,
+            Long productId,
+            String side,
+            String status,
+            String qty,
+            long amount,
+            long fee,
+            long tax,
+            String channel,
+            Long stockPackageId,
+            String processedAt)
+            throws SQLException {
+        execute(
+                ("INSERT INTO domestic_order (account_id, domestic_product_id, stock_package_id, side, status,"
+                                + " qty, amount, fee_amount, tax_amount, channel, processed_at)"
+                                + " VALUES (%d, %d, %s, '%s', '%s', %s, %d, %d, %d, '%s', '%s')")
+                        .formatted(
+                                accountId,
+                                productId,
+                                stockPackageId == null ? "NULL" : stockPackageId.toString(),
+                                side,
+                                status,
+                                qty,
+                                amount,
+                                fee,
+                                tax,
+                                channel,
+                                processedAt));
     }
 
     private void insertCustomer(Long customerId) throws SQLException {
@@ -691,11 +954,15 @@ class FundFlowMapperTest {
                         domestic_order_id BIGINT PRIMARY KEY AUTO_INCREMENT,
                         account_id BIGINT NOT NULL,
                         domestic_product_id BIGINT NOT NULL DEFAULT 1,
+                        stock_package_id BIGINT NULL,
                         side VARCHAR(4) NOT NULL,
+                        qty DECIMAL(15,4) NOT NULL DEFAULT 0,
+                        price DECIMAL(15,4) NULL,
                         status VARCHAR(10) NOT NULL,
                         amount DECIMAL(15,0) NOT NULL DEFAULT 0,
                         fee_amount DECIMAL(15,0) NOT NULL DEFAULT 0,
                         tax_amount DECIMAL(15,0) NOT NULL DEFAULT 0,
+                        channel VARCHAR(10) NOT NULL DEFAULT 'CUSTOMER',
                         processed_at DATETIME NOT NULL
                     )
                     """);
@@ -717,6 +984,25 @@ class FundFlowMapperTest {
                         requested_amount DECIMAL(15,2) NOT NULL,
                         status VARCHAR(12) NOT NULL,
                         processed_at DATETIME NOT NULL
+                    )
+                    """);
+            statement.execute(
+                    """
+                    CREATE TABLE left_amount (
+                        left_amount_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                        exchange_id BIGINT NOT NULL,
+                        cur_amount DECIMAL(15,0) NOT NULL
+                    )
+                    """);
+            statement.execute(
+                    """
+                    CREATE TABLE withdrawal_allocation (
+                        allocation_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                        withdrawal_id BIGINT NOT NULL,
+                        left_amount_id BIGINT NULL,
+                        allocated_amount DECIMAL(15,2) NOT NULL,
+                        withdrawal_at DATETIME NOT NULL,
+                        type VARCHAR(30) NOT NULL
                     )
                     """);
             statement.execute(
