@@ -5,7 +5,6 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponse
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
-import com.app.maria.domain.fundflow.dto.response.FundFlowTrendResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 
 public interface CustomerFundFlowService {
@@ -20,8 +19,6 @@ public interface CustomerFundFlowService {
 
     /** 본인 계좌의 자금 이동 내역(원화 확정·국내 매수·국내 매도·인출). 오래된 순, /summary 와 같은 기준일까지. */
     FundFlowTransactionsResponseDTO getTransactions(Long customerId);
-
-    FundFlowTrendResponseDTO getBalanceTrend(Long customerId);
 
     FundFlowWithdrawalScheduleResponseDTO getWithdrawalSchedule(Long customerId);
 }

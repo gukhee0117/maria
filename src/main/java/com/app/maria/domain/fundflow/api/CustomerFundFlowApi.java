@@ -5,7 +5,6 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponse
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
-import com.app.maria.domain.fundflow.dto.response.FundFlowTrendResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 import com.app.maria.domain.fundflow.service.CustomerFundFlowService;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -67,15 +66,6 @@ public class CustomerFundFlowApi {
                 ApiResponseDTO.of(
                         "내 자금 이동 내역 조회 성공",
                         customerFundFlowService.getTransactions(principal.customerId())));
-    }
-
-    @GetMapping("/balance-trend")
-    public ResponseEntity<ApiResponseDTO<FundFlowTrendResponseDTO>> getBalanceTrend(
-            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
-        return ResponseEntity.ok(
-                ApiResponseDTO.of(
-                        "내 잔액 추이 조회 성공",
-                        customerFundFlowService.getBalanceTrend(principal.customerId())));
     }
 
     @GetMapping("/withdrawal-schedule")

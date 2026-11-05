@@ -296,31 +296,7 @@
 - 같은 날 처리 순서는 `KRW_CONFIRMED → DOMESTIC_SELL → DOMESTIC_BUY → WITHDRAWAL`로 고정이고, `cashAfter`는 이 순서로 누적한다.
 - 집계 기준은 `/summary`와 같다(업무시계 날짜 미만, 확정된 원화·체결된 주문·완료된 인출). 국내 주문은 `stock_package_id`·`channel`로 거르지 않는다(생성기 체결 포함). 마지막 `cashAfter`는 `/summary`의 `cashBalance`와 같아야 한다.
 
-### 3-6. `GET /api/customer/fund-flow/balance-trend` — 내 잔액 추이
-
-고객 "잔액 추이" 누적 막대용. 기간 말(주는 일요일, 월은 말일) 기준 국내 보유 매입금액과 예수금을 준다. 계좌 ID는 받지 않는다.
-
-```json
-"data": {
-  "asOfDate": "2026-11-18",
-  "hasAccount": true,
-  "hasKrwConfirmed": true,
-  "unit": "WEEK",
-  "points": [
-    { "periodStart": "2026-10-19", "periodEnd": "2026-10-25",
-      "invested": 7295000, "cash": 39720864, "hasTransactions": true }
-  ],
-  "basis": "..."
-}
-```
-- `unit`: 첫 원화 확정일부터 `asOfDate`까지 3개월 미만이면 `WEEK`(월~일), 3개월 이상이면 `MONTH`(1일~말일). 월 단위는 최근 12개월만 준다. 마지막 기간의 `periodEnd`는 `asOfDate`다.
-- 첫 원화 확정 이전은 내지 않는다. 확정이 아직 없으면 `hasKrwConfirmed: false`, `points: []`. 계좌가 없으면 `hasAccount: false`.
-- `cash`는 `/transactions`의 `cashAfter`와 같은 누적값(기간 말까지 반영, 거래가 없는 기간은 이어 받음).
-- `invested`는 **`/allocation`의 `holdingsCost`와 같은 원가 기준**이다. 매수마다 체결가로 이동평균 매입가를 다시 계산하고(수수료 제외), 매도는 평균가를 유지한 채 수량만 줄인다(`domestic_stock_balance.avg_purchase_price` 갱신과 같은 방식). 같은 날 안에서는 `domestic_order.processed_at` 순서로 처리한다.
-- `hasTransactions`: 그 기간 안에 원화 확정·국내 매매·인출이 하나라도 있었는지(화면 막대 아래 점).
-- 마지막 기간의 `cash`는 `/summary`의 `cashBalance`, `invested`는 `/allocation`의 `holdingsCost`(원 단위 반올림)와 같아야 한다.
-
-### 3-7. `GET /api/customer/fund-flow/withdrawal-schedule` — 내 인출 가능 일정
+### 3-6. `GET /api/customer/fund-flow/withdrawal-schedule` — 내 인출 가능 일정
 
 고객 "인출 가능 일정" 타임라인(간트)용. 납입일(원화 환전 대금결제일)별 합계를 준다. 계좌 ID는 받지 않는다. 인출 패키지 코드는 읽기만 하고 고치지 않는다.
 

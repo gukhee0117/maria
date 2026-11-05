@@ -15,8 +15,6 @@ import com.app.maria.domain.fundflow.dto.FundFlowMonthlyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowTransactionDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowTransactionRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowTransactionsDTO;
-import com.app.maria.domain.fundflow.dto.FundFlowTrendDTO;
-import com.app.maria.domain.fundflow.dto.FundFlowTrendPointDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalScheduleDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerAllocationResponseDTO;
@@ -24,11 +22,9 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerReliefResponse
 import com.app.maria.domain.fundflow.dto.response.FundFlowCustomerSummaryResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowTransactionsResponseDTO;
-import com.app.maria.domain.fundflow.dto.response.FundFlowTrendResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowWithdrawalScheduleResponseDTO;
 import com.app.maria.domain.fundflow.service.CustomerFundFlowService;
 import com.app.maria.domain.fundflow.type.FundFlowTransactionType;
-import com.app.maria.domain.fundflow.type.FundFlowTrendUnit;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import java.math.BigDecimal;
@@ -209,51 +205,6 @@ class CustomerFundFlowApiTest {
                 .andExpect(jsonPath("$.data.items[0].title").value("삼성전자 외 1"))
                 .andExpect(jsonPath("$.data.items[0].details[0].name").value("삼성전자"))
                 .andExpect(jsonPath("$.data.items[0].details[0].feeAmount").value(500))
-                .andExpect(jsonPath("$.data.basis").isNotEmpty());
-    }
-
-    @Test
-    @DisplayName("잔액 추이: 미인증이면 401이고 서비스는 호출되지 않는다")
-    void balanceTrendReturns401WhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/customer/fund-flow/balance-trend"))
-                .andExpect(status().isUnauthorized());
-
-        verify(customerFundFlowService, never()).getBalanceTrend(CUSTOMER_ID);
-    }
-
-    @Test
-    @DisplayName("잔액 추이: 로그인한 고객은 경로·파라미터 없이 본인 customerId로 조회한다")
-    void balanceTrendUsesPrincipalCustomerId() throws Exception {
-        FundFlowTrendPointDTO point =
-                FundFlowTrendPointDTO.builder()
-                        .periodStart(LocalDate.of(2026, 10, 19))
-                        .periodEnd(LocalDate.of(2026, 10, 25))
-                        .invested(new BigDecimal("7295000"))
-                        .cash(new BigDecimal("39720864"))
-                        .hasTransactions(true)
-                        .build();
-        when(customerFundFlowService.getBalanceTrend(CUSTOMER_ID))
-                .thenReturn(
-                        new FundFlowTrendResponseDTO(
-                                FundFlowTrendDTO.builder()
-                                        .asOfDate(AS_OF_DATE)
-                                        .hasAccount(true)
-                                        .hasKrwConfirmed(true)
-                                        .unit(FundFlowTrendUnit.WEEK)
-                                        .points(List.of(point))
-                                        .build()));
-
-        mockMvc.perform(get("/api/customer/fund-flow/balance-trend").with(customerAuth()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("내 잔액 추이 조회 성공"))
-                .andExpect(jsonPath("$.data.asOfDate").value("2026-11-17"))
-                .andExpect(jsonPath("$.data.hasKrwConfirmed").value(true))
-                .andExpect(jsonPath("$.data.unit").value("WEEK"))
-                .andExpect(jsonPath("$.data.points[0].periodStart").value("2026-10-19"))
-                .andExpect(jsonPath("$.data.points[0].periodEnd").value("2026-10-25"))
-                .andExpect(jsonPath("$.data.points[0].invested").value(7295000))
-                .andExpect(jsonPath("$.data.points[0].cash").value(39720864))
-                .andExpect(jsonPath("$.data.points[0].hasTransactions").value(true))
                 .andExpect(jsonPath("$.data.basis").isNotEmpty());
     }
 
