@@ -110,14 +110,17 @@ class CustomerSellOrderApiTest {
     }
 
     @Test
-    @DisplayName("매도 신청: 종목이나 수량이 없거나 수량이 0 이하면 400이고 서비스를 부르지 않는다")
+    @DisplayName("매도 신청: 종목이나 수량이 없거나 수량이 0 이하이거나 DB 자릿수(11.4)를 넘으면 400이고 서비스를 부르지 않는다")
     void placeValidatesBody() throws Exception {
         for (String body :
                 new String[] {
                     "{\"sellQty\": 5}",
                     "{\"foreignProductId\": 10}",
                     "{\"foreignProductId\": 10, \"sellQty\": 0}",
-                    "{\"foreignProductId\": 10, \"sellQty\": -1}"
+                    "{\"foreignProductId\": 10, \"sellQty\": -1}",
+                    "{\"foreignProductId\": 10, \"sellQty\": 0.00001}",
+                    "{\"foreignProductId\": 10, \"sellQty\": 1.00001}",
+                    "{\"foreignProductId\": 10, \"sellQty\": 100000000000}"
                 }) {
             mockMvc.perform(
                             post(SELL_ORDERS)
@@ -128,6 +131,23 @@ class CustomerSellOrderApiTest {
                     .andExpect(status().isBadRequest());
         }
         verifyNoInteractions(customerSellOrderService);
+    }
+
+    @Test
+    @DisplayName("매도 신청: DB가 저장할 수 있는 최소·최대 수량(0.0001, 11.4자리 최대값)은 통과한다")
+    void placeAcceptsQuantityBoundaries() throws Exception {
+        when(customerSellOrderService.placeOrder(eq(7L), any()))
+                .thenReturn(CustomerSellOrderResultResponseDTO.of(List.of()));
+        for (String qty : new String[] {"0.0001", "99999999999.9999"}) {
+            mockMvc.perform(
+                            post(SELL_ORDERS)
+                                    .with(customerAuth())
+                                    .with(csrf())
+                                    .contentType(APPLICATION_JSON)
+                                    .content(
+                                            "{\"foreignProductId\": 10, \"sellQty\": " + qty + "}"))
+                    .andExpect(status().is2xxSuccessful());
+        }
     }
 
     @Test
