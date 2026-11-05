@@ -31,7 +31,7 @@ MARIA.status = (function () {
     var ACCOUNT_STATUS_TONE = {
         APPLIED: "info",
         OPENED: "ok",
-        REJECTED: "fail",
+        REJECTED: "warn",
         CLOSURE_REQUESTED: "warn",
         CLOSED: "off"
     };
@@ -411,6 +411,11 @@ MARIA.status = (function () {
 
         benefitLabel: function (benefit) {
             return pick(BENEFIT_LABEL, benefit, BENEFIT_LABEL.UNCLASSIFIED);
+        },
+        // 세제혜택 배지 톤: 적용 ok / 일부 감액 warn / 제외 off / 대기 info (원본 배지 색)
+        benefitTone: function (benefit) {
+            var key = String(benefit == null ? "" : benefit).toUpperCase();
+            return key === "POSSIBLE" ? "ok" : key === "REDUCED" ? "warn" : key === "IMPOSSIBLE" ? "off" : "info";
         },
         accountStatusLabel: function (status) {
             return pick(ACCOUNT_STATUS_LABEL, status, "-");

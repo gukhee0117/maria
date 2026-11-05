@@ -1,15 +1,12 @@
 $(function () {
     var STATUS_CONFIG = [
-        { value: "APPLIED", label: "심사대기", trendLabel: "신청", color: "#2563eb", summarySelector: "#appliedAccountCount" },
-        { value: "OPENED", label: "개설", trendLabel: "승인", color: "#16a34a", summarySelector: "#openedAccountCount" },
-        { value: "REJECTED", label: "반려", trendLabel: "반려", color: "#d69e2e", summarySelector: "#rejectedAccountCount" },
-        { value: "CLOSURE_REQUESTED", label: "해지신청", trendLabel: "해지신청", color: "#d53f8c", summarySelector: "#closureRequestedAccountCount" },
-        { value: "CLOSED", label: "해지", trendLabel: "해지", color: "#dc2626", summarySelector: "#closedAccountCount" }
+        { value: "APPLIED", label: "심사 대기", trendLabel: "신청", color: "--adm-chart-3", summarySelector: "#appliedAccountCount" },
+        { value: "OPENED", label: "개설 완료", trendLabel: "승인", color: "--adm-chart-1", summarySelector: "#openedAccountCount" },
+        { value: "REJECTED", label: "반려", trendLabel: "반려", color: "--adm-chart-gold", summarySelector: "#rejectedAccountCount" },
+        { value: "CLOSURE_REQUESTED", label: "해지 접수", trendLabel: "해지신청", color: "--adm-chart-4", summarySelector: "#closureRequestedAccountCount" },
+        { value: "CLOSED", label: "해지", trendLabel: "해지", color: "--adm-chart-gray", summarySelector: "#closedAccountCount" }
     ];
     var KRW_FORMATTER = new Intl.NumberFormat("ko-KR");
-    var DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
-    });
     var accounts = [];
     var accountStatus = "";
     var selectedAccountId = null;
@@ -59,7 +56,11 @@ $(function () {
     }
 
     function formatAmount(amount) {
-        return "₩" + KRW_FORMATTER.format(amount || 0);
+        return KRW_FORMATTER.format(Number(amount || 0)) + "원";
+    }
+
+    function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
     function formatDetailAmount(amount) {
@@ -95,7 +96,7 @@ $(function () {
     }
 
     function formatDateTime(value) {
-        return value ? DATE_TIME_FORMATTER.format(new Date(value)) : "-";
+        return formatListDateTime(value);
     }
 
     function formatListDateTime(value) {
@@ -290,13 +291,17 @@ $(function () {
     }
 
     function renderApplicationTrend() {
+        // 원본에 없는 기존 차트(숨김). 숨겨져 있거나 Chart.js 가 없으면 그리지 않는다.
+        if ($("#accountTrend").prop("hidden") || !window.Chart) {
+            return;
+        }
         var selectedTrendStatus = $("#accountTrendStatusFilter").val();
         var latestCreatedAt = accounts.reduce(function (latest, account) {
             if (!account.createdAt) return latest;
             var createdAt = new Date(account.createdAt);
             return !latest || createdAt > latest ? createdAt : latest;
         }, null);
-        var today = latestCreatedAt || new Date();
+        var today = latestCreatedAt || (businessToday ? new Date(businessToday + "T00:00:00") : new Date(0));
         today.setHours(0, 0, 0, 0);
         var dates = Array.from({ length: 7 }, function (_, index) {
             var date = new Date(today);
@@ -305,12 +310,12 @@ $(function () {
         });
         var trendGroups = selectedTrendStatus
             ? STATUS_CONFIG.filter(function (status) { return status.value === selectedTrendStatus; }).map(function (status) {
-                return { label: status.trendLabel, statuses: [status.value], color: status.color };
+                return { label: status.trendLabel, statuses: [status.value], color: cssVar(status.color) };
             })
             : [
-                { label: "신청·개설", statuses: ["APPLIED", "OPENED"], color: "#2563eb" },
-                { label: "반려", statuses: ["REJECTED"], color: "#d69e2e" },
-                { label: "해지신청·해지", statuses: ["CLOSURE_REQUESTED", "CLOSED"], color: "#d53f8c" }
+                { label: "신청·개설", statuses: ["APPLIED", "OPENED"], color: cssVar("--adm-chart-3") },
+                { label: "반려", statuses: ["REJECTED"], color: cssVar("--adm-chart-gold") },
+                { label: "해지신청·해지", statuses: ["CLOSURE_REQUESTED", "CLOSED"], color: cssVar("--adm-chart-4") }
             ];
         var datasets = trendGroups.map(function (group) {
             return {
@@ -342,7 +347,7 @@ $(function () {
                 animation: false,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: { label: function (context) { return context.dataset.label + ": " + context.parsed.y + "건"; } } } },
-                scales: { x: { grid: { display: false }, ticks: { color: "#64748b", font: { size: 10 } } }, y: { beginAtZero: true, ticks: { precision: 0, color: "#64748b", font: { size: 10 } }, grid: { color: "#e2e8f0" } } }
+                scales: { x: { grid: { display: false }, ticks: { color: cssVar("--adm-sub"), font: { size: 10 } } }, y: { beginAtZero: true, ticks: { precision: 0, color: cssVar("--adm-sub"), font: { size: 10 } }, grid: { color: cssVar("--adm-bd") } } }
             }
         });
     }
@@ -422,33 +427,36 @@ $(function () {
                 '<tr class="is-clickable account-row' + selectedClass + '" data-account-id="' + account.accountId + '">' +
                 '<td class="adm-col-no">' + (startIndex + index + 1) + '</td>' +
                 '<td><span>' + escapeHtml(MARIA.fmt.hyphenateAccountNo(account.accountNo)) + '</span></td>' +
-                '<td><span>' + escapeHtml(account.customerName || "고객 ID " + account.customerId) + '</span></td>' +
-                '<td class="is-c"><span class="adm-chip-' + statusTone + '">' + escapeHtml(statusLabel(account.status)) + '</span></td>' +
+                '<td class="account-col-name"><span>' + escapeHtml(account.customerName || "고객 ID " + account.customerId) + '</span></td>' +
+                '<td class="is-c"><span class="adm-chip adm-chip-' + statusTone + '">' + escapeHtml(statusLabel(account.status)) + '</span></td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.limitAmount || 0)) + '</td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.amount || 0)) + '</td>' +
-                '<td class="is-c"><span class="adm-chip-off">' + escapeHtml(MARIA.status.benefitLabel(account.benefit)) + '</span></td>' +
+                '<td class="is-c"><span class="adm-chip adm-chip-' + MARIA.status.benefitTone(account.benefit) + '">' + escapeHtml(MARIA.status.benefitLabel(account.benefit)) + '</span></td>' +
                 '<td>' + escapeHtml(formatListDateTime(account.createdAt)) + '</td>' +
                 '<td>' + escapeHtml(formatListDateTime(account.openedAt)) + '</td>' +
                 '</tr>'
             );
         });
         var $pagination = $("#accountPagination").empty();
-        var blockStart = Math.floor((currentPage - 1) / 10) * 10 + 1;
-        var blockEnd = Math.min(totalPages, blockStart + 9);
-        function addPageButton(label, page, disabled, active) {
-            $("<button>", {
-                type: "button",
-                class: "adm-page-btn page-btn" + (active ? " is-active active" : "")
-                    + ((label === "‹" || label === "›") ? " is-nav" : ""),
-                text: label,
-                disabled: disabled || active
-            }).data("page", page).appendTo($pagination);
+        if (totalPages > 1) {
+            var blockStart = Math.floor((currentPage - 1) / 10) * 10 + 1;
+            var blockEnd = Math.min(totalPages, blockStart + 9);
+            var addPageButton = function (label, page, disabled, active) {
+                $("<button>", {
+                    type: "button",
+                    class: "adm-page-btn" + (active ? " is-active" : "") + (/^[0-9]+$/.test(label) ? "" : " is-nav"),
+                    text: label,
+                    disabled: disabled || active
+                }).data("page", page).appendTo($pagination);
+            };
+            if (blockStart > 1) {
+                addPageButton("이전", blockStart - 1, false, false);
+            }
+            for (var page = blockStart; page <= blockEnd; page += 1) {
+                addPageButton(String(page), page, false, page === currentPage);
+            }
+            addPageButton("다음", Math.min(totalPages, blockEnd + 1), blockEnd === totalPages, false);
         }
-        addPageButton("‹", Math.max(1, currentPage - 1), currentPage === 1, false);
-        for (var page = blockStart; page <= blockEnd; page += 1) {
-            addPageButton(String(page), page, false, page === currentPage);
-        }
-        addPageButton("›", Math.min(totalPages, currentPage + 1), currentPage === totalPages, false);
         $(".account-sort").each(function () {
             var key = $(this).data("sort");
             $(this).attr("aria-sort", key === sortKey ? (sortDirection > 0 ? "ascending" : "descending") : "none");
@@ -466,14 +474,16 @@ $(function () {
         $("#accountDetailBackdrop").prop("hidden", false).addClass("is-open");
         $("#accountDetail").css("display", "");
         $("body").addClass("account-modal-open");
-        $("#detailCustomerName").text("[1101] " + (account.customerName ? account.customerName + " 님 계좌" : "계좌 상세"));
+        $("#detailCustomerName").text(account.customerName ? account.customerName + " 님 계좌" : "계좌 상세");
         $("#detailAccountNo").html(MARIA.fmt.accountNoHtml(account.accountNo));
         $("#detailCustomerId").text(account.customerId || "-");
         var statusTone = MARIA.status.accountStatusTone(account.status);
         $("#detailStatus").text(statusLabel(account.status))
             .removeClass("adm-chip-ok adm-chip-info adm-chip-warn adm-chip-fail adm-chip-off")
             .addClass("adm-chip-" + statusTone);
-        $("#detailBenefit").text(MARIA.status.benefitLabel(account.benefit));
+        $("#detailBenefit").text(MARIA.status.benefitLabel(account.benefit))
+            .removeClass("adm-chip-ok adm-chip-info adm-chip-warn adm-chip-fail adm-chip-off")
+            .addClass("adm-chip-" + MARIA.status.benefitTone(account.benefit));
         $("#detailCreatedAt").text(formatListDateTime(account.createdAt));
         $("#detailOpenedAt").text(formatDateTime(account.openedAt));
         $("#detailAmount").text(formatDetailAmount(account.amount));
@@ -481,20 +491,28 @@ $(function () {
         var usedAmount = usedAmountOf(account);
         var limitAmount = Number(account.limitAmount || 0);
         var usageRatio = limitAmount > 0 ? Math.max(0, Math.min(1, usedAmount / limitAmount)) : 0;
-        $("#detailUsedAmount").text(formatDetailAmount(usedAmount));
-        $("#detailRemainingLimit").text("잔여 " + formatDetailAmount(remainingLimitOf(account)));
-        $("#detailLimitGaugeTotal").text(formatDetailAmount(account.limitAmount));
+        $("#detailUsedAmount").text(KRW_FORMATTER.format(usedAmount));
+        $("#detailLimitGaugeText").text("/ " + KRW_FORMATTER.format(limitAmount));
+        $("#detailRemainingLimit").text("한도 대비 " + Math.round(usageRatio * 100) + "% 사용");
+        $("#detailLimitGaugeTotal").text(KRW_FORMATTER.format(limitAmount));
         $("#detailLimitGaugeFill").css("width", (usageRatio * 100) + "%");
         var canReview = MARIA.auth.hasRole("REVIEWER");
-        var reviewableAccount = account.status === "APPLIED" || account.status === "OPENED" || account.status === "REJECTED";
-        $("#accountReviewControls").prop("hidden", !canReview || !reviewableAccount);
-        $("#accountDetailModal .account-detail-foot").toggle(canReview && reviewableAccount);
-        $("#approveAccount, #rejectAccount").prop("hidden", !canReview || account.status !== "APPLIED");
-        $("#openLimitModal").prop("hidden", !canReview || (account.status !== "APPLIED" && account.status !== "OPENED"));
-        $("#rejectionActions").prop("hidden", !canReview || account.status !== "APPLIED");
-        $("#openReapplyModal").prop("hidden", !canReview || account.status !== "REJECTED");
-        $("#overrideActions").prop("hidden", !canReview || account.status !== "REJECTED");
-        $("#overrideAccount").prop("hidden", !canReview || account.status !== "REJECTED");
+        // 처리 버튼 5개는 원본처럼 항상 보인다(REVIEWER 만). 지금 계좌 상태에서 못 쓰는 버튼은 disabled + 이유 툴팁.
+        $("#accountReviewControls").prop("hidden", !canReview);
+        $("#accountDetailModal .account-detail-foot").toggle(canReview);
+        var status = account.status;
+        var statusName = statusLabel(status);
+        function setAction(selector, usable, reason) {
+            $(selector).prop("hidden", !canReview).prop("disabled", !usable)
+                .attr("title", usable ? "" : reason + " (현재 상태: " + statusName + ")");
+        }
+        setAction("#approveAccount", status === "APPLIED", "심사 대기 계좌만 승인할 수 있어요.");
+        setAction("#rejectAccount", status === "APPLIED", "심사 대기 계좌만 반려할 수 있어요.");
+        setAction("#openLimitModal", status === "APPLIED" || status === "OPENED", "심사 대기 또는 개설 완료 계좌만 한도를 바꿀 수 있어요.");
+        setAction("#openReapplyModal", status === "REJECTED", "반려된 계좌만 재신청할 수 있어요.");
+        setAction("#overrideAccount", status === "REJECTED", "반려된 계좌만 오버라이드 승인할 수 있어요.");
+        $("#rejectionActions").prop("hidden", !canReview || status !== "APPLIED");
+        $("#overrideActions").prop("hidden", !canReview || status !== "REJECTED");
         selectDetailTab("holdings");
     }
 
@@ -551,39 +569,56 @@ $(function () {
         }
     }
 
+    // 상세 탭의 내용 칸: 표(tbody)면 한 줄짜리 안내 행으로, 아니면(해지 탭) 안내 문구 한 줄로 채운다.
+    function relatedMessageHtml(selector, message) {
+        var $target = $(selector);
+        if ($target.is("tbody")) {
+            var columns = $target.closest("table").find("thead th").length || 1;
+            return '<tr class="is-state"><td colspan="' + columns + '" class="account-related-empty">' + escapeHtml(message) + "</td></tr>";
+        }
+        return '<div class="account-related-empty">' + escapeHtml(message) + "</div>";
+    }
+
     function renderRelatedList(selector, items, renderer, emptyMessage) {
         var $list = $(selector).empty();
         if (!items || !items.length) {
-            $list.append('<div class="account-related-empty">' + escapeHtml(emptyMessage) + '</div>');
+            $list.append(relatedMessageHtml(selector, emptyMessage));
             return;
         }
-        items.forEach(function (item) { $list.append(renderer(item)); });
+        items.forEach(function (item, index) { $list.append(renderer(item, index)); });
+    }
+
+    function chipHtml(tone, label) {
+        return '<span class="adm-chip adm-chip-' + tone + '">' + escapeHtml(label) + "</span>";
+    }
+
+    function noCell(index) {
+        return '<td class="adm-col-no">' + (index + 1) + "</td>";
     }
 
     function renderClosureDetail(closure) {
         selectedClosureRequestId = closure.closureRequestId || null;
         var statusTone = MARIA.status.accountClosureStatusTone(closure.status);
-        var rows = '<div class="account-tab-row"><div><span class="account-tab-row-label">처리 상태</span><strong class="adm-chip adm-chip-' +
-            statusTone + '">' + escapeHtml(MARIA.status.accountClosureStatusLabel(closure.status)) + '</strong></div>' +
-            '<div><span class="account-tab-row-label">신청 일시</span><strong>' + escapeHtml(formatDateTime(closure.requestedAt)) + '</strong></div>';
+        function row(label, valueHtml) {
+            return '<div class="adm-kv-k">' + escapeHtml(label) + '</div><div class="adm-kv-v">' + valueHtml + "</div>";
+        }
+        var rows = row("처리 상태", chipHtml(statusTone, MARIA.status.accountClosureStatusLabel(closure.status))) +
+            row("신청 일시", escapeHtml(formatDateTime(closure.requestedAt)));
         if (closure.processedAt) {
-            rows += '<div><span class="account-tab-row-label">처리 일시</span><strong>' + escapeHtml(formatDateTime(closure.processedAt)) + '</strong></div>';
+            rows += row("처리 일시", escapeHtml(formatDateTime(closure.processedAt)));
         }
         if (closure.destinationGeneralAccountId) {
-            rows += '<div><span class="account-tab-row-label">인출 목적지 일반계좌</span><strong>' +
-                escapeHtml(closure.destinationGeneralAccountId) + '</strong></div>';
+            rows += row("인출 목적지 일반계좌", escapeHtml(closure.destinationGeneralAccountId));
         }
         if (closure.earlyWithdrawalAgreed != null) {
-            rows += '<div><span class="account-tab-row-label">조기인출 동의</span><strong>' +
-                (closure.earlyWithdrawalAgreed ? "동의함" : "동의하지 않음") + '</strong></div>';
+            rows += row("조기인출 동의", closure.earlyWithdrawalAgreed ? "동의함" : "동의하지 않음");
         }
         if (closure.hasImmaturePrincipal != null) {
-            rows += '<div><span class="account-tab-row-label">' +
-                (closure.status === "COMPLETED" ? "실제 미경과 인출액" : "현재 미경과 원금") +
-                '</span><strong>' + (closure.hasImmaturePrincipal
+            rows += row(closure.status === "COMPLETED" ? "실제 미경과 인출액" : "현재 미경과 원금",
+                closure.hasImmaturePrincipal
                     ? escapeHtml(formatDetailAmount(closure.immaturePrincipalAmount)) +
                         (closure.status === "COMPLETED" ? "" : " 보유")
-                    : "없음") + '</strong></div>';
+                    : "없음");
         }
         if (closure.taxBenefitCancellationExpected != null || closure.taxBenefitCancellationOccurred != null) {
             var taxImpact = "영향 없음";
@@ -594,15 +629,12 @@ $(function () {
             } else if (closure.taxBenefitCancellationExpected) {
                 taxImpact = "승인 시 전체 취소";
             }
-            rows += '<div><span class="account-tab-row-label">' +
-                (closure.status === "COMPLETED" ? "세제혜택 처리 결과" : "세제혜택 예상 영향") +
-                '</span><strong>' + escapeHtml(taxImpact) + '</strong></div>';
+            rows += row(closure.status === "COMPLETED" ? "세제혜택 처리 결과" : "세제혜택 예상 영향", escapeHtml(taxImpact));
         }
         if (closure.rejectionReason) {
-            rows += '<div class="account-tab-row-wide"><span class="account-tab-row-label">반려 사유</span><strong>' +
-                escapeHtml(closure.rejectionReason) + '</strong></div>';
+            rows += row("반려 사유", escapeHtml(closure.rejectionReason));
         }
-        $("#detailClosure").html(rows + "</div>");
+        $("#detailClosure").html('<div class="adm-kv">' + rows + "</div>");
         $("#closureReviewActions").prop(
             "hidden",
             !(closure.status === "REQUESTED" && canProcessClosure())
@@ -624,45 +656,41 @@ $(function () {
         selectedClosureRequestId = null;
         $("#closureReviewActions").prop("hidden", true);
         $("#closureRejectionReason").val("");
-        $("#detailHoldings, #detailInbounds, #detailClosure, #detailWithdrawals, #detailSales")
-            .html('<div class="account-related-empty">불러오는 중...</div>');
+        ["#detailHoldings", "#detailInbounds", "#detailClosure", "#detailWithdrawals", "#detailSales"].forEach(function (selector) {
+            $(selector).html(relatedMessageHtml(selector, "불러오는 중..."));
+        });
         MARIA.auth.ajax({ url: "/api/admin/account/" + accountId + "/management-detail", method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== accountId) return;
                 var detail = res.data || {};
-                renderRelatedList("#detailHoldings", detail.holdings, function (item) {
-                    return '<div class="account-tab-row"><div><strong>' + escapeHtml(item.productName || item.ticker || "-") +
-                        '</strong><span>' + escapeHtml(item.ticker || "-") + '</span></div><div><span class="account-tab-row-label">보유 수량</span><strong>' +
-                        escapeHtml(formatQuantity(item.currentQty)) + '주</strong></div><small>' +
-                        escapeHtml([item.market, item.currency].filter(Boolean).join(" · ") || "-") + '</small></div>';
+                renderRelatedList("#detailHoldings", detail.holdings, function (item, index) {
+                    return "<tr>" + noCell(index) +
+                        "<td><span>" + escapeHtml(item.productName || item.ticker || "-") + " " + escapeHtml(item.ticker || "") + "</span></td>" +
+                        "<td>" + escapeHtml([item.market, item.currency].filter(Boolean).join(" · ") || "-") + "</td>" +
+                        '<td class="is-r">' + escapeHtml(formatQuantity(item.currentQty)) + "</td></tr>";
                 }, "보유주식이 없습니다.");
-                renderRelatedList("#detailInbounds", detail.inbounds, function (item) {
-                    return '<div class="account-tab-row"><div><strong>' + escapeHtml(item.productName || item.ticker || "-") +
-                        '</strong><span>' + escapeHtml(item.ticker || "-") + '</span></div><div><span class="account-tab-row-label">신청 수량</span><strong>' +
-                        escapeHtml(formatQuantity(item.qty)) + '주</strong></div><div><span class="account-tab-row-label">현재 보유</span><strong>' +
-                        escapeHtml(formatQuantity(item.currentQty)) + '주</strong></div><small>' +
-                        escapeHtml(item.sourceBroker || "-") + ' · 매수 ' + escapeHtml(item.purchaseDate || "-") +
-                        ' · 처리 ' + escapeHtml(formatDateTime(item.recordedAt)) + '</small></div>';
+                renderRelatedList("#detailInbounds", detail.inbounds, function (item, index) {
+                    return "<tr>" + noCell(index) +
+                        "<td><span>" + escapeHtml(item.productName || item.ticker || "-") + " " + escapeHtml(item.ticker || "") + "</span></td>" +
+                        "<td>" + escapeHtml(item.sourceBroker || "-") + " · " + escapeHtml(item.purchaseDate || "-") + "</td>" +
+                        '<td class="is-r">' + escapeHtml(formatQuantity(item.qty)) + "</td>" +
+                        '<td class="is-r">' + escapeHtml(formatQuantity(item.currentQty)) + "</td>" +
+                        "<td>" + escapeHtml(formatDateTime(item.recordedAt)) + "</td></tr>";
                 }, "입고주식이 없습니다.");
-                renderRelatedList("#detailClosure", detail.closure ? [detail.closure] : [], function (item) {
-                    return '<div class="account-tab-row"><div><span class="account-tab-row-label">처리 상태</span><strong class="adm-chip adm-chip-' +
-                        MARIA.status.accountClosureStatusTone(item.status) + '">' +
-                        escapeHtml(MARIA.status.accountClosureStatusLabel(item.status)) + '</strong></div><div><span class="account-tab-row-label">신청 일시</span><strong>' +
-                        escapeHtml(formatDateTime(item.requestedAt)) + '</strong></div>' +
-                        (item.processedAt ? '<div><span class="account-tab-row-label">처리 일시</span><strong>' + escapeHtml(formatDateTime(item.processedAt)) + '</strong></div>' : "") +
-                        (item.rejectionReason ? '<div class="account-tab-row-wide"><span class="account-tab-row-label">반려 사유</span><strong>' + escapeHtml(item.rejectionReason) + '</strong></div>' : "") +
-                        '</div>';
-                }, "해지 신청 이력이 없습니다.");
+                if (detail.closure) {
+                    renderClosureDetail(detail.closure);
+                } else {
+                    $("#detailClosure").html(relatedMessageHtml("#detailClosure", "해지 신청 이력이 없습니다."));
+                }
                 if (detail.closure && detail.closure.closureRequestId) {
                     loadClosureDetail(accountId, detail.closure.closureRequestId, detail.closure);
                 }
-                renderRelatedList("#detailWithdrawals", detail.withdrawals, function (item) {
-                    return '<div class="account-tab-row"><div><span class="account-tab-row-label">인출 금액</span><strong>' +
-                        escapeHtml(formatDetailAmount(item.requestedAmount)) + '</strong></div><div><span class="account-tab-row-label">처리 상태</span><strong class="adm-chip adm-chip-' +
-                        MARIA.status.withdrawalStatusTone(item.status) + '">' + escapeHtml(MARIA.status.withdrawalStatusLabel(item.status)) +
-                        '</strong></div><div><span class="account-tab-row-label">처리 일시</span><strong>' +
-                        escapeHtml(formatDateTime(item.processedAt)) + '</strong></div><small>목적지 ' +
-                        escapeHtml(item.destinationAccountNo || "-") + '</small></div>';
+                renderRelatedList("#detailWithdrawals", detail.withdrawals, function (item, index) {
+                    return "<tr>" + noCell(index) +
+                        '<td class="is-r">' + escapeHtml(KRW_FORMATTER.format(Number(item.requestedAmount || 0))) + "</td>" +
+                        '<td class="is-c">' + chipHtml(MARIA.status.withdrawalStatusTone(item.status), MARIA.status.withdrawalStatusLabel(item.status)) + "</td>" +
+                        "<td>" + escapeHtml(formatDateTime(item.processedAt)) + "</td>" +
+                        "<td>" + escapeHtml(item.destinationAccountNo || "-") + "</td></tr>";
                 }, "인출 이력이 없습니다.");
             })
             .fail(function (xhr) {
@@ -678,19 +706,19 @@ $(function () {
             data: { accountId: accountId }
         }).done(function (res) {
             if (selectedAccountId !== accountId) return;
-            renderRelatedList("#detailSales", res.data, function (item) {
+            renderRelatedList("#detailSales", res.data, function (item, index) {
                 var stage = MARIA.status.sellStage(item.status, null, null);
                 var tone = MARIA.status.sellStageTone(stage);
-                return '<div class="account-tab-row"><div><span class="account-tab-row-label">주문 번호</span><strong>' +
-                    escapeHtml(item.orderId) + '</strong></div><div><span class="account-tab-row-label">매도 수량</span><strong>' +
-                    escapeHtml(formatQuantity(item.sellQty)) + '주</strong></div><div><span class="account-tab-row-label">처리 상태</span><strong class="adm-chip adm-chip-' +
-                    tone + '">' + escapeHtml(MARIA.status.sellStageLabel(stage)) + '</strong></div><div><span class="account-tab-row-label">기준 가격</span><strong>' +
-                    escapeHtml(formatQuantity(item.basePrice)) + '</strong></div><small>처리 ' +
-                    escapeHtml(formatDateTime(item.processedAt)) + '</small></div>';
+                return "<tr>" + noCell(index) +
+                    "<td>" + escapeHtml(item.orderId) + "</td>" +
+                    '<td class="is-r">' + escapeHtml(formatQuantity(item.sellQty)) + "</td>" +
+                    '<td class="is-c">' + chipHtml(tone, MARIA.status.sellStageLabel(stage)) + "</td>" +
+                    '<td class="is-r">' + escapeHtml(formatQuantity(item.basePrice)) + "</td>" +
+                    "<td>" + escapeHtml(formatDateTime(item.processedAt)) + "</td></tr>";
             }, "매도 내역이 없습니다.");
         }).fail(function (xhr) {
             if (selectedAccountId === accountId) {
-                $("#detailSales").html('<div class="account-related-empty">매도 내역을 불러오지 못했습니다.</div>');
+                $("#detailSales").html(relatedMessageHtml("#detailSales", "매도 내역을 불러오지 못했습니다."));
                 handleRequestFailure(xhr, "매도 내역을 불러오지 못했습니다.");
             }
         });
@@ -709,12 +737,18 @@ $(function () {
             return;
         }
         var usedAmount = usedAmountOf(account);
+        $("#accountLimitModalDesc").text(accountLabelOf(account));
         $("#modalCurrentLimit").text(formatAmount(account.limitAmount));
         $("#modalUsedAmount").text(formatAmount(usedAmount));
         $("#modalRemainingLimit").text(formatAmount(remainingLimitOf(account)));
         setLimitAmount("#modalNewLimitAmount", account.limitAmount);
-        $("#accountLimitModal").css("display", "flex");
+        $("#accountLimitModal").css("display", "grid");
+        $("#modalNewLimitAmount").trigger("focus");
         updateAvailableLimit(account.customerId, "#modalAvailableLimit", { initial: "조회 실패", error: "설정 가능 한도를 조회할 수 없습니다." });
+    }
+
+    function accountLabelOf(account) {
+        return (account.customerName || "고객 ID " + account.customerId) + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo);
     }
 
     function closeModal(modalSelector) {
@@ -725,7 +759,7 @@ $(function () {
         if (!MARIA.auth.hasRole("REVIEWER")) {
             return;
         }
-        $("#accountCreateModal").css("display", "flex");
+        $("#accountCreateModal").css("display", "grid");
         $("#createCustomerName").trigger("focus");
     }
 
@@ -734,14 +768,16 @@ $(function () {
         if (!MARIA.auth.hasRole("REVIEWER") || !account || account.status !== "REJECTED") {
             return;
         }
+        $("#accountReapplyModalDesc").text(accountLabelOf(account));
         $("#reapplyCurrentLimit").text(formatAmount(account.limitAmount));
         setLimitAmount("#modalReapplyLimitAmount", account.limitAmount);
-        $("#accountReapplyModal").css("display", "flex");
+        $("#accountReapplyModal").css("display", "grid");
+        $("#modalReapplyLimitAmount").trigger("focus");
         updateAvailableLimit(account.customerId, "#reapplyAvailableLimit", { initial: "조회 실패", error: "설정 가능 한도를 조회할 수 없습니다." });
     }
 
     function loadStatusLogs(accountId) {
-        var $list = $("#accountHistoryList").empty().append('<li class="account-loading">불러오는 중...</li>');
+        var $list = $("#accountHistoryList").html(relatedMessageHtml("#accountHistoryList", "불러오는 중..."));
         MARIA.auth.ajax({ url: "/api/admin/account/" + accountId + "/status-logs", method: "GET" })
             .done(function (res) {
                 if (selectedAccountId !== accountId) {
@@ -750,16 +786,15 @@ $(function () {
                 $list.empty();
                 var logs = res.data || [];
                 if (!logs.length) {
-                    $list.append('<li class="account-empty">상태 이력이 없습니다.</li>');
+                    $list.append(relatedMessageHtml("#accountHistoryList", "상태 이력이 없습니다."));
                     return;
                 }
-                logs.forEach(function (log) {
+                logs.forEach(function (log, index) {
                     $list.append(
-                        '<li class="account-history-item">' +
-                        '<span class="account-history-time">' + formatDateTime(log.changedAt) + '</span>' +
-                        '<span class="account-history-reason">' + escapeHtml(log.reason || "-") + '</span>' +
-                        '<span class="account-history-status">' + escapeHtml(statusLabel(log.prevStatus)) + ' → ' + escapeHtml(statusLabel(log.newStatus)) + '</span>' +
-                        '</li>'
+                        "<tr>" + noCell(index) +
+                        "<td>" + escapeHtml(formatDateTime(log.changedAt)) + "</td>" +
+                        "<td>" + escapeHtml(statusLabel(log.prevStatus)) + " → " + escapeHtml(statusLabel(log.newStatus)) + "</td>" +
+                        "<td>" + escapeHtml(log.reason || "-") + "</td></tr>"
                     );
                 });
             })
@@ -939,7 +974,7 @@ $(function () {
     }
 
     $(document).on("click", ".account-row", function () { selectAccount($(this).data("account-id")); });
-    $(document).on("click", "#accountPagination .page-btn", function () {
+    $(document).on("click", "#accountPagination .adm-page-btn", function () {
         if (this.disabled) return;
         currentPage = Number($(this).data("page"));
         renderAccounts();
@@ -1007,17 +1042,24 @@ $(function () {
         if (event.key === "Escape" && event.defaultPrevented) {
             return;
         }
-        if (event.key === "Escape" && $("#accountActionModal").is(":visible")) {
+        if (event.key !== "Escape") {
+            return;
+        }
+        // 모달이 열려 있으면 모달만 닫는다. layout.js 의 Esc 처리가 이어서 뒤의 상세 패널까지 닫지 않도록 전파를 멈춘다.
+        if ($("#accountActionModal").is(":visible")) {
             closeAccountActionModal(true);
+            event.stopImmediatePropagation();
             return;
         }
-        if (event.key === "Escape" && $("#accountCreateModal").is(":visible")) {
-            closeModal("#accountCreateModal");
+        var openModal = ["#accountCreateModal", "#accountLimitModal", "#accountReapplyModal"].filter(function (selector) {
+            return $(selector).is(":visible");
+        })[0];
+        if (openModal) {
+            closeModal(openModal);
+            event.stopImmediatePropagation();
             return;
         }
-        if (event.key === "Escape" && !event.defaultPrevented &&
-            $("#accountDetailModal").hasClass("is-open") &&
-            !$("#accountCreateModal, #accountLimitModal, #accountReapplyModal, #accountActionModal").is(":visible")) {
+        if ($("#accountDetailModal").hasClass("is-open")) {
             closeAccountDetail();
         }
     });
@@ -1063,7 +1105,10 @@ $(function () {
     $("#approveClosure").on("click", function () { submitClosureReview("approve"); });
     $("#rejectClosure").on("click", function () { submitClosureReview("reject"); });
     $("#openReapplyModal").on("click", openReapplyModal);
-    $("#closeReapplyModal, #cancelReapplyModal, #accountReapplyModal .account-modal-backdrop").on("click", function () { closeModal("#accountReapplyModal"); });
+    $("#cancelReapplyModal").on("click", function () { closeModal("#accountReapplyModal"); });
+    $("#accountReapplyModal, #accountLimitModal, #accountCreateModal").on("mousedown", function (event) {
+        if (event.target === this) { closeModal("#" + this.id); }
+    });
     $("#accountReapplyModalForm").on("submit", function (event) {
         event.preventDefault();
         var limitAmount = parseLimitAmount("#modalReapplyLimitAmount");
@@ -1079,9 +1124,8 @@ $(function () {
     });
     $("#openLimitModal").on("click", openLimitModal);
     $("#openAccountCreateModal").on("click", openAccountCreateModal);
-    $("#closeAccountCreateModal, #cancelAccountCreateModal, #accountCreateModal .account-modal-backdrop")
-        .on("click", function () { closeModal("#accountCreateModal"); });
-    $("#closeLimitModal, #cancelLimitModal, #accountLimitModal .account-modal-backdrop").on("click", function () { closeModal("#accountLimitModal"); });
+    $("#closeAccountCreateModal, #cancelAccountCreateModal").on("click", function () { closeModal("#accountCreateModal"); });
+    $("#cancelLimitModal").on("click", function () { closeModal("#accountLimitModal"); });
     $("#accountLimitModalForm").on("submit", function (event) {
         event.preventDefault();
         var account = getSelectedAccount();
