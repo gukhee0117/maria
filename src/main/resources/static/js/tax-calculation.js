@@ -1,236 +1,185 @@
 $(function () {
-    var BENEFIT_LABEL = {
-        possible: "가능",
-        reduced: "일부감액",
-        impossible: "배제"
-    };
-
     var BASIS_LABEL = {
         FINAL_REPORT: "확정신고",
         EARLY_WITHDRAWAL_CLAWBACK: "조기인출추징"
     };
-
     var BATCH_STATUS_LABEL = {
         COMPLETED: "완료",
         FAILED: "실패",
-        STARTED: "실행중",
-        STARTING: "실행중",
+        STARTED: "실행 중",
+        STARTING: "실행 중",
         STOPPED: "중단",
-        UNKNOWN: "알수없음"
+        UNKNOWN: "알 수 없음"
     };
-
-    var KRW_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
-    var DATETIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit"
-    });
-    var DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-        year: "numeric", month: "2-digit", day: "2-digit"
-    });
+    var BATCH_STATUS_TONE = {
+        COMPLETED: "ok",
+        FAILED: "fail",
+        STARTED: "info",
+        STARTING: "info",
+        STOPPED: "off"
+    };
+    var BENEFIT_TONE = {
+        POSSIBLE: "ok",
+        REDUCED: "warn",
+        IMPOSSIBLE: "off",
+        UNCLASSIFIED: "info"
+    };
+    var AMOUNT_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
 
     var accountMap = {};
-    var snapshotByAccountId = {};
     var allSnapshots = [];
+    var snapshotByAccountId = {};
+    var confirmedByAccountId = {};
+    var filteredSnapshots = [];
     var currentPage = 1;
-    var PAGE_SIZE = 10;
+    var pageSize = 20;
     var searchKeyword = "";
-    var benefitFilter = "";
+    var statusFilter = "";
     var selectedAccountId = null;
-    var kpiFilter = null; // null | "taxable" | "reducedOrExcluded" - 상단 KPI 카드 클릭으로 설정됨
-    var sortMode = "finalDeductionDesc";
+    var businessToday = null;
     var allBatchHistory = [];
     var batchHistoryPage = 1;
-    var BATCH_HISTORY_PAGE_SIZE = 10;
-    var businessToday = null; // "YYYY-MM-DD" - 오늘 이전 스냅샷은 배치가 안 돈 오래된 값
+    var batchHistoryPageSize = 10;
+    var actionSummary = null;
+    var pendingAction = null;
+    var detailCloseTimer = null;
+    var previewRequestId = 0;
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
     }
 
-    function formatAmount(amount) {
-        return "₩" + KRW_FORMATTER.format(amount || 0);
-    }
-
-    // 손익처럼 부호 자체가 의미 있는 값에서만 쓴다(양수=빨강/음수=파랑, 증권사 관례).
-    // 최종세액/최종공제액처럼 구조적으로 항상 0 이상인 값까지 칠하면 전부 빨개져서
-    // 오히려 신호가 죽으므로 일부러 안 씌운다.
-    function formatSignedAmount(amount) {
-        var value = Number(amount || 0);
-        var cls = value > 0 ? "tax-amount-positive" : (value < 0 ? "tax-amount-negative" : "");
-        return '<span class="' + cls + '">' + formatAmount(value) + '</span>';
-    }
-
-    function formatDateTime(isoString) {
-        return isoString ? DATETIME_FORMATTER.format(new Date(isoString)) : "-";
-    }
-
-    function formatDate(isoString) {
-        return isoString ? DATE_FORMATTER.format(new Date(isoString)) : "-";
-    }
-
-    function formatRatio(ratio) {
-        return ratio == null ? "-" : (Number(ratio) * 100).toFixed(1) + "%";
-    }
-
-    function dateOnly(isoString) {
-        return isoString ? isoString.slice(0, 10) : null;
-    }
-
-    function isStaleSnapshot(snap) {
-        return !!businessToday && dateOnly(snap.calculatedAt) !== businessToday;
-    }
-
-    function snapshotStatus(snap) {
-        if (!businessToday) {
-            return { label: "확인 중", className: "tax-row-pending" };
+    function formatAmount(value) {
+        if (value === null || value === undefined || value === "") {
+            return "-";
         }
-        return isStaleSnapshot(snap)
-            ? { label: "오래된 값", className: "tax-row-flag" }
-            : { label: "최신값", className: "tax-row-current" };
+        return AMOUNT_FORMATTER.format(Number(value));
     }
 
-    function showError(message) {
-        $("#taxLoading").hide();
-        $("#taxError").text(message).show();
+    function formatSignedAmount(value) {
+        if (value === null || value === undefined || value === "") {
+            return "-";
+        }
+        var amount = Number(value);
+        var tone = amount > 0 ? "is-positive" : (amount < 0 ? "is-negative" : "");
+        return '<span class="tax-signed-amount ' + tone + '">' + formatAmount(amount) + '</span>';
     }
 
-    function canTriggerBatch() {
-        return MARIA.auth.hasRole("SETTLEMENT");
+    function formatRatio(value) {
+        return value === null || value === undefined || value === ""
+            ? "-"
+            : Number(value).toFixed(4);
     }
 
-    function totalPagesOf(list) {
-        return Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    function formatWeight(value) {
+        if (value === null || value === undefined || value === "") {
+            return "-";
+        }
+        return (Number(value) * 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }) + "%";
     }
 
-    function matchesSearch(snap) {
+    function formatDate(value) {
+        if (!value) {
+            return "-";
+        }
+        return String(value).slice(0, 10);
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return "-";
+        }
+        var text = String(value).replace("T", " ");
+        return text.length >= 16 ? text.slice(0, 16) : text;
+    }
+
+    function formatPeriodRange(period) {
+        var from = formatDate(period.validFrom);
+        var to = formatDate(period.validTo);
+        if (from === "-" || to === "-") {
+            return from + " ~ " + to;
+        }
+        var fromYear = from.slice(0, 4);
+        var toYear = to.slice(0, 4);
+        var fromMonth = Number(from.slice(5, 7));
+        var toMonth = Number(to.slice(5, 7));
+        if (fromYear === toYear) {
+            return (fromMonth === toMonth ? fromMonth : fromMonth + "~" + toMonth) + "월";
+        }
+        return fromYear + "." + fromMonth + "월 ~ " + toYear + "." + toMonth + "월";
+    }
+
+    function dateOnly(value) {
+        return value ? String(value).slice(0, 10) : null;
+    }
+
+    function accountFor(accountId) {
+        return accountMap[accountId] || {};
+    }
+
+    function isConfirmed(accountId) {
+        return confirmedByAccountId[accountId] === true;
+    }
+
+    function calculationStatus(accountId) {
+        return isConfirmed(accountId) ? "CONFIRMED" : "COMPLETED";
+    }
+
+    function statusChip(status) {
+        var confirmed = status === "CONFIRMED";
+        var label = confirmed ? "확정" : "완료";
+        var title = confirmed ? "" : "확정 여부는 상세 조회에서 확인합니다.";
+        return '<span class="adm-chip adm-chip-' + (confirmed ? "ok" : "info") +
+            ' tax-calculation-chip tax-state-inferred" title="' + title + '">' + label + "</span>";
+    }
+
+    function benefitChip(benefit) {
+        var key = String(benefit || "UNCLASSIFIED").toUpperCase();
+        return '<span class="adm-chip adm-chip-' + (BENEFIT_TONE[key] || "off") +
+            ' tax-benefit-chip">' + escapeHtml(MARIA.status.benefitLabel(benefit)) + "</span>";
+    }
+
+    function matchesSearch(snapshot) {
         if (!searchKeyword) {
             return true;
         }
-        var account = accountMap[snap.accountId] || {};
-        var haystack = ((account.accountNo || "") + " " + (account.customerName || "")).toLowerCase();
-        return haystack.indexOf(searchKeyword) !== -1;
+        var account = accountFor(snapshot.accountId);
+        var text = ((account.accountNo || "") + " " + (account.customerName || "")).toLowerCase();
+        return text.indexOf(searchKeyword) !== -1;
     }
 
-    function matchesBenefitFilter(snap) {
-        if (!benefitFilter) {
-            return true;
-        }
-        var benefit = ((accountMap[snap.accountId] || {}).benefit || "").toLowerCase();
-        return benefit === benefitFilter;
-    }
-
-    function matchesKpiFilter(snap) {
-        if (kpiFilter === "taxable") {
-            return Number(snap.finalTax || 0) > 0;
-        }
-        if (kpiFilter === "reducedOrExcluded") {
-            var benefit = ((accountMap[snap.accountId] || {}).benefit || "").toLowerCase();
-            return benefit === "reduced" || benefit === "impossible";
-        }
-        if (kpiFilter === "needsFinalReport") {
-            return !!snap.needsFinalReport;
-        }
-        if (kpiFilter === "needsClawback") {
-            return !!snap.needsClawback;
-        }
-        return true;
-    }
-
-    function filteredSnapshots() {
-        var visible = allSnapshots.filter(matchesSearch).filter(matchesBenefitFilter).filter(matchesKpiFilter);
-        if (sortMode === "adjustRatioAsc") {
-            visible = visible.slice().sort(function (a, b) {
-                return Number(a.adjustRatio || 0) - Number(b.adjustRatio || 0);
-            });
-        } else if (sortMode === "finalTaxDesc") {
-            visible = visible.slice().sort(function (a, b) {
-                return Number(b.finalTax || 0) - Number(a.finalTax || 0);
-            });
-        } else {
-            visible = visible.slice().sort(function (a, b) {
-                return Number(b.finalDeduction || 0) - Number(a.finalDeduction || 0);
-            });
-        }
-        return visible;
-    }
-
-    function renderKpi() {
-        var taxable = allSnapshots.filter(function (s) { return (s.finalTax || 0) > 0; });
-        var reduced = allSnapshots.filter(function (s) {
-            var benefit = ((accountMap[s.accountId] || {}).benefit || "").toLowerCase();
-            return benefit === "reduced" || benefit === "impossible";
+    function getFilteredSnapshots() {
+        return allSnapshots.filter(function (snapshot) {
+            return matchesSearch(snapshot) &&
+                (!statusFilter || calculationStatus(snapshot.accountId) === statusFilter);
         });
-        var taxSum = taxable.reduce(function (sum, s) { return sum + Number(s.finalTax || 0); }, 0);
-
-        $("#kpiTotal").text(allSnapshots.length + "건");
-        $("#kpiTaxable").text(taxable.length + "건");
-        $("#kpiReduced").text(reduced.length + "건");
-        $("#kpiTaxSum").text(formatAmount(taxSum));
-        renderKpiActiveState();
     }
 
-    function renderKpiActiveState() {
-        $("#kpiCardAll").toggleClass("is-active", kpiFilter === null);
-        $("#kpiCardTaxable").toggleClass("is-active", kpiFilter === "taxable");
-        $("#kpiCardReduced").toggleClass("is-active", kpiFilter === "reducedOrExcluded");
-        $("#kpiCardUnconfirmed").toggleClass("is-active", kpiFilter === "needsFinalReport");
-        $("#kpiCardClawback").toggleClass("is-active", kpiFilter === "needsClawback");
+    function renderSummary() {
+        var needs = allSnapshots.filter(function (snapshot) {
+            return snapshot.needsFinalReport || snapshot.needsClawback;
+        }).length;
+        var deduction = allSnapshots.reduce(function (sum, snapshot) {
+            return sum + Number(snapshot.finalDeduction || 0);
+        }, 0);
+
+        $("#kpiTotal").text(allSnapshots.length.toLocaleString("ko-KR"));
+        $("#kpiUnconfirmed").text(needs.toLocaleString("ko-KR"));
+        $("#kpiTaxSum").text(formatAmount(deduction));
     }
 
-    function renderSnapshots(snapshots) {
-        allSnapshots = snapshots || [];
-        snapshotByAccountId = {};
-        allSnapshots.forEach(function (s) { snapshotByAccountId[s.accountId] = s; });
-        renderKpi();
-        currentPage = Math.min(currentPage, totalPagesOf(filteredSnapshots()));
-        renderPage();
+    function stateRow(colspan, title, description, button) {
+        return '<tr class="is-state"><td colspan="' + colspan + '">' +
+            '<div class="adm-state-empty"><div class="adm-state-empty-title">' + escapeHtml(title) + "</div>" +
+            (description ? '<div class="adm-state-empty-desc">' + escapeHtml(description) + "</div>" : "") +
+            (button || "") + "</div></td></tr>";
     }
 
-    function renderPage() {
-        var $body = $("#taxSnapshotBody").empty();
-        var visible = filteredSnapshots();
-        $("#taxSnapshotCount").text(visible.length + "건" + (visible.length !== allSnapshots.length ? " (전체 " + allSnapshots.length + "건 중)" : ""));
-
-        if (visible.length === 0) {
-            $body.append('<tr><td colspan="10" class="tax-empty">' + (searchKeyword || benefitFilter ? "조건에 맞는 계좌가 없습니다." : "세액 계산 결과가 없습니다.") + '</td></tr>');
-            $("#taxPagination").empty();
-            return;
-        }
-
-        var totalPages = totalPagesOf(visible);
-        var startIndex = (currentPage - 1) * PAGE_SIZE;
-        var pageSnapshots = visible.slice(startIndex, startIndex + PAGE_SIZE);
-
-        pageSnapshots.forEach(function (snap) {
-            var account = accountMap[snap.accountId] || {};
-            var benefitKey = (account.benefit || "").toLowerCase();
-            var calculationStatus = snapshotStatus(snap);
-            var selectedClass = Number(snap.accountId) === Number(selectedAccountId) ? " is-selected" : "";
-            var actionBadges = [];
-            if (snap.needsFinalReport) actionBadges.push('<span class="status-badge reduced">확정신고 필요</span>');
-            if (snap.needsClawback) actionBadges.push('<span class="status-badge impossible">추징 필요</span>');
-            var row =
-                "<tr class=\"tax-snapshot-row" + selectedClass + "\" data-account-id=\"" + snap.accountId + "\">" +
-                "<td><div class=\"account-no\">" + MARIA.fmt.hyphenateAccountNo(account.accountNo) + "</div>" +
-                "<div class=\"account-name\">" + escapeHtml(account.customerName || "") + "</div></td>" +
-                "<td><span class=\"status-badge " + escapeHtml(benefitKey) + "\">" +
-                (BENEFIT_LABEL[benefitKey] || "-") + "</span></td>" +
-                "<td>" + formatAmount(snap.weightedSell) + "</td>" +
-                "<td>" + formatAmount(snap.weightedGain) + "</td>" +
-                "<td>" + formatRatio(snap.adjustRatio) + "</td>" +
-                "<td>" + formatAmount(snap.finalDeduction) + "</td>" +
-                "<td>" + formatAmount(snap.finalTax) + "</td>" +
-                "<td>" + formatDateTime(snap.calculatedAt) + "</td>" +
-                "<td><span class=\"" + calculationStatus.className + "\">" + calculationStatus.label + "</span></td>" +
-                "<td>" + (actionBadges.length ? actionBadges.join(" ") : "-") + "</td>" +
-                "</tr>";
-            $body.append(row);
-        });
-
-        renderPagination(totalPages);
+    function retryButton(id, label) {
+        return '<button class="adm-btn adm-btn-sm" type="button" id="' + id + '">' +
+            escapeHtml(label) + "</button>";
     }
 
-    // 입고 관리 페이지네이션과 동일한 방식(0-based, 10개씩 블록). 세액 목록/배치 이력 둘 다 이걸 공유한다.
     function renderPageButtons(containerId, currentPage1Based, totalPages, onPageClick) {
         var $pagination = $(containerId).empty();
         if (totalPages <= 1) {
@@ -238,428 +187,620 @@ $(function () {
         }
 
         var current = currentPage1Based - 1;
-        var BLOCK_SIZE = 10;
-        var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
-        var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
+        var blockSize = 10;
+        var blockStart = Math.floor(current / blockSize) * blockSize;
+        var blockEnd = Math.min(totalPages - 1, blockStart + blockSize - 1);
 
-        function addButton(label, targetPage, isDisabled, isActive) {
-            var classes = "page-btn" + (isActive ? " active" : "");
-            var $btn = $('<button type="button" class="' + classes + '">' + label + "</button>");
-            $btn.prop("disabled", isDisabled || isActive);
-            if (!isDisabled && !isActive) {
-                $btn.on("click", function () {
+        function addButton(label, targetPage, disabled, active) {
+            var $button = $('<button type="button" class="adm-page-btn' +
+                (active ? " is-active" : "") + '">' + label + "</button>");
+            $button.prop("disabled", disabled || active);
+            if (!disabled && !active) {
+                $button.on("click", function () {
                     onPageClick(targetPage + 1);
                 });
             }
-            $pagination.append($btn);
+            $pagination.append($button);
         }
 
         addButton("이전", blockStart - 1, blockStart === 0, false);
-        for (var i = blockStart; i <= blockEnd; i++) {
-            addButton(String(i + 1), i, false, i === current);
+        for (var index = blockStart; index <= blockEnd; index++) {
+            addButton(String(index + 1), index, false, index === current);
         }
         addButton("다음", blockEnd + 1, blockEnd === totalPages - 1, false);
     }
 
-    function renderPagination(totalPages) {
+    function renderListError(message) {
+        $("#taxSnapshotBody").html(stateRow(
+            12,
+            "세액 계산 목록을 불러오지 못했습니다.",
+            message || "잠시 후 다시 시도해 주세요.",
+            retryButton("tax-list-retry", "다시 시도")
+        ));
+        $("#taxPagination").empty();
+        $("#taxSnapshotCount").text("-");
+    }
+
+    function renderSnapshots() {
+        filteredSnapshots = getFilteredSnapshots();
+        var totalPages = Math.max(1, Math.ceil(filteredSnapshots.length / pageSize));
+        currentPage = Math.min(currentPage, totalPages);
+        $("#taxSnapshotCount").text(filteredSnapshots.length.toLocaleString("ko-KR"));
+
+        var $body = $("#taxSnapshotBody").empty();
+        if (filteredSnapshots.length === 0) {
+            var hasFilter = !!searchKeyword || !!statusFilter;
+            $body.html(stateRow(
+                12,
+                hasFilter ? "조건에 맞는 계좌가 없습니다." : "세액 계산 결과가 없습니다.",
+                hasFilter ? "조회조건을 초기화하거나 다시 검색해 주세요." : "",
+                hasFilter ? retryButton("tax-empty-reset", "조건 초기화") : ""
+            ));
+            $("#taxPagination").empty();
+            return;
+        }
+
+        var startIndex = (currentPage - 1) * pageSize;
+        filteredSnapshots.slice(startIndex, startIndex + pageSize).forEach(function (snapshot, index) {
+            var account = accountFor(snapshot.accountId);
+            var accountNo = MARIA.fmt.hyphenateAccountNo(account.accountNo || "-");
+            var actionBadges = [];
+            if (snapshot.needsFinalReport) {
+                actionBadges.push('<span class="adm-chip adm-chip-warn tax-action-chip">확정신고 필요</span>');
+            }
+            if (snapshot.needsClawback) {
+                actionBadges.push('<span class="adm-chip adm-chip-fail tax-action-chip">추징 필요</span>');
+            }
+            var selected = Number(snapshot.accountId) === Number(selectedAccountId);
+            var row = '<tr class="tax-snapshot-row is-clickable' + (selected ? " is-selected" : "") +
+                '" data-account-id="' + escapeHtml(snapshot.accountId) + '" tabindex="0" role="button" ' +
+                'aria-label="' + escapeHtml((account.customerName || "고객") + " 세액 계산 상세") + '">' +
+                '<td class="adm-col-no">' + (startIndex + index + 1) + "</td>" +
+                '<td class="tax-account-no">' + escapeHtml(accountNo) + "</td>" +
+                '<td class="tax-account-name">' + escapeHtml(account.customerName || "-") + "</td>" +
+                '<td class="is-c">' + benefitChip(account.benefit) + "</td>" +
+                '<td class="is-r">' + formatAmount(snapshot.weightedSell) + "</td>" +
+                '<td class="is-r">' + formatAmount(snapshot.weightedGain) + "</td>" +
+                '<td class="is-r">' + formatRatio(snapshot.adjustRatio) + "</td>" +
+                '<td class="is-r is-strong">' + formatAmount(snapshot.finalDeduction) + "</td>" +
+                '<td class="is-r">' + formatAmount(snapshot.finalTax) + "</td>" +
+                "<td>" + formatDateTime(snapshot.calculatedAt) + "</td>" +
+                '<td class="is-c">' + statusChip(calculationStatus(snapshot.accountId)) + "</td>" +
+                '<td class="is-c"><span class="tax-action-cell">' +
+                (actionBadges.length ? actionBadges.join("") : "-") + "</span></td></tr>";
+            $body.append(row);
+        });
+
         renderPageButtons("#taxPagination", currentPage, totalPages, function (targetPage) {
             currentPage = targetPage;
-            renderPage();
+            renderSnapshots();
         });
+    }
+
+    function showPageError(message) {
+        $("#taxLoading").prop("hidden", true);
+        $("#taxBody").prop("hidden", true);
+        $("#taxError")
+            .text(message || "세액 계산 화면을 불러오지 못했습니다.")
+            .append(" ")
+            .append($(retryButton("tax-page-retry", "다시 시도")))
+            .prop("hidden", false);
+    }
+
+    function showMainPage() {
+        $("#taxLoading, #taxError").prop("hidden", true);
+        $("#taxBody").prop("hidden", false);
+    }
+
+    function showCalculationError(message) {
+        MARIA.ui.showError(message || "세액 계산 정보를 불러오지 못했습니다.");
     }
 
     function renderBreakdown(periodBreakdown) {
         var $body = $("#detailBreakdownBody").empty();
         if (!periodBreakdown || periodBreakdown.length === 0) {
-            $body.append('<tr><td colspan="5" class="tax-empty">근거 데이터가 없습니다.</td></tr>');
+            $body.html('<div class="adm-mini-row"><span>구간별 근거 데이터가 없습니다.</span><span></span><span></span><span></span><span></span></div>');
             return;
         }
         periodBreakdown.forEach(function (period) {
-            var row =
-                "<tr>" +
-                "<td>" + formatDate(period.validFrom) + " ~ " + formatDate(period.validTo) + "</td>" +
-                "<td>" + formatRatio(period.weight) + "</td>" +
-                "<td>" + formatAmount(period.sellAmount) + "</td>" +
-                "<td>" + formatSignedAmount(period.gainAmount) + "</td>" +
-                "<td>" + formatSignedAmount(period.externalNetBuyAmount) + "</td>" +
-                "</tr>";
-            $body.append(row);
+            var range = formatPeriodRange(period);
+            $body.append(
+                '<div class="adm-mini-row">' +
+                "<span title=\"" + escapeHtml(range) + '">' + escapeHtml(range) + "</span>" +
+                '<span class="is-r">' + formatWeight(period.weight) + "</span>" +
+                '<span class="is-r">' + formatAmount(period.sellAmount) + "</span>" +
+                '<span class="is-r">' + formatSignedAmount(period.gainAmount) + "</span>" +
+                '<span class="is-r">' + formatSignedAmount(period.externalNetBuyAmount) + "</span>" +
+                "</div>"
+            );
         });
     }
 
     function renderLotDetails(sellLotDetails) {
         var $body = $("#detailLotBody").empty();
         if (!sellLotDetails || sellLotDetails.length === 0) {
-            $body.append('<tr><td colspan="4" class="tax-empty">매도 내역이 없습니다.</td></tr>');
+            $body.append('<div class="adm-mini-row"><span>매도 내역이 없습니다.</span></div>');
             return;
         }
         sellLotDetails.forEach(function (lot) {
-            var row =
-                "<tr>" +
-                "<td>" + escapeHtml(lot.productLabel || "-") + "</td>" +
-                "<td>" + formatDate(lot.finalAt) + "</td>" +
-                "<td>" + formatAmount(lot.sellAmount) + "</td>" +
-                "<td>" + formatSignedAmount(lot.gainAmount) + "</td>" +
-                "</tr>";
-            $body.append(row);
+            $body.append(
+                '<div class="adm-mini-row">' +
+                "<span title=\"" + escapeHtml(lot.productLabel || "-") + '">' +
+                escapeHtml(lot.productLabel || "-") + "</span>" +
+                "<span>" + formatDate(lot.finalAt) + "</span>" +
+                '<span class="is-r">' + formatAmount(lot.sellAmount) + "</span>" +
+                '<span class="is-r">' + formatSignedAmount(lot.gainAmount) + "</span>" +
+                "</div>"
+            );
         });
     }
 
     function renderExternalTradeDetails(externalTradeDetails) {
         var $body = $("#detailExternalTradeBody").empty();
         if (!externalTradeDetails || externalTradeDetails.length === 0) {
-            $body.append('<tr><td colspan="3" class="tax-empty">외부 순매수 내역이 없습니다.</td></tr>');
+            $body.append('<div class="adm-mini-row"><span>외부 순매수 내역이 없습니다.</span></div>');
             return;
         }
         externalTradeDetails.forEach(function (trade) {
-            var row =
-                "<tr>" +
-                "<td>" + escapeHtml(trade.productLabel || "-") + "</td>" +
-                "<td>" + formatDate(trade.tradeDate) + "</td>" +
-                "<td>" + formatSignedAmount(trade.netBuyAmount) + "</td>" +
-                "</tr>";
-            $body.append(row);
+            $body.append(
+                '<div class="adm-mini-row">' +
+                "<span title=\"" + escapeHtml(trade.productLabel || "-") + '">' +
+                escapeHtml(trade.productLabel || "-") + "</span>" +
+                "<span>" + formatDate(trade.tradeDate) + "</span>" +
+                '<span class="is-r">' + formatSignedAmount(trade.netBuyAmount) + "</span>" +
+                "</div>"
+            );
         });
     }
 
+    function setSheetValues(result) {
+        $("#detailWeightedSell").text(formatAmount(result.weightedSell));
+        $("#detailWeightedGain").text(formatAmount(result.weightedGain));
+        $("#detailExternalAmount").text(formatAmount(result.weightedExternalAmount));
+        $("#detailAdjustRatio").text(formatRatio(result.adjustRatio));
+        $("#detailFinalDeduction").text(formatAmount(result.finalDeduction));
+        $("#detailOriginalGain").text(formatAmount(result.originalGainAmount));
+        $("#detailFinalTax").text(formatAmount(result.finalTax));
+        $("#tax-sheet-period-total").text("-");
+        $("#tax-sheet-final-total").text(formatAmount(result.finalTax));
+        $("#tax-sheet-weighted-total").text(formatAmount(result.weightedSell));
+    }
+
+    function setCalculationState(accountId, data) {
+        var saved = data.latestSavedCalculation;
+        confirmedByAccountId[accountId] = !!saved && saved.basisType === "FINAL_REPORT";
+        renderSnapshots();
+
+        if (data.benefitChangeReason) {
+            $("#detailBenefitReason")
+                .text("세제혜택 변경 사유 (" + formatDateTime(data.benefitChangedAt) + "): " + data.benefitChangeReason)
+                .prop("hidden", false);
+        } else {
+            $("#detailBenefitReason").prop("hidden", true).text("");
+        }
+
+        if (saved) {
+            $("#detailSavedBadge")
+                .text((BASIS_LABEL[saved.basisType] || saved.basisType) + " 저장됨 · " + formatDateTime(saved.calculatedAt))
+                .prop("hidden", false);
+        } else {
+            $("#detailSavedBadge").prop("hidden", true).text("");
+        }
+        $("#detailConfirmBtn").prop("hidden", !MARIA.auth.hasRole("SETTLEMENT"));
+    }
+
     function openDetailPanel() {
-        $("#taxDetail").prop("hidden", false);
-        $("#detailPanelBackdrop").prop("hidden", false);
-        // hidden 해제와 is-open 추가를 같은 틱에 하면 브라우저가 시작 상태(hidden)를 그릴 틈이 없어
-        // transition이 통째로 씹힌다 — 한 프레임 뒤로 미뤄야 슬라이드/페이드가 실제로 보인다.
-        requestAnimationFrame(function () {
-            $("#taxDetail").addClass("is-open");
-            $("#detailPanelBackdrop").addClass("is-open");
+        clearTimeout(detailCloseTimer);
+        $("#taxDetail, #detailPanelBackdrop").prop("hidden", false);
+        $("#taxDetail").attr("aria-hidden", "false");
+        window.requestAnimationFrame(function () {
+            $("#taxDetail, #detailPanelBackdrop").addClass("is-open");
         });
     }
 
     function closeDetailPanel() {
-        $("#taxDetail").removeClass("is-open");
-        $("#detailPanelBackdrop").removeClass("is-open");
-        setTimeout(function () {
-            $("#taxDetail").prop("hidden", true);
-            $("#detailPanelBackdrop").prop("hidden", true);
-        }, 180);
+        previewRequestId++;
+        $("#taxDetail, #detailPanelBackdrop").removeClass("is-open");
+        $("#taxDetail").attr("aria-hidden", "true");
+        detailCloseTimer = setTimeout(function () {
+            if (!$("#taxDetail").hasClass("is-open")) {
+                $("#taxDetail, #detailPanelBackdrop").prop("hidden", true);
+            }
+        }, 260);
     }
 
     function openDetail(accountId) {
-        var account = accountMap[accountId] || {};
-        $("#detailAccountNo").text("불러오는 중...");
+        var requestId = ++previewRequestId;
+        selectedAccountId = Number(accountId);
+        var account = accountFor(accountId);
+        var snapshot = snapshotByAccountId[accountId] || {};
+        $("#detailAccountNo").text((account.accountNo || "-") + " · " + (account.customerName || "-"));
+        $("#detailDescription").text("세액 계산 상세");
+        $("#detailStaleBadge, #detailSavedBadge, #detailBenefitReason").prop("hidden", true);
+        $("#detailConfirmResult").text("");
+        $("#detailBreakdownBody, #detailLotBody, #detailExternalTradeBody").empty();
+        $("#detailWeightedSell, #detailWeightedGain, #detailExternalAmount, #detailAdjustRatio, " +
+            "#detailFinalDeduction, #detailOriginalGain, #detailFinalTax").text("-");
+        $("#detailConfirmBtn").prop("hidden", !MARIA.auth.hasRole("SETTLEMENT"));
+        $("#detailReliefResult").prop("hidden", true);
+        $("#reliefFinalAt, #reliefFinalTax").text("-");
         openDetailPanel();
 
         MARIA.auth.ajax({
-            url: "/api/admin/tax/preview/" + accountId,
+            url: "/api/admin/tax/preview/" + encodeURIComponent(accountId),
             method: "GET"
-        }).done(function (res) {
-            var data = res.data;
-            var result = data.taxCalculationResultDTO;
-            $("#detailAccountNo").html(MARIA.fmt.accountNoHtml(account.accountNo) + " · " + escapeHtml(account.customerName || ""));
-            $("#detailDescription").text("기준시각 " + ($("#clockValue").text() || "-"));
-            $("#detailWeightedSell").text(formatAmount(result.weightedSell));
-            $("#detailWeightedGain").html(formatSignedAmount(result.weightedGain));
-            $("#detailExternalAmount").text(formatAmount(result.weightedExternalAmount));
-            $("#detailAdjustRatio").text(formatRatio(result.adjustRatio));
-            $("#detailFinalDeduction").text(formatAmount(result.finalDeduction));
-            $("#detailOriginalGain").html(formatSignedAmount(result.originalGainAmount));
-            $("#detailFinalTax").text(formatAmount(result.finalTax));
+        }).done(function (response) {
+            if (requestId !== previewRequestId || selectedAccountId !== Number(accountId)) {
+                return;
+            }
+            var data = response.data || {};
+            var result = data.taxCalculationResultDTO || {};
             var breakdown = data.breakdown || {};
+            setSheetValues(result);
             renderBreakdown(breakdown.periodBreakdown);
             renderLotDetails(breakdown.sellLotDetails);
             renderExternalTradeDetails(breakdown.externalTradeDetails);
-
-            var snapshot = snapshotByAccountId[accountId];
-            var isStale = snapshot && Number(snapshot.finalTax || 0) !== Number(result.finalTax || 0);
-            $("#detailStaleBadge").toggle(!!isStale);
-
-            if (data.benefitChangeReason) {
-                $("#detailBenefitReason")
-                    .text("세제혜택 변경 사유 (" + formatDateTime(data.benefitChangedAt) + "): " + data.benefitChangeReason)
-                    .show();
-            } else {
-                $("#detailBenefitReason").hide();
-            }
-
-            var saved = data.latestSavedCalculation;
-            if (saved) {
-                $("#detailSavedBadge")
-                    .text((BASIS_LABEL[saved.basisType] || saved.basisType) + " 저장됨 · " + formatDateTime(saved.calculatedAt))
-                    .show();
-            } else {
-                $("#detailSavedBadge").hide();
-            }
-
-            $("#detailConfirmBtn").toggle(MARIA.auth.hasRole("SETTLEMENT"));
-            $("#detailConfirmResult").text("");
-            $("#detailReliefResult").hide();
-            $("#reliefFinalAt, #reliefFinalTax").text("-");
+            var stale = snapshot.finalTax != null && Number(snapshot.finalTax) !== Number(result.finalTax);
+            $("#detailStaleBadge").prop("hidden", !stale);
+            setCalculationState(accountId, data);
+            $("#tax-relief-toggle").prop("hidden", false);
         }).fail(function (xhr) {
-            if (xhr.status === 401) return;
-            var message = (xhr.responseJSON && xhr.responseJSON.message) || "세액 미리보기를 불러오지 못했습니다.";
-            MARIA.ui.showError(message);
+            if (requestId !== previewRequestId || selectedAccountId !== Number(accountId)) {
+                return;
+            }
+            if (xhr.status === 401) {
+                return;
+            }
+            showCalculationError(
+                (xhr.responseJSON && xhr.responseJSON.message) || "세액 미리보기를 불러오지 못했습니다."
+            );
         });
-    }
-
-    function batchStatusClass(status) {
-        var statusKey = (status || "").toLowerCase();
-        return statusKey === "completed" ? "possible" : (statusKey === "failed" ? "impossible" : "reduced");
     }
 
     function renderBatchHistory(history) {
         allBatchHistory = history || [];
-        batchHistoryPage = Math.min(batchHistoryPage, Math.max(1, Math.ceil(allBatchHistory.length / BATCH_HISTORY_PAGE_SIZE)));
+        var totalPages = Math.max(1, Math.ceil(allBatchHistory.length / batchHistoryPageSize));
+        batchHistoryPage = Math.min(batchHistoryPage, totalPages);
+        $("#batchHistoryCount").text(allBatchHistory.length.toLocaleString("ko-KR"));
 
-        var latest = allBatchHistory[0];
-        if (latest) {
-            $("#batchHistoryLatest").text(formatDateTime(latest.startTime) + " · 처리 " + latest.writeCount + "/" + latest.readCount + (latest.skipCount > 0 ? " · 스킵 " + latest.skipCount : ""));
-            $("#batchHistoryLatestBadge").attr("class", "status-badge " + batchStatusClass(latest.status)).text(BATCH_STATUS_LABEL[latest.status] || latest.status);
-        } else {
-            $("#batchHistoryLatest").text("실행 이력이 없습니다.");
-            $("#batchHistoryLatestBadge").attr("class", "status-badge").text("-");
-        }
-
-        renderBatchHistoryPage();
-        renderTodayBatchIssueKpi();
-    }
-
-    function renderTodayBatchIssueKpi() {
-        if (!businessToday) return;
-        var count = 0;
-        allBatchHistory.forEach(function (item) {
-            if (dateOnly(item.startTime) !== businessToday) return;
-            count += Number(item.skipCount || 0);
-            if (item.status === "FAILED") count += 1;
-        });
-        $("#kpiBatchIssue").text(count);
-    }
-
-    function loadActionSummary() {
-        MARIA.auth.ajax({ url: "/api/admin/tax/action-summary", method: "GET" })
-            .done(function (res) {
-                $("#kpiUnconfirmed").text(res.data.unconfirmedFinalReportCount);
-                $("#kpiClawback").text(res.data.unprocessedClawbackCount);
-                $("#kpiBenefitChanged").text(res.data.benefitChangedTodayCount);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) return;
-                $("#kpiUnconfirmed, #kpiClawback, #kpiBenefitChanged").text("-");
-            });
-    }
-
-    function renderBatchHistoryPage() {
         var $body = $("#batchHistoryBody").empty();
-        $("#batchHistoryCount").text(allBatchHistory.length + "건");
         if (allBatchHistory.length === 0) {
-            $body.append('<tr><td colspan="6" class="tax-empty">실행 이력이 없습니다.</td></tr>');
+            $body.html('<tr class="is-state"><td colspan="6"><div class="adm-state-empty">' +
+                '<div class="adm-state-empty-title">배치 실행 이력이 없습니다.</div></div></td></tr>');
             $("#batchHistoryPagination").empty();
             return;
         }
 
-        var totalPages = Math.max(1, Math.ceil(allBatchHistory.length / BATCH_HISTORY_PAGE_SIZE));
-        var startIndex = (batchHistoryPage - 1) * BATCH_HISTORY_PAGE_SIZE;
-        var pageItems = allBatchHistory.slice(startIndex, startIndex + BATCH_HISTORY_PAGE_SIZE);
-
-        pageItems.forEach(function (item) {
-            var statusClass = batchStatusClass(item.status);
-            var row =
+        var startIndex = (batchHistoryPage - 1) * batchHistoryPageSize;
+        allBatchHistory.slice(startIndex, startIndex + batchHistoryPageSize).forEach(function (item) {
+            var status = String(item.status || "UNKNOWN").toUpperCase();
+            var label = BATCH_STATUS_LABEL[status] || status;
+            var tone = BATCH_STATUS_TONE[status] || "off";
+            $body.append(
                 "<tr>" +
-                "<td>" + escapeHtml(item.runId || "-") + "</td>" +
+                '<td class="tax-mono">' + escapeHtml(item.runId || "-") + "</td>" +
                 "<td>" + formatDateTime(item.startTime) + "</td>" +
                 "<td>" + formatDateTime(item.endTime) + "</td>" +
-                "<td><span class=\"status-badge " + statusClass + "\">" + (BATCH_STATUS_LABEL[item.status] || item.status) + "</span></td>" +
-                "<td>" + item.writeCount + " / " + item.readCount + "</td>" +
-                "<td>" + (item.skipCount > 0 ? "<span class=\"tax-amount-positive\">" + item.skipCount + "</span>" : item.skipCount) + "</td>" +
-                "</tr>";
-            $body.append(row);
+                '<td class="is-c"><span class="adm-chip adm-chip-' + tone + '">' + escapeHtml(label) + "</span></td>" +
+                '<td class="is-r">' + formatAmount(item.writeCount) + "</td>" +
+                '<td class="is-r">' + formatAmount(item.skipCount) + "</td>" +
+                "</tr>"
+            );
         });
 
         renderPageButtons("#batchHistoryPagination", batchHistoryPage, totalPages, function (targetPage) {
             batchHistoryPage = targetPage;
-            renderBatchHistoryPage();
+            renderBatchHistory(allBatchHistory);
         });
     }
 
     function loadBatchHistory() {
-        MARIA.auth.ajax({ url: "/api/admin/tax/snapshots/jobs", method: "GET" })
-            .done(function (res) {
-                renderBatchHistory(res.data);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) return;
-                $("#batchHistoryBody").html('<tr><td colspan="6" class="tax-empty">배치 이력을 불러오지 못했습니다.</td></tr>');
-            });
+        $("#batchHistoryBody").html('<tr class="is-state tax-history-loading"><td colspan="6">불러오는 중...</td></tr>');
+        MARIA.auth.ajax({
+            url: "/api/admin/tax/snapshots/jobs",
+            method: "GET"
+        }).done(function (response) {
+            renderBatchHistory(response.data || []);
+        }).fail(function (xhr) {
+            if (xhr.status === 401) {
+                return;
+            }
+            $("#batchHistoryBody").html(
+                '<tr class="is-state"><td colspan="6"><div class="adm-state-error">' +
+                '<div class="adm-state-error-text"><div class="adm-state-error-title">배치 이력을 불러오지 못했습니다.</div>' +
+                '<div class="adm-state-error-desc">' +
+                escapeHtml((xhr.responseJSON && xhr.responseJSON.message) || "잠시 후 다시 시도해 주세요.") +
+                "</div></div>" + retryButton("batch-history-retry", "다시 시도") + "</div></td></tr>"
+            );
+        });
+    }
+
+    function loadActionSummary() {
+        MARIA.auth.ajax({
+            url: "/api/admin/tax/action-summary",
+            method: "GET"
+        }).done(function (response) {
+            actionSummary = response.data || {};
+            $("#kpiClawback").text(actionSummary.unprocessedClawbackCount);
+            $("#kpiBenefitChanged").text(actionSummary.benefitChangedTodayCount);
+        }).fail(function (xhr) {
+            if (xhr.status !== 401) {
+                MARIA.ui.showError(
+                    (xhr.responseJSON && xhr.responseJSON.message) || "처리 필요 요약을 불러오지 못했습니다."
+                );
+            }
+        });
     }
 
     function loadBusinessToday() {
-        return MARIA.auth.ajax({ url: "/api/admin/system-clock", method: "GET" })
-            .done(function (res) {
-                businessToday = dateOnly(res.data);
-                if (allSnapshots.length) {
-                    renderPage();
-                }
-                renderTodayBatchIssueKpi();
+        MARIA.auth.ajax({
+            url: "/api/admin/system-clock",
+            method: "GET"
+        }).done(function (response) {
+            businessToday = dateOnly(response.data);
+        }).fail(function (xhr) {
+            if (xhr.status !== 401) {
+                MARIA.ui.showError(
+                    (xhr.responseJSON && xhr.responseJSON.message) || "업무일자를 불러오지 못했습니다."
+                );
+            }
+        });
+    }
+
+    function requestSnapshots(accountIds) {
+        var chunks = [];
+        for (var index = 0; index < accountIds.length; index += 200) {
+            chunks.push(accountIds.slice(index, index + 200));
+        }
+        if (chunks.length === 0) {
+            return $.Deferred().resolve([]).promise();
+        }
+        var requests = chunks.map(function (chunk) {
+            return MARIA.auth.ajax({
+                url: "/api/admin/tax/snapshots",
+                method: "GET",
+                data: { accountIds: chunk },
+                traditional: true
             });
+        });
+        return $.when.apply($, requests).then(function () {
+            var args = Array.prototype.slice.call(arguments);
+            var responses = requests.length === 1 ? [args[0]] : args.map(function (result) {
+                return result[0];
+            });
+            return responses.reduce(function (snapshots, response) {
+                return snapshots.concat(response.data || []);
+            }, []);
+        });
     }
 
     function loadTax() {
+        $("#taxLoading").prop("hidden", false).text("불러오는 중...");
+        $("#taxError, #taxBody").prop("hidden", true);
         loadBusinessToday();
-        MARIA.auth.ajax({ url: "/api/admin/account/list", method: "GET" })
-            .done(function (accountRes) {
-                var accounts = accountRes.data || [];
-                var accountIds = [];
-                accounts.forEach(function (account) {
-                    accountMap[account.accountId] = account;
-                    accountIds.push(account.accountId);
-                });
+        loadActionSummary();
 
-                if (accountIds.length === 0) {
-                    renderSnapshots([]);
-                    $("#taxLoading").hide();
-                    $("#taxBody").css("display", "flex");
+        MARIA.auth.ajax({
+            url: "/api/admin/account/list",
+            method: "GET"
+        }).done(function (accountResponse) {
+            accountMap = {};
+            var accounts = accountResponse.data || [];
+            accounts.forEach(function (account) {
+                accountMap[account.accountId] = account;
+            });
+
+            requestSnapshots(accounts.map(function (account) {
+                return account.accountId;
+            })).done(function (snapshots) {
+                allSnapshots = snapshots || [];
+                snapshotByAccountId = {};
+                allSnapshots.forEach(function (snapshot) {
+                    snapshotByAccountId[snapshot.accountId] = snapshot;
+                });
+                renderSummary();
+                showMainPage();
+                renderSnapshots();
+            }).fail(function (xhr) {
+                if (xhr.status === 401) {
                     return;
                 }
-
-                // ponytail: URL 쿼리스트링 길이 한도(414/400) 때문에 청크 분할. accountIds가
-                // 계속 커지면 백엔드에 POST 방식 조회 API를 새로 만드는 쪽으로 바꿀 것.
-                var CHUNK_SIZE = 200;
-                var chunks = [];
-                for (var i = 0; i < accountIds.length; i += CHUNK_SIZE) {
-                    chunks.push(accountIds.slice(i, i + CHUNK_SIZE));
-                }
-
-                $.when.apply($, chunks.map(function (chunk) {
-                    return MARIA.auth.ajax({
-                        url: "/api/admin/tax/snapshots",
-                        method: "GET",
-                        data: { accountIds: chunk },
-                        traditional: true
-                    });
-                })).done(function () {
-                    var results = chunks.length === 1 ? [arguments] : arguments;
-                    var snapshots = [];
-                    $.each(results, function (_, result) {
-                        snapshots = snapshots.concat(result[0].data || []);
-                    });
-                    renderSnapshots(snapshots);
-                    $("#taxLoading").hide();
-                    $("#taxBody").css("display", "flex");
-                }).fail(function (xhr) {
-                    if (xhr && xhr.status === 401) return;
-                    showError((xhr && xhr.responseJSON && xhr.responseJSON.message) || "세액 계산 목록을 불러오지 못했습니다.");
-                });
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) return;
-                showError((xhr.responseJSON && xhr.responseJSON.message) || "계좌 목록을 불러오지 못했습니다.");
+                showPageError((xhr.responseJSON && xhr.responseJSON.message) || "세액 계산 목록을 불러오지 못했습니다.");
             });
+        }).fail(function (xhr) {
+            if (xhr.status === 401) {
+                return;
+            }
+            showPageError((xhr.responseJSON && xhr.responseJSON.message) || "계좌 목록을 불러오지 못했습니다.");
+        });
+    }
+
+    function openConfirm(action) {
+        pendingAction = action;
+        if (action.type === "save") {
+            var snapshot = snapshotByAccountId[action.accountId] || {};
+            $("#tax-confirm-title").text("확정신고 저장");
+            $("#tax-confirm-description").text(
+                "최종공제액 " + formatAmount(snapshot.finalDeduction) + "원, 최종세액 " +
+                formatAmount(snapshot.finalTax) + "원으로 저장할까요?"
+            );
+        } else {
+            $("#tax-confirm-title").text("세액 계산 배치 실행");
+            $("#tax-confirm-description").text("전체 RIA 계좌의 공제액과 세액을 다시 산출할까요?");
+        }
+        $("#tax-confirm-modal").prop("hidden", false);
+        $("#tax-confirm-accept").prop("disabled", false).trigger("focus");
+    }
+
+    function closeConfirm() {
+        pendingAction = null;
+        $("#tax-confirm-modal").prop("hidden", true);
+        $("#tax-confirm-accept").prop("disabled", false);
+    }
+
+    function confirmAction() {
+        if (!pendingAction) {
+            return;
+        }
+        var action = pendingAction;
+        var $accept = $("#tax-confirm-accept").prop("disabled", true);
+        if (action.type === "save") {
+            MARIA.auth.ajax({
+                url: "/api/admin/tax/calculations/" + encodeURIComponent(action.accountId),
+                method: "POST"
+            }).done(function (response) {
+                var data = response.data || {};
+                $("#detailConfirmResult").text((BASIS_LABEL[data.basisType] || data.basisType || "확정신고") + " 저장 완료");
+                MARIA.ui.showSuccess("확정신고로 저장했어요");
+                if (data.basisType === "FINAL_REPORT") {
+                    confirmedByAccountId[action.accountId] = true;
+                }
+                closeConfirm();
+                loadTax();
+                openDetail(action.accountId);
+            }).fail(function (xhr) {
+                if (xhr.status === 401) {
+                    closeConfirm();
+                    return;
+                }
+                $accept.prop("disabled", false);
+                $("#detailConfirmResult").text((xhr.responseJSON && xhr.responseJSON.message) || "확정신고 저장에 실패했습니다.");
+            });
+            return;
+        }
+
+        MARIA.auth.ajax({
+            url: "/api/admin/tax/snapshots/jobs",
+            method: "POST"
+        }).done(function (response) {
+            var data = response.data || {};
+            $("#batchTriggerResult")
+                .text("요청됨 · " + (data.runId || "-") + " · " + (data.status || ""))
+                .prop("hidden", false);
+            MARIA.ui.showSuccess("세액 계산 배치를 요청했어요");
+            closeConfirm();
+            setTimeout(loadBatchHistory, 1500);
+        }).fail(function (xhr) {
+            if (xhr.status === 401) {
+                closeConfirm();
+                return;
+            }
+            $accept.prop("disabled", false);
+            MARIA.ui.showError((xhr.responseJSON && xhr.responseJSON.message) || "배치 실행 요청에 실패했습니다.");
+        });
+    }
+
+    function resetFilters() {
+        $("#taxSearchInput").val("");
+        $("#taxStatusFilter").val("");
+        searchKeyword = "";
+        statusFilter = "";
+        currentPage = 1;
+        renderSnapshots();
     }
 
     $("#taxSnapshotBody").on("click", "tr[data-account-id]", function () {
-        selectedAccountId = Number($(this).data("account-id"));
-        renderPage();
-        openDetail($(this).data("account-id"));
-    });
+        var accountId = $(this).data("account-id");
+        renderSnapshots();
+        openDetail(accountId);
+    }).on("keydown", "tr[data-account-id]", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            var accountId = $(this).data("account-id");
+            renderSnapshots();
+            openDetail(accountId);
+        }
+    }).on("click", "#tax-list-retry", loadTax)
+        .on("click", "#tax-empty-reset", resetFilters);
 
+    $("#taxSearchButton").on("click", function () {
+        searchKeyword = $("#taxSearchInput").val().trim().toLowerCase();
+        statusFilter = $("#taxStatusFilter").val();
+        currentPage = 1;
+        renderSnapshots();
+    });
+    $("#taxSearchInput").on("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            $("#taxSearchButton").trigger("click");
+        }
+    });
+    $("#taxSearchReset").on("click", resetFilters);
+    $("#tax-page-size button").on("click", function () {
+        pageSize = Number($(this).data("size"));
+        $("#tax-page-size button").removeClass("is-on");
+        $(this).addClass("is-on");
+        currentPage = 1;
+        renderSnapshots();
+    });
 
     $("#detailCloseBtn, #detailPanelBackdrop").on("click", closeDetailPanel);
-
     $("#detailConfirmBtn").on("click", function () {
-        if (!selectedAccountId) return;
-        var $btn = $(this).prop("disabled", true);
-        MARIA.auth.ajax({ url: "/api/admin/tax/calculations/" + selectedAccountId, method: "POST" })
-            .done(function (res) {
-                $("#detailConfirmResult").text((BASIS_LABEL[res.data.basisType] || res.data.basisType) + " 저장 완료");
-                openDetail(selectedAccountId);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) return;
-                $("#detailConfirmResult").text((xhr.responseJSON && xhr.responseJSON.message) || "저장 실패");
-            })
-            .always(function () { $btn.prop("disabled", false); });
+        if (!selectedAccountId || !MARIA.auth.hasRole("SETTLEMENT")) {
+            return;
+        }
+        openConfirm({ type: "save", accountId: selectedAccountId });
     });
+    $("#tax-confirm-cancel").on("click", closeConfirm);
+    $("#tax-confirm-modal").on("click", function (event) {
+        if (event.target === this) {
+            closeConfirm();
+        }
+    });
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !document.getElementById("tax-confirm-modal").hidden) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            closeConfirm();
+        }
+    }, true);
+    $("#tax-confirm-accept").on("click", confirmAction);
 
+    $("#tax-relief-toggle").on("click", function () {
+        var expanded = $(this).attr("aria-expanded") === "true";
+        $(this).attr("aria-expanded", String(!expanded));
+        $("#tax-relief-body").prop("hidden", expanded);
+    });
     $("#detailReliefBtn").on("click", function () {
-        if (!selectedAccountId) return;
-        var $btn = $(this).prop("disabled", true).text("조회 중...");
+        if (!selectedAccountId) {
+            return;
+        }
+        var $button = $(this).prop("disabled", true).text("조회 중...");
         MARIA.auth.ajax({
-            url: "/api/admin/tax/preview/" + selectedAccountId + "/expected-relief",
+            url: "/api/admin/tax/preview/" + encodeURIComponent(selectedAccountId) + "/expected-relief",
             method: "GET"
-        }).done(function (res) {
-            $("#reliefFinalAt").text(formatDate(res.data.expectedFinalAt));
-            $("#reliefFinalTax").text(formatAmount(res.data.taxCalculationResultDTO.finalTax));
-            $("#detailReliefResult").show();
+        }).done(function (response) {
+            $("#reliefFinalAt").text(formatDate(response.data.expectedFinalAt));
+            $("#reliefFinalTax").text(formatAmount(response.data.taxCalculationResultDTO.finalTax) + "원");
+            $("#detailReliefResult").prop("hidden", false);
         }).fail(function (xhr) {
-            if (xhr.status === 401) return;
-            MARIA.ui.showError((xhr.responseJSON && xhr.responseJSON.message) || "예상 감면세액 조회에 실패했습니다.");
+            if (xhr.status !== 401) {
+                showCalculationError((xhr.responseJSON && xhr.responseJSON.message) || "예상 감면세액 조회에 실패했습니다.");
+            }
         }).always(function () {
-            $btn.prop("disabled", false).text("F7 · 오늘 RIA로 옮겨 팔면 예상 감면세액 조회");
+            $button.prop("disabled", false).text("F7 · 예상 감면세액 조회");
         });
     });
 
-    $("#batchHistoryToggle").on("click", function () {
-        var isOpen = $("#batchHistoryDetail").is(":visible");
-        $("#batchHistoryDetail").toggle(!isOpen);
-        $(this).text(isOpen ? "전체 이력 보기" : "접기");
+    $("#triggerBatch").on("click", function () {
+        if (MARIA.auth.hasRole("SETTLEMENT")) {
+            openConfirm({ type: "batch" });
+        }
     });
-
-    $("#taxSearchInput").on("input", function () {
-        searchKeyword = $(this).val().trim().toLowerCase();
-        currentPage = 1;
-        renderPage();
-    });
-
-    $("#taxBenefitFilter").on("change", function () {
-        benefitFilter = $(this).val();
-        currentPage = 1;
-        renderPage();
-    });
-
-    $("#taxSortSelect").on("change", function () {
-        sortMode = $(this).val();
-        currentPage = 1;
-        renderPage();
-    });
-
-    function setKpiFilter(next) {
-        kpiFilter = next;
-        benefitFilter = "";
-        $("#taxBenefitFilter").val("");
-        searchKeyword = "";
-        $("#taxSearchInput").val("");
-        currentPage = 1;
-        renderKpiActiveState();
-        renderPage();
-    }
-
-    $("#kpiCardAll").on("click", function () { setKpiFilter(null); });
-    $("#kpiCardTaxable").on("click", function () { setKpiFilter("taxable"); });
-    $("#kpiCardReduced").on("click", function () { setKpiFilter("reducedOrExcluded"); });
-    $("#kpiCardUnconfirmed").on("click", function () { setKpiFilter("needsFinalReport"); });
-    $("#kpiCardClawback").on("click", function () { setKpiFilter("needsClawback"); });
+    $("#batchHistoryBody").on("click", "#batch-history-retry", loadBatchHistory);
+    $("#taxError").on("click", "#tax-page-retry", loadTax);
 
     MARIA.auth.requireAuth().done(function () {
-        $("#batchTriggerGroup").toggle(canTriggerBatch());
-    });
-    $("#triggerBatch").on("click", function () {
-        if (!canTriggerBatch()) return;
-        MARIA.auth.ajax({ url: "/api/admin/tax/snapshots/jobs", method: "POST" })
-            .done(function (res) {
-                $("#batchTriggerResult").text("요청됨 · runId " + res.data.runId + " · " + res.data.status);
-                setTimeout(loadBatchHistory, 1500);
-            })
-            .fail(function (xhr) {
-                if (xhr.status === 401) return;
-                MARIA.ui.showError((xhr.responseJSON && xhr.responseJSON.message) || "배치 실행 요청에 실패했습니다.");
-            });
+        $("#triggerBatch").prop("hidden", !MARIA.auth.hasRole("SETTLEMENT"));
+        $("#batchTriggerGroup").toggle(MARIA.auth.hasRole("SETTLEMENT"));
     });
 
     var deepLinkAccountNo = MARIA.deeplink.accountNoFromUrl();
     if (deepLinkAccountNo) {
         $("#taxSearchInput").val(deepLinkAccountNo);
         searchKeyword = deepLinkAccountNo.toLowerCase();
-        currentPage = 1;
     }
 
     loadTax();
     loadBatchHistory();
-    loadActionSummary();
 });
