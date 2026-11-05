@@ -152,6 +152,12 @@
                             <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                             <span class="adm-side-label">인출 관리</span>
                         </a>
+                        <a class="adm-side-item" th:href="@{/admin/fund-flow}" data-no="1405" data-label="자금 환류 대시보드" title="[1405] 자금 환류 대시보드"
+                           th:classappend="${activePath == '/admin/fund-flow'} ? ' is-active' : ''">
+                            <span class="adm-side-bar"></span>
+                            <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                            <span class="adm-side-label">자금 환류 대시보드</span>
+                        </a>
                         <!-- 계좌 해지 자동 처리 전환으로 관리자 메뉴에서는 해지관리 화면을 노출하지 않는다. (팀 결정)
                              화면(/admin/account-closures)과 컨트롤러는 그대로 두고 링크만 숨긴다.
                              hidden 이면 Ctrl K 검색·접힌 사이드바 팝업·그룹 배지 합산에서도 빠진다 (layout.js 가 [hidden] 항목을 건너뜀). -->
