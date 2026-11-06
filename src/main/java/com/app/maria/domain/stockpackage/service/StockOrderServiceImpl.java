@@ -50,6 +50,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class StockOrderServiceImpl implements StockOrderService {
     private static final String CHANNEL_CUSTOMER = "CUSTOMER";
+    private static final String CHANNEL_GENERATOR = "GENERATOR";
     private static final LocalTime MARKET_OPEN = LocalTime.of(9, 0);
     private static final LocalTime MARKET_CLOSE = LocalTime.of(15, 30);
 
@@ -146,7 +147,53 @@ public class StockOrderServiceImpl implements StockOrderService {
 
         return tx.execute(
                 status ->
-                        execute(account.getAccountId(), stockPackageId, request, products, quotes));
+                        execute(
+                                account.getAccountId(),
+                                stockPackageId,
+                                request,
+                                products,
+                                quotes,
+                                CHANNEL_CUSTOMER));
+    }
+
+    /**
+     * 증권사 거래 생성기의 주문 한 건. 패키지 주문과 같은 {@code execute}(계좌 락·멱등·주문 가능 금액)를 채널만 바꿔 쓴다. 저장되는 멱등키는 {@code
+     * idempotencyKey + ":1"}이다.
+     */
+    @Override
+    public StockOrderResultDTO placeGeneratorOrder(
+            Long accountId,
+            DomesticProductDTO product,
+            StockQuoteVO quote,
+            DomesticOrderSide side,
+            int qty,
+            String idempotencyKey) {
+        StockOrderRequestDTO request =
+                new StockOrderRequestDTO(
+                        idempotencyKey,
+                        List.of(
+                                new StockOrderRequestDTO.Item(
+                                        product.getDomesticProductId(),
+                                        side,
+                                        BigDecimal.valueOf(qty))));
+        return tx.execute(
+                        status ->
+                                execute(
+                                        accountId,
+                                        null,
+                                        request,
+                                        Map.of(product.getDomesticProductId(), product),
+                                        Map.of(product.getTicker(), quote),
+                                        CHANNEL_GENERATOR))
+                .orders()
+                .get(0);
+    }
+
+    @Override
+    public Optional<StockOrderResultDTO> findGeneratorOrder(Long accountId, String idempotencyKey) {
+        return stockOrderMapper
+                .selectByIdempotencyKey(accountId, idempotencyKey + ":1")
+                .map(StockOrderResultDTO::new);
     }
 
     @Override
@@ -171,7 +218,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             Long stockPackageId,
             StockOrderRequestDTO request,
             Map<Long, DomesticProductDTO> products,
-            Map<String, StockQuoteVO> quotes) {
+            Map<String, StockQuoteVO> quotes,
+            String channel) {
         // 같은 계좌의 주문은 이 락으로 한 줄로 선다(동시에 두 번 눌러도 예수금이 마이너스가 되지 않는다)
         AccountDTO account =
                 accountMapper
@@ -207,7 +255,8 @@ public class StockOrderServiceImpl implements StockOrderService {
                             quotes.get(product.getTicker()),
                             buyingPower,
                             rules,
-                            now);
+                            now,
+                            channel);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
                 amountNow = amountNow.add(order.getAmount());
                 buyingPower = buyingPower.add(order.getAmount());
@@ -226,7 +275,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             StockQuoteVO quote,
             BigDecimal buyingPower,
             List<TaxRuleDTO> rules,
-            LocalDateTime now) {
+            LocalDateTime now,
+            String channel) {
         Long accountId = account.getAccountId();
         DomesticOrderSide side = item.side();
         BigDecimal qty = item.qty();
@@ -278,7 +328,7 @@ public class StockOrderServiceImpl implements StockOrderService {
                         .stockPackageId(stockPackageId)
                         .side(side)
                         .qty(qty)
-                        .channel(CHANNEL_CUSTOMER)
+                        .channel(channel)
                         .idempotencyKey(key)
                         .processedAt(now)
                         .ticker(product.getTicker())

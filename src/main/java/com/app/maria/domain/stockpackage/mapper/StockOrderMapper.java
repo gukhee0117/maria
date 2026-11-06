@@ -24,6 +24,12 @@ public interface StockOrderMapper {
     Optional<StockBalanceVO> selectBalanceForUpdate(
             @Param("accountId") Long accountId, @Param("domesticProductId") Long domesticProductId);
 
+    /** 누군가 잔량을 들고 있는 상품 id. 생성기 매수 후보의 재료다. */
+    List<Long> selectHeldProductIds();
+
+    /** 이 계좌에서 잔량이 있는 보유. 생성기 매도 후보다. */
+    List<StockBalanceVO> selectHeldBalancesByAccount(@Param("accountId") Long accountId);
+
     int insertBalance(StockBalanceVO balance);
 
     int updateBalance(StockBalanceVO balance);

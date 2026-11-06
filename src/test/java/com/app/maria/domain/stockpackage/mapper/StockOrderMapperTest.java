@@ -306,4 +306,60 @@ class StockOrderMapperTest {
                 .extracting(StockOrderVO::getIdempotencyKey)
                 .containsExactly("m:1", "m:2");
     }
+
+    @Test
+    @DisplayName("마지막 매수일은 더 늦은 날짜일 때만 바뀐다")
+    void lastPurchaseDateOnlyMovesForward() {
+        mapper.insertBalance(
+                StockBalanceVO.builder()
+                        .accountId(ACCOUNT)
+                        .domesticProductId(PRODUCT)
+                        .qty(new BigDecimal("10"))
+                        .status(DomesticStockStatus.HOLDING)
+                        .lastPurchaseDate(LocalDateTime.of(2026, 11, 10, 9, 0))
+                        .avgPurchasePrice(new BigDecimal("100000"))
+                        .build());
+        StockBalanceVO balance = mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT).orElseThrow();
+
+        balance.setLastPurchaseDate(LocalDateTime.of(2026, 6, 10, 9, 0));
+        mapper.updateBalance(balance);
+        assertThat(
+                        mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT)
+                                .orElseThrow()
+                                .getLastPurchaseDate())
+                .isEqualTo(LocalDateTime.of(2026, 11, 10, 9, 0));
+
+        balance.setLastPurchaseDate(LocalDateTime.of(2026, 11, 20, 9, 0));
+        mapper.updateBalance(balance);
+        assertThat(
+                        mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT)
+                                .orElseThrow()
+                                .getLastPurchaseDate())
+                .isEqualTo(LocalDateTime.of(2026, 11, 20, 9, 0));
+    }
+
+    @Test
+    @DisplayName("보유 종목 조회는 잔량이 있는 것만 준다")
+    void heldProducts() throws Exception {
+        sql(
+                "INSERT INTO domestic_product (domestic_product_id,ticker,name,type) VALUES (2,'000660','SK하이닉스','STOCK')");
+        mapper.insertBalance(balance(PRODUCT, "10", DomesticStockStatus.HOLDING));
+        mapper.insertBalance(balance(2L, "0", DomesticStockStatus.SOLD_OUT));
+        assertThat(mapper.selectHeldProductIds()).containsExactly(PRODUCT);
+        assertThat(mapper.selectHeldBalancesByAccount(ACCOUNT))
+                .extracting(StockBalanceVO::getDomesticProductId)
+                .containsExactly(PRODUCT);
+        assertThat(mapper.selectHeldBalancesByAccount(999L)).isEmpty();
+    }
+
+    private static StockBalanceVO balance(long productId, String qty, DomesticStockStatus status) {
+        return StockBalanceVO.builder()
+                .accountId(ACCOUNT)
+                .domesticProductId(productId)
+                .qty(new BigDecimal(qty))
+                .status(status)
+                .lastPurchaseDate(NOW)
+                .avgPurchasePrice(new BigDecimal("100000"))
+                .build();
+    }
 }

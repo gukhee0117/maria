@@ -376,4 +376,72 @@ class StockOrderServiceImplTest {
         assertThat(fees.commissionRatePercent()).isEqualByComparingTo("0.0040");
         assertThat(fees.securitiesTaxRatePercent()).isEqualByComparingTo("0.2000");
     }
+
+    /** 생성기 주문이 실제로 쓰는 것만: 계좌 락, 시계, 수수료 규칙, 가정산, 키 조회. */
+    private void prepareGenerator(AccountDTO account) {
+        when(clock.now()).thenReturn(NOW);
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT)).thenReturn(Optional.of(account));
+        when(taxMapper.selectTaxRules())
+                .thenReturn(
+                        List.of(
+                                rule(TaxRuleType.COMMISSION_RIA, "0.0040"),
+                                rule(TaxRuleType.COMMISSION_BASE, "0.0150"),
+                                rule(TaxRuleType.COMMISSION_RIA_YEARS, "1.0000"),
+                                rule(TaxRuleType.SEC_TX_TAX_STOCK, "0.2000")));
+        when(orderMapper.sumProvisionalAmount(ACCOUNT)).thenReturn(BigDecimal.ZERO);
+    }
+
+    @Test
+    void 생성기_주문은_GENERATOR_채널로_패키지_없이_체결되고_수수료까지_주문가능금액_안() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-1");
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        ArgumentCaptor<StockOrderVO> saved = ArgumentCaptor.forClass(StockOrderVO.class);
+        verify(orderMapper).insertOrder(saved.capture());
+        assertThat(saved.getValue().getChannel()).isEqualTo("GENERATOR");
+        assertThat(saved.getValue().getStockPackageId()).isNull();
+        assertThat(saved.getValue().getIdempotencyKey()).isEqualTo("GEN-1:1");
+        assertThat(o.amount().negate()).isLessThanOrEqualTo(new BigDecimal("10000000"));
+    }
+
+    @Test
+    void 생성기_주문_같은_키는_다시_체결하지_않고_처음_결과를_준다() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        StockOrderVO prior =
+                StockOrderVO.builder()
+                        .domesticOrderId(99L)
+                        .accountId(ACCOUNT)
+                        .domesticProductId(SAMSUNG)
+                        .side(DomesticOrderSide.BUY)
+                        .qty(BigDecimal.TEN)
+                        .channel("GENERATOR")
+                        .status(DomesticOrderStatus.EXECUTED)
+                        .build();
+        when(orderMapper.selectByIdempotencyKey(ACCOUNT, "GEN-1:1")).thenReturn(Optional.of(prior));
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-1");
+
+        assertThat(o.orderId()).isEqualTo(99L);
+        verify(orderMapper, never()).insertOrder(any());
+        verify(orderMapper, never()).applyOrderAmount(anyLong(), any());
+    }
+
+    @Test
+    void 생성기_주문이_이미_있는지_키로_찾는다() {
+        StockOrderVO prior = StockOrderVO.builder().domesticOrderId(5L).build();
+        when(orderMapper.selectByIdempotencyKey(ACCOUNT, "GEN-9:1")).thenReturn(Optional.of(prior));
+        assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-9").orElseThrow().orderId())
+                .isEqualTo(5L);
+        assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-0")).isEmpty();
+    }
 }

@@ -85,6 +85,10 @@ jwt:
   refresh-blacklist-prefix: "refresh:"
 # api
 custom:
+  internal:
+    # 증권사 거래 생성기 호출용 비밀 헤더 값과 제외 고객(ci_hash, 쉼표 구분). 값은 서버 환경변수로만 준다.
+    secret: ${INTERNAL_SECRET:}
+    excluded-ci-hashes: ${INTERNAL_EXCLUDED_CI_HASHES:}
   market:
     # kis = KIS·환율 API, securities = 증권사(return-securities) 저장 시세
     source: ${MARKET_SOURCE:kis}

@@ -92,10 +92,29 @@
 
     <update id="updateBalance">
         UPDATE domestic_stock_balance
-        SET qty = #{qty}, status = #{status}, last_purchase_date = #{lastPurchaseDate},
+        SET qty = #{qty}, status = #{status},
+            <!-- 더 늦은 날짜일 때만 바뀐다(옛 날짜 매수가 마지막 매수일을 되돌리지 않는다) -->
+            last_purchase_date = GREATEST(COALESCE(last_purchase_date, #{lastPurchaseDate}),
+                                          #{lastPurchaseDate}),
             avg_purchase_price = #{avgPurchasePrice}
         WHERE domestic_stock_balance_id = #{domesticStockBalanceId}
     </update>
+
+    <select id="selectHeldProductIds" resultType="long">
+        SELECT DISTINCT domestic_product_id
+        FROM domestic_stock_balance
+        WHERE qty &gt; 0
+        ORDER BY domestic_product_id
+    </select>
+
+    <select id="selectHeldBalancesByAccount"
+            resultType="com.app.maria.domain.stockpackage.vo.StockBalanceVO">
+        SELECT domestic_stock_balance_id, account_id, domestic_product_id, qty, status,
+               last_purchase_date, avg_purchase_price
+        FROM domestic_stock_balance
+        WHERE account_id = #{accountId} AND qty &gt; 0
+        ORDER BY domestic_product_id
+    </select>
 
     <update id="applyOrderAmount">
         UPDATE account a
