@@ -90,8 +90,8 @@ custom:
     secret: ${INTERNAL_SECRET:}
     excluded-ci-hashes: ${INTERNAL_EXCLUDED_CI_HASHES:}
   market:
-    # kis = KIS·환율 API, securities = 증권사(return-securities) 저장 시세
-    source: ${MARKET_SOURCE:kis}
+    # securities = 증권사(return-securities) 저장 시세(기본), kis = KIS·환율 API
+    source: ${MARKET_SOURCE:securities}
   risk:
     url: ${RISK_URL:http://risk:8000}
     service-key: ${RISK_SERVICE_KEY:}

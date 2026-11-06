@@ -37,7 +37,7 @@ public class SecuritiesMarketClient {
     public SecuritiesMarketClient(
             @Qualifier("assetPriceRestClient") RestClient client,
             BusinessClockService businessClockService,
-            @Value("${custom.market.source:kis}") String source) {
+            @Value("${custom.market.source:securities}") String source) {
         this.client = client;
         this.businessClockService = businessClockService;
         this.source = MarketSource.from(source);
