@@ -126,6 +126,10 @@ class NewsSharedSummaryTest {
     void summaryPromptNeverIncludesCustomerContextAndInvalidNumbersOrAdviceAreRejected()
             throws Exception {
         var model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
         var ai =
                 new NewsAiService(
                         new NewsAiConfig().newsChatClient(model, new NewsProperties()),

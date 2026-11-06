@@ -23,6 +23,10 @@ class NewsAiServiceTest {
     void realChatClientBuildsIndependentPromptWithOnlySelectedArticleAndNewsHistory()
             throws Exception {
         ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
         when(model.stream(any(Prompt.class)))
                 .thenReturn(
                         Flux.just(
@@ -60,6 +64,10 @@ class NewsAiServiceTest {
     @Test
     void markdownFenceAroundValidJsonDoesNotCauseAnAnswerFailure() throws Exception {
         ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
         when(model.stream(any(Prompt.class)))
                 .thenReturn(
                         Flux.just(
@@ -83,6 +91,10 @@ class NewsAiServiceTest {
     @Test
     void numericQuestionsRejectValuesNotPresentInTheArticle() throws Exception {
         ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
         when(model.stream(any(Prompt.class)))
                 .thenReturn(
                         Flux.just(
@@ -108,6 +120,10 @@ class NewsAiServiceTest {
     @Test
     void emptyAndFailedModelResponsesAreRejectedForExplicitFallback() throws Exception {
         ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
         var service =
                 new NewsAiService(
                         new NewsAiConfig().newsChatClient(model, new NewsProperties()),

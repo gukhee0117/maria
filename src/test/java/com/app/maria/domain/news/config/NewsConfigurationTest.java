@@ -10,6 +10,7 @@ import com.app.maria.domain.news.cache.NewsSummaryCache;
 import com.app.maria.domain.news.client.NaverNewsSearchClient;
 import com.app.maria.domain.news.provider.*;
 import com.app.maria.domain.news.service.*;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,9 @@ class NewsConfigurationTest {
                         ObjectMapper.class,
                         () -> new ObjectMapper().registerModule(new JavaTimeModule()))
                 .withBean(ChatModel.class, () -> mock(ChatModel.class))
+                .withBean(
+                        BusinessClockService.class,
+                        () -> () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0))
                 .withBean("kkiruChatClient", ChatClient.class, () -> mock(ChatClient.class))
                 .withBean(AccountMapper.class, () -> mock(AccountMapper.class))
                 .withBean(
