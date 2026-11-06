@@ -51,6 +51,21 @@
 
             <nav class="adm-side-nav" id="admSideNav" aria-label="주 메뉴">
 
+                <!-- 즐겨찾기 (layout.js 가 localStorage ria-admin-favs 로 채운다. 화면 제목 줄의 ☆ 로 추가) -->
+                <div class="adm-side-group is-fav" data-group="즐겨찾기" id="admFavGroup">
+                    <button type="button" class="adm-side-grouphead" aria-expanded="true">
+                        <span class="adm-side-grouplabel">즐겨찾기</span>
+                        <span class="adm-side-groupsum" hidden></span>
+                        <span class="adm-side-caret">▾</span>
+                    </button>
+                    <div class="adm-side-groupbody"><div class="adm-side-groupinner" id="admFavList"></div></div>
+                    <button type="button" class="adm-side-groupicon" title="즐겨찾기" aria-label="즐겨찾기">
+                        <span class="adm-side-bar"></span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <span class="adm-side-dot" hidden></span>
+                    </button>
+                </div>
+
                 <div class="adm-side-group" data-group="심사 · 계좌">
                     <button type="button" class="adm-side-grouphead" aria-expanded="false">
                         <span class="adm-side-grouplabel">심사 · 계좌</span>
@@ -247,6 +262,24 @@
                 </button>
                 <button type="button" class="adm-top-logout" id="logoutLink">로그아웃</button>
             </header>
+
+            <!-- 열어 본 화면 탭 줄 (layout.js 가 sessionStorage ria-admin-tabs 로 채운다. 탭은 링크 이동이고 화면 상태는 저장하지 않는다) -->
+            <div class="adm-stabs" id="admTabs">
+                <button type="button" class="adm-stabs-arrow is-prev" id="admTabPrev" aria-label="이전 탭" hidden>&lsaquo;</button>
+                <div class="adm-stabs-strip" id="admTabStrip" role="tablist" aria-label="열어 본 화면"></div>
+                <button type="button" class="adm-stabs-arrow is-next" id="admTabNext" aria-label="다음 탭" hidden>&rsaquo;</button>
+                <div class="adm-stabs-more">
+                    <button type="button" class="adm-stabs-morebtn" id="admTabListBtn" aria-haspopup="true" aria-expanded="false">열린 화면 <b id="admTabCount">1</b> ▾</button>
+                    <div class="adm-stabs-backdrop" id="admTabListBack" hidden></div>
+                    <div class="adm-stabs-list" id="admTabList" hidden>
+                        <div class="adm-stabs-list-head" id="admTabListHead">열린 화면 1 / 10</div>
+                        <div class="adm-stabs-list-body" id="admTabListBody"></div>
+                        <button type="button" class="adm-stabs-list-clear" id="admTabClearAll">모두 닫기</button>
+                    </div>
+                </div>
+            </div>
+            <div class="adm-stabs-backdrop is-ctx" id="admTabCtxBack" hidden></div>
+            <div class="adm-stabs-ctx" id="admTabCtx" role="menu" hidden></div>
 
             <main class="content adm-main">
                 <div layout:fragment="content">페이지 내용이 여기 들어갑니다.</div>
