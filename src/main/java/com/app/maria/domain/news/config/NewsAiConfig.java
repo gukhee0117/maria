@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class NewsAiConfig {
+    public static final int SUMMARY_MAX_TOKENS = 700;
+
     @Bean("newsChatClient")
     public ChatClient newsChatClient(ChatModel model, NewsProperties properties) {
         // No financial tools, RAG advisors or shared conversation memory.
@@ -16,7 +18,7 @@ public class NewsAiConfig {
                         ChatOptions.builder()
                                 .model(properties.getModel())
                                 .temperature(0.0)
-                                .maxTokens(700)
+                                .maxTokens(SUMMARY_MAX_TOKENS)
                                 .build())
                 .build();
     }

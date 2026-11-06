@@ -142,9 +142,16 @@ kkiru:
 news:
   provider: ${NEWS_PROVIDER:free}
   free-news-api-key: ${FREENEWS_API_KEY:}
-  live-summaries: ${NEWS_LIVE_SUMMARIES:false}
+  live-summaries: ${NEWS_LIVE_SUMMARIES:true}
   model: ${NEWS_MODEL:gpt-4o-mini}
   naver-client-id: ${NEWS_NAVER_CLIENT_ID:}
   naver-client-secret: ${NEWS_NAVER_CLIENT_SECRET:}
-  # Optional startup-only preparation, at most two explicit demo accounts. No periodic API spend.
-  warmup-customer-ids: ${NEWS_WARMUP_CUSTOMER_IDS:}
+  summary-cache-ttl: ${NEWS_SUMMARY_CACHE_TTL:PT24H}
+  summary-cache-max-entries: ${NEWS_SUMMARY_CACHE_MAX_ENTRIES:1024}
+  source-cache-ttl: ${NEWS_SOURCE_CACHE_TTL:PT2H}
+  inventory-cache-ttl: ${NEWS_INVENTORY_CACHE_TTL:PT30M}
+  source-monthly-request-limit: ${NEWS_SOURCE_MONTHLY_REQUEST_LIMIT:2400}
+  prewarm-enabled: ${NEWS_PREWARM_ENABLED:true}
+  prewarm-interval-ms: ${NEWS_PREWARM_INTERVAL_MS:300000}
+  prewarm-max-stocks-per-run: ${NEWS_PREWARM_MAX_STOCKS_PER_RUN:20}
+  prewarm-max-generations-per-run: ${NEWS_PREWARM_MAX_GENERATIONS_PER_RUN:20}

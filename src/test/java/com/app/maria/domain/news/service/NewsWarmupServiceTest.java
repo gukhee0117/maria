@@ -1,61 +1,106 @@
 package com.app.maria.domain.news.service;
 
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.app.maria.domain.customer.entity.InvestorType;
+import com.app.maria.domain.news.cache.NewsSummaryCache;
 import com.app.maria.domain.news.config.NewsProperties;
 import com.app.maria.domain.news.dto.NewsContract.*;
-import java.util.List;
+import com.app.maria.domain.news.provider.NewsProvider;
+import java.time.Instant;
+import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class NewsWarmupServiceTest {
     @Test
-    void disabledByDefaultAndExplicitAccountsAreDeduplicatedAndBounded() {
+    void allDynamicGroupsShareFirstTargetsAndPlanningNeverFetchesPerCustomer() {
+        var inventory = mock(NewsInventoryService.class);
+        var provider = mock(NewsProvider.class);
         var service = mock(NewsBriefingService.class);
         var properties = new NewsProperties();
-        var warmup = new NewsWarmupService(service, properties);
+        var ready = new HashSet<String>();
+        when(inventory.load())
+                .thenReturn(
+                        new NewsInventoryService.Inventory(
+                                Map.of("005930", "????"),
+                                List.of(
+                                        new NewsInventoryService.Group(
+                                                Map.of("005930", "????"), 48000),
+                                        new NewsInventoryService.Group(
+                                                Map.of("005930", "????"), 1))));
+        when(provider.cachedArticles(any()))
+                .thenReturn(Optional.of(List.of(NewsSelectionServiceTest.article("a", 5, 5))));
+        when(service.backgroundCapacity()).thenReturn(true);
+        when(service.sharedSummaryKey(any(), any())).thenAnswer(i -> "a:" + i.getArgument(1));
+        when(service.summaryReady(any(), any()))
+                .thenAnswer(i -> ready.contains("a:" + i.getArgument(1)));
+        when(service.prepareSummary(any(), any()))
+                .thenAnswer(
+                        i -> {
+                            ready.add("a:" + i.getArgument(1));
+                            return new NewsSummaryCache.Result(
+                                    new NewsSummaryCache.Value("text", Instant.now()), false);
+                        });
+        var warmup =
+                new NewsWarmupService(
+                        inventory, provider, new NewsSelectionService(), service, properties);
         try {
-            warmup.start();
-            verifyNoInteractions(service);
-            properties.setWarmupCustomerIds(List.of(1L, 1L, 2L, 3L));
-            when(service.briefing(anyLong()))
-                    .thenReturn(
-                            new Briefing(
-                                    1L,
-                                    InvestorType.STABLE,
-                                    PersonalizationStatus.ACTIVE,
-                                    "r1",
-                                    List.of()));
-            warmup.start();
-            verify(service, timeout(2000)).briefing(1L);
-            verify(service, timeout(2000)).briefing(2L);
-            verify(service, never()).briefing(3L);
-            verify(service, never()).summary(anyLong(), anyString(), anyString());
+            var first = warmup.runCycle();
+            assertThat(first.generated()).isEqualTo(5);
+            assertThat(first.targets()).isEqualTo(5);
+            var second = warmup.runCycle();
+            assertThat(second.generated()).isZero();
+            assertThat(second.reused()).isEqualTo(5);
+            verify(service, times(5)).prepareSummary(any(), any());
+            verify(provider, never()).articles(any());
         } finally {
             warmup.close();
         }
     }
 
     @Test
-    void sourceFailureDoesNotPreventNextConfiguredAccountFromWarming() {
+    void failedKeysBackOffAndDoNotPreventOtherProfilesOrRealtimeFallback() {
+        var inventory = mock(NewsInventoryService.class);
+        var provider = mock(NewsProvider.class);
         var service = mock(NewsBriefingService.class);
         var properties = new NewsProperties();
-        properties.setWarmupCustomerIds(List.of(1L, 2L));
-        when(service.briefing(1L)).thenThrow(new IllegalStateException());
-        when(service.briefing(2L))
+        when(inventory.load())
                 .thenReturn(
-                        new Briefing(
-                                2L,
-                                InvestorType.STABLE,
-                                PersonalizationStatus.ACTIVE,
-                                "r1",
+                        new NewsInventoryService.Inventory(
+                                Map.of("999999", "???"),
                                 List.of(
-                                        new Selected(
-                                                NewsSelectionServiceTest.article("a", 5, 5), 1))));
-        var warmup = new NewsWarmupService(service, properties);
+                                        new NewsInventoryService.Group(
+                                                Map.of("999999", "???"), 1))));
+        var a = NewsSelectionServiceTest.article("a", 5, 5);
+        var mapped =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        a.id(),
+                        a.version(),
+                        a.title(),
+                        a.body(),
+                        a.source(),
+                        a.url(),
+                        a.publishedAt(),
+                        List.of("999999"),
+                        a.facts(),
+                        a.risks(),
+                        5,
+                        5,
+                        5);
+        when(provider.cachedArticles(any())).thenReturn(Optional.of(List.of(mapped)));
+        when(service.backgroundCapacity()).thenReturn(true);
+        when(service.sharedSummaryKey(any(), any())).thenAnswer(i -> "a:" + i.getArgument(1));
+        when(service.prepareSummary(any(), any())).thenThrow(new IllegalStateException("offline"));
+        var warmup =
+                new NewsWarmupService(
+                        inventory, provider, new NewsSelectionService(), service, properties);
         try {
-            warmup.start();
-            verify(service, timeout(2000)).summary(2L, "a", "v1");
+            assertThat(warmup.runCycle().failed()).isEqualTo(5);
+            assertThat(warmup.runCycle().failed()).isZero();
+            verify(service, times(5)).prepareSummary(any(), any());
+            properties.setPrewarmEnabled(false);
+            warmup.runCycle();
+            verify(inventory, times(2)).load();
         } finally {
             warmup.close();
         }

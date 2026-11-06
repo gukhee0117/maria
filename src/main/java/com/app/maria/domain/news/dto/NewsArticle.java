@@ -19,7 +19,41 @@ public record NewsArticle(
         int importance,
         int stability,
         int growth,
-        boolean demo) {
+        boolean demo,
+        List<NewsStockReference> relatedStocks) {
+    public NewsArticle(
+            String id,
+            String version,
+            String title,
+            String body,
+            String source,
+            String url,
+            LocalDateTime publishedAt,
+            List<String> tickers,
+            List<String> facts,
+            List<String> risks,
+            int importance,
+            int stability,
+            int growth,
+            boolean demo) {
+        this(
+                id,
+                version,
+                title,
+                body,
+                source,
+                url,
+                publishedAt,
+                tickers,
+                facts,
+                risks,
+                importance,
+                stability,
+                growth,
+                demo,
+                List.of());
+    }
+
     public NewsArticle(
             String id,
             String version,
@@ -48,12 +82,14 @@ public record NewsArticle(
                 importance,
                 stability,
                 growth,
-                true);
+                true,
+                List.of());
     }
 
     public NewsArticle {
         tickers = List.copyOf(tickers);
         facts = List.copyOf(facts);
         risks = List.copyOf(risks);
+        relatedStocks = relatedStocks == null ? List.of() : List.copyOf(relatedStocks);
     }
 }

@@ -106,7 +106,7 @@ class NewsBriefingServiceTest {
     }
 
     @Test
-    void relatedStockSectorComesFromCurrentHoldingsRatherThanAiText() {
+    void summaryShowsStocksMentionedInNewsInsteadOfCustomerHoldings() {
         when(contexts.load(1L))
                 .thenReturn(
                         new Context(
@@ -116,13 +116,36 @@ class NewsBriefingServiceTest {
                                 PersonalizationStatus.ACTIVE,
                                 Map.of("005930", "삼성전자"),
                                 Map.of("005930", "반도체")));
+        var original = NewsSelectionServiceTest.article("a", 5, 5);
+        var article =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        original.id(),
+                        original.version(),
+                        original.title(),
+                        original.body(),
+                        original.source(),
+                        original.url(),
+                        original.publishedAt(),
+                        original.tickers(),
+                        original.facts(),
+                        original.risks(),
+                        original.importance(),
+                        original.stability(),
+                        original.growth(),
+                        false,
+                        List.of(
+                                new com.app.maria.domain.news.dto.NewsStockReference(
+                                        "000660", "SK하이닉스", "전기·전자")));
+        when(provider.articles()).thenReturn(List.of(article));
+        when(ai.summarize(any(), any())).thenReturn("요약");
         var answer = service.summary(1L, "a", "v1");
         assertThat(answer.relatedStocks())
-                .containsExactly(new RelatedStock("005930", "삼성전자", "반도체"));
+                .containsExactly(new RelatedStock("000660", "SK하이닉스", "전기·전자"));
     }
 
     @Test
     void preparedDoesNotPretendToBeGeneratedAndQuestionStillCallsRealAiService() {
+        properties.setLiveSummaries(false);
         var result = service.summary(1L, "a", "v1");
         assertThat(result.origin()).isEqualTo(Origin.PREPARED);
         assertThat(result.preparedReason()).isEqualTo(PreparedReason.DEMO_DEFAULT);

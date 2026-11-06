@@ -13,7 +13,7 @@ class NewsSummaryCacheTest {
         var instant = Instant.parse("2026-11-06T00:00:00Z");
         var clock = org.mockito.Mockito.mock(Clock.class);
         org.mockito.Mockito.when(clock.instant()).thenReturn(instant);
-        var cache = new NewsSummaryCache(clock);
+        var cache = new NewsSummaryCache(clock, Duration.ofMinutes(10), 8);
         assertThat(cache.peek("missing")).isEmpty();
         cache.get(
                 "key",
@@ -100,7 +100,62 @@ class NewsSummaryCacheTest {
         var cache = new NewsSummaryCache(clock);
         var first = cache.get("a", () -> "one");
         assertThat(cache.get("a", () -> "two").value()).isEqualTo(first.value());
-        clock.instant = clock.instant.plusSeconds(601);
+        clock.instant = clock.instant.plusSeconds(1200);
+        assertThat(cache.get("a", () -> "unexpected").value()).isEqualTo(first.value());
+        clock.instant = clock.instant.plusSeconds(86400);
         assertThat(cache.get("a", () -> "two").value().text()).isEqualTo("two");
+    }
+
+    @Test
+    void thirtyConcurrentRequestsGenerateOnceAndExposeHitStatistics() throws Exception {
+        var cache = new NewsSummaryCache();
+        var pool = Executors.newFixedThreadPool(30);
+        var finish = new CountDownLatch(1);
+        var entered = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        var futures = new java.util.ArrayList<Future<NewsSummaryCache.Result>>();
+        try {
+            for (int i = 0; i < 30; i++)
+                futures.add(
+                        pool.submit(
+                                () ->
+                                        cache.get(
+                                                "one-public-key",
+                                                () -> {
+                                                    calls.incrementAndGet();
+                                                    entered.countDown();
+                                                    try {
+                                                        if (!finish.await(4, TimeUnit.SECONDS))
+                                                            throw new IllegalStateException();
+                                                    } catch (InterruptedException e) {
+                                                        Thread.currentThread().interrupt();
+                                                        throw new IllegalStateException(e);
+                                                    }
+                                                    return "validated summary";
+                                                })));
+            assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (cache.stats().joined() < 29 && System.nanoTime() < until) Thread.yield();
+            finish.countDown();
+            for (var future : futures)
+                assertThat(future.get(3, TimeUnit.SECONDS).value().text())
+                        .isEqualTo("validated summary");
+            assertThat(calls.get()).isEqualTo(1);
+            assertThat(cache.stats().generations()).isEqualTo(1);
+            assertThat(cache.stats().hits() + cache.stats().joined()).isEqualTo(29);
+        } finally {
+            finish.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void completedCapacityDoesNotEvictInFlightOwnership() {
+        var cache = new NewsSummaryCache(Clock.systemUTC(), Duration.ofHours(24), 1);
+        cache.get("a", () -> "first");
+        cache.get("b", () -> "second");
+        assertThat(cache.peek("a")).isEmpty();
+        assertThat(cache.peek("b")).isPresent();
+        assertThat(cache.stats().entries()).isEqualTo(1);
     }
 }

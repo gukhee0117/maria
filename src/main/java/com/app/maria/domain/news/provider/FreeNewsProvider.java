@@ -28,6 +28,8 @@ public class FreeNewsProvider implements NewsProvider {
 
     private final FreeNewsClient client;
     private final Clock clock;
+    private final com.app.maria.domain.news.config.NewsProperties properties;
+    private volatile int inventorySize = 1;
     private final ConcurrentMap<String, Cached> cache = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CompletableFuture<List<NewsArticle>>> inFlight =
             new ConcurrentHashMap<>();
@@ -40,14 +42,27 @@ public class FreeNewsProvider implements NewsProvider {
                         return thread;
                     });
 
-    @Autowired
     public FreeNewsProvider(FreeNewsClient client) {
-        this(client, Clock.systemUTC());
+        this(client, new com.app.maria.domain.news.config.NewsProperties());
+    }
+
+    @Autowired
+    public FreeNewsProvider(
+            FreeNewsClient client, com.app.maria.domain.news.config.NewsProperties properties) {
+        this(client, Clock.systemUTC(), properties);
     }
 
     FreeNewsProvider(FreeNewsClient client, Clock clock) {
+        this(client, clock, new com.app.maria.domain.news.config.NewsProperties());
+    }
+
+    FreeNewsProvider(
+            FreeNewsClient client,
+            Clock clock,
+            com.app.maria.domain.news.config.NewsProperties properties) {
         this.client = client;
         this.clock = clock;
+        this.properties = properties;
     }
 
     public String id() {
@@ -60,7 +75,6 @@ public class FreeNewsProvider implements NewsProvider {
 
     @Override
     public List<NewsArticle> articles(Context context) {
-        Map<String, NewsArticle> unique = new LinkedHashMap<>();
         var pending =
                 context.tickers().stream()
                         .sorted()
@@ -70,14 +84,44 @@ public class FreeNewsProvider implements NewsProvider {
                                                 && !context.stockNames().get(t).isBlank())
                         .map(t -> prepare(t, context.stockNames().get(t)))
                         .toList();
+        var lists = new ArrayList<List<NewsArticle>>();
         for (var future : pending) {
-            final List<NewsArticle> articles;
             try {
-                articles = future.join();
+                lists.add(future.join());
             } catch (CompletionException e) {
                 if (e.getCause() instanceof RuntimeException failure) throw failure;
                 throw e;
             }
+        }
+        return merge(lists);
+    }
+
+    @Override
+    public Optional<List<NewsArticle>> cachedArticles(Context context) {
+        var lists = new ArrayList<List<NewsArticle>>();
+        for (var ticker : context.tickers().stream().sorted().toList()) {
+            var name = context.stockNames().get(ticker);
+            if (name == null || name.isBlank()) continue;
+            var entry = cache.get(ticker + ":" + name);
+            if (entry == null || !entry.expiresAt().isAfter(clock.instant()))
+                return Optional.empty();
+            lists.add(entry.articles());
+        }
+        return Optional.of(merge(lists));
+    }
+
+    public void inventorySize(int size) {
+        inventorySize = Math.max(1, size);
+    }
+
+    @Override
+    public void configureInventory(Context context) {
+        inventorySize(context.tickers().size());
+    }
+
+    private List<NewsArticle> merge(List<List<NewsArticle>> lists) {
+        Map<String, NewsArticle> unique = new LinkedHashMap<>();
+        for (var articles : lists) {
             for (var article : articles) {
                 // Track both stable canonical URLs and identical bodies
                 // (tracking/syndication).
@@ -155,9 +199,23 @@ public class FreeNewsProvider implements NewsProvider {
                     && bodies.add(hash(article.body().replaceAll("\\s+", " "))))
                 result.add(article);
         }
-        // Failed requests throw and are not cached. Empty successful searches get a shorter TTL.
+        // Empty successes also obey the collection interval; failures never become empty news.
         var immutable = List.copyOf(result);
-        return new Cached(immutable, clock.instant().plusSeconds(result.isEmpty() ? 60 : 300));
+        return new Cached(
+                immutable,
+                clock.instant()
+                        .plusSeconds(
+                                Math.max(
+                                        properties.getSourceCacheTtl().toSeconds(),
+                                        (long)
+                                                Math.ceil(
+                                                        inventorySize
+                                                                * Duration.ofDays(31).toSeconds()
+                                                                / (double)
+                                                                        Math.max(
+                                                                                1,
+                                                                                properties
+                                                                                        .getSourceMonthlyRequestLimit())))));
     }
 
     @PreDestroy

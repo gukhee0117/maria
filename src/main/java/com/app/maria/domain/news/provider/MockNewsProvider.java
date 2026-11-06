@@ -11,7 +11,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "news.provider", havingValue = "demo", matchIfMissing = true)
+@ConditionalOnProperty(name = "news.provider", havingValue = "demo")
 public class MockNewsProvider implements NewsProvider {
     private final List<NewsArticle> articles;
 
@@ -48,5 +48,11 @@ public class MockNewsProvider implements NewsProvider {
 
     public List<NewsArticle> articles() {
         return articles;
+    }
+
+    @Override
+    public java.util.Optional<List<NewsArticle>> cachedArticles(
+            com.app.maria.domain.news.dto.NewsContract.Context context) {
+        return java.util.Optional.of(articles);
     }
 }

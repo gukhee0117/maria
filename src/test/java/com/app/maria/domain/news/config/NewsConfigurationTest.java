@@ -53,7 +53,10 @@ class NewsConfigurationTest {
                 .withBean(
                         InvestorAssessmentService.class,
                         () -> mock(InvestorAssessmentService.class))
-                .withPropertyValues("news.naver-client-id=id", "news.naver-client-secret=secret")
+                .withPropertyValues(
+                        "news.provider=free",
+                        "news.naver-client-id=id",
+                        "news.naver-client-secret=secret")
                 .run(
                         context -> {
                             assertThat(context)

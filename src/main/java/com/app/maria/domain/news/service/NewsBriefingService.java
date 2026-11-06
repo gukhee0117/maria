@@ -52,28 +52,46 @@ public class NewsBriefingService {
                 c.personalizationStatus(),
                 NewsSelectionService.RULE_VERSION,
                 selected,
-                NewsCacheIdentity.context(c),
                 NewsCacheIdentity.hash(
-                        provider.id()
-                                + ":"
-                                + ai.summaryPromptVersion()
-                                + ":"
-                                + properties.getModel()),
-                first);
+                        NewsCacheIdentity.context(c) + ":" + provider.contextVersion(c)),
+                NewsCacheIdentity.summaryVersion(
+                        provider.id() + ":" + ai.summaryPromptVersion(), properties.getModel()),
+                first,
+                provider.themeNames(c));
     }
 
     private String summaryKey(Context c, NewsArticle a) {
-        return provider.id()
-                + ":"
-                + a.id()
-                + ":"
-                + a.version()
-                + ":"
-                + NewsCacheIdentity.context(c)
-                + ":"
-                + ai.summaryPromptVersion()
-                + ":"
-                + properties.getModel();
+        return NewsCacheIdentity.summary(
+                provider.id(),
+                a,
+                c.investorType(),
+                ai.summaryPromptVersion(),
+                properties.getModel());
+    }
+
+    public String sharedSummaryKey(
+            NewsArticle article, com.app.maria.domain.customer.entity.InvestorType type) {
+        return NewsCacheIdentity.summary(
+                provider.id(), article, type, ai.summaryPromptVersion(), properties.getModel());
+    }
+
+    public boolean summaryReady(
+            NewsArticle article, com.app.maria.domain.customer.entity.InvestorType type) {
+        return (article.demo() && !properties.isLiveSummaries())
+                || cache.peek(sharedSummaryKey(article, type)).isPresent();
+    }
+
+    public boolean backgroundCapacity() {
+        return ai.hasBackgroundCapacity();
+    }
+
+    public NewsSummaryCache.Result prepareSummary(
+            NewsArticle article, com.app.maria.domain.customer.entity.InvestorType type) {
+        if (article.demo() && !properties.isLiveSummaries())
+            throw new IllegalStateException("Demo summary is already prepared");
+        var publicContext = new Context(0L, java.util.Set.of(), type, PersonalizationStatus.ACTIVE);
+        return cache.get(
+                sharedSummaryKey(article, type), () -> ai.summarize(article, publicContext));
     }
 
     public Answer summary(Long customerId, String id, String version) {
@@ -117,7 +135,9 @@ public class NewsBriefingService {
 
     public Answer question(Long customerId, String id, QuestionRequest request) {
         var canonical = NewsQuestionPolicy.canonicalQuestion(request.question());
-        if (canonical.isEmpty()) return policyRefusal(id, request.articleVersion());
+        if (canonical.isEmpty())
+            return policyRefusal(
+                    id, request.articleVersion(), NewsQuestionPolicy.refusalFor(request.question()));
         var c = contexts.load(customerId);
         var a = allowed(c, id, request.articleVersion());
         // Client history can be forged. Reviewed article intents are self-contained.
@@ -125,7 +145,7 @@ public class NewsBriefingService {
         try {
             var generated = ai.question(a, c, safeRequest);
             if (NewsQuestionPolicy.containsAdvice(generated))
-                return policyRefusal(a.id(), a.version());
+                return policyRefusal(a.id(), a.version(), NewsQuestionPolicy.REFUSAL);
             return answer(
                     a,
                     generated,
@@ -158,12 +178,12 @@ public class NewsBriefingService {
         }
     }
 
-    private Answer policyRefusal(String id, String version) {
+    private Answer policyRefusal(String id, String version, String message) {
         return new Answer(
                 id,
                 version,
                 new Evidence(List.of(), List.of()),
-                NewsQuestionPolicy.REFUSAL,
+                message,
                 Origin.PREPARED,
                 PreparedReason.POLICY_REFUSAL,
                 null,
@@ -206,14 +226,8 @@ public class NewsBriefingService {
     }
 
     private List<RelatedStock> related(NewsArticle a, Context c) {
-        return a.tickers().stream()
-                .sorted()
-                .map(
-                        t ->
-                                new RelatedStock(
-                                        t,
-                                        c.stockNames().getOrDefault(t, t),
-                                        c.stockSectors().get(t)))
+        return a.relatedStocks().stream()
+                .map(stock -> new RelatedStock(stock.ticker(), stock.name(), stock.sectorName()))
                 .toList();
     }
 
@@ -228,6 +242,7 @@ public class NewsBriefingService {
                         "Invalid news answer",
                         "News answer must be JSON",
                         "Summary must have three points",
+                        "Summary contains investment advice",
                         "Answer contains numbers absent from article",
                         "Invalid news JSON",
                         "Invalid news points",

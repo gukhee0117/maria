@@ -17,6 +17,8 @@ public class FreeNewsClient {
     private final RestClient client;
     private final NewsProperties properties;
     private long nextRequestNanos;
+    private java.time.YearMonth requestMonth;
+    private int requestsThisMonth;
 
     @Autowired
     public FreeNewsClient(NewsProperties properties) {
@@ -79,6 +81,14 @@ public class FreeNewsClient {
     }
 
     private synchronized void pace() throws InterruptedException {
+        var month = java.time.YearMonth.now(java.time.Clock.systemUTC());
+        if (!month.equals(requestMonth)) {
+            requestMonth = month;
+            requestsThisMonth = 0;
+        }
+        if (requestsThisMonth >= properties.getSourceMonthlyRequestLimit())
+            throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
+        requestsThisMonth++;
         long delay = nextRequestNanos - System.nanoTime();
         if (delay > 0) java.util.concurrent.TimeUnit.NANOSECONDS.sleep(delay);
         nextRequestNanos = System.nanoTime() + Duration.ofMillis(600).toNanos();

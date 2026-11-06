@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.news.mapper.NewsInventoryMapper">
+    <select id="scanHoldings" resultType="com.app.maria.domain.news.dto.NewsHoldingRow" fetchSize="1000" resultSetType="FORWARD_ONLY">
+        SELECT DISTINCT a.customer_id, dp.ticker, dp.name
+        FROM account a JOIN domestic_stock_balance b ON b.account_id = a.account_id
+        JOIN domestic_product dp ON dp.domestic_product_id = b.domestic_product_id
+        WHERE b.qty &gt; 0 AND b.status NOT IN ('SOLD_OUT', 'TERMINATED') AND dp.type = 'STOCK'
+          AND dp.ticker REGEXP '^[0-9]{6}$' AND dp.name IS NOT NULL AND TRIM(dp.name) != ''
+        ORDER BY a.customer_id, dp.ticker, dp.name
+    </select>
+    <select id="selectThemeLinks" resultType="com.app.maria.domain.news.dto.NewsThemeLink">
+        SELECT dp.ticker, dp.name, dp.sector_name, st.name AS theme
+        FROM domestic_product dp
+        LEFT JOIN domestic_product_theme dpt ON dpt.domestic_product_id = dp.domestic_product_id
+        LEFT JOIN stock_theme st ON st.stock_theme_id = dpt.stock_theme_id
+        WHERE dp.type = 'STOCK' ORDER BY dp.ticker, st.name
+    </select>
+</mapper>

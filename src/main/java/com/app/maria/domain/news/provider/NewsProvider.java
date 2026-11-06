@@ -10,6 +10,20 @@ public interface NewsProvider {
 
     List<NewsArticle> articles();
 
+    default java.util.Optional<List<NewsArticle>> cachedArticles(Context context) {
+        return java.util.Optional.empty();
+    }
+
+    default void configureInventory(Context context) {}
+
+    default String contextVersion(Context context) {
+        return id();
+    }
+
+    default java.util.List<String> themeNames(Context context) {
+        return java.util.List.of();
+    }
+
     default List<NewsArticle> articles(Context context) {
         return articles();
     }

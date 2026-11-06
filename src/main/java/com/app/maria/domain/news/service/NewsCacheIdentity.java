@@ -1,6 +1,10 @@
 package com.app.maria.domain.news.service;
 
+import com.app.maria.domain.customer.entity.InvestorType;
+import com.app.maria.domain.news.config.NewsAiConfig;
+import com.app.maria.domain.news.dto.NewsArticle;
 import com.app.maria.domain.news.dto.NewsContract.Context;
+import com.app.maria.domain.news.dto.NewsSummaryInput;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -12,6 +16,34 @@ import java.util.TreeMap;
  */
 public final class NewsCacheIdentity {
     private NewsCacheIdentity() {}
+
+    public static String summaryVersion(String promptVersion, String model) {
+        return hash(
+                promptVersion
+                        + ":"
+                        + model
+                        + ":"
+                        + NewsAiService.SUMMARY_VALIDATION_VERSION
+                        + ":temperature=0:maxTokens="
+                        + NewsAiConfig.SUMMARY_MAX_TOKENS);
+    }
+
+    public static String summary(
+            String provider,
+            NewsArticle article,
+            InvestorType type,
+            String promptVersion,
+            String model) {
+        return provider
+                + ":"
+                + article.id()
+                + ":"
+                + article.version()
+                + ":"
+                + hash(NewsSummaryInput.of(article, type).json())
+                + ":"
+                + summaryVersion(promptVersion, model);
+    }
 
     public static String context(Context context) {
         return hash(

@@ -3,6 +3,7 @@ package com.app.maria.domain.news.service;
 import com.app.maria.domain.news.dto.NewsAnswerContent;
 import com.app.maria.domain.news.dto.NewsArticle;
 import com.app.maria.domain.news.dto.NewsContract.*;
+import com.app.maria.domain.news.dto.NewsSummaryInput;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -20,7 +21,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 @Service
 public class NewsAiService {
-    public static final String PROMPT_VERSION = "news-v3-points-numbers-quotes";
+    public static final String PROMPT_VERSION = "news-v4-shared-validated-summary";
+    public static final String SUMMARY_VALIDATION_VERSION = "numbers-advice-v1";
     private final ChatClient client;
     private final ObjectMapper mapper;
     private final String summaryPrompt;
@@ -43,6 +45,10 @@ public class NewsAiService {
         return generate(a, c, null);
     }
 
+    public boolean hasBackgroundCapacity() {
+        return slots.availablePermits() >= 2;
+    }
+
     public String summaryPromptVersion() {
         return PROMPT_VERSION + ":" + NewsCacheIdentity.hash(summaryPrompt);
     }
@@ -56,51 +62,54 @@ public class NewsAiService {
         try {
             // No financial data, tools, advisors, provider search results or shared history.
             String input =
-                    mapper.writeValueAsString(
-                            Map.of(
-                                    "article",
+                    request == null
+                            ? NewsSummaryInput.of(article, context.investorType()).json()
+                            : mapper.writeValueAsString(
                                     Map.of(
-                                            "title",
-                                            article.title(),
-                                            "body",
-                                            article.body(),
-                                            "facts",
-                                            article.facts(),
-                                            "risks",
-                                            article.risks(),
-                                            "source",
-                                            article.source(),
-                                            "demo",
-                                            article.demo()),
-                                    "investorType",
-                                    context.investorType(),
-                                    "question",
-                                    request == null ? "기사의 핵심을 설명해 주세요." : request.question(),
-                                    "history",
-                                    request == null ? java.util.List.of() : request.messages(),
-                                    "numericEvidence",
-                                    request != null
-                                                    && NewsAnswerContent.asksForNumbers(
-                                                            request.question())
-                                            ? NewsAnswerContent.numericEvidence(article)
-                                            : java.util.List.of(),
-                                    "knownStocks",
-                                    request != null
-                                                    && NewsAnswerContent.asksForNumbers(
-                                                            request.question())
-                                            ? java.util.List.of()
-                                            : article.tickers().stream()
-                                                    .sorted()
-                                                    .map(
-                                                            t ->
-                                                                    Map.of(
-                                                                            "ticker",
-                                                                            t,
-                                                                            "name",
-                                                                            context.stockNames()
-                                                                                    .getOrDefault(
-                                                                                            t, t)))
-                                                    .toList()));
+                                            "article",
+                                            Map.of(
+                                                    "title",
+                                                    article.title(),
+                                                    "body",
+                                                    article.body(),
+                                                    "facts",
+                                                    article.facts(),
+                                                    "risks",
+                                                    article.risks(),
+                                                    "source",
+                                                    article.source(),
+                                                    "demo",
+                                                    article.demo()),
+                                            "investorType",
+                                            context.investorType(),
+                                            "question",
+                                            request == null
+                                                    ? "기사의 핵심을 설명해 주세요."
+                                                    : request.question(),
+                                            "history",
+                                            request == null
+                                                    ? java.util.List.of()
+                                                    : request.messages(),
+                                            "numericEvidence",
+                                            request != null
+                                                            && NewsAnswerContent.asksForNumbers(
+                                                                    request.question())
+                                                    ? NewsAnswerContent.numericEvidence(article)
+                                                    : java.util.List.of(),
+                                            "knownStocks",
+                                            request != null
+                                                            && NewsAnswerContent.asksForNumbers(
+                                                                    request.question())
+                                                    ? java.util.List.of()
+                                                    : article.relatedStocks().stream()
+                                                            .map(
+                                                                    stock ->
+                                                                            Map.of(
+                                                                                    "ticker",
+                                                                                    stock.ticker(),
+                                                                                    "name",
+                                                                                    stock.name()))
+                                                            .toList()));
             String text =
                     client
                             .prompt()
@@ -122,10 +131,13 @@ public class NewsAiService {
             var content = NewsAnswerContent.decode(text, article);
             if (request == null && content.points().size() != 3)
                 throw new IllegalStateException("Summary must have three points");
-            if (request != null
-                    && NewsAnswerContent.asksForNumbers(request.question())
+            if ((request == null || NewsAnswerContent.asksForNumbers(request.question()))
                     && !content.numbersComeFrom(article))
                 throw new IllegalStateException("Answer contains numbers absent from article");
+            if (request == null
+                    && NewsQuestionPolicy.containsAdvice(
+                            content.explanation() + " " + String.join(" ", content.points())))
+                throw new IllegalStateException("Summary contains investment advice");
             if (request != null && NewsAnswerContent.asksForNumbers(request.question()))
                 content = content.withNumericSourceQuote(article);
             return mapper.writeValueAsString(content);

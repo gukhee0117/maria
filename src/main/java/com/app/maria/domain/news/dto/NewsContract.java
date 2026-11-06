@@ -71,7 +71,29 @@ public final class NewsContract {
             List<Selected> articles,
             String contextVersion,
             String summaryVersion,
-            Answer firstSummary) {
+            Answer firstSummary,
+            List<String> themes) {
+        public Briefing(
+                Long customerId,
+                InvestorType investorType,
+                PersonalizationStatus personalizationStatus,
+                String selectionRuleVersion,
+                List<Selected> articles,
+                String contextVersion,
+                String summaryVersion,
+                Answer firstSummary) {
+            this(
+                    customerId,
+                    investorType,
+                    personalizationStatus,
+                    selectionRuleVersion,
+                    articles,
+                    contextVersion,
+                    summaryVersion,
+                    firstSummary,
+                    List.of());
+        }
+
         public Briefing(
                 Long customerId,
                 InvestorType investorType,
