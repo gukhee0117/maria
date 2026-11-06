@@ -51,6 +51,21 @@
 
             <nav class="adm-side-nav" id="admSideNav" aria-label="주 메뉴">
 
+                <!-- 즐겨찾기 (layout.js 가 localStorage ria-admin-favs 로 채운다. 화면 제목 줄의 ☆ 로 추가) -->
+                <div class="adm-side-group is-fav" data-group="즐겨찾기" id="admFavGroup">
+                    <button type="button" class="adm-side-grouphead" aria-expanded="true">
+                        <span class="adm-side-grouplabel">즐겨찾기</span>
+                        <span class="adm-side-groupsum" hidden></span>
+                        <span class="adm-side-caret">▾</span>
+                    </button>
+                    <div class="adm-side-groupbody"><div class="adm-side-groupinner" id="admFavList"></div></div>
+                    <button type="button" class="adm-side-groupicon" title="즐겨찾기" aria-label="즐겨찾기">
+                        <span class="adm-side-bar"></span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <span class="adm-side-dot" hidden></span>
+                    </button>
+                </div>
+
                 <div class="adm-side-group" data-group="심사 · 계좌">
                     <button type="button" class="adm-side-grouphead" aria-expanded="false">
                         <span class="adm-side-grouplabel">심사 · 계좌</span>
@@ -152,6 +167,12 @@
                             <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                             <span class="adm-side-label">인출 관리</span>
                         </a>
+                        <a class="adm-side-item" th:href="@{/admin/fund-flow}" data-no="1405" data-label="자금 환류 대시보드" title="[1405] 자금 환류 대시보드"
+                           th:classappend="${activePath == '/admin/fund-flow'} ? ' is-active' : ''">
+                            <span class="adm-side-bar"></span>
+                            <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                            <span class="adm-side-label">자금 환류 대시보드</span>
+                        </a>
                         <!-- 계좌 해지 자동 처리 전환으로 관리자 메뉴에서는 해지관리 화면을 노출하지 않는다. (팀 결정)
                              화면(/admin/account-closures)과 컨트롤러는 그대로 두고 링크만 숨긴다.
                              hidden 이면 Ctrl K 검색·접힌 사이드바 팝업·그룹 배지 합산에서도 빠진다 (layout.js 가 [hidden] 항목을 건너뜀). -->
@@ -241,6 +262,24 @@
                 </button>
                 <button type="button" class="adm-top-logout" id="logoutLink">로그아웃</button>
             </header>
+
+            <!-- 열어 본 화면 탭 줄 (layout.js 가 sessionStorage ria-admin-tabs 로 채운다. 탭은 링크 이동이고 화면 상태는 저장하지 않는다) -->
+            <div class="adm-stabs" id="admTabs">
+                <button type="button" class="adm-stabs-arrow is-prev" id="admTabPrev" aria-label="이전 탭" hidden>&lsaquo;</button>
+                <div class="adm-stabs-strip" id="admTabStrip" role="tablist" aria-label="열어 본 화면"></div>
+                <button type="button" class="adm-stabs-arrow is-next" id="admTabNext" aria-label="다음 탭" hidden>&rsaquo;</button>
+                <div class="adm-stabs-more">
+                    <button type="button" class="adm-stabs-morebtn" id="admTabListBtn" aria-haspopup="true" aria-expanded="false">열린 화면 <b id="admTabCount">1</b> ▾</button>
+                    <div class="adm-stabs-backdrop" id="admTabListBack" hidden></div>
+                    <div class="adm-stabs-list" id="admTabList" hidden>
+                        <div class="adm-stabs-list-head" id="admTabListHead">열린 화면 1 / 10</div>
+                        <div class="adm-stabs-list-body" id="admTabListBody"></div>
+                        <button type="button" class="adm-stabs-list-clear" id="admTabClearAll">모두 닫기</button>
+                    </div>
+                </div>
+            </div>
+            <div class="adm-stabs-backdrop is-ctx" id="admTabCtxBack" hidden></div>
+            <div class="adm-stabs-ctx" id="admTabCtx" role="menu" hidden></div>
 
             <main class="content adm-main">
                 <div layout:fragment="content">페이지 내용이 여기 들어갑니다.</div>

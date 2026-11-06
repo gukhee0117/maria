@@ -1,0 +1,844 @@
+/* 자금 환류 대시보드 (1405) 화면 전용 규칙 (A-14a)
+   원본: admin.dc.html 의 isFlow 화면. 공통 부품(.adm-screen, .adm-summary, .adm-card, .adm-btn …)은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   차트(Sankey · 예수금 브리지)는 JS 가 SVG 로 그리고, 월별 콤보는 Chart.js — 둘 다 색을 CSS 변수에서 읽는다. */
+
+.content.adm-main:has(.fund-flow) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+/* ---- 조회조건 줄 (원본: padding 5px 8px · 배경 qbox · 테두리) ---- */
+.fund-flow .ff-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 5px 8px;
+    background: var(--adm-qbox);
+    border: 1px solid var(--adm-bd);
+}
+
+.fund-flow .ff-bar-item {
+    font-size: 12px;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+.fund-flow .ff-bar-item b {
+    margin-left: 4px;
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-bar-spacer {
+    flex: 1;
+}
+
+.fund-flow .ff-bar .adm-btn {
+    font-weight: 600;
+}
+
+/* ---- 본문 스크롤 영역 + 2열 격자 (원본: minmax(440px,1fr), 간격 6px) ---- */
+.fund-flow .ff-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+.fund-flow .ff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 6px;
+    align-items: stretch;
+}
+
+.fund-flow .ff-wide {
+    grid-column: 1 / -1;
+}
+
+.fund-flow .ff-card {
+    overflow: visible;
+}
+
+/* ---- 배지 (원본 패널 머리 오른쪽: 11px · 600 · 줄 높이 18px) ---- */
+.fund-flow .ff-badge {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fund-flow .ff-badge[hidden] {
+    display: none;
+}
+
+.fund-flow .ff-badge-info {
+    background: var(--adm-info-bg);
+    color: var(--adm-info-fg);
+    border-color: var(--adm-info-bd);
+}
+
+.fund-flow .ff-badge-warn {
+    background: var(--adm-warn-bg);
+    color: var(--adm-warn-fg);
+    border-color: var(--adm-warn-bd);
+}
+
+.fund-flow .ff-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.fund-flow .adm-summary-item .ff-badge {
+    align-self: center;
+}
+
+.fund-flow .adm-summary-item {
+    gap: 4px;
+    padding: 0 8px;
+}
+
+.fund-flow .adm-summary-item:first-child {
+    padding-left: 4px;
+}
+
+/* 요약 : 한 줄에 들어가도록 "잠정" 배지는 작게, 혜택 상태 칸은 값 세 개를 위아래로 쌓는다 (1440×900 기준 한 줄) */
+.fund-flow .adm-summary-item .ff-badge {
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 14px;
+}
+
+.fund-flow .ff-sum-benefit {
+    align-items: center;
+}
+
+.fund-flow .ff-sum-labelcol {
+    display: flex;
+    flex-direction: column;
+    line-height: 14px;
+}
+
+.fund-flow .ff-sum-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 11.5px;
+    line-height: 12px;
+}
+
+/* 요약 : 혜택 상태 세 값 */
+.fund-flow .ff-sum-part {
+    cursor: help;
+}
+
+.fund-flow .ff-sum-part.is-canceled {
+    color: var(--adm-warn-fg);
+}
+
+/* 요약 값 로딩 자리 */
+.fund-flow .adm-summary-value.is-loading {
+    display: inline-block;
+    width: 56px;
+    height: 10px;
+    background: var(--adm-skel);
+    animation: adm-skel 1.3s ease-in-out infinite;
+}
+
+/* ---- 패널 상태 : data-state 에 따라 한 가지만 보인다 ---- */
+.fund-flow .ff-card > .ff-state,
+.fund-flow .ff-card > .ff-body {
+    display: none;
+}
+
+.fund-flow .ff-card[data-state="loading"] > .ff-state-loading,
+.fund-flow .ff-card[data-state="error"] > .ff-state-error,
+.fund-flow .ff-card[data-state="empty"] > .ff-state-empty,
+.fund-flow .ff-card[data-state="soon"] > .ff-state-soon {
+    display: flex;
+    flex-direction: column;
+}
+
+.fund-flow .ff-card[data-state="ready"] > .ff-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+}
+
+.fund-flow .ff-state-loading,
+.fund-flow .ff-state-soon {
+    padding: 8px 10px;
+    gap: 6px;
+}
+
+.fund-flow .ff-skel {
+    background: var(--adm-skel);
+    animation: adm-skel 1.3s ease-in-out infinite;
+}
+
+.fund-flow .ff-skel.is-static {
+    animation: none;
+    opacity: 0.55;
+}
+
+.fund-flow .ff-soon-text {
+    font-size: 11.5px;
+    color: var(--adm-sub);
+    text-align: center;
+}
+
+.fund-flow .ff-state-error .adm-state-error {
+    margin: 8px 10px;
+}
+
+.fund-flow .ff-state-empty .adm-card-empty {
+    padding: 28px 10px;
+}
+
+/* ---- 차트 영역 ---- */
+.fund-flow .ff-chart {
+    position: relative;
+    min-width: 0;
+}
+
+.fund-flow .ff-chart svg {
+    display: block;
+    width: 100%;
+    overflow: visible;
+}
+
+.fund-flow .ff-chart-canvas {
+    height: 230px;
+}
+
+.fund-flow .ff-chart text {
+    font-family: inherit;
+    letter-spacing: normal;
+    fill: var(--adm-text);
+}
+
+.fund-flow .ff-chart .ff-t-sub {
+    fill: var(--adm-sub);
+}
+
+.fund-flow .ff-chart .ff-t-strong {
+    font-weight: 700;
+}
+
+.fund-flow .ff-link {
+    fill-opacity: 0.38;
+    transition: fill-opacity 0.12s;
+}
+
+.fund-flow .ff-link:hover {
+    fill-opacity: 0.6;
+}
+
+.fund-flow .ff-link.is-gap {
+    fill: var(--adm-bd2);
+    fill-opacity: 0.45;
+}
+
+.fund-flow .ff-node {
+    stroke: var(--adm-panel);
+    stroke-width: 0.5;
+}
+
+.fund-flow .ff-node.is-gap {
+    fill: var(--adm-bd2);
+}
+
+.fund-flow .ff-axis {
+    stroke: var(--adm-bd2);
+    stroke-width: 1;
+}
+
+.fund-flow .ff-grid-line {
+    stroke: var(--adm-line);
+    stroke-width: 1;
+}
+
+.fund-flow .ff-conn {
+    stroke: var(--adm-bd2);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+}
+
+.fund-flow .ff-bar-rect {
+    cursor: default;
+}
+
+.fund-flow .ff-bar-rect:hover {
+    opacity: 0.85;
+}
+
+/* ---- 근거 문구 ---- */
+.fund-flow .ff-notes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-notes li {
+    overflow-wrap: anywhere;
+}
+
+.fund-flow .ff-notes li.is-warn {
+    color: var(--adm-warn-fg);
+}
+
+/* ---- 예수금 브리지 월 선택 ---- */
+.fund-flow .ff-bridge-pick {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-bridge-pick .adm-select-wrap {
+    width: 150px;
+}
+
+.fund-flow .ff-bridge-pick .adm-input {
+    height: 22px;
+    font-size: 12px;
+}
+
+/* ---- 툴팁 (SVG 도형 위에 올리면 보인다) ---- */
+.fund-flow .ff-tip {
+    position: fixed;
+    z-index: 60;
+    max-width: 280px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    background: var(--adm-tip-bg);
+    color: var(--adm-tip-fg);
+    font-size: 11.5px;
+    line-height: 1.5;
+    pointer-events: none;
+    white-space: pre-line;
+}
+
+.fund-flow .ff-tip[hidden] {
+    display: none;
+}
+
+/* ================= A-14b 패널들 ================= */
+
+/* ---- ⑤ 퍼널 (원본: 84px 이름 · 막대 14px · 값 · 비율) ---- */
+.fund-flow .ff-funnel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.fund-flow .ff-fun-row {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr) 96px 56px;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.fund-flow .ff-fun-name {
+    color: var(--adm-sub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fund-flow .ff-fun-track {
+    position: relative;
+    height: 14px;
+    background: var(--adm-line);
+}
+
+.fund-flow .ff-fun-fill {
+    height: 100%;
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow .ff-fun-drop {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--adm-chart-gray);
+    opacity: 0.7;
+}
+
+.fund-flow .ff-fun-val {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-fun-pct {
+    text-align: right;
+    color: var(--adm-sub);
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-fun-sub {
+    padding: 0 0 4px 92px;
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+/* ---- 100% 누적 막대 (⑥ 혜택 누수 · ⑧ 운용처) ---- */
+.fund-flow .ff-stack {
+    display: flex;
+    height: 22px;
+    background: var(--adm-line);
+    overflow: hidden;
+}
+
+.fund-flow .ff-stack-seg {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--adm-on-navy);
+    white-space: nowrap;
+}
+
+.fund-flow .ff-stack-seg.is-light {
+    color: var(--adm-text);
+}
+
+/* 다크에서 --adm-text 는 밝은 글자색이라 밝은 막대 위에서는 어두운 글자(--adm-on-navy)를 쓴다 */
+[data-theme="dark"] .fund-flow .ff-stack-seg.is-light {
+    color: var(--adm-on-navy);
+}
+
+[data-theme="dark"] .fund-flow .ff-heat-cell.is-hot {
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-stack-seg + .ff-stack-seg {
+    border-left: 1px solid var(--adm-panel);
+}
+
+/* ---- ⑥ 분류 표 ---- */
+.fund-flow .ff-leak-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) repeat(4, minmax(0, 1fr));
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 0 2px;
+    border-bottom: 1px solid var(--adm-line);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-leak-row.is-head {
+    min-height: 22px;
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-leak-row .is-r {
+    text-align: right;
+}
+
+.fund-flow .ff-leak-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.fund-flow .ff-leak-name i,
+.fund-flow .ff-legend-item i {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+}
+
+/* ---- ⑦ 감면 성과 ---- */
+.fund-flow .ff-relief {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.fund-flow .ff-relief-chart {
+    flex: 1 1 230px;
+}
+
+.fund-flow .ff-big {
+    flex: 0 0 170px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--adm-head);
+    border: 1px solid var(--adm-bd);
+}
+
+.fund-flow .ff-big-label {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-big-value {
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--adm-navy-fg);
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-big-value small {
+    margin-left: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-big-sub {
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-big-line {
+    display: flex;
+    flex-direction: column;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--adm-bd);
+    font-size: 11.5px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-big-line b {
+    font-size: 12px;
+    color: var(--adm-text);
+}
+
+/* ---- ⑧ 운용처 ---- */
+.fund-flow .ff-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 11.5px;
+}
+
+.fund-flow .ff-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.fund-flow .ff-legend-item.is-total {
+    margin-left: auto;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-hhi-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.fund-flow .ff-hhi-name {
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-hhi-row b {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-hhi-track {
+    position: relative;
+    height: 6px;
+    background: var(--adm-line);
+}
+
+.fund-flow .ff-hhi-track i {
+    position: absolute;
+    top: -4px;
+    width: 3px;
+    height: 14px;
+    margin-left: -1px;
+    background: var(--adm-navy-fg);
+}
+
+.fund-flow .ff-hhi-scale {
+    display: flex;
+    justify-content: space-between;
+    margin: -2px 52px 0 118px;
+    font-size: 10.5px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-hhi-scale span:nth-child(1),
+.fund-flow .ff-hhi-scale span:nth-child(4) {
+    display: none;
+}
+
+.fund-flow .ff-sub-title {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.fund-flow .ff-topbuy {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(5, auto);
+    grid-auto-flow: column;
+    gap: 2px 16px;
+}
+
+.fund-flow .ff-top-row {
+    display: grid;
+    grid-template-columns: 16px minmax(64px, 112px) minmax(0, 1fr) 52px;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.fund-flow .ff-top-rank {
+    color: var(--adm-sub);
+    text-align: right;
+    font-size: 11px;
+}
+
+.fund-flow .ff-top-name {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fund-flow .ff-top-name small {
+    font-size: 10.5px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-top-track {
+    height: 10px;
+    background: var(--adm-line);
+}
+
+.fund-flow .ff-top-track div {
+    height: 100%;
+    background: var(--adm-chart-3);
+}
+
+.fund-flow .ff-top-val {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- ⑨ 히트맵 ---- */
+.fund-flow .ff-seg-pick {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-heat-legend {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+}
+
+.fund-flow .ff-heat-ramp {
+    width: 44px;
+    height: 8px;
+    display: inline-block;
+    background: linear-gradient(to right, color-mix(in srgb, var(--adm-chart-3) 14%, var(--adm-panel)), color-mix(in srgb, var(--adm-chart-3) 86%, var(--adm-panel)));
+}
+
+.fund-flow .ff-heat-null {
+    width: 20px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--adm-off-bg);
+    color: var(--adm-off-fg);
+}
+
+.fund-flow .ff-heat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-x: auto;
+}
+
+.fund-flow .ff-heat-row {
+    display: grid;
+    grid-template-columns: 84px repeat(var(--ff-heat-cols, 7), minmax(64px, 1fr));
+    gap: 2px;
+}
+
+.fund-flow .ff-heat-row.is-total {
+    margin-top: 4px;
+}
+
+.fund-flow .ff-heat-h {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    font-size: 11.5px;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+.fund-flow .ff-heat-h.is-row {
+    justify-content: flex-start;
+    padding-left: 4px;
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-heat-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-heat-cell.is-hot {
+    color: var(--adm-on-navy);
+}
+
+.fund-flow .ff-heat-cell.is-sum {
+    outline: 1px solid var(--adm-bd);
+    outline-offset: -1px;
+}
+
+.fund-flow .ff-heat-cell.is-null {
+    background: var(--adm-off-bg);
+    color: var(--adm-off-fg);
+}
+
+.fund-flow .ff-heat-cell.is-empty {
+    background: transparent;
+}
+
+/* ---- ⑩ 지표 정의 표 (원본 ⑨ 정의 · 품질) ---- */
+.fund-flow #ffPanelDefs[data-state="ready"] > .ff-body {
+    padding: 0;
+    gap: 0;
+}
+
+.fund-flow .ff-defs {
+    overflow-x: auto;
+}
+
+.fund-flow #ffPanelDefs .ff-notes {
+    padding: 6px 10px;
+}
+
+.fund-flow .ff-defs-row {
+    min-width: 760px;
+    display: grid;
+    grid-template-columns: minmax(130px, 1.2fr) minmax(0, 1.7fr) minmax(0, 1.2fr) minmax(0, 1.3fr) minmax(96px, 0.8fr);
+    border-bottom: 1px solid var(--adm-line);
+    font-size: 12px;
+}
+
+.fund-flow .ff-defs-row > * {
+    padding: 4px 8px;
+    border-right: 1px solid var(--adm-line);
+    overflow-wrap: anywhere;
+}
+
+.fund-flow .ff-defs-row > *:last-child {
+    border-right: 0;
+}
+
+.fund-flow .ff-defs-row:nth-child(even):not(.is-head) {
+    background: var(--adm-zebra);
+}
+
+.fund-flow .ff-defs-row.is-head {
+    min-height: 28px;
+    align-items: center;
+    background: var(--adm-grid-head);
+    font-weight: 700;
+    border-bottom-color: var(--adm-bd);
+}
+
+.fund-flow .ff-limits {
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.fund-flow .ff-limits li {
+    padding-left: 10px;
+    text-indent: -10px;
+}
+
+.fund-flow .ff-limits li::before {
+    content: "· ";
+}
+
+/* ⑦ 아래 합계 표 */
+.fund-flow .ff-kv {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0;
+    border: 1px solid var(--adm-bd);
+}
+
+.fund-flow .ff-kv > div {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 8px;
+    border-right: 1px solid var(--adm-line);
+    font-size: 11.5px;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-kv b {
+    font-size: 12.5px;
+    color: var(--adm-text);
+    font-variant-numeric: tabular-nums;
+}

@@ -53,8 +53,12 @@ $(function () {
         fontScale: "ria-admin-fontscale",
         theme: "ria-admin-theme",
         groups: "ria-admin-groups",
-        sideCollapsed: "ria-admin-sidecollapsed"
+        sideCollapsed: "ria-admin-sidecollapsed",
+        favs: "ria-admin-favs",   // 즐겨찾기 (localStorage, 화면번호 배열)
+        tabs: "ria-admin-tabs",   // 열어 본 화면 탭 (sessionStorage)
+        msg: "ria-admin-msg"      // 다음 화면에서 상태바에 한 번 보여 줄 안내 (sessionStorage)
     };
+    var MAX_TABS = 10;
     var ZOOM = [0.9, 1, 1.15, 1.3];
     var FONT_NAMES = ["작게", "보통", "크게", "아주 크게"];
     var ROLE_LABELS = { VIEWER: "조회전용", REVIEWER: "심사담당", SETTLEMENT: "정산담당", ADMIN: "최고관리자" };
@@ -130,7 +134,7 @@ $(function () {
     try { groupState = JSON.parse(load(STORAGE.groups) || "{}") || {}; } catch (e) { groupState = {}; }
 
     var $groups = $side.find(".adm-side-group");
-    $groups.each(function () {
+    $groups.not(".is-fav").each(function () {
         var $group = $(this);
         if ($group.find(".adm-side-item.is-active").length) {
             groupState[$group.data("group")] = true; // 지금 화면이 있는 그룹은 항상 펼친다
@@ -138,27 +142,360 @@ $(function () {
         }
     });
 
+    // 즐겨찾기 그룹은 처음에 펼쳐져 있다 (저장된 값이 false 일 때만 접힘). 나머지는 저장된 값이 true 일 때만 펼침.
+    function groupIsOpen($group) {
+        var value = groupState[$group.data("group")];
+        return $group.hasClass("is-fav") ? value !== false : !!value;
+    }
+
     function renderGroups() {
         $groups.each(function () {
             var $group = $(this);
-            var open = !!groupState[$group.data("group")];
+            var open = groupIsOpen($group);
             $group.toggleClass("is-open", open);
             $group.find(".adm-side-grouphead").attr("aria-expanded", String(open))
                 .find(".adm-side-caret").text(open ? "▾" : "▸");
             $group.find(".adm-side-item").attr("tabindex", open ? 0 : -1);
         });
     }
+    // 처음 그릴 때 그룹이 열리는 애니메이션이 돌면 그 0.2초 동안 항목 위치가 움직여(즐겨찾기 끌기가 엉뚱한 곳에 놓임) 첫 그림에서는 전환을 끈다
+    $side.addClass("is-init");
     renderGroups();
+    requestAnimationFrame(function () { requestAnimationFrame(function () { $side.removeClass("is-init"); }); });
 
     $side.on("click", ".adm-side-grouphead", function () {
-        var key = $(this).closest(".adm-side-group").data("group");
-        groupState[key] = !groupState[key];
+        var $group = $(this).closest(".adm-side-group");
+        var key = $group.data("group");
+        groupState[key] = !groupIsOpen($group);
         store(STORAGE.groups, JSON.stringify(groupState));
         renderGroups();
     });
 
+
+    // ---------- 화면 목록 · 즐겨찾기 · 탭 (A-15) ----------
+    // 메뉴에서 읽은 화면만 즐겨찾기·탭에 쓴다. 숨긴 화면(1403, hidden)은 목록에 없으므로 둘 다 나오지 않는다.
+    var screens = {};
+    $side.find(".adm-side-group:not(.is-fav) .adm-side-item:not([hidden])").each(function () {
+        var $item = $(this);
+        var no = String($item.data("no"));
+        screens[no] = { no: no, label: String($item.data("label")), href: $item.attr("href"), $item: $item };
+    });
+    var $currentItem = $side.find(".adm-side-group:not(.is-fav) .adm-side-item.is-active:not([hidden])").first();
+    var currentNo = $currentItem.length ? String($currentItem.data("no")) : null;
+    var pendingMessage = null; // 이 화면이 열린 직후 상태바에 한 번 보여 줄 안내
+    try {
+        pendingMessage = sessionStorage.getItem(STORAGE.msg);
+        sessionStorage.removeItem(STORAGE.msg);
+    } catch (e) { pendingMessage = null; }
+
+    // ----- 즐겨찾기: 사이드바 "즐겨찾기" 그룹 + 화면 제목 줄의 ★ -----
+    var favs = readFavs();
+    var dragFav = null;
+    var STAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+    function readFavs() {
+        var list = [];
+        try { list = JSON.parse(load(STORAGE.favs) || "[]"); } catch (e) { list = []; }
+        if (!Array.isArray(list)) { return []; }
+        return list.map(String).filter(function (no, i, all) { return screens[no] && all.indexOf(no) === i; });
+    }
+
+    function saveFavs(message) {
+        store(STORAGE.favs, JSON.stringify(favs));
+        renderFavs();
+        renderFavStar();
+        if (message) { MARIA.ui.setStatus(message); }
+    }
+
+    function renderFavs() {
+        var $list = $("#admFavList").empty();
+        $.each(favs, function (i, no) {
+            var $copy = screens[no].$item.clone(false);
+            $copy.removeAttr("id").find("[id]").removeAttr("id"); // 알림 배지 id 가 겹치지 않게
+            $copy.attr({ draggable: "true", "data-fav": no }).toggleClass("is-active", no === currentNo);
+            $list.append($copy);
+        });
+        if (!favs.length) {
+            $list.append($("<div>", { "class": "adm-side-favempty", text: "화면 제목 줄의 ☆를 눌러 추가하세요" }));
+        }
+        renderGroups();
+    }
+
+    function moveFav(from, to) {
+        dragFav = null;
+        if (!from || !to || from === to) { renderFavs(); return; }
+        var rest = favs.filter(function (no) { return no !== from; });
+        var index = rest.indexOf(to);
+        rest.splice(favs.indexOf(from) < favs.indexOf(to) ? index + 1 : index, 0, from);
+        favs = rest;
+        saveFavs();
+    }
+
+    $("#admFavList")
+        .on("dragstart", ".adm-side-item", function (event) {
+            dragFav = String($(this).data("fav"));
+            try {
+                event.originalEvent.dataTransfer.effectAllowed = "move";
+                event.originalEvent.dataTransfer.setData("text/plain", dragFav);
+            } catch (e) {}
+            $(this).addClass("is-drag");
+        })
+        .on("dragover", ".adm-side-item", function (event) { if (dragFav) { event.preventDefault(); } })
+        .on("drop", ".adm-side-item", function (event) {
+            event.preventDefault();
+            moveFav(dragFav, String($(this).data("fav")));
+        })
+        .on("dragend", ".adm-side-item", function () { dragFav = null; $(this).removeClass("is-drag"); });
+
+    // 화면 제목 줄 오른쪽 끝의 ★ (경로 글자 뒤)
+    var $favStar = $();
+    var $screenHead = $(".adm-screen-head").first();
+    if ($screenHead.length && currentNo) {
+        $favStar = $('<button type="button" class="adm-screen-fav"></button>').html(STAR_SVG).appendTo($screenHead);
+        $favStar.on("click", function () {
+            var has = favs.indexOf(currentNo) >= 0;
+            favs = has ? favs.filter(function (no) { return no !== currentNo; }) : favs.concat(currentNo);
+            saveFavs(has ? "즐겨찾기에서 뺐습니다" : "즐겨찾기에 추가했습니다");
+        });
+    }
+
+    function renderFavStar() {
+        var on = favs.indexOf(currentNo) >= 0;
+        var label = on ? "즐겨찾기 해제" : "즐겨찾기 추가";
+        $favStar.toggleClass("is-on", on).attr({ title: label, "aria-label": label, "aria-pressed": String(on) });
+    }
+
+    renderFavs();
+    renderFavStar();
+    // 다른 창에서 바꾼 즐겨찾기도 따라간다
+    $(window).on("storage", function (event) {
+        if (event.originalEvent && event.originalEvent.key === STORAGE.favs) {
+            favs = readFavs();
+            renderFavs();
+            renderFavStar();
+        }
+    });
+
+    // ----- 탭 줄: 열어 본 화면을 sessionStorage 에 기억하고, 탭은 링크로 이동한다 (화면 안의 작업 상태는 저장하지 않음) -----
+    var tabState = readTabs();
+    var dragTab = null;
+
+    function readTabs() {
+        var state = { tabs: [], seen: {} };
+        try {
+            var saved = JSON.parse(sessionStorage.getItem(STORAGE.tabs) || "null");
+            if (saved && Array.isArray(saved.tabs)) {
+                state.tabs = saved.tabs.map(String).filter(function (no, i, all) { return screens[no] && all.indexOf(no) === i; });
+                if (saved.seen && typeof saved.seen === "object") { state.seen = saved.seen; }
+            }
+        } catch (e) {}
+        return state;
+    }
+
+    function saveTabs() {
+        try { sessionStorage.setItem(STORAGE.tabs, JSON.stringify(tabState)); } catch (e) {}
+    }
+
+    // 지금 화면을 탭에 넣는다. 10개를 넘으면 가장 오래 안 본 탭(지금 화면 제외)을 닫는다.
+    if (currentNo) {
+        tabState.seen[currentNo] = Date.now();
+        if (tabState.tabs.indexOf(currentNo) < 0) {
+            tabState.tabs.push(currentNo);
+            if (tabState.tabs.length > MAX_TABS) {
+                var oldest = tabState.tabs.filter(function (no) { return no !== currentNo; })
+                    .sort(function (a, b) { return (tabState.seen[a] || 0) - (tabState.seen[b] || 0); })[0];
+                tabState.tabs = tabState.tabs.filter(function (no) { return no !== oldest; });
+                delete tabState.seen[oldest];
+                pendingMessage = "가장 오래된 화면 [" + oldest + "] " + screens[oldest].label + "를 닫았습니다";
+            }
+        }
+    }
+    saveTabs();
+
+    var $tabBar = $("#admTabs");
+    var $strip = $("#admTabStrip");
+    var $tabList = $("#admTabList");
+    var $tabCtx = $("#admTabCtx");
+
+    function goScreen(no) { window.location.href = screens[no].href; }
+
+    function setTabs(next) {
+        tabState.tabs = next;
+        saveTabs();
+        renderTabs();
+    }
+
+    function closeTab(no) {
+        if (tabState.tabs.length <= 1) { return; }
+        var index = tabState.tabs.indexOf(no);
+        var next = tabState.tabs.filter(function (x) { return x !== no; });
+        setTabs(next);
+        if (no === currentNo) { goScreen(next[Math.max(0, index - 1)]); }
+    }
+
+    function closeOthers(no) {
+        setTabs([no]);
+        if (currentNo && currentNo !== no) { goScreen(no); }
+    }
+
+    function closeRight(no) {
+        var next = tabState.tabs.slice(0, tabState.tabs.indexOf(no) + 1);
+        setTabs(next);
+        if (currentNo && next.indexOf(currentNo) < 0) { goScreen(no); }
+    }
+
+    function closeAll() {
+        setTabs(currentNo ? [currentNo] : []);
+        closeTabList();
+        MARIA.ui.setStatus("현재 화면을 제외한 모든 화면을 닫았습니다");
+    }
+
+    function moveTab(from, to) {
+        dragTab = null;
+        if (!from || !to || from === to) { renderTabs(); return; }
+        var rest = tabState.tabs.filter(function (no) { return no !== from; });
+        var index = rest.indexOf(to);
+        rest.splice(tabState.tabs.indexOf(from) < tabState.tabs.indexOf(to) ? index + 1 : index, 0, from);
+        setTabs(rest);
+    }
+
+    function renderTabs() {
+        $strip.empty();
+        var $body = $("#admTabListBody").empty();
+        $.each(tabState.tabs, function (i, no) {
+            var screen = screens[no];
+            var on = no === currentNo;
+            var text = "[" + no + "] " + screen.label;
+            var $tab = $("<div>", { "class": "adm-stab" + (on ? " is-on" : ""), role: "tab", draggable: "true", "data-no": no, "aria-selected": String(on), title: text });
+            var $link = $("<a>", { "class": "adm-stab-label", href: screen.href, draggable: "false" }).append($("<span>", { text: text }));
+            if (on) { $link.attr("aria-current", "page"); }
+            $tab.append($link).append($("<button>", { type: "button", "class": "adm-stab-x", title: "화면 닫기", "aria-label": text + " 닫기", text: "×" }));
+            $strip.append($tab);
+
+            var $row = $("<div>", { "class": "adm-stabs-list-row" + (on ? " is-on" : ""), "data-no": no });
+            $row.append($("<a>", { "class": "adm-stabs-list-link", href: screen.href, title: text, text: text }))
+                .append($("<button>", { type: "button", "class": "adm-stabs-list-x", "aria-label": text + " 닫기", text: "×" }));
+            $body.append($row);
+        });
+        $tabBar.toggleClass("is-single", tabState.tabs.length <= 1);
+        $("#admTabCount").text(tabState.tabs.length);
+        $("#admTabListHead").text("열린 화면 " + tabState.tabs.length + " / " + MAX_TABS);
+        updateTabOverflow();
+    }
+
+    // 탭이 넘치면 좌우 화살표를 보이고 지금 탭이 보이게 스크롤한다
+    function updateTabOverflow() {
+        var el = $strip[0];
+        var over = el.scrollWidth > el.clientWidth + 1;
+        $("#admTabPrev, #admTabNext").prop("hidden", !over);
+        var $active = $strip.find(".adm-stab.is-on");
+        if ($active.length) {
+            var left = $active[0].offsetLeft;
+            var right = left + $active[0].offsetWidth;
+            if (left < el.scrollLeft) { el.scrollLeft = left - 4; }
+            else if (right > el.scrollLeft + el.clientWidth) { el.scrollLeft = right - el.clientWidth + 4; }
+        }
+    }
+
+    $strip
+        .on("click", ".adm-stab-label", function (event) {
+            if ($(this).closest(".adm-stab").hasClass("is-on")) { event.preventDefault(); } // 지금 화면은 다시 불러오지 않음
+        })
+        .on("click", ".adm-stab-x", function (event) {
+            event.stopPropagation();
+            closeTab(String($(this).closest(".adm-stab").data("no")));
+        })
+        .on("mousedown", ".adm-stab", function (event) { if (event.button === 1) { event.preventDefault(); } })
+        .on("auxclick", ".adm-stab", function (event) {
+            if (event.button === 1) { event.preventDefault(); closeTab(String($(this).data("no"))); }
+        })
+        .on("contextmenu", ".adm-stab", function (event) {
+            event.preventDefault();
+            openTabCtx(String($(this).data("no")), event.clientX, event.clientY);
+        })
+        .on("dragstart", ".adm-stab", function (event) {
+            dragTab = String($(this).data("no"));
+            try {
+                event.originalEvent.dataTransfer.effectAllowed = "move";
+                event.originalEvent.dataTransfer.setData("text/plain", dragTab);
+            } catch (e) {}
+            $(this).addClass("is-drag");
+        })
+        .on("dragover", ".adm-stab", function (event) { if (dragTab) { event.preventDefault(); } })
+        .on("drop", ".adm-stab", function (event) {
+            event.preventDefault();
+            moveTab(dragTab, String($(this).data("no")));
+        })
+        .on("dragend", ".adm-stab", function () { dragTab = null; $(this).removeClass("is-drag"); })
+        .on("wheel", function (event) {
+            var e = event.originalEvent;
+            this.scrollLeft += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        });
+
+    $("#admTabPrev").on("click", function () { $strip[0].scrollBy({ left: -220, behavior: "smooth" }); });
+    $("#admTabNext").on("click", function () { $strip[0].scrollBy({ left: 220, behavior: "smooth" }); });
+
+    // 열린 화면 목록
+    function closeTabList() {
+        $tabList.prop("hidden", true);
+        $("#admTabListBack").prop("hidden", true);
+        $("#admTabListBtn").attr("aria-expanded", "false");
+    }
+    $("#admTabListBtn").on("click", function () {
+        var willOpen = $tabList.prop("hidden");
+        $tabList.prop("hidden", !willOpen);
+        $("#admTabListBack").prop("hidden", !willOpen);
+        $(this).attr("aria-expanded", String(willOpen));
+    });
+    $("#admTabListBack").on("click", closeTabList);
+    $("#admTabListBody").on("click", ".adm-stabs-list-x", function () {
+        closeTab(String($(this).closest(".adm-stabs-list-row").data("no")));
+    }).on("click", ".adm-stabs-list-link", function (event) {
+        if ($(this).closest(".adm-stabs-list-row").hasClass("is-on")) { event.preventDefault(); closeTabList(); }
+    });
+    $("#admTabClearAll").on("click", closeAll);
+
+    // 우클릭 메뉴: 닫기 · 다른 탭 모두 닫기 · 오른쪽 탭 모두 닫기
+    function closeTabCtx() {
+        $tabCtx.prop("hidden", true).empty();
+        $("#admTabCtxBack").prop("hidden", true);
+    }
+    function openTabCtx(no, clientX, clientY) {
+        closeTabList();
+        var index = tabState.tabs.indexOf(no);
+        var many = tabState.tabs.length > 1;
+        var items = [
+            { label: "닫기", enabled: many, run: function () { closeTab(no); } },
+            { label: "다른 탭 모두 닫기", enabled: many, run: function () { closeOthers(no); } },
+            { label: "오른쪽 탭 모두 닫기", enabled: index < tabState.tabs.length - 1, run: function () { closeRight(no); } }
+        ];
+        $tabCtx.empty();
+        $.each(items, function (i, item) {
+            $("<button>", { type: "button", role: "menuitem", text: item.label, "aria-disabled": String(!item.enabled) })
+                .on("click", function () {
+                    closeTabCtx();
+                    if (item.enabled) { item.run(); }
+                }).appendTo($tabCtx);
+        });
+        var zoom = currentZoom();
+        $tabCtx.css({ left: Math.min(clientX / zoom, window.innerWidth / zoom - 180) + "px", top: (clientY / zoom) + "px" }).prop("hidden", false);
+        $("#admTabCtxBack").prop("hidden", false);
+    }
+    $("#admTabCtxBack").on("click contextmenu", function (event) { event.preventDefault(); closeTabCtx(); });
+
+    $(document).on("keydown", function (event) {
+        if (event.key === "Escape") { closeTabCtx(); closeTabList(); }
+    });
+
+    renderTabs();
+    if (window.ResizeObserver) { new ResizeObserver(updateTabOverflow).observe($tabBar[0]); }
+    else { $(window).on("resize", updateTabOverflow); }
+    // 글자 크기를 바꾸면 폭이 달라지므로 한 번 더 확인
+    $(".adm-fontsize button").on("click", function () { setTimeout(updateTabOverflow, 120); });
+
     // 알림 배지 합계: 접힌 그룹의 머리글 숫자와 접힌 사이드바의 점
     MARIA.ui.refreshSideBadges = function () {
+        renderFavs(); // 즐겨찾기에 복제된 알림 배지도 같이 갱신
         $groups.each(function () {
             var $group = $(this);
             var sum = 0;
@@ -194,7 +531,10 @@ $(function () {
             }
             $fly.append($row);
         });
-        var height = 36 + $items.length * 32;
+        if (!$items.length && $group.hasClass("is-fav")) {
+            $fly.append($("<div>", { "class": "adm-side-fly-empty", text: "즐겨찾기한 화면이 없어요" }));
+        }
+        var height = 36 + Math.max(1, $items.length) * 32;
         var top = Math.max(4, Math.min(rect.top / zoom, window.innerHeight / zoom - 30 - height));
         $fly.css("top", top + "px").prop("hidden", false);
     });
@@ -207,7 +547,7 @@ $(function () {
     // ---------- 메뉴 검색 (화면번호 · 이름 · 그룹) ----------
     var $search = $("#admSideSearch");
     var $results = $("#admSideResults");
-    var searchItems = $side.find(".adm-side-item:not([hidden])").map(function () {
+    var searchItems = $side.find(".adm-side-group:not(.is-fav) .adm-side-item:not([hidden])").map(function () {
         var $item = $(this);
         return {
             no: String($item.data("no")),
@@ -301,6 +641,7 @@ $(function () {
     admAuthRequest.done(function (admin) {
         // admin = { adminId, name, role } — GET /api/admin/me 응답
         $shell.removeClass("is-pending");
+        if (pendingMessage) { MARIA.ui.setStatus(pendingMessage); }
 
         // 현재 경로명은 쿼리스트링을 제거한 현재 페이지의 첫 화면으로 이동한다.
         $(".breadcrumb").each(function () {
@@ -341,6 +682,7 @@ $(function () {
         loadReferenceTime();
 
         $("#logoutLink").on("click", function () {
+            try { sessionStorage.removeItem(STORAGE.tabs); } catch (e) {} // 다음 사람에게 내 탭이 남지 않게
             MARIA.auth.logout();
         });
 

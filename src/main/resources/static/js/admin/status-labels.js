@@ -21,6 +21,30 @@ MARIA.status = (function () {
         IMPOSSIBLE: "제외",
         UNCLASSIFIED: "대기"
     };
+    var ACCOUNT_STATUS_LABEL = {
+        APPLIED: "심사 대기",
+        OPENED: "개설 완료",
+        REJECTED: "반려",
+        CLOSURE_REQUESTED: "해지 접수",
+        CLOSED: "해지"
+    };
+    var ACCOUNT_STATUS_TONE = {
+        APPLIED: "info",
+        OPENED: "ok",
+        REJECTED: "warn",
+        CLOSURE_REQUESTED: "warn",
+        CLOSED: "off"
+    };
+    var ACCOUNT_CLOSURE_STATUS_LABEL = {
+        REQUESTED: "해지 접수",
+        COMPLETED: "해지 완료",
+        REJECTED: "해지 반려"
+    };
+    var ACCOUNT_CLOSURE_STATUS_TONE = {
+        REQUESTED: "info",
+        COMPLETED: "ok",
+        REJECTED: "fail"
+    };
 
     // 종목 구분 (StockType): 원본 화면 표기(해외주식 / 해외ETF / 해외펀드)에 맞춘다
     var STOCK_TYPE_LABEL = {
@@ -278,6 +302,40 @@ MARIA.status = (function () {
         return type === null ? null : type === "IMMATURE_PRINCIPAL_INCLUDED" ? "EARLY" : "NORMAL";
     }
 
+    // 자금 환류 혜택 누수 5분류 (LeakageCategory 코드). 화면 요약의 "정상 / 부분 축소 / 취소" 로 묶는 기준:
+    // 매도 없음은 혜택을 판정할 대상이 아니라 비율의 분모에서 뺀다. "일부 감액"(계좌의 REDUCED)과는 다른 말이라 쓰지 않는다.
+    var LEAKAGE_LABEL = {
+        NO_SELL: "매도 없음",
+        BENEFIT_CANCELED: "혜택 취소",
+        NO_IMPACT: "영향 없음",
+        PARTIAL_REDUCED: "부분 축소",
+        EXTERNAL_BUY_OFFSET: "순매수 소멸"
+    };
+    var LEAKAGE_GROUP = {
+        NO_SELL: "excluded",
+        NO_IMPACT: "normal",
+        PARTIAL_REDUCED: "reduced",
+        BENEFIT_CANCELED: "canceled",
+        EXTERNAL_BUY_OFFSET: "canceled"
+    };
+    var LEAKAGE_GROUP_LABEL = {
+        normal: "정상",
+        reduced: "부분 축소",
+        canceled: "취소",
+        excluded: "판정 제외"
+    };
+
+    // 투자성향 (InvestorType). 자금 환류 연령대 × 투자성향 히트맵 열 이름. 값 순서 = 위험 선호가 낮은 쪽 → 높은 쪽, 미진단은 맨 끝
+    var INVESTOR_TYPE_LABEL = {
+        STABLE: "안정형",
+        CONSERVATIVE: "안정추구형",
+        NEUTRAL: "위험중립형",
+        ACTIVE: "적극투자형",
+        AGGRESSIVE: "공격투자형",
+        UNASSIGNED: "미진단"
+    };
+    var INVESTOR_TYPE_ORDER = ["STABLE", "CONSERVATIVE", "NEUTRAL", "ACTIVE", "AGGRESSIVE", "UNASSIGNED"];
+
     return {
         WITHDRAWAL_STATUS_LABEL: WITHDRAWAL_STATUS_LABEL,
         WITHDRAWAL_TYPE_LABEL: WITHDRAWAL_TYPE_LABEL,
@@ -387,6 +445,38 @@ MARIA.status = (function () {
 
         benefitLabel: function (benefit) {
             return pick(BENEFIT_LABEL, benefit, BENEFIT_LABEL.UNCLASSIFIED);
+        },
+        // 세제혜택 배지 톤: 적용 ok / 일부 감액 warn / 제외 off / 대기 info (원본 배지 색)
+        INVESTOR_TYPE_LABEL: INVESTOR_TYPE_LABEL,
+        INVESTOR_TYPE_ORDER: INVESTOR_TYPE_ORDER,
+        investorTypeLabel: function (type) {
+            return pick(INVESTOR_TYPE_LABEL, type, "-");
+        },
+        LEAKAGE_LABEL: LEAKAGE_LABEL,
+        leakageLabel: function (code) {
+            return pick(LEAKAGE_LABEL, code, "-");
+        },
+        leakageGroup: function (code) {
+            return LEAKAGE_GROUP[String(code).toUpperCase()] || "excluded";
+        },
+        leakageGroupLabel: function (group) {
+            return LEAKAGE_GROUP_LABEL[group] || "-";
+        },
+        benefitTone: function (benefit) {
+            var key = String(benefit == null ? "" : benefit).toUpperCase();
+            return key === "POSSIBLE" ? "ok" : key === "REDUCED" ? "warn" : key === "IMPOSSIBLE" ? "off" : "info";
+        },
+        accountStatusLabel: function (status) {
+            return pick(ACCOUNT_STATUS_LABEL, status, "-");
+        },
+        accountStatusTone: function (status) {
+            return ACCOUNT_STATUS_TONE[String(status || "").toUpperCase()] || "off";
+        },
+        accountClosureStatusLabel: function (status) {
+            return pick(ACCOUNT_CLOSURE_STATUS_LABEL, status, "-");
+        },
+        accountClosureStatusTone: function (status) {
+            return ACCOUNT_CLOSURE_STATUS_TONE[String(status || "").toUpperCase()] || "off";
         },
         stockTypeLabel: function (type) {
             return pick(STOCK_TYPE_LABEL, type, "-");

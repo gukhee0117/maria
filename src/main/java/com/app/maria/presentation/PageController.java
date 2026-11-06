@@ -88,4 +88,10 @@ public class PageController {
         model.addAttribute("activePath", "/admin/tax");
         return "tax-calculation";
     }
+
+    @GetMapping("/admin/fund-flow")
+    public String fundFlow(Model model) {
+        model.addAttribute("activePath", "/admin/fund-flow");
+        return "fund-flow";
+    }
 }
