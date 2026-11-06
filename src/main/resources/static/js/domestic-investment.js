@@ -12,6 +12,9 @@ $(function () {
     var totalCashAmount = null; // 예탁금 비중의 분모 (summary.totalCashAmount)
     var businessToday = null;
     var recentDays = 7;
+    var REFRESH_MS = 10000;
+    var listRequestSeq = 0; // 늦게 도착한 이전 목록 응답은 버린다
+    var appliedFilterParams = null; // 마지막으로 조회한 조건(자동 새로고침은 이 조건을 그대로 쓴다)
     var SKELETON_ROWS = 8;
     var SKELETON_WIDTHS = ["62%", "70%", "48%", "54%", "66%", "78%"];
     var TYPE_LABEL = STATUS.DOMESTIC_TYPE_LABEL;
@@ -201,30 +204,40 @@ $(function () {
         return params;
     }
 
-    function loadInvestments(page) {
+    // silent: 자동 새로고침. 로딩 표시·상세 닫기 없이 같은 조건·같은 페이지를 다시 받아 숫자만 바꾼다(실패하면 화면 유지)
+    function loadInvestments(page, silent) {
         var targetPage = page || 0;
         var $content = $(".content");
         var scrollTop = $content.scrollTop();
-        closeDetail();
-        renderLoading();
+        var seq = ++listRequestSeq;
+        if (!silent) {
+            closeDetail();
+            renderLoading();
+            appliedFilterParams = getFilterParams();
+        }
         MARIA.auth.ajax({
             url: "/api/admin/domestic-investments",
             method: "GET",
-            data: $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams())
+            data: $.extend({ page: targetPage, size: PAGE_SIZE }, appliedFilterParams)
         })
             .done(function (res) {
+                if (seq !== listRequestSeq) {
+                    return;
+                }
                 var data = res.data || {};
                 investments = data.content || [];
                 currentPage = data.page || 0;
                 totalCount = data.totalElements || 0;
-                selectedAccountId = null;
+                if (!silent) {
+                    selectedAccountId = null;
+                }
                 $("#diTotalCount").text(KRW_FORMATTER.format(totalCount));
                 renderList();
                 renderPagination();
                 $content.scrollTop(scrollTop);
             })
             .fail(function (xhr) {
-                if (xhr.status === 401) {
+                if (xhr.status === 401 || silent || seq !== listRequestSeq) {
                     return;
                 }
                 var message = (xhr.responseJSON && xhr.responseJSON.message) || "목록을 불러오지 못했습니다.";
@@ -471,4 +484,13 @@ $(function () {
         });
     loadSummary();
     loadInvestments(0);
+
+    // 국내 시세·거래가 계속 바뀌므로 10초마다 요약과 지금 보는 페이지를 조용히 다시 받는다(탭이 안 보이면 건너뜀)
+    setInterval(function () {
+        if (document.hidden) {
+            return;
+        }
+        loadSummary();
+        loadInvestments(currentPage, true);
+    }, REFRESH_MS);
 });
