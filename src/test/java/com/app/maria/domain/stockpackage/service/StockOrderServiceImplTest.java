@@ -35,7 +35,6 @@ import com.app.maria.domain.stockpackage.vo.StockQuoteVO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.type.TaxRuleType;
-import com.app.maria.global.client.securities.SecuritiesTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -71,7 +70,7 @@ class StockOrderServiceImplTest {
     @Mock DomesticPurchaseEligibilityService eligibility;
     @Mock BusinessClockService clock;
     @Mock PlatformTransactionManager txManager;
-    @Mock SecuritiesTradeClient tradeClient;
+    @Mock SecuritiesOrderRecorder recorder;
 
     StockOrderServiceImpl service;
 
@@ -88,7 +87,7 @@ class StockOrderServiceImplTest {
                         eligibility,
                         clock,
                         txManager,
-                        tradeClient,
+                        recorder,
                         false);
     }
 
@@ -475,36 +474,22 @@ class StockOrderServiceImplTest {
 
         service.place(CUSTOMER, PACKAGE, request("k-rec", DomesticOrderSide.BUY, "10"));
 
-        verify(tradeClient)
-                .record(
-                        eq(CI_HASH),
-                        eq(DomesticOrderSide.BUY),
-                        eq("005930"),
-                        any(BigDecimal.class),
-                        any(BigDecimal.class),
-                        eq(NOW),
-                        eq(555L));
+        ArgumentCaptor<StockOrderVO> sent = ArgumentCaptor.forClass(StockOrderVO.class);
+        verify(recorder).record(eq(CI_HASH), sent.capture());
+        assertThat(sent.getValue().getDomesticOrderId()).isEqualTo(555L);
+        assertThat(sent.getValue().getTicker()).isEqualTo("005930");
     }
 
     @Test
-    void 증권사_기록이_실패하면_예외가_올라가_트랜잭션이_롤백된다() {
+    void 증권사_전송_실패는_주문을_롤백하지_않고_재시도_대상으로_남긴다() {
         customerBuyReady();
-        org.mockito.Mockito.doThrow(
-                        new AppException(ErrorType.STOCK_ORDER_SECURITIES_RECORD_FAILED))
-                .when(tradeClient)
-                .record(any(), any(), any(), any(), any(), any(), any());
+        when(recorder.record(any(), any())).thenReturn(false);
 
-        assertThatThrownBy(
-                        () ->
-                                service.place(
-                                        CUSTOMER,
-                                        PACKAGE,
-                                        request("k-fail", DomesticOrderSide.BUY, "10")))
-                .isInstanceOfSatisfying(
-                        AppException.class,
-                        e ->
-                                assertThat(e.getErrorType())
-                                        .isEqualTo(ErrorType.STOCK_ORDER_SECURITIES_RECORD_FAILED));
+        StockOrderResponseDTO response =
+                service.place(CUSTOMER, PACKAGE, request("k-fail", DomesticOrderSide.BUY, "10"));
+
+        assertThat(response.orders()).hasSize(1);
+        verify(orderMapper).insertOrder(any());
     }
 
     @Test
@@ -515,7 +500,7 @@ class StockOrderServiceImplTest {
 
         service.place(CUSTOMER, PACKAGE, request("k-rej", DomesticOrderSide.BUY, "10"));
 
-        verify(tradeClient, never()).record(any(), any(), any(), any(), any(), any(), any());
+        verify(recorder, never()).record(any(), any());
     }
 
     @Test
@@ -529,6 +514,6 @@ class StockOrderServiceImplTest {
         service.placeGeneratorOrder(
                 ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-9");
 
-        verify(tradeClient, never()).record(any(), any(), any(), any(), any(), any(), any());
+        verify(recorder, never()).record(any(), any());
     }
 }

@@ -52,4 +52,10 @@ public interface StockOrderMapper {
      */
     int applyOrderAmount(
             @Param("accountId") Long accountId, @Param("domesticOrderId") Long domesticOrderId);
+
+    /** 증권사에 기록을 마친 주문에 시각을 남긴다. 이미 남아 있으면 바꾸지 않는다. */
+    int markSecuritiesRecorded(@Param("domesticOrderId") Long domesticOrderId);
+
+    /** 아직 증권사에 못 보낸 고객 체결 주문을 오래된 순으로(아웃박스). ticker·ciHash가 붙는다. */
+    List<StockOrderVO> selectUnrecordedCustomerOrders(@Param("limit") int limit);
 }

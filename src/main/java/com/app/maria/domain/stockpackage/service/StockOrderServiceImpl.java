@@ -21,7 +21,6 @@ import com.app.maria.domain.stockpackage.vo.StockPackageItemVO;
 import com.app.maria.domain.stockpackage.vo.StockQuoteVO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
-import com.app.maria.global.client.securities.SecuritiesTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -41,6 +40,8 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -64,7 +65,7 @@ public class StockOrderServiceImpl implements StockOrderService {
     private final DomesticPurchaseEligibilityService eligibilityService;
     private final BusinessClockService businessClockService;
     private final boolean enforceMarketHours;
-    private final SecuritiesTradeClient tradeClient;
+    private final SecuritiesOrderRecorder recorder;
     private final TransactionTemplate tx;
 
     public StockOrderServiceImpl(
@@ -77,7 +78,7 @@ public class StockOrderServiceImpl implements StockOrderService {
             DomesticPurchaseEligibilityService eligibilityService,
             BusinessClockService businessClockService,
             PlatformTransactionManager transactionManager,
-            SecuritiesTradeClient tradeClient,
+            SecuritiesOrderRecorder recorder,
             @Value("${maria.stock-order.enforce-market-hours:false}") boolean enforceMarketHours) {
         this.stockPackageMapper = stockPackageMapper;
         this.stockOrderMapper = stockOrderMapper;
@@ -88,7 +89,7 @@ public class StockOrderServiceImpl implements StockOrderService {
         this.eligibilityService = eligibilityService;
         this.businessClockService = businessClockService;
         this.enforceMarketHours = enforceMarketHours;
-        this.tradeClient = tradeClient;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -239,6 +240,7 @@ public class StockOrderServiceImpl implements StockOrderService {
                 amountNow.subtract(stockOrderMapper.sumProvisionalAmount(accountId));
 
         List<StockOrderResultDTO> results = new ArrayList<>();
+        List<StockOrderVO> toRecord = new ArrayList<>();
         int index = 0;
         for (StockOrderRequestDTO.Item item : request.items()) {
             index++;
@@ -263,36 +265,43 @@ public class StockOrderServiceImpl implements StockOrderService {
                             channel);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
                 if (CHANNEL_CUSTOMER.equals(channel)) {
-                    recordInSecurities(account, order);
+                    toRecord.add(order);
                 }
                 amountNow = amountNow.add(order.getAmount());
                 buyingPower = buyingPower.add(order.getAmount());
             }
             results.add(new StockOrderResultDTO(order));
         }
+        recordInSecuritiesAfterCommit(account, toRecord);
         return new StockOrderResponseDTO(results, amountNow, buyingPower);
     }
 
     /**
-     * 고객 주문의 체결을 증권사 거래로 남긴다. 커밋 전에 부르고, 끝내 실패하면 예외가 트랜잭션을 롤백해 주문·잔고·예수금이 함께 취소된다(증권사 거래내역에 없는 체결을
-     * maria에만 남기지 않는다). 거래 생성기 주문은 증권사가 먼저 시작한 것이라 대상이 아니다.
+     * 고객 주문의 체결을 증권사 거래로 남긴다. 주문 트랜잭션이 커밋된 뒤에 보내므로 커밋이 실패한 주문이 증권사에만 남지 않는다. 보내지 못하면 주문은 그대로 두고
+     * ({@code securities_recorded_at}이 비어 있는 채로) {@link SecuritiesOrderRecorder}의 재시도가 이어서 보낸다. 거래
+     * 생성기 주문은 증권사가 먼저 시작한 것이라 대상이 아니다.
      */
-    private void recordInSecurities(AccountDTO account, StockOrderVO order) {
+    private void recordInSecuritiesAfterCommit(AccountDTO account, List<StockOrderVO> orders) {
+        if (orders.isEmpty()) {
+            return;
+        }
         String ciHash =
-                accountMapper
-                        .selectCiHashByCustomerId(account.getCustomerId())
-                        .orElseThrow(
-                                () ->
-                                        new AppException(
-                                                ErrorType.STOCK_ORDER_SECURITIES_RECORD_FAILED));
-        tradeClient.record(
-                ciHash,
-                order.getSide(),
-                order.getTicker(),
-                order.getQty(),
-                order.getPrice(),
-                order.getProcessedAt(),
-                order.getDomesticOrderId());
+                accountMapper.selectCiHashByCustomerId(account.getCustomerId()).orElse(null);
+        if (ciHash == null) {
+            return;
+        }
+        Runnable send = () -> orders.forEach(order -> recorder.record(ciHash, order));
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            send.run();
+                        }
+                    });
+        } else {
+            send.run();
+        }
     }
 
     private StockOrderVO process(

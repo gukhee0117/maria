@@ -19,8 +19,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * 고객 주문의 체결을 증권사 거래로 남긴다. 주문 트랜잭션이 커밋되기 전에 부르며, 최대 횟수까지 다시 시도해도 안 되면 AppException을 던져 호출한 쪽이 주문을
- * 롤백하게 한다. 같은 maria 주문번호는 증권사가 중복으로 기록하지 않아 재전송해도 안전하다. 실패 메시지에는 호스트·응답 본문을 넣지 않는다.
+ * 고객 주문의 체결을 증권사 거래로 남긴다. 주문 트랜잭션이 커밋된 뒤에 부르며, 최대 횟수까지 다시 시도해도 안 되면 AppException을 던진다(호출한 {@code
+ * SecuritiesOrderRecorder}가 받아 나중에 다시 보낸다). 같은 maria 주문번호는 증권사가 중복으로 기록하지 않아 재전송해도 안전하다. 실패 메시지에는
+ * 호스트·응답 본문을 넣지 않는다.
  */
 @Slf4j
 @Component
