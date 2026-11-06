@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,6 +35,7 @@ import com.app.maria.domain.stockpackage.vo.StockQuoteVO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.type.TaxRuleType;
+import com.app.maria.global.client.securities.SecuritiesTradeClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -69,6 +71,7 @@ class StockOrderServiceImplTest {
     @Mock DomesticPurchaseEligibilityService eligibility;
     @Mock BusinessClockService clock;
     @Mock PlatformTransactionManager txManager;
+    @Mock SecuritiesTradeClient tradeClient;
 
     StockOrderServiceImpl service;
 
@@ -85,6 +88,7 @@ class StockOrderServiceImplTest {
                         eligibility,
                         clock,
                         txManager,
+                        tradeClient,
                         false);
     }
 
@@ -122,6 +126,9 @@ class StockOrderServiceImplTest {
                         List.of(StockPackageItemVO.builder().domesticProductId(SAMSUNG).build()));
         when(accountMapper.selectByCustomerId(CUSTOMER)).thenReturn(Optional.of(account));
         when(clock.now()).thenReturn(NOW);
+        lenient()
+                .when(accountMapper.selectCiHashByCustomerId(CUSTOMER))
+                .thenReturn(Optional.of("a".repeat(64)));
         when(productMapper.selectById(SAMSUNG)).thenReturn(Optional.of(samsung()));
         when(quoteService.findQuotes(List.of("005930"))).thenReturn(List.of(quote));
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT)).thenReturn(Optional.of(account));
@@ -443,5 +450,85 @@ class StockOrderServiceImplTest {
         assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-9").orElseThrow().orderId())
                 .isEqualTo(5L);
         assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-0")).isEmpty();
+    }
+
+    private static final String CI_HASH = "a".repeat(64);
+
+    private void customerBuyReady() {
+        prepare(account(Status.OPENED, "10000000"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+        when(accountMapper.selectCiHashByCustomerId(CUSTOMER)).thenReturn(Optional.of(CI_HASH));
+    }
+
+    @Test
+    void 고객_주문이_체결되면_증권사에_거래를_기록한다() {
+        customerBuyReady();
+        org.mockito.Mockito.doAnswer(
+                        inv -> {
+                            StockOrderVO saved = inv.getArgument(0);
+                            saved.setDomesticOrderId(555L);
+                            return 1;
+                        })
+                .when(orderMapper)
+                .insertOrder(any());
+
+        service.place(CUSTOMER, PACKAGE, request("k-rec", DomesticOrderSide.BUY, "10"));
+
+        verify(tradeClient)
+                .record(
+                        eq(CI_HASH),
+                        eq(DomesticOrderSide.BUY),
+                        eq("005930"),
+                        any(BigDecimal.class),
+                        any(BigDecimal.class),
+                        eq(NOW),
+                        eq(555L));
+    }
+
+    @Test
+    void 증권사_기록이_실패하면_예외가_올라가_트랜잭션이_롤백된다() {
+        customerBuyReady();
+        org.mockito.Mockito.doThrow(
+                        new AppException(ErrorType.STOCK_ORDER_SECURITIES_RECORD_FAILED))
+                .when(tradeClient)
+                .record(any(), any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(
+                        () ->
+                                service.place(
+                                        CUSTOMER,
+                                        PACKAGE,
+                                        request("k-fail", DomesticOrderSide.BUY, "10")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.STOCK_ORDER_SECURITIES_RECORD_FAILED));
+    }
+
+    @Test
+    void 거부된_주문은_증권사에_기록하지_않는다() {
+        prepare(account(Status.OPENED, "1000010"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        service.place(CUSTOMER, PACKAGE, request("k-rej", DomesticOrderSide.BUY, "10"));
+
+        verify(tradeClient, never()).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void 생성기_주문은_증권사에_다시_기록하지_않는다() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        service.placeGeneratorOrder(
+                ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-9");
+
+        verify(tradeClient, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 }
