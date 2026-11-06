@@ -355,10 +355,16 @@ class DomesticStockBalanceMapperTest {
         insertBalanceWithDate(1L, 1L, "HOLDING", "10", PURCHASE_DATE);
         insertBalanceWithDate(1L, 2L, "HOLDING", "20", PURCHASE_DATE.plusDays(1));
 
+        try (Statement statement = sqlSession.getConnection().createStatement()) {
+            statement.executeUpdate(
+                    "UPDATE domestic_product SET sector_name = '반도체' WHERE domestic_product_id = 2");
+        }
+
         List<DomesticHoldingDTO> result = domesticStockBalanceMapper.selectHoldingsByAccountId(1L);
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getTicker()).isEqualTo("005930");
+        assertThat(result.get(0).getSectorName()).isEqualTo("반도체");
         assertThat(result.get(1).getTicker()).isEqualTo("448630");
         assertThat(result.get(1).getDomesticStockRatio()).isEqualByComparingTo("85.50");
     }
@@ -807,7 +813,8 @@ class DomesticStockBalanceMapperTest {
                         market VARCHAR(50),
                         type VARCHAR(15) NOT NULL,
                         domestic_stock_ratio DECIMAL(5,2),
-                        inception_date DATE
+                        inception_date DATE,
+                        sector_name VARCHAR(100)
                     )
                     """);
             statement.execute(

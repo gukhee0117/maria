@@ -1,0 +1,51 @@
+package com.app.maria.domain.news.service;
+
+import java.text.Normalizer;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
+
+/**
+ * Only reviewed article-question intents reach the model; raw user instructions/history never do.
+ */
+public final class NewsQuestionPolicy {
+    public static final String REFUSAL = "매수·매도 추천, 매매 시점·가격 등 투자 판단에 관한 조언은 제공하지 않습니다.";
+    private static final String EASY = "이 기사를 쉽게 설명해 줘";
+    private static final String NUMBERS = "기사에 나온 숫자만 정리해줘";
+    private static final String STOCKS = "관련 종목이 뭐야?";
+    private static final String RISKS = "주의할 위험은 뭐야?";
+    private static final Map<String, String> ALLOWED =
+            Map.ofEntries(
+                    Map.entry("이기사를쉽게설명해줘", EASY), Map.entry("쉽게다시설명해줘", EASY),
+                    Map.entry("쉽게설명해줘", EASY), Map.entry("설명", EASY),
+                    Map.entry("이기사요약해줘", EASY), Map.entry("기사요약해줘", EASY),
+                    Map.entry("기사에나온숫자만정리해줘", NUMBERS), Map.entry("기사의수치를정리해줘", NUMBERS),
+                    Map.entry("관련종목이뭐야", STOCKS), Map.entry("관련종목은뭐야", STOCKS),
+                    Map.entry("주의할위험은뭐야", RISKS), Map.entry("이기사의위험요인은뭐야", RISKS));
+    private static final Pattern ADVICE =
+            Pattern.compile(
+                    "(?:매수|매도|투자|보유|비중|진입|청산|종목|주식|손절|익절|목표가).{0,80}"
+                            + "(?:추천|권장|권유|하세요|하셔|해야|유리|적절|좋겠|좋습니다|좋아요|것이좋|편이좋|늘리|줄이|수익보장)"
+                            + "|사세요|파세요|팔아야|사야|매수신호|매도신호|매수타이밍|매도타이밍"
+                            + "|shouldbuy|shouldsell|recommendbuy|recommendsell");
+
+    private NewsQuestionPolicy() {}
+
+    public static Optional<String> canonicalQuestion(String question) {
+        return Optional.ofNullable(ALLOWED.get(normalize(question)));
+    }
+
+    public static boolean containsAdvice(String answer) {
+        return ADVICE.matcher(normalize(answer)).find();
+    }
+
+    private static String normalize(String value) {
+        var result = new StringBuilder();
+        Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFKC)
+                .toLowerCase(java.util.Locale.ROOT)
+                .codePoints()
+                .filter(Character::isLetterOrDigit)
+                .forEach(result::appendCodePoint);
+        return result.toString();
+    }
+}

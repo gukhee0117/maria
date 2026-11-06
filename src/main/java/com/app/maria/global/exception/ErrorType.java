@@ -26,6 +26,21 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    NEWS_SOURCE_NOT_CONFIGURED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 API 키 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_SOURCE_AUTH_FAILED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 API 인증에 실패했습니다. 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_SOURCE_RATE_LIMITED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 조회 요청이 몰렸습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_AI_AUTH_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 인증 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_UPSTREAM_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "실제 뉴스를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_ARTICLE_UNAVAILABLE(HttpStatus.NOT_FOUND, "보유 종목에 해당하는 기사를 찾을 수 없습니다.", LogLevel.WARN),
+    NEWS_VERSION_CHANGED(HttpStatus.CONFLICT, "기사가 변경되었습니다. 다시 선택해 주세요.", LogLevel.WARN),
+    NEWS_AI_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_SEARCH_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 검색을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     RISK_TIMEZONE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "위험등급 DB 연결 시간대를 확인할 수 없습니다.", LogLevel.WARN),
     RISK_CALENDAR_UNAVAILABLE(

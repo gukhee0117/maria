@@ -139,3 +139,12 @@ management:
 kkiru:
   docs:
     path: classpath:kkiru/docs/RIA_RAG_지식문서*.txt
+news:
+  provider: ${NEWS_PROVIDER:free}
+  free-news-api-key: ${FREENEWS_API_KEY:}
+  live-summaries: ${NEWS_LIVE_SUMMARIES:false}
+  model: ${NEWS_MODEL:gpt-4o-mini}
+  naver-client-id: ${NEWS_NAVER_CLIENT_ID:}
+  naver-client-secret: ${NEWS_NAVER_CLIENT_SECRET:}
+  # Optional startup-only preparation, at most two explicit demo accounts. No periodic API spend.
+  warmup-customer-ids: ${NEWS_WARMUP_CUSTOMER_IDS:}
