@@ -72,7 +72,8 @@ class NewsSharedSummaryTest {
                         ai,
                         new PreparedNewsResponses(),
                         new NewsSummaryCache(),
-                        properties);
+                        properties,
+                        () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
         var first = service.summary(1L, "a", "v1");
         var second = service.summary(2L, "a", "v1");
         assertThat(second.origin()).isEqualTo(Origin.CACHED_LLM);

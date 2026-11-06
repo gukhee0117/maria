@@ -10,7 +10,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import org.springframework.ai.chat.client.ChatClient;
@@ -111,16 +110,11 @@ public class NewsAiService {
                                                                                     stock.name()))
                                                             .toList()));
             String text =
-                    client
-                            .prompt()
+                    client.prompt()
                             .system(request == null ? summaryPrompt : questionPrompt)
                             .user(input)
-                            .stream()
-                            .content()
-                            .collectList()
-                            .map(parts -> String.join("", parts))
-                            .timeout(Duration.ofSeconds(20))
-                            .block();
+                            .call()
+                            .content();
             if (text == null || text.isBlank() || text.length() > 2000)
                 throw new IllegalStateException("Invalid news answer");
             text =

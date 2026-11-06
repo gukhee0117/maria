@@ -9,7 +9,7 @@ import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.entity.InvestorType;
 import com.app.maria.domain.news.client.NaverNewsSearchClient;
 import com.app.maria.domain.news.dto.NewsContract.*;
-import com.app.maria.domain.news.service.NewsBriefingService;
+import com.app.maria.domain.news.service.NewsBriefingOperations;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 class CustomerNewsApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
-    @MockitoBean NewsBriefingService service;
+    @MockitoBean NewsBriefingOperations service;
     @MockitoBean NaverNewsSearchClient naver;
 
     RequestPostProcessor customer(long id) {
@@ -113,8 +113,9 @@ class CustomerNewsApiTest {
         when(naver.search("삼성전자")).thenReturn(raw);
         mvc.perform(get("/api/customer/news/search").with(customer(7)).param("query", "삼성전자"))
                 .andExpect(status().isOk())
-                .andExpect(content().json(raw.toString()))
                 .andExpect(jsonPath("$.items[0].title").value("Z"))
+                .andExpect(jsonPath("$.items[1].title").value("A"))
+                .andExpect(jsonPath("$.items[0].link").value(""))
                 .andExpect(header().string("Cache-Control", "no-store"));
         verifyNoInteractions(service);
     }

@@ -53,7 +53,8 @@ class NewsFreeIntegrationTest {
                         ai,
                         new PreparedNewsResponses(),
                         new NewsSummaryCache(),
-                        properties);
+                        properties,
+                        () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
         var briefing = service.briefing(1L);
         assertThat(briefing.articles()).isNotEmpty();
         var article = briefing.articles().get(0).article();

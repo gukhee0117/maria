@@ -7,10 +7,15 @@ import com.app.maria.domain.news.dto.NewsArticle;
 import com.app.maria.domain.news.dto.NewsContract.*;
 import com.app.maria.domain.news.provider.NewsProvider;
 import com.app.maria.domain.news.provider.PreparedNewsResponses;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +23,12 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class NewsBriefingService {
+public class NewsBriefingService implements NewsBriefingOperations {
+    private record ArticleSession(List<Selected> selected, long expiresAtNanos) {}
+
+    private static final long ARTICLE_SESSION_TTL_NANOS = Duration.ofMinutes(3).toNanos();
+    private static final int MAX_ARTICLE_SESSIONS = 512;
+
     private final NewsCustomerContextService contexts;
     private final NewsSelectionService selection;
     private final NewsProvider provider;
@@ -26,10 +36,12 @@ public class NewsBriefingService {
     private final PreparedNewsResponses prepared;
     private final NewsSummaryCache cache;
     private final NewsProperties properties;
+    private final BusinessClockService businessClock;
+    private final ConcurrentMap<String, ArticleSession> articleSessions = new ConcurrentHashMap<>();
 
     public Briefing briefing(Long customerId) {
         var c = contexts.load(customerId);
-        var selected = selection.select(c, provider.articles(c));
+        var selected = selected(c);
         Answer first = null;
         if (!selected.isEmpty()) {
             var a = selected.get(0).article();
@@ -137,7 +149,9 @@ public class NewsBriefingService {
         var canonical = NewsQuestionPolicy.canonicalQuestion(request.question());
         if (canonical.isEmpty())
             return policyRefusal(
-                    id, request.articleVersion(), NewsQuestionPolicy.refusalFor(request.question()));
+                    id,
+                    request.articleVersion(),
+                    NewsQuestionPolicy.refusalFor(request.question()));
         var c = contexts.load(customerId);
         var a = allowed(c, id, request.articleVersion());
         // Client history can be forged. Reviewed article intents are self-contained.
@@ -151,7 +165,7 @@ public class NewsBriefingService {
                     generated,
                     Origin.LIVE_LLM,
                     null,
-                    Instant.now(),
+                    businessClock.now().atZone(ZoneId.of("Asia/Seoul")).toInstant(),
                     asksForStocks(safeRequest.question()) ? related(a, c) : List.of());
         } catch (RuntimeException e) {
             log.warn(
@@ -194,7 +208,7 @@ public class NewsBriefingService {
 
     private NewsArticle allowed(Context c, String id, String version) {
         var article =
-                selection.select(c, provider.articles(c)).stream()
+                selected(c).stream()
                         .map(Selected::article)
                         .filter(a -> a.id().equals(id))
                         .findFirst()
@@ -202,6 +216,36 @@ public class NewsBriefingService {
         if (!article.version().equals(version))
             throw new AppException(ErrorType.NEWS_VERSION_CHANGED);
         return article;
+    }
+
+    private List<Selected> selected(Context context) {
+        String key =
+                context.customerId()
+                        + ":"
+                        + NewsCacheIdentity.context(context)
+                        + ":"
+                        + provider.contextVersion(context)
+                        + ":"
+                        + NewsSelectionService.RULE_VERSION;
+        long now = System.nanoTime();
+        var cached = articleSessions.get(key);
+        if (cached != null && cached.expiresAtNanos() - now > 0) return cached.selected();
+        if (cached != null) articleSessions.remove(key, cached);
+
+        var result = selection.select(context, provider.articles(context));
+        articleSessions.put(
+                key, new ArticleSession(result, System.nanoTime() + ARTICLE_SESSION_TTL_NANOS));
+        if (articleSessions.size() > MAX_ARTICLE_SESSIONS) {
+            long timestamp = System.nanoTime();
+            articleSessions
+                    .entrySet()
+                    .removeIf(e -> e.getValue().expiresAtNanos() - timestamp <= 0);
+            if (articleSessions.size() > MAX_ARTICLE_SESSIONS) {
+                var oldest = articleSessions.keySet().stream().findFirst().orElse(null);
+                if (oldest != null) articleSessions.remove(oldest);
+            }
+        }
+        return result;
     }
 
     private Answer answer(

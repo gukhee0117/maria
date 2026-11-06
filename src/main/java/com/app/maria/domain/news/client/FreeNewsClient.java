@@ -80,18 +80,23 @@ public class FreeNewsClient {
         }
     }
 
-    private synchronized void pace() throws InterruptedException {
-        var month = java.time.YearMonth.now(java.time.Clock.systemUTC());
-        if (!month.equals(requestMonth)) {
-            requestMonth = month;
-            requestsThisMonth = 0;
+    private void pace() throws InterruptedException {
+        long delay;
+        synchronized (this) {
+            var month = java.time.YearMonth.now(java.time.Clock.systemUTC());
+            if (!month.equals(requestMonth)) {
+                requestMonth = month;
+                requestsThisMonth = 0;
+            }
+            if (requestsThisMonth >= properties.getSourceMonthlyRequestLimit())
+                throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
+            requestsThisMonth++;
+            long now = System.nanoTime();
+            delay = nextRequestNanos - now;
+            nextRequestNanos = Math.max(now, nextRequestNanos) + Duration.ofMillis(600).toNanos();
         }
-        if (requestsThisMonth >= properties.getSourceMonthlyRequestLimit())
-            throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
-        requestsThisMonth++;
-        long delay = nextRequestNanos - System.nanoTime();
+        // Production callers are FreeNewsProvider's bounded news-source-reader workers.
         if (delay > 0) java.util.concurrent.TimeUnit.NANOSECONDS.sleep(delay);
-        nextRequestNanos = System.nanoTime() + Duration.ofMillis(600).toNanos();
     }
 
     private AppException unavailable() {

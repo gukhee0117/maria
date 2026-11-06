@@ -25,7 +25,8 @@ class NewsBriefingServiceTest {
                     ai,
                     new PreparedNewsResponses(),
                     new NewsSummaryCache(),
-                    properties);
+                    properties,
+                    () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
 
     NewsBriefingServiceTest() {
         when(provider.articles(any(Context.class))).thenAnswer(invocation -> provider.articles());

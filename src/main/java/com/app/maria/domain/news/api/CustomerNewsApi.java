@@ -1,7 +1,7 @@
 package com.app.maria.domain.news.api;
 
 import com.app.maria.domain.news.dto.NewsContract.*;
-import com.app.maria.domain.news.service.NewsBriefingService;
+import com.app.maria.domain.news.service.NewsBriefingOperations;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import jakarta.validation.Valid;
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/customer/news")
 @RequiredArgsConstructor
 public class CustomerNewsApi {
-    private final NewsBriefingService service;
+    private final NewsBriefingOperations service;
 
     @GetMapping("/briefing")
     public ResponseEntity<ApiResponseDTO<Briefing>> briefing(
