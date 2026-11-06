@@ -85,6 +85,9 @@ jwt:
   refresh-blacklist-prefix: "refresh:"
 # api
 custom:
+  market:
+    # kis = KIS·환율 API, securities = 증권사(return-securities) 저장 시세
+    source: ${MARKET_SOURCE:kis}
   risk:
     url: ${RISK_URL:http://risk:8000}
     service-key: ${RISK_SERVICE_KEY:}

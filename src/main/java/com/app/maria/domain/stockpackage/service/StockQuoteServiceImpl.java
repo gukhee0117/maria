@@ -8,6 +8,7 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,17 +43,25 @@ public class StockQuoteServiceImpl implements StockQuoteService {
             }
             unique.add(ticker);
         }
-        return unique.stream().map(this::quote).toList();
+        Map<String, DomesticQuote> quotes = fetchQuotes(unique);
+        return unique.stream().map(ticker -> toVo(ticker, quotes.get(ticker))).toList();
     }
 
-    private StockQuoteVO quote(String ticker) {
+    private Map<String, DomesticQuote> fetchQuotes(LinkedHashSet<String> tickers) {
         try {
-            DomesticQuote q = kisDomesticPriceClient.getQuote(ticker);
-            return new StockQuoteVO(
-                    ticker, true, q.price(), q.previousClose(), q.upperLimit(), q.lowerLimit());
+            return kisDomesticPriceClient.getQuotes(List.copyOf(tickers));
         } catch (AppException e) {
-            log.warn("현재가 조회 실패 ticker={} type={}", ticker, e.getErrorType());
+            log.warn("현재가 일괄 조회 실패 type={}", e.getErrorType());
+            return Map.of();
+        }
+    }
+
+    private StockQuoteVO toVo(String ticker, DomesticQuote q) {
+        if (q == null) {
+            log.warn("현재가 조회 실패 ticker={}", ticker);
             return StockQuoteVO.unavailable(ticker);
         }
+        return new StockQuoteVO(
+                ticker, true, q.price(), q.previousClose(), q.upperLimit(), q.lowerLimit());
     }
 }

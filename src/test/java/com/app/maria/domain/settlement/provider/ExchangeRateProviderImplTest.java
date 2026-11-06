@@ -41,12 +41,12 @@ class ExchangeRateProviderImplTest {
     @DisplayName("통화와 기준일로 조회한 정상 환율을 반환한다")
     void getFinalRateReturnsRate() {
         BigDecimal expectedRate = new BigDecimal("1433.60");
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenReturn(expectedRate);
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenReturn(expectedRate);
 
         BigDecimal actualRate = exchangeRateProvider.getFinalRate("USD", SEARCH_DATE);
 
         assertThat(actualRate).isSameAs(expectedRate);
-        verify(exchangeRateClient).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient).getFinalRate("USD", SEARCH_DATE);
     }
 
     @Test
@@ -86,7 +86,7 @@ class ExchangeRateProviderImplTest {
     @Test
     @DisplayName("외부 환율 응답이 null이면 외부 API 오류로 처리한다")
     void getFinalRateRejectsNullRate() {
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenReturn(null);
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenReturn(null);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
                 .isInstanceOf(AppException.class)
@@ -98,7 +98,7 @@ class ExchangeRateProviderImplTest {
     @ValueSource(strings = {"0", "-0.01"})
     @DisplayName("외부 환율 응답이 0 이하이면 외부 API 오류로 처리한다")
     void getFinalRateRejectsNonPositiveRate(String rate) {
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenReturn(new BigDecimal(rate));
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenReturn(new BigDecimal(rate));
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
                 .isInstanceOf(AppException.class)
@@ -110,7 +110,7 @@ class ExchangeRateProviderImplTest {
     @DisplayName("외부 환율 Client의 조회 실패를 그대로 전파한다")
     void getFinalRatePropagatesClientException() {
         AppException clientException = new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
-        when(exchangeRateClient.getBaseRate(eq("USD"), any(LocalDate.class)))
+        when(exchangeRateClient.getFinalRate(eq("USD"), any(LocalDate.class)))
                 .thenThrow(clientException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
@@ -121,7 +121,7 @@ class ExchangeRateProviderImplTest {
     @DisplayName("외부 환율 Client의 연결 또는 응답 시간 초과를 외부 API 예외로 변환한다")
     void getFinalRateConvertsResourceAccessException() {
         ResourceAccessException timeoutException = new ResourceAccessException("Read timed out");
-        when(exchangeRateClient.getBaseRate(eq("USD"), any(LocalDate.class)))
+        when(exchangeRateClient.getFinalRate(eq("USD"), any(LocalDate.class)))
                 .thenThrow(timeoutException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
@@ -130,21 +130,21 @@ class ExchangeRateProviderImplTest {
                 .hasFieldOrPropertyWithValue("errorData", "환율 API 연결 또는 응답 시간 초과")
                 .hasCause(timeoutException);
 
-        verify(exchangeRateClient, times(3)).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient, times(3)).getFinalRate("USD", SEARCH_DATE);
     }
 
     @Test
     @DisplayName("timeout 이후 같은 날짜 환율 조회를 재시도해 성공하면 환율을 반환한다")
     void getFinalRateRetriesTransientTimeout() {
         ResourceAccessException timeoutException = new ResourceAccessException("Read timed out");
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE))
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE))
                 .thenThrow(timeoutException)
                 .thenReturn(new BigDecimal("1433.60"));
 
         BigDecimal result = exchangeRateProvider.getFinalRate("USD", SEARCH_DATE);
 
         assertThat(result).isEqualByComparingTo("1433.60");
-        verify(exchangeRateClient, times(2)).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient, times(2)).getFinalRate("USD", SEARCH_DATE);
     }
 
     @Test
@@ -153,14 +153,14 @@ class ExchangeRateProviderImplTest {
         HttpServerErrorException serverException =
                 HttpServerErrorException.create(
                         HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", null, null, null);
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE))
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE))
                 .thenThrow(serverException)
                 .thenReturn(new BigDecimal("1433.60"));
 
         BigDecimal result = exchangeRateProvider.getFinalRate("USD", SEARCH_DATE);
 
         assertThat(result).isEqualByComparingTo("1433.60");
-        verify(exchangeRateClient, times(2)).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient, times(2)).getFinalRate("USD", SEARCH_DATE);
     }
 
     @Test
@@ -169,21 +169,21 @@ class ExchangeRateProviderImplTest {
         HttpClientErrorException clientException =
                 HttpClientErrorException.create(
                         HttpStatus.BAD_REQUEST, "Bad Request", null, null, null);
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenThrow(clientException);
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenThrow(clientException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
                 .isInstanceOf(AppException.class)
                 .hasFieldOrPropertyWithValue("errorType", ErrorType.EXCHANGE_RATE_API_FAILED)
                 .hasFieldOrPropertyWithValue("errorData", "환율 API 호출 실패");
 
-        verify(exchangeRateClient).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient).getFinalRate("USD", SEARCH_DATE);
     }
 
     @Test
     @DisplayName("재시도 대기 중 interrupt는 외부 API 오류로 처리한다")
     void getFinalRateRejectsInterruptedRetry() {
         ResourceAccessException timeoutException = new ResourceAccessException("Read timed out");
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenThrow(timeoutException);
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenThrow(timeoutException);
 
         Thread.currentThread().interrupt();
         try {
@@ -200,7 +200,7 @@ class ExchangeRateProviderImplTest {
     @DisplayName("외부 환율 Client의 일반 HTTP 호출 실패를 외부 API 예외로 변환한다")
     void getFinalRateConvertsRestClientException() {
         RestClientException clientException = new RestClientException("HTTP 호출 실패") {};
-        when(exchangeRateClient.getBaseRate(eq("USD"), any(LocalDate.class)))
+        when(exchangeRateClient.getFinalRate(eq("USD"), any(LocalDate.class)))
                 .thenThrow(clientException);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
@@ -214,11 +214,11 @@ class ExchangeRateProviderImplTest {
     @DisplayName("Client가 환율 없음으로 반환하면 Provider에서 날짜 탐색을 중복하지 않는다")
     void getFinalRateDoesNotRepeatClientLookback() {
         AppException notFound = new AppException(ErrorType.EXCHANGE_RATE_NOT_FOUND);
-        when(exchangeRateClient.getBaseRate("USD", SEARCH_DATE)).thenThrow(notFound);
+        when(exchangeRateClient.getFinalRate("USD", SEARCH_DATE)).thenThrow(notFound);
 
         assertThatThrownBy(() -> exchangeRateProvider.getFinalRate("USD", SEARCH_DATE))
                 .isSameAs(notFound);
 
-        verify(exchangeRateClient).getBaseRate("USD", SEARCH_DATE);
+        verify(exchangeRateClient).getFinalRate("USD", SEARCH_DATE);
     }
 }
