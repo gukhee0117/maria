@@ -28,6 +28,7 @@ DROP TABLE IF EXISTS stock_package_item;
 DROP TABLE IF EXISTS domestic_order;
 DROP TABLE IF EXISTS stock_package;
 DROP TABLE IF EXISTS news_item;
+DROP TABLE IF EXISTS news_source_monthly_usage;
 DROP TABLE IF EXISTS rag_chunk;
 DROP TABLE IF EXISTS customer_consent;
 DROP TABLE IF EXISTS investor_assessment;
@@ -690,6 +691,14 @@ CREATE TABLE news_item (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='뉴스·기사 요약(내 종목/RIA·세제)';
 
 -- [NO-SEED] 2차 신규(서비스가 생성). 생성기 무관.
+CREATE TABLE news_source_monthly_usage (
+    usage_month   CHAR(7)      NOT NULL COMMENT 'UTC 기준 API 사용 월(YYYY-MM)',
+    request_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '해당 월 뉴스 API 요청 예약 수',
+    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (usage_month),
+    CONSTRAINT chk_nsmu_month CHECK (usage_month REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='뉴스 공급자 월간 API 요청 한도 추적';
+
 CREATE TABLE community_post (
     community_post_id BIGINT       NOT NULL AUTO_INCREMENT,
     ticker            VARCHAR(20)  NULL     COMMENT '종목 토론이면 종목코드, 일반 글이면 NULL',

@@ -8,6 +8,7 @@ import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.domain.news.cache.NewsSummaryCache;
 import com.app.maria.domain.news.client.NaverNewsSearchClient;
+import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
 import com.app.maria.domain.news.provider.*;
 import com.app.maria.domain.news.service.*;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -46,6 +47,7 @@ class NewsConfigurationTest {
                         ObjectMapper.class,
                         () -> new ObjectMapper().registerModule(new JavaTimeModule()))
                 .withBean(ChatModel.class, () -> mock(ChatModel.class))
+                .withBean(NewsSourceUsageMapper.class, () -> mock(NewsSourceUsageMapper.class))
                 .withBean(
                         BusinessClockService.class,
                         () -> () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0))

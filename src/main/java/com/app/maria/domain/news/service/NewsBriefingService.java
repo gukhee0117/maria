@@ -13,9 +13,10 @@ import com.app.maria.global.exception.ErrorType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,8 @@ public class NewsBriefingService implements NewsBriefingOperations {
     private final NewsSummaryCache cache;
     private final NewsProperties properties;
     private final BusinessClockService businessClock;
-    private final ConcurrentMap<String, ArticleSession> articleSessions = new ConcurrentHashMap<>();
+    private final Map<String, ArticleSession> articleSessions =
+            new LinkedHashMap<>(16, 0.75f, true);
 
     public Briefing briefing(Long customerId) {
         var c = contexts.load(customerId);
@@ -228,21 +230,29 @@ public class NewsBriefingService implements NewsBriefingOperations {
                         + ":"
                         + NewsSelectionService.RULE_VERSION;
         long now = System.nanoTime();
-        var cached = articleSessions.get(key);
-        if (cached != null && cached.expiresAtNanos() - now > 0) return cached.selected();
-        if (cached != null) articleSessions.remove(key, cached);
+        synchronized (articleSessions) {
+            var cached = articleSessions.get(key);
+            if (cached != null && cached.expiresAtNanos() - now > 0) return cached.selected();
+            if (cached != null) articleSessions.remove(key);
+        }
 
         var result = selection.select(context, provider.articles(context));
-        articleSessions.put(
-                key, new ArticleSession(result, System.nanoTime() + ARTICLE_SESSION_TTL_NANOS));
-        if (articleSessions.size() > MAX_ARTICLE_SESSIONS) {
-            long timestamp = System.nanoTime();
-            articleSessions
-                    .entrySet()
-                    .removeIf(e -> e.getValue().expiresAtNanos() - timestamp <= 0);
-            if (articleSessions.size() > MAX_ARTICLE_SESSIONS) {
-                var oldest = articleSessions.keySet().stream().findFirst().orElse(null);
-                if (oldest != null) articleSessions.remove(oldest);
+        synchronized (articleSessions) {
+            long insertedAt = System.nanoTime();
+            articleSessions.put(
+                    key, new ArticleSession(result, insertedAt + ARTICLE_SESSION_TTL_NANOS));
+            Iterator<Map.Entry<String, ArticleSession>> iterator =
+                    articleSessions.entrySet().iterator();
+            while (iterator.hasNext()) {
+                if (iterator.next().getValue().expiresAtNanos() - insertedAt <= 0) {
+                    iterator.remove();
+                }
+            }
+            while (articleSessions.size() > MAX_ARTICLE_SESSIONS) {
+                iterator = articleSessions.entrySet().iterator();
+                if (!iterator.hasNext()) break;
+                iterator.next();
+                iterator.remove();
             }
         }
         return result;

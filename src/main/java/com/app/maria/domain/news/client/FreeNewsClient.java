@@ -1,6 +1,7 @@
 package com.app.maria.domain.news.client;
 
 import com.app.maria.domain.news.config.NewsProperties;
+import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,26 +17,39 @@ import org.springframework.web.client.RestClientResponseException;
 public class FreeNewsClient {
     private final RestClient client;
     private final NewsProperties properties;
+    private final NewsSourceUsageMapper usageMapper;
     private long nextRequestNanos;
     private java.time.YearMonth requestMonth;
     private int requestsThisMonth;
 
-    @Autowired
     public FreeNewsClient(NewsProperties properties) {
-        this.properties = properties;
-        var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(3));
-        factory.setReadTimeout(Duration.ofSeconds(8));
-        client =
-                RestClient.builder()
-                        .baseUrl("https://freenewsapi.ai")
-                        .requestFactory(factory)
-                        .build();
+        this(properties, createClient(), null);
+    }
+
+    @Autowired
+    public FreeNewsClient(NewsProperties properties, NewsSourceUsageMapper usageMapper) {
+        this(properties, createClient(), usageMapper);
     }
 
     FreeNewsClient(NewsProperties properties, RestClient client) {
+        this(properties, client, null);
+    }
+
+    FreeNewsClient(
+            NewsProperties properties, RestClient client, NewsSourceUsageMapper usageMapper) {
         this.properties = properties;
         this.client = client;
+        this.usageMapper = usageMapper;
+    }
+
+    private static RestClient createClient() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(3));
+        factory.setReadTimeout(Duration.ofSeconds(8));
+        return RestClient.builder()
+                .baseUrl("https://freenewsapi.ai")
+                .requestFactory(factory)
+                .build();
     }
 
     public JsonNode search(String stockName) {
@@ -84,13 +98,24 @@ public class FreeNewsClient {
         long delay;
         synchronized (this) {
             var month = java.time.YearMonth.now(java.time.Clock.systemUTC());
-            if (!month.equals(requestMonth)) {
-                requestMonth = month;
-                requestsThisMonth = 0;
+            if (usageMapper == null) {
+                // In-memory fallback is only for package-private tests without a database mapper.
+                if (!month.equals(requestMonth)) {
+                    requestMonth = month;
+                    requestsThisMonth = 0;
+                }
+                if (requestsThisMonth >= properties.getSourceMonthlyRequestLimit())
+                    throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
+                requestsThisMonth++;
+            } else {
+                String usageMonth = month.toString();
+                usageMapper.ensureMonth(usageMonth);
+                if (usageMapper.reserveRequest(
+                                usageMonth, properties.getSourceMonthlyRequestLimit())
+                        != 1) {
+                    throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
+                }
             }
-            if (requestsThisMonth >= properties.getSourceMonthlyRequestLimit())
-                throw new AppException(ErrorType.NEWS_SOURCE_RATE_LIMITED);
-            requestsThisMonth++;
             long now = System.nanoTime();
             delay = nextRequestNanos - now;
             nextRequestNanos = Math.max(now, nextRequestNanos) + Duration.ofMillis(600).toNanos();
