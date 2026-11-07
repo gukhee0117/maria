@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 @Setter
 public class NewsProperties {
     private boolean liveSummaries = true;
+    private boolean liveQuestions = true;
+    private int questionMaxRequestsPerMinute = 20;
     private String naverClientId = "";
     private String naverClientSecret = "";
     private String model = "gpt-4o-mini";

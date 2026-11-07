@@ -66,6 +66,12 @@ public class NewsWarmupService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void start() {
+        try {
+            var snapshot = inventory.load();
+            provider.configureInventory(context(snapshot.stockNames(), InvestorType.NEUTRAL));
+        } catch (RuntimeException e) {
+            log.warn("News inventory sizing unavailable (type={})", e.getClass().getSimpleName());
+        }
         schedule();
     }
 

@@ -13,9 +13,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.retry.NonTransientAiException;
+import org.springframework.ai.retry.TransientAiException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 @Service
@@ -50,6 +53,10 @@ public class NewsAiService {
 
     public String summaryPromptVersion() {
         return PROMPT_VERSION + ":" + NewsCacheIdentity.hash(summaryPrompt);
+    }
+
+    public String questionPromptVersion() {
+        return NewsCacheIdentity.hash(questionPrompt);
     }
 
     public String question(NewsArticle a, Context c, QuestionRequest request) {
@@ -135,14 +142,32 @@ public class NewsAiService {
             if (request != null && NewsAnswerContent.asksForNumbers(request.question()))
                 content = content.withNumericSourceQuote(article);
             return mapper.writeValueAsString(content);
-        } catch (WebClientResponseException e) {
-            if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403)
-                throw new AppException(ErrorType.NEWS_AI_AUTH_FAILED);
-            throw e;
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Invalid news input", e);
+        } catch (RuntimeException e) {
+            if (isAuthenticationFailure(e))
+                throw new AppException(ErrorType.NEWS_AI_AUTH_FAILED);
+            if (e instanceof NonTransientAiException || e instanceof TransientAiException)
+                throw new AppException(ErrorType.NEWS_AI_UNAVAILABLE);
+            throw e;
         } finally {
             slots.release();
         }
+    }
+
+    private boolean isAuthenticationFailure(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof WebClientResponseException response
+                    && (response.getStatusCode().value() == 401
+                            || response.getStatusCode().value() == 403)) return true;
+            if (cause instanceof RestClientResponseException response
+                    && (response.getStatusCode().value() == 401
+                            || response.getStatusCode().value() == 403)) return true;
+        }
+        String message = error.getMessage();
+        return message != null
+                && (message.matches("(?is).*\\b(401|403)\\b.*")
+                        || message.toLowerCase(java.util.Locale.ROOT).contains("unauthorized")
+                        || message.toLowerCase(java.util.Locale.ROOT).contains("forbidden"));
     }
 }

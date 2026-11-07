@@ -12,11 +12,13 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 @ConditionalOnProperty(name = "news.provider", havingValue = "free")
 public class FreeNewsProvider implements NewsProvider {
     private static final Pattern RISK = Pattern.compile("위험|우려|불확실|둔화|감소|하락|손실|부진|급락|비용 증가");
@@ -30,7 +32,7 @@ public class FreeNewsProvider implements NewsProvider {
     private final Clock clock;
     private final com.app.maria.domain.news.config.NewsProperties properties;
     private volatile int inventorySize = 1;
-    private final ConcurrentMap<String, Cached> cache = new ConcurrentHashMap<>();
+    private final Map<String, Cached> cache = new LinkedHashMap<>(16, 0.75f, true);
     private final ConcurrentMap<String, CompletableFuture<List<NewsArticle>>> inFlight =
             new ConcurrentHashMap<>();
     private final ExecutorService workers =
@@ -82,16 +84,53 @@ public class FreeNewsProvider implements NewsProvider {
                                 t ->
                                         context.stockNames().get(t) != null
                                                 && !context.stockNames().get(t).isBlank())
-                        .map(t -> prepare(t, context.stockNames().get(t)))
+                        .map(
+                                t ->
+                                        Map.entry(
+                                                t + ":" + context.stockNames().get(t),
+                                                prepare(t, context.stockNames().get(t))))
                         .toList();
         var lists = new ArrayList<List<NewsArticle>>();
-        for (var future : pending) {
+        try {
+            CompletableFuture.allOf(
+                            pending.stream()
+                                    .map(Map.Entry::getValue)
+                                    .toArray(CompletableFuture[]::new))
+                    .get(12, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException ignored) {
+            // Use successful results and stale snapshots below; one slow theme must not block all.
+        }
+        RuntimeException lastFailure = null;
+        boolean anyResult = false;
+        for (var item : pending) {
             try {
-                lists.add(future.join());
+                if (!item.getValue().isDone()) {
+                    item.getValue().cancel(true);
+                    throw new TimeoutException("Theme news request timed out");
+                }
+                lists.add(item.getValue().join());
+                anyResult = true;
             } catch (CompletionException e) {
-                if (e.getCause() instanceof RuntimeException failure) throw failure;
-                throw e;
+                var stale = stale(item.getKey());
+                if (stale != null) {
+                    lists.add(stale.articles());
+                    anyResult = true;
+                }
+                if (e.getCause() instanceof RuntimeException failure) lastFailure = failure;
+            } catch (TimeoutException e) {
+                var stale = stale(item.getKey());
+                if (stale != null) {
+                    lists.add(stale.articles());
+                    anyResult = true;
+                }
+                lastFailure = new IllegalStateException("News source timed out", e);
             }
+        }
+        if (!anyResult && lastFailure != null) {
+            log.warn("All theme news requests failed; returning no fresh results");
+            throw lastFailure;
         }
         return merge(lists);
     }
@@ -102,7 +141,7 @@ public class FreeNewsProvider implements NewsProvider {
         for (var ticker : context.tickers().stream().sorted().toList()) {
             var name = context.stockNames().get(ticker);
             if (name == null || name.isBlank()) continue;
-            var entry = cache.get(ticker + ":" + name);
+            var entry = getCached(ticker + ":" + name);
             if (entry == null || !entry.expiresAt().isAfter(clock.instant()))
                 return Optional.empty();
             lists.add(entry.articles());
@@ -155,28 +194,30 @@ public class FreeNewsProvider implements NewsProvider {
 
     private List<NewsArticle> load(String ticker, String name) {
         String key = ticker + ":" + name;
-        var stored = cache.get(key);
+        var stored = getCached(key);
         if (stored != null && stored.expiresAt().isAfter(clock.instant())) return stored.articles();
-        var result =
-                cache.compute(
-                        key,
-                        (ignored, current) -> {
-                            if (current != null && current.expiresAt().isAfter(clock.instant()))
-                                return current;
-                            return fetch(ticker, name);
-                        });
-        cache.entrySet().removeIf(e -> !e.getValue().expiresAt().isAfter(clock.instant()));
-        if (cache.size() > 128)
-            cache.keySet().stream()
-                    .filter(k -> !k.equals(key))
-                    .findFirst()
-                    .ifPresent(cache::remove);
+        var result = fetch(ticker, name);
+        synchronized (cache) {
+            cache.entrySet().removeIf(e -> !e.getValue().expiresAt().isAfter(clock.instant()));
+            cache.put(key, result);
+            while (cache.size() > 128) cache.remove(cache.keySet().iterator().next());
+        }
         return result.articles();
+    }
+
+    private Cached getCached(String key) {
+        synchronized (cache) {
+            return cache.get(key);
+        }
+    }
+
+    private Cached stale(String key) {
+        return getCached(key);
     }
 
     private CompletableFuture<List<NewsArticle>> prepare(String ticker, String name) {
         String key = ticker + ":" + name;
-        var ready = cache.get(key);
+        var ready = getCached(key);
         if (ready != null && ready.expiresAt().isAfter(clock.instant()))
             return CompletableFuture.completedFuture(ready.articles());
         var task =
@@ -254,7 +295,9 @@ public class FreeNewsProvider implements NewsProvider {
                     sentences.isEmpty() ? List.of(title) : sentences.stream().limit(1).toList();
             List<String> risks =
                     sentences.stream().filter(s -> RISK.matcher(s).find()).limit(1).toList();
-            int stable = Math.min(10, (int) RISK.matcher(title + " " + body).results().count());
+            // A risk-heavy article must not receive a higher score for stable investors.
+            int stable =
+                    Math.max(0, 10 - (int) RISK.matcher(title + " " + body).results().count() * 2);
             int growth = Math.min(10, (int) GROWTH.matcher(title + " " + body).results().count());
             return new NewsArticle(
                     "free-" + hash(url),

@@ -64,6 +64,10 @@ public class NewsSummaryCache {
         return Optional.ofNullable(find(key));
     }
 
+    public synchronized void invalidate(String key) {
+        completed.remove(key);
+    }
+
     private Value find(String key) {
         var value = completed.get(key);
         if (value != null && !value.generatedAt().plus(ttl).isAfter(clock.instant())) {

@@ -12,7 +12,6 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +39,8 @@ public class NewsBriefingService implements NewsBriefingOperations {
     private final BusinessClockService businessClock;
     private final Map<String, ArticleSession> articleSessions =
             new LinkedHashMap<>(16, 0.75f, true);
+    private record QuestionWindow(long startedAtNanos, int requests) {}
+    private final Map<Long, QuestionWindow> questionWindows = new LinkedHashMap<>(16, 0.75f, true);
 
     public Briefing briefing(Long customerId) {
         var c = contexts.load(customerId);
@@ -158,22 +159,49 @@ public class NewsBriefingService implements NewsBriefingOperations {
         var a = allowed(c, id, request.articleVersion());
         // Client history can be forged. Reviewed article intents are self-contained.
         var safeRequest = new QuestionRequest(request.articleVersion(), canonical.get(), List.of());
+        if (!properties.isLiveQuestions()) {
+            return prepared.answer(a, c.investorType(), safeRequest.question())
+                    .map(
+                            text ->
+                                    answer(
+                                            a,
+                                            text,
+                                            Origin.PREPARED,
+                                            PreparedReason.DEMO_DEFAULT,
+                                            null,
+                                            asksForStocks(safeRequest.question())
+                                                    ? related(a, c)
+                                                    : List.of()))
+                    .orElseThrow(() -> new AppException(ErrorType.NEWS_AI_UNAVAILABLE));
+        }
         try {
-            var generated = ai.question(a, c, safeRequest);
-            if (NewsQuestionPolicy.containsAdvice(generated))
+            String questionKey = questionKey(a, c, safeRequest);
+            var generated =
+                    cache.get(
+                            questionKey,
+                            () -> {
+                                consumeQuestionBudget(customerId);
+                                return ai.question(a, c, safeRequest);
+                            });
+            String text = generated.value().text();
+            if (NewsQuestionPolicy.containsAdvice(text)) {
+                cache.invalidate(questionKey);
                 return policyRefusal(a.id(), a.version(), NewsQuestionPolicy.REFUSAL);
+            }
             return answer(
                     a,
-                    generated,
-                    Origin.LIVE_LLM,
+                    text,
+                    generated.cached() ? Origin.CACHED_LLM : Origin.LIVE_LLM,
                     null,
-                    businessClock.now().atZone(ZoneId.of("Asia/Seoul")).toInstant(),
+                    generated.value().generatedAt(),
                     asksForStocks(safeRequest.question()) ? related(a, c) : List.of());
         } catch (RuntimeException e) {
             log.warn(
                     "News question generation failed (type={}, reason={})",
                     e.getClass().getSimpleName(),
                     safeReason(e));
+            if (e instanceof AppException app
+                    && app.getErrorType() == ErrorType.NEWS_QUESTION_RATE_LIMITED) throw app;
             if (!a.demo()) {
                 if (e instanceof AppException app) throw app;
                 throw new AppException(ErrorType.NEWS_AI_UNAVAILABLE);
@@ -192,6 +220,56 @@ public class NewsBriefingService implements NewsBriefingOperations {
                                                     : List.of()))
                     .orElseThrow(() -> new AppException(ErrorType.NEWS_AI_UNAVAILABLE));
         }
+    }
+
+    private String questionKey(NewsArticle article, Context context, QuestionRequest request) {
+        return "news-question:"
+                + NewsCacheIdentity.hash(
+                        provider.id()
+                                + "|"
+                                + article.id()
+                                + "|"
+                                + article.version()
+                                + "|"
+                                + article.title()
+                                + "|"
+                                + article.body()
+                                + "|"
+                                + article.facts()
+                                + "|"
+                                + article.risks()
+                                + "|"
+                                + article.source()
+                                + "|"
+                                + article.demo()
+                                + "|"
+                                + article.relatedStocks()
+                                + "|"
+                                + context.investorType()
+                                + "|"
+                                + request.question()
+                                + "|"
+                                + NewsQuestionPolicy.VERSION
+                                + "|"
+                                + ai.questionPromptVersion()
+                                + "|"
+                                + properties.getModel());
+    }
+
+    private synchronized void consumeQuestionBudget(Long customerId) {
+        long now = System.nanoTime();
+        long windowNanos = Duration.ofMinutes(1).toNanos();
+        var current = questionWindows.get(customerId);
+        if (current == null || now - current.startedAtNanos() >= windowNanos) {
+            questionWindows.put(customerId, new QuestionWindow(now, 1));
+        } else {
+            if (current.requests() >= Math.max(1, properties.getQuestionMaxRequestsPerMinute()))
+                throw new AppException(ErrorType.NEWS_QUESTION_RATE_LIMITED);
+            questionWindows.put(
+                    customerId, new QuestionWindow(current.startedAtNanos(), current.requests() + 1));
+        }
+        while (questionWindows.size() > 2048)
+            questionWindows.remove(questionWindows.keySet().iterator().next());
     }
 
     private Answer policyRefusal(String id, String version, String message) {

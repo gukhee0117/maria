@@ -10,7 +10,7 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Pattern NUMBER =
             Pattern.compile(
-                    "[+-]?\\d[\\d,]*(?:\\.\\d+)?\\s*(?:(?:조|억|만|천)\\s*)?(?:%p|%|퍼센트|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위)?");
+                    "(?<![\\p{L}\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위)?)");
 
     public NewsAnswerContent {
         points = List.copyOf(points);
@@ -102,6 +102,15 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     private static String normalizeNumber(String value) {
-        return value.replaceAll("[,\\s]", "");
+        var matcher = NUMBER.matcher(value);
+        if (!matcher.matches()) return value.replaceAll("[,\\s]", "");
+        String amount = matcher.group(1).replace(",", "");
+        String unit = matcher.group(2).replaceAll("\\s", "");
+        if (unit.equals("조원")) unit = "조";
+        else if (unit.equals("억원")) unit = "억";
+        else if (unit.equals("만원")) unit = "만";
+        else if (unit.equals("천원")) unit = "천";
+        else if (unit.equals("%") || unit.equals("퍼센트")) unit = "PERCENT";
+        return amount + unit;
     }
 }

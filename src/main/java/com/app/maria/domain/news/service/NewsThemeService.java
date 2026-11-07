@@ -6,6 +6,7 @@ import com.app.maria.domain.news.dto.NewsThemeLink;
 import com.app.maria.domain.news.mapper.NewsInventoryMapper;
 import java.time.*;
 import java.util.*;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,14 +30,21 @@ public class NewsThemeService {
     }
 
     public List<NewsStockReference> mentionedStocks(NewsArticle article) {
-        var text = normalize(article.title() + " " + article.body());
+        String rawText = article.title() + " " + article.body();
+        var text = normalize(rawText);
         var stocks = new TreeMap<String, NewsStockReference>();
         for (var link : allLinks()) {
             var name = link.getName();
             if (name == null || name.isBlank()) continue;
+            var normalizedName = normalize(name);
+            var tickerPattern =
+                    Pattern.compile(
+                            "(?<![\\p{L}\\p{N},])"
+                                    + Pattern.quote(link.getTicker())
+                                    + "(?![\\p{L}\\p{N},])");
             boolean mentioned =
-                    (normalize(name).length() >= 3 && text.contains(normalize(name)))
-                            || text.contains(normalize(link.getTicker()))
+                    (normalizedName.length() >= 3 && text.contains(normalizedName))
+                            || tickerPattern.matcher(rawText).find()
                             || NAME_ALIASES.getOrDefault(link.getTicker(), List.of()).stream()
                                     .map(NewsThemeService::normalize)
                                     .anyMatch(text::contains);

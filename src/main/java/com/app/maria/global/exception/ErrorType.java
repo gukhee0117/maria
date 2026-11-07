@@ -33,6 +33,8 @@ public enum ErrorType {
     NEWS_SOURCE_RATE_LIMITED(
             HttpStatus.SERVICE_UNAVAILABLE, "뉴스 조회 요청이 몰렸습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     NEWS_AI_AUTH_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 인증 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_QUESTION_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS, "뉴스 질문 가능 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     NEWS_UPSTREAM_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "실제 뉴스를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     NEWS_ARTICLE_UNAVAILABLE(HttpStatus.NOT_FOUND, "보유 종목에 해당하는 기사를 찾을 수 없습니다.", LogLevel.WARN),

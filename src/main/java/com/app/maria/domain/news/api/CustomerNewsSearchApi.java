@@ -4,11 +4,13 @@ import com.app.maria.domain.news.client.NaverNewsSearchClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.net.URI;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.util.HtmlUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,15 +32,37 @@ public class CustomerNewsSearchApi {
         var items =
                 StreamSupport.stream(response.path("items").spliterator(), false)
                         .map(
-                                item ->
-                                        new NaverNewsItem(
-                                                item.path("title").asText(""),
-                                                item.path("link").asText(""),
-                                                item.path("description").asText(""),
-                                                item.path("pubDate").asText("")))
+                                item -> {
+                                    String link = safeLink(item.path("link").asText(""));
+                                    if (link == null) return null;
+                                    return new NaverNewsItem(
+                                            plainText(item.path("title").asText("")),
+                                            link,
+                                            plainText(item.path("description").asText("")),
+                                            item.path("pubDate").asText(""));
+                                })
+                        .filter(java.util.Objects::nonNull)
                         .toList();
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(new NaverNewsResponse(items));
+    }
+
+    private String plainText(String value) {
+        return HtmlUtils.htmlUnescape(value).replaceAll("(?s)<[^>]*>", "").strip();
+    }
+
+    private String safeLink(String value) {
+        try {
+            URI uri = URI.create(value);
+            return uri.getHost() != null
+                            && uri.getUserInfo() == null
+                            && ("http".equalsIgnoreCase(uri.getScheme())
+                                    || "https".equalsIgnoreCase(uri.getScheme()))
+                    ? uri.toASCIIString()
+                    : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }
