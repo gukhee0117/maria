@@ -38,7 +38,6 @@ public class AccountServiceImpl implements AccountService {
     private final AccountLogService accountLogService;
     private final BusinessClockService businessClockService;
     private final AccountTransactionalService accountTransactionalService;
-    private final AccountMydataSyncService accountMydataSyncService;
     private final AuditActorProvider auditActorProvider;
 
     @Override
@@ -72,9 +71,6 @@ public class AccountServiceImpl implements AccountService {
                         requestDTO.getExpectedCurrentLimit(),
                         newLimitAmount,
                         businessClockService.now());
-        if (updatedAccount.getStatus() == Status.OPENED) {
-            accountMydataSyncService.updateLimit(updatedAccount);
-        }
         return new AccountResponseDTO(updatedAccount);
     }
 
@@ -94,9 +90,6 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO appliedAccount =
                 accountTransactionalService.apply(
                         auditActorProvider.getCurrentAdminId(), account, appliedAt, autoApprove);
-        if (appliedAccount.getStatus() == Status.OPENED) {
-            accountMydataSyncService.create(appliedAccount);
-        }
         return new AccountResponseDTO(appliedAccount);
     }
 
@@ -116,7 +109,6 @@ public class AccountServiceImpl implements AccountService {
                         accountId,
                         account.getLimitAmount(),
                         openedAt);
-        accountMydataSyncService.create(openedAccount);
         return new AccountResponseDTO(openedAccount);
     }
 
@@ -202,7 +194,6 @@ public class AccountServiceImpl implements AccountService {
                         accountId,
                         normalizedReason,
                         openedAt);
-        accountMydataSyncService.create(openedAccount);
         return new AccountResponseDTO(openedAccount);
     }
 
