@@ -493,7 +493,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 false,
                 List.copyOf(reasons),
                 sector,
-                theme);
+                theme,
+                theme ? taste.theme() : null);
     }
 
     // ───── 질문 답변 ─────

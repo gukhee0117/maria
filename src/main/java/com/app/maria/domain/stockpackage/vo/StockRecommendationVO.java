@@ -56,5 +56,6 @@ public class StockRecommendationVO {
             boolean outOfProfile,
             List<String> reasons,
             boolean sectorMatched,
-            boolean themeMatched) {}
+            boolean themeMatched,
+            String matchedTheme) {}
 }

@@ -77,6 +77,9 @@ public class StockRecommendationResponseDTO {
         /** 가장 많이 산 테마에 속하는지(거래 데이터가 없으면 항상 false). */
         private final boolean themeMatched;
 
+        /** 가장 많이 산 테마와 일치한 테마 이름. themeMatched가 false면 null이다. */
+        private final String matchedTheme;
+
         public ItemResponse(StockRecommendationVO.Item vo) {
             this.domesticProductId = vo.domesticProductId();
             this.ticker = vo.ticker();
@@ -91,6 +94,7 @@ public class StockRecommendationResponseDTO {
             this.reasons = vo.reasons();
             this.sectorMatched = vo.sectorMatched();
             this.themeMatched = vo.themeMatched();
+            this.matchedTheme = vo.matchedTheme();
         }
     }
 }

@@ -402,6 +402,15 @@ class StockRecommendationServiceImplTest {
         // 업종·테마 모두 같음 0, 업종만 1, 테마만 2, 둘 다 아님 3 → 다(1), 나(2), 가(3)
         StockRecommendationResponseDTO withTaste = service.recommend(CUSTOMER_ID, "ALL", 3);
         assertThat(tickers(withTaste)).containsExactly("000003", "000002", "000001");
+        // 일치한 테마 이름은 테마가 같은 종목(2번)에만 담기고, 나머지는 null이다
+        assertThat(withTaste.getItems())
+                .extracting(
+                        StockRecommendationResponseDTO.ItemResponse::getTicker,
+                        StockRecommendationResponseDTO.ItemResponse::getMatchedTheme)
+                .containsExactly(
+                        org.assertj.core.api.Assertions.tuple("000003", null),
+                        org.assertj.core.api.Assertions.tuple("000002", "반도체"),
+                        org.assertj.core.api.Assertions.tuple("000001", null));
 
         trading(0, null, null, null); // 거래 데이터 없음 → 우선 규칙 없이 동작
         StockRecommendationResponseDTO noTaste = service.recommend(CUSTOMER_ID, "ALL", 3);
@@ -410,6 +419,7 @@ class StockRecommendationServiceImplTest {
                 .noneMatch(StockRecommendationResponseDTO.ItemResponse::isSectorMatched);
         assertThat(noTaste.getItems())
                 .noneMatch(StockRecommendationResponseDTO.ItemResponse::isThemeMatched);
+        assertThat(noTaste.getItems()).allMatch(i -> i.getMatchedTheme() == null);
     }
 
     @Test
@@ -436,6 +446,7 @@ class StockRecommendationServiceImplTest {
 
         assertThat(item.isSectorMatched()).isTrue();
         assertThat(item.isThemeMatched()).isTrue();
+        assertThat(item.getMatchedTheme()).isEqualTo("반도체");
         assertThat(item.getReasons()).anyMatch(r -> r.contains("가장 많이 산 업종(가)"));
     }
 
