@@ -18,7 +18,6 @@ import org.springframework.web.client.RestClientException;
 public class MydataClient {
 
     private static final String RIA_ACCOUNTS_PATH = "/api/mydata/ria-accounts";
-    private static final String SYNC_RIA_ACCOUNT_PATH = RIA_ACCOUNTS_PATH + "/save";
 
     private final RestClient restClient;
     private final MydataApiProperties mydataApiProperties;
@@ -36,19 +35,6 @@ public class MydataClient {
 
     public BigDecimal getExternalConfiguredLimit(String ciHash) {
         return sumOtherBrokers(ciHash, MydataRiaAccountDTO::getRiaLimit);
-    }
-
-    public void syncRiaAccount(String ciHash, BigDecimal riaLimit) {
-        Map<String, String> body =
-                Map.of(
-                        "ciHash", ciHash,
-                        "brokerName", mydataApiProperties.getOwnBrokerName(),
-                        "riaLimit", String.valueOf(riaLimit));
-        try {
-            restClient.post().uri(SYNC_RIA_ACCOUNT_PATH).body(body).retrieve().toBodilessEntity();
-        } catch (RestClientException e) {
-            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
-        }
     }
 
     private BigDecimal sumOtherBrokers(
