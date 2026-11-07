@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationMapper">
+
+    <select id="selectRecentByCustomerId" resultType="CustomerNotificationResponseDTO">
+        SELECT notification_id, notification_type, title, content, read_at, created_at
+        FROM notification
+        WHERE customer_id = #{customerId}
+        ORDER BY notification_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insertSettlementFinalized">
+        INSERT IGNORE INTO notification (
+            customer_id, notification_type, title, content, related_type, related_id, created_at
+        ) VALUES (
+            #{customerId}, 'SETTLEMENT_FINALIZED', #{title}, #{content},
+            'SETTLEMENT_BATCH', #{batchId}, #{completedAt}
+        )
+    </insert>
+
+    <update id="markAllUnreadAsRead">
+        UPDATE notification
+        SET read_at = #{readAt}
+        WHERE customer_id = #{customerId}
+          AND read_at IS NULL
+    </update>
+</mapper>

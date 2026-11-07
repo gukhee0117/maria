@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper">
+
+    <select id="selectLatestByCustomerId" resultType="CustomerNotificationConsentDTO">
+        SELECT latest.consent_type AS consent_type,
+               consent.agreed AS agreed
+        FROM (
+            SELECT consent_type, MAX(customer_consent_id) AS latest_id
+            FROM customer_consent
+            WHERE customer_id = #{customerId}
+              AND consent_type IN (
+                  'NOTIFY_PUSH', 'NOTIFY_SMS', 'NOTIFY_EMAIL', 'NOTIFY_SETTLEMENT',
+                  'NOTIFY_BAND', 'NOTIFY_COMMENT', 'NOTIFY_KIRU'
+              )
+            GROUP BY consent_type
+        ) latest
+        JOIN customer_consent consent ON consent.customer_consent_id = latest.latest_id
+    </select>
+
+    <insert id="insertConsent">
+        INSERT INTO customer_consent (customer_id, consent_type, agreed, changed_at)
+        VALUES (#{customerId}, #{consentType}, #{agreed}, CURRENT_TIMESTAMP)
+    </insert>
+</mapper>
