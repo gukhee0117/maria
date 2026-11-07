@@ -43,4 +43,7 @@ public class StockOrderVO {
 
     /** 패키지 이름. 고객 단위 주문 내역을 조회할 때만 붙는다. */
     private String packageName;
+
+    /** 증권사에 못 보낸 주문을 다시 보낼 때만 붙는다(고객 ci_hash). */
+    private String ciHash;
 }

@@ -40,7 +40,7 @@ public class ExchangeRateProviderImpl implements ExchangeRateProvider {
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             BigDecimal rate;
             try {
-                rate = exchangeRateClient.getBaseRate(currency, lookupDate);
+                rate = exchangeRateClient.getFinalRate(currency, lookupDate);
             } catch (AppException e) {
                 if (e.getErrorType() == ErrorType.EXCHANGE_RATE_NOT_FOUND) {
                     throw e;

@@ -93,6 +93,7 @@
         dp.domestic_product_id AS domesticProductId,
         dp.ticker AS ticker,
         dp.name AS name,
+        dp.sector_name AS sectorName,
         dp.type AS type,
         dp.domestic_stock_ratio AS domesticStockRatio,
         dp.inception_date AS inceptionDate,

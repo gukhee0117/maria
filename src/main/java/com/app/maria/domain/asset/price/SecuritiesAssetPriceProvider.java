@@ -1,5 +1,6 @@
 package com.app.maria.domain.asset.price;
 
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -21,15 +22,20 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class SecuritiesAssetPriceProvider implements AssetPriceProvider {
     private final RestClient client;
+    private final BusinessClockService businessClockService;
 
-    public SecuritiesAssetPriceProvider(@Qualifier("assetPriceRestClient") RestClient client) {
+    public SecuritiesAssetPriceProvider(
+            @Qualifier("assetPriceRestClient") RestClient client,
+            BusinessClockService businessClockService) {
         this.client = client;
+        this.businessClockService = businessClockService;
     }
 
     @Override
     public Map<String, Quote> getPrices(Set<String> tickers) {
         List<String> requested = tickers.stream().sorted().toList();
         Map<String, Quote> prices = new HashMap<>();
+        LocalDate asOf = businessClockService.now().toLocalDate();
         try {
             for (int offset = 0; offset < requested.size(); offset += 50) {
                 List<String> batch =
@@ -41,6 +47,7 @@ public class SecuritiesAssetPriceProvider implements AssetPriceProvider {
                                                 builder.path("/api/domestic-prices")
                                                         .queryParam(
                                                                 "tickers", String.join(",", batch))
+                                                        .queryParam("asOf", asOf)
                                                         .build())
                                 .accept(MediaType.APPLICATION_JSON)
                                 .retrieve()

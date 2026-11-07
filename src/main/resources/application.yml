@@ -85,6 +85,13 @@ jwt:
   refresh-blacklist-prefix: "refresh:"
 # api
 custom:
+  internal:
+    # 증권사 거래 생성기 호출용 비밀 헤더 값과 제외 고객(ci_hash, 쉼표 구분). 값은 서버 환경변수로만 준다.
+    secret: ${INTERNAL_SECRET:}
+    excluded-ci-hashes: ${INTERNAL_EXCLUDED_CI_HASHES:}
+  market:
+    # securities = 증권사(return-securities) 저장 시세(기본), kis = KIS·환율 API
+    source: ${MARKET_SOURCE:securities}
   risk:
     url: ${RISK_URL:http://risk:8000}
     service-key: ${RISK_SERVICE_KEY:}
@@ -139,3 +146,21 @@ management:
 kkiru:
   docs:
     path: classpath:kkiru/docs/RIA_RAG_지식문서*.txt
+news:
+  provider: ${NEWS_PROVIDER:free}
+  free-news-api-key: ${FREENEWS_API_KEY:}
+  live-summaries: ${NEWS_LIVE_SUMMARIES:true}
+  live-questions: ${NEWS_LIVE_QUESTIONS:true}
+  question-max-requests-per-minute: ${NEWS_QUESTION_MAX_REQUESTS_PER_MINUTE:20}
+  model: ${NEWS_MODEL:gpt-4o-mini}
+  naver-client-id: ${NEWS_NAVER_CLIENT_ID:}
+  naver-client-secret: ${NEWS_NAVER_CLIENT_SECRET:}
+  summary-cache-ttl: ${NEWS_SUMMARY_CACHE_TTL:PT24H}
+  summary-cache-max-entries: ${NEWS_SUMMARY_CACHE_MAX_ENTRIES:1024}
+  source-cache-ttl: ${NEWS_SOURCE_CACHE_TTL:PT2H}
+  inventory-cache-ttl: ${NEWS_INVENTORY_CACHE_TTL:PT30M}
+  source-monthly-request-limit: ${NEWS_SOURCE_MONTHLY_REQUEST_LIMIT:2400}
+  prewarm-enabled: ${NEWS_PREWARM_ENABLED:true}
+  prewarm-interval-ms: ${NEWS_PREWARM_INTERVAL_MS:300000}
+  prewarm-max-stocks-per-run: ${NEWS_PREWARM_MAX_STOCKS_PER_RUN:20}
+  prewarm-max-generations-per-run: ${NEWS_PREWARM_MAX_GENERATIONS_PER_RUN:20}
