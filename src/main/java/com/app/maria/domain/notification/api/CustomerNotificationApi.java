@@ -22,8 +22,7 @@ public class CustomerNotificationApi {
     @GetMapping
     public ApiResponseDTO<List<CustomerNotificationResponseDTO>> list(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
-        return ApiResponseDTO.of(
-                "알림을 조회했습니다.", notificationService.list(principal.customerId()));
+        return ApiResponseDTO.of("알림을 조회했습니다.", notificationService.list(principal.customerId()));
     }
 
     @PatchMapping("/read-all")

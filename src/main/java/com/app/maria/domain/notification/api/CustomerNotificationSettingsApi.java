@@ -24,8 +24,7 @@ public class CustomerNotificationSettingsApi {
     @GetMapping
     public ApiResponseDTO<CustomerNotificationSettingsResponseDTO> get(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
-        return ApiResponseDTO.of(
-                "알림 설정을 조회했습니다.", settingsService.get(principal.customerId()));
+        return ApiResponseDTO.of("알림 설정을 조회했습니다.", settingsService.get(principal.customerId()));
     }
 
     @PutMapping
@@ -33,7 +32,6 @@ public class CustomerNotificationSettingsApi {
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             @Valid @RequestBody CustomerNotificationSettingsRequestDTO request) {
         return ApiResponseDTO.of(
-                "알림 설정을 저장했습니다.",
-                settingsService.update(principal.customerId(), request));
+                "알림 설정을 저장했습니다.", settingsService.update(principal.customerId(), request));
     }
 }
