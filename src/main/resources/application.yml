@@ -43,13 +43,8 @@ spring:
     type: redis
   # Spring AI — 끼루 챗봇
   ai:
-    retry:
-      # 뉴스 요청은 제한된 AI 슬롯을 사용하므로 자동 재시도로 요청 스레드를 오래 점유하지 않는다.
-      max-attempts: 1
     openai:
       api-key: ${OPENAI_API_KEY}
-      timeout: 20s
-      max-retries: 0
       chat:
         options:
           model: gpt-4o-mini
