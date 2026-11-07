@@ -52,7 +52,6 @@ class AccountServiceImplTest {
     @Mock private AccountLogService accountLogService;
     @Mock private BusinessClockService businessClockService;
     @Mock private AccountTransactionalService accountTransactionalService;
-    @Mock private AccountMydataSyncService accountMydataSyncService;
     @Mock private AuditActorProvider auditActorProvider;
 
     @InjectMocks private AccountServiceImpl accountService;
@@ -77,7 +76,6 @@ class AccountServiceImplTest {
                 accountService.updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT));
 
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
-        verify(accountMydataSyncService, never()).updateLimit(any());
     }
 
     @Test
@@ -88,9 +86,6 @@ class AccountServiceImplTest {
                 .thenReturn(updated);
 
         accountService.updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT));
-
-        verify(accountMydataSyncService).updateLimit(updated);
-        verify(accountMydataSyncService, never()).create(any());
     }
 
     @Test
@@ -233,7 +228,6 @@ class AccountServiceImplTest {
         accountService.applyAccount(request(LIMIT));
 
         verify(businessClockService).now();
-        verify(accountMydataSyncService).create(opened);
     }
 
     @Test
@@ -250,7 +244,6 @@ class AccountServiceImplTest {
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
         verify(accountTransactionalService)
                 .apply(eq(ADMIN_ID), any(AccountDTO.class), eq(NOW), eq(false));
-        verify(accountMydataSyncService, never()).create(any());
     }
 
     @Test
@@ -265,7 +258,6 @@ class AccountServiceImplTest {
         AccountResponseDTO result = accountService.applyAccount(request(LIMIT));
 
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
-        verify(accountMydataSyncService, never()).create(any());
     }
 
     @Test
@@ -279,7 +271,6 @@ class AccountServiceImplTest {
         accountService.approveAccount(ACCOUNT_ID);
 
         verify(accountTransactionalService).approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW);
-        verify(accountMydataSyncService).create(opened);
     }
 
     @Test
