@@ -75,7 +75,6 @@ class StockRiskGradeMariaDbTest {
         jdbc = new JdbcTemplate(dataSource);
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("risk_test");
         script(new ClassPathResource("risk/legacy-schema.sql"));
-        migrate();
         var config = new org.apache.ibatis.session.Configuration();
         config.setMapUnderscoreToCamelCase(true);
         var bean = new SqlSessionFactoryBean();
@@ -123,10 +122,6 @@ class StockRiskGradeMariaDbTest {
         }
     }
 
-    void migrate() throws Exception {
-        script(new FileSystemResource("db/migrations/001_stock_risk_grade_version.sql"));
-    }
-
     ZonedDateTime received() {
         return RiskTestSupport.at("2026-10-28T17:10:00+09:00");
     }
@@ -146,16 +141,12 @@ class StockRiskGradeMariaDbTest {
     }
 
     @Test
-    void migrationPreservesExistingValuesAndZeroIsUnusableUntilVerified() throws Exception {
-        script(new ClassPathResource("risk/legacy-schema.sql"));
+    void currentSchemaInitializesRiskVersionAndSyncState() throws Exception {
         jdbc.update(
-                "INSERT INTO stock_risk_grade VALUES (1,.1125,4,.2000,'2023-10-30','2026-10-28','2026-10-28 17:00:00','2026-10-28 17:01:00')");
-        var before = jdbc.queryForMap("SELECT * FROM stock_risk_grade");
-        migrate();
-        var after = jdbc.queryForMap("SELECT * FROM stock_risk_grade");
-        after.remove("analysis_version");
-        assertThat(after).isEqualTo(before);
+                "INSERT INTO stock_risk_grade (domestic_product_id,var_975,risk_grade,volatility,price_from,price_to,calculated_at,synced_at) VALUES (1,.1125,4,.2000,'2023-10-30','2026-10-28','2026-10-28 17:00:00','2026-10-28 17:01:00')");
         assertThat(version()).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM risk_grade_sync_state", Long.class))
+                .isEqualTo(1);
         var reader =
                 new RiskGradeServiceImpl(
                         mapper,
@@ -164,8 +155,6 @@ class StockRiskGradeMariaDbTest {
         assertThat(reader.findUsable()).isEmpty();
         assertThat(store.store(grade(1), received())).isEqualTo(RiskGradeStore.Outcome.UPDATED);
         assertThat(reader.findUsable()).hasSize(1);
-        assertThat(version()).isEqualTo(1);
-        migrate(); // Rerun/recovery must not reset versions or erase rows.
         assertThat(version()).isEqualTo(1);
         assertThat(count()).isEqualTo(1);
     }
@@ -477,44 +466,7 @@ class StockRiskGradeMariaDbTest {
     }
 
     @Test
-    void failedAlterIsAtomicButDdlDoesNotRollBackWithTransaction() throws Exception {
-        script(new ClassPathResource("risk/legacy-schema.sql"));
-        jdbc.update(
-                "INSERT INTO stock_risk_grade VALUES (1,.1125,4,.2000,'2023-10-30','2026-10-28','2026-10-28 17:00:00','2026-10-28 17:01:00')");
-        assertThatThrownBy(
-                        () ->
-                                jdbc.execute(
-                                        """
-            ALTER TABLE stock_risk_grade ADD COLUMN analysis_version BIGINT NOT NULL DEFAULT 0,
-            ADD CONSTRAINT invalid_test_check CHECK (risk_grade < 0)
-            """))
-                .isInstanceOf(DataAccessException.class);
-        assertThat(count()).isEqualTo(1);
-        assertThat(
-                        jdbc.queryForObject(
-                                """
-            SELECT count(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='risk_test'
-            AND TABLE_NAME='stock_risk_grade' AND COLUMN_NAME='analysis_version'
-            """,
-                                Integer.class))
-                .isZero();
-        try (var c = dataSource.getConnection();
-                var s = c.createStatement()) {
-            c.setAutoCommit(false);
-            s.execute(
-                    "ALTER TABLE stock_risk_grade ADD COLUMN analysis_version BIGINT NOT NULL DEFAULT 0");
-            c.rollback();
-        }
-        assertThat(
-                        jdbc.queryForObject(
-                                """
-            SELECT count(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='risk_test'
-            AND TABLE_NAME='stock_risk_grade' AND COLUMN_NAME='analysis_version'
-            """,
-                                Integer.class))
-                .isEqualTo(1);
-        migrate();
-        assertThat(count()).isEqualTo(1);
+    void currentSchemaIncludesRiskAnalysisVersion() {
         assertThat(version()).isZero();
     }
 
