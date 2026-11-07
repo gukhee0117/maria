@@ -5,6 +5,7 @@ import com.app.maria.domain.stockpackage.vo.StockOrderVO;
 import com.app.maria.global.client.securities.SecuritiesTradeClient;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,6 +25,9 @@ public class SecuritiesOrderRecorder {
     private final SecuritiesTradeClient tradeClient;
     private final StockOrderMapper stockOrderMapper;
     private final TransactionTemplate markTx;
+
+    @Value("${maria.stock-order.securities-retry-enabled:true}")
+    private boolean retryEnabled = true;
 
     public SecuritiesOrderRecorder(
             SecuritiesTradeClient tradeClient,
@@ -60,6 +64,7 @@ public class SecuritiesOrderRecorder {
     // ponytail: 영구 거절(4xx) 건도 계속 다시 보내고, 앞쪽 50건이 전부 영구 실패면 뒤가 밀린다. 시도 횟수·FAILED 상태는 필요해지면 추가
     @Scheduled(fixedDelayString = "${maria.stock-order.securities-retry-delay-millis:5000}")
     public void retryUnrecorded() {
+        if (!retryEnabled) return;
         List<StockOrderVO> pending = stockOrderMapper.selectUnrecordedCustomerOrders(RETRY_BATCH);
         pending.forEach(order -> record(order.getCiHash(), order));
     }

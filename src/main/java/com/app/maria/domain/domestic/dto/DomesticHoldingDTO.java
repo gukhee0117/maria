@@ -17,6 +17,7 @@ public class DomesticHoldingDTO {
     private Long domesticProductId;
     private String ticker;
     private String name;
+    private String sectorName;
     private Type type;
     private BigDecimal domesticStockRatio;
     private LocalDate inceptionDate;

@@ -92,6 +92,7 @@ dependencies {
 
     // Spring AI — 끼루 AI 챗봇 (지식베이스는 .txt 파일로 관리)
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'io.projectreactor.netty:reactor-netty-http'
     implementation 'org.springframework.ai:spring-ai-vector-store'
     implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
 
