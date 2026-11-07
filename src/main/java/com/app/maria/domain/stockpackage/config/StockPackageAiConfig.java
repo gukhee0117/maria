@@ -29,4 +29,11 @@ public class StockPackageAiConfig {
         return new ClassPathResource("stockpackage/condition-prompt.txt")
                 .getContentAsString(StandardCharsets.UTF_8);
     }
+
+    /** 추천 질문 답변 시스템 프롬프트. <<FACTS>> 자리에 서버가 만든 사실 목록이 들어간다. */
+    @Bean("stockRecommendationPrompt")
+    public String stockRecommendationPrompt() throws IOException {
+        return new ClassPathResource("stockpackage/recommendation-prompt.txt")
+                .getContentAsString(StandardCharsets.UTF_8);
+    }
 }
