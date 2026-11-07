@@ -4,6 +4,7 @@ import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.notification.dto.CustomerNotificationResponseDTO;
 import com.app.maria.domain.notification.mapper.CustomerNotificationMapper;
+import com.app.maria.global.clock.service.BusinessClockService;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
     private final CustomerNotificationMapper notificationMapper;
     private final AccountMapper accountMapper;
     private final CustomerNotificationSettingsService settingsService;
+    private final BusinessClockService businessClockService;
 
     @Override
     @Transactional(readOnly = true)
@@ -29,7 +31,7 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
     @Override
     @Transactional
     public void markAllRead(Long customerId) {
-        notificationMapper.markAllUnreadAsRead(customerId, LocalDateTime.now());
+        notificationMapper.markAllUnreadAsRead(customerId, businessClockService.now());
     }
 
     @Override
