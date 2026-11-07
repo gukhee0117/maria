@@ -19,6 +19,17 @@ import reactor.netty.http.client.HttpClient;
 public class NewsAiConfig {
     public static final int SUMMARY_MAX_TOKENS = 700;
 
+    /**
+     * Keeps direct test and integration setup compatible with the original two-argument factory.
+     */
+    public ChatClient newsChatClient(ChatModel model, NewsProperties properties) {
+        return newsChatClient(
+                model,
+                properties,
+                System.getenv().getOrDefault("OPENAI_API_KEY", ""),
+                "https://api.openai.com");
+    }
+
     @Bean("newsChatClient")
     public ChatClient newsChatClient(
             ChatModel model,
