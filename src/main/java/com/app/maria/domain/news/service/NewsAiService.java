@@ -145,8 +145,7 @@ public class NewsAiService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Invalid news input", e);
         } catch (RuntimeException e) {
-            if (isAuthenticationFailure(e))
-                throw new AppException(ErrorType.NEWS_AI_AUTH_FAILED);
+            if (isAuthenticationFailure(e)) throw new AppException(ErrorType.NEWS_AI_AUTH_FAILED);
             if (e instanceof NonTransientAiException || e instanceof TransientAiException)
                 throw new AppException(ErrorType.NEWS_AI_UNAVAILABLE);
             throw e;

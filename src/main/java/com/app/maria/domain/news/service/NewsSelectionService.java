@@ -8,7 +8,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class NewsSelectionService {
-    public static final String RULE_VERSION = "holdings100-importance10-risk-adjusted-profile-v3-latest-display";
+    public static final String RULE_VERSION =
+            "holdings100-importance10-risk-adjusted-profile-v3-latest-display";
 
     public List<Selected> select(Context context, List<NewsArticle> candidates) {
         return candidates.stream()

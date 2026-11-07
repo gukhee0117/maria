@@ -1,19 +1,19 @@
 package com.app.maria.domain.news.config;
 
+import io.netty.channel.ChannelOption;
+import java.time.Duration;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
-import io.netty.channel.ChannelOption;
-import java.time.Duration;
-import org.springframework.retry.support.RetryTemplate;
 
 @Configuration
 public class NewsAiConfig {
@@ -40,7 +40,8 @@ public class NewsAiConfig {
                             .webClientBuilder(WebClient.builder().clientConnector(connector))
                             .build();
             newsModel =
-                    openAiChatModel.mutate()
+                    openAiChatModel
+                            .mutate()
                             .openAiApi(api)
                             .retryTemplate(RetryTemplate.builder().maxAttempts(1).build())
                             .build();

@@ -39,7 +39,9 @@ public class NewsBriefingService implements NewsBriefingOperations {
     private final BusinessClockService businessClock;
     private final Map<String, ArticleSession> articleSessions =
             new LinkedHashMap<>(16, 0.75f, true);
+
     private record QuestionWindow(long startedAtNanos, int requests) {}
+
     private final Map<Long, QuestionWindow> questionWindows = new LinkedHashMap<>(16, 0.75f, true);
 
     public Briefing briefing(Long customerId) {
@@ -266,7 +268,8 @@ public class NewsBriefingService implements NewsBriefingOperations {
             if (current.requests() >= Math.max(1, properties.getQuestionMaxRequestsPerMinute()))
                 throw new AppException(ErrorType.NEWS_QUESTION_RATE_LIMITED);
             questionWindows.put(
-                    customerId, new QuestionWindow(current.startedAtNanos(), current.requests() + 1));
+                    customerId,
+                    new QuestionWindow(current.startedAtNanos(), current.requests() + 1));
         }
         while (questionWindows.size() > 2048)
             questionWindows.remove(questionWindows.keySet().iterator().next());
