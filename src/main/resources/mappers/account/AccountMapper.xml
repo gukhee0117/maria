@@ -28,6 +28,12 @@
         FROM account
         WHERE customer_id = #{customerId}
     </select>
+    <select id="selectByCiHash" resultType="AccountDTO">
+        SELECT a.*
+        FROM account a
+        JOIN customer c ON c.customer_id = a.customer_id
+        WHERE c.ci_hash = #{ciHash}
+    </select>
     <select id="selectByCustomerIdForUpdate" resultType="AccountDTO" parameterType="Long">
         SELECT *
         FROM account

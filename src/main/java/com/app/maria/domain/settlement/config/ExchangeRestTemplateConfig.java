@@ -1,6 +1,7 @@
 package com.app.maria.domain.settlement.config;
 
 import com.app.maria.global.client.exchange.ExchangeRateClient;
+import com.app.maria.global.client.securities.SecuritiesMarketClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExchangeApiProperties;
 import java.time.Duration;
@@ -26,7 +27,9 @@ public class ExchangeRestTemplateConfig {
     public ExchangeRateClient settlementExchangeRateClient(
             @Qualifier("settlementRestTemplate") RestTemplate restTemplate,
             ExchangeApiProperties exchangeApiProperties,
-            BusinessClockService businessClockService) {
-        return new ExchangeRateClient(restTemplate, exchangeApiProperties, businessClockService);
+            BusinessClockService businessClockService,
+            SecuritiesMarketClient securities) {
+        return new ExchangeRateClient(
+                restTemplate, exchangeApiProperties, businessClockService, securities);
     }
 }

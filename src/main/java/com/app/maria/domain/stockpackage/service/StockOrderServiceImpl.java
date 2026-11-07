@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -50,6 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class StockOrderServiceImpl implements StockOrderService {
     private static final String CHANNEL_CUSTOMER = "CUSTOMER";
+    private static final String CHANNEL_GENERATOR = "GENERATOR";
     private static final LocalTime MARKET_OPEN = LocalTime.of(9, 0);
     private static final LocalTime MARKET_CLOSE = LocalTime.of(15, 30);
 
@@ -62,6 +65,7 @@ public class StockOrderServiceImpl implements StockOrderService {
     private final DomesticPurchaseEligibilityService eligibilityService;
     private final BusinessClockService businessClockService;
     private final boolean enforceMarketHours;
+    private final SecuritiesOrderRecorder recorder;
     private final TransactionTemplate tx;
 
     public StockOrderServiceImpl(
@@ -74,6 +78,7 @@ public class StockOrderServiceImpl implements StockOrderService {
             DomesticPurchaseEligibilityService eligibilityService,
             BusinessClockService businessClockService,
             PlatformTransactionManager transactionManager,
+            SecuritiesOrderRecorder recorder,
             @Value("${maria.stock-order.enforce-market-hours:false}") boolean enforceMarketHours) {
         this.stockPackageMapper = stockPackageMapper;
         this.stockOrderMapper = stockOrderMapper;
@@ -84,6 +89,7 @@ public class StockOrderServiceImpl implements StockOrderService {
         this.eligibilityService = eligibilityService;
         this.businessClockService = businessClockService;
         this.enforceMarketHours = enforceMarketHours;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -146,7 +152,53 @@ public class StockOrderServiceImpl implements StockOrderService {
 
         return tx.execute(
                 status ->
-                        execute(account.getAccountId(), stockPackageId, request, products, quotes));
+                        execute(
+                                account.getAccountId(),
+                                stockPackageId,
+                                request,
+                                products,
+                                quotes,
+                                CHANNEL_CUSTOMER));
+    }
+
+    /**
+     * 증권사 거래 생성기의 주문 한 건. 패키지 주문과 같은 {@code execute}(계좌 락·멱등·주문 가능 금액)를 채널만 바꿔 쓴다. 저장되는 멱등키는 {@code
+     * idempotencyKey + ":1"}이다.
+     */
+    @Override
+    public StockOrderResultDTO placeGeneratorOrder(
+            Long accountId,
+            DomesticProductDTO product,
+            StockQuoteVO quote,
+            DomesticOrderSide side,
+            int qty,
+            String idempotencyKey) {
+        StockOrderRequestDTO request =
+                new StockOrderRequestDTO(
+                        idempotencyKey,
+                        List.of(
+                                new StockOrderRequestDTO.Item(
+                                        product.getDomesticProductId(),
+                                        side,
+                                        BigDecimal.valueOf(qty))));
+        return tx.execute(
+                        status ->
+                                execute(
+                                        accountId,
+                                        null,
+                                        request,
+                                        Map.of(product.getDomesticProductId(), product),
+                                        Map.of(product.getTicker(), quote),
+                                        CHANNEL_GENERATOR))
+                .orders()
+                .get(0);
+    }
+
+    @Override
+    public Optional<StockOrderResultDTO> findGeneratorOrder(Long accountId, String idempotencyKey) {
+        return stockOrderMapper
+                .selectByIdempotencyKey(accountId, idempotencyKey + ":1")
+                .map(StockOrderResultDTO::new);
     }
 
     @Override
@@ -171,7 +223,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             Long stockPackageId,
             StockOrderRequestDTO request,
             Map<Long, DomesticProductDTO> products,
-            Map<String, StockQuoteVO> quotes) {
+            Map<String, StockQuoteVO> quotes,
+            String channel) {
         // 같은 계좌의 주문은 이 락으로 한 줄로 선다(동시에 두 번 눌러도 예수금이 마이너스가 되지 않는다)
         AccountDTO account =
                 accountMapper
@@ -187,6 +240,7 @@ public class StockOrderServiceImpl implements StockOrderService {
                 amountNow.subtract(stockOrderMapper.sumProvisionalAmount(accountId));
 
         List<StockOrderResultDTO> results = new ArrayList<>();
+        List<StockOrderVO> toRecord = new ArrayList<>();
         int index = 0;
         for (StockOrderRequestDTO.Item item : request.items()) {
             index++;
@@ -207,14 +261,47 @@ public class StockOrderServiceImpl implements StockOrderService {
                             quotes.get(product.getTicker()),
                             buyingPower,
                             rules,
-                            now);
+                            now,
+                            channel);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
+                if (CHANNEL_CUSTOMER.equals(channel)) {
+                    toRecord.add(order);
+                }
                 amountNow = amountNow.add(order.getAmount());
                 buyingPower = buyingPower.add(order.getAmount());
             }
             results.add(new StockOrderResultDTO(order));
         }
+        recordInSecuritiesAfterCommit(account, toRecord);
         return new StockOrderResponseDTO(results, amountNow, buyingPower);
+    }
+
+    /**
+     * 고객 주문의 체결을 증권사 거래로 남긴다. 주문 트랜잭션이 커밋된 뒤에 보내므로 커밋이 실패한 주문이 증권사에만 남지 않는다. 보내지 못하면 주문은 그대로 두고
+     * ({@code securities_recorded_at}이 비어 있는 채로) {@link SecuritiesOrderRecorder}의 재시도가 이어서 보낸다. 거래
+     * 생성기 주문은 증권사가 먼저 시작한 것이라 대상이 아니다.
+     */
+    private void recordInSecuritiesAfterCommit(AccountDTO account, List<StockOrderVO> orders) {
+        if (orders.isEmpty()) {
+            return;
+        }
+        String ciHash =
+                accountMapper.selectCiHashByCustomerId(account.getCustomerId()).orElse(null);
+        if (ciHash == null) {
+            return;
+        }
+        Runnable send = () -> orders.forEach(order -> recorder.record(ciHash, order));
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            send.run();
+                        }
+                    });
+        } else {
+            send.run();
+        }
     }
 
     private StockOrderVO process(
@@ -226,7 +313,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             StockQuoteVO quote,
             BigDecimal buyingPower,
             List<TaxRuleDTO> rules,
-            LocalDateTime now) {
+            LocalDateTime now,
+            String channel) {
         Long accountId = account.getAccountId();
         DomesticOrderSide side = item.side();
         BigDecimal qty = item.qty();
@@ -278,7 +366,7 @@ public class StockOrderServiceImpl implements StockOrderService {
                         .stockPackageId(stockPackageId)
                         .side(side)
                         .qty(qty)
-                        .channel(CHANNEL_CUSTOMER)
+                        .channel(channel)
                         .idempotencyKey(key)
                         .processedAt(now)
                         .ticker(product.getTicker())

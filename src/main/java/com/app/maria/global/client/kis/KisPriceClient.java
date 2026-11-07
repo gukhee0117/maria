@@ -1,11 +1,12 @@
 package com.app.maria.global.client.kis;
 
+import com.app.maria.global.client.securities.SecuritiesMarketClient;
 import com.app.maria.global.config.properties.PriceApiProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -16,12 +17,31 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
-@RequiredArgsConstructor
 public class KisPriceClient {
 
     private final RestTemplate restTemplate;
     private final KisTokenService kisTokenService;
     private final PriceApiProperties priceApiProperties;
+    private final SecuritiesMarketClient securities;
+
+    public KisPriceClient(
+            RestTemplate restTemplate,
+            KisTokenService kisTokenService,
+            PriceApiProperties priceApiProperties) {
+        this(restTemplate, kisTokenService, priceApiProperties, null);
+    }
+
+    @Autowired
+    public KisPriceClient(
+            RestTemplate restTemplate,
+            KisTokenService kisTokenService,
+            PriceApiProperties priceApiProperties,
+            SecuritiesMarketClient securities) {
+        this.restTemplate = restTemplate;
+        this.kisTokenService = kisTokenService;
+        this.priceApiProperties = priceApiProperties;
+        this.securities = securities;
+    }
 
     private static final String TR_ID = "HHDFS00000300"; // 해외주식 현재가 상세/시세 조회 코드
     private static final String RATE_LIMIT_ERROR_CODE = "EGW00201"; // 초당 거래건수 초과
@@ -30,10 +50,16 @@ public class KisPriceClient {
 
     /** 전일종가와 기준일을 함께 반환한다. HHDFS00000300 output에는 날짜 필드가 없으므로 baseDate=null로 반환한다. */
     public PriceWithDate getPreviousCloseWithDate(String exchangeCode, String ticker) {
+        if (securities != null && securities.isActive()) {
+            return securities.foreignPreviousClose(ticker, securities.businessDate());
+        }
         return new PriceWithDate(getPreviousClose(exchangeCode, ticker), null);
     }
 
     public BigDecimal getPreviousClose(String exchangeCode, String ticker) {
+        if (securities != null && securities.isActive()) {
+            return getPreviousCloseWithDate(exchangeCode, ticker).getPrice();
+        }
         for (int attempt = 1; ; attempt++) {
             try {
                 return fetchPreviousClose(exchangeCode, ticker);
