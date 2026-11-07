@@ -560,6 +560,7 @@ CREATE TABLE domestic_order (
     status              VARCHAR(10)   NOT NULL COMMENT 'EXECUTED/REJECTED',
     reject_reason       VARCHAR(30)   NULL,
     securities_trade_id BIGINT        NULL     COMMENT '증권사 domestic_trade.trade_id (FK 없음)',
+    securities_recorded_at DATETIME   NULL     COMMENT '증권사 거래 기록을 마친 실제 시각. 고객 체결 주문이 NULL이면 아직 못 보낸 것(재시도 대상)',
     processed_at        DATETIME      NOT NULL COMMENT '업무시계',
     recorded_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실제 시각',
     PRIMARY KEY (domestic_order_id),

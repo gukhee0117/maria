@@ -76,6 +76,9 @@ public interface AccountMapper {
             @Param("newStatus") BenefitType newStatus,
             @Param("expectedStatus") BenefitType expectedStatus);
 
+    /** ci_hash로 고객의 계좌를 찾는다(증권사 시스템이 고객을 이 값으로만 알린다). */
+    Optional<AccountDTO> selectByCiHash(@Param("ciHash") String ciHash);
+
     // customerId를 통해 ci_hash 값 가져오기
     Optional<String> selectCiHashByCustomerId(Long customerId);
 

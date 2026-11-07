@@ -1,11 +1,16 @@
 package com.app.maria.global.client.kis;
 
+import com.app.maria.global.client.securities.SecuritiesMarketClient;
 import com.app.maria.global.config.properties.PriceApiProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
-import lombok.RequiredArgsConstructor;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -18,12 +23,31 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 /** 국내주식 현재가(주식현재가 시세, FHKST01010100). 캐시 없이 요청마다 KIS에서 가져온다. */
 @Component
-@RequiredArgsConstructor
 public class KisDomesticPriceClient {
 
     private final RestTemplate restTemplate;
     private final KisTokenService kisTokenService;
     private final PriceApiProperties priceApiProperties;
+    private final SecuritiesMarketClient securities;
+
+    public KisDomesticPriceClient(
+            RestTemplate restTemplate,
+            KisTokenService kisTokenService,
+            PriceApiProperties priceApiProperties) {
+        this(restTemplate, kisTokenService, priceApiProperties, null);
+    }
+
+    @Autowired
+    public KisDomesticPriceClient(
+            RestTemplate restTemplate,
+            KisTokenService kisTokenService,
+            PriceApiProperties priceApiProperties,
+            SecuritiesMarketClient securities) {
+        this.restTemplate = restTemplate;
+        this.kisTokenService = kisTokenService;
+        this.priceApiProperties = priceApiProperties;
+        this.securities = securities;
+    }
 
     private static final String TR_ID = "FHKST01010100";
     private static final String MARKET_DIV_CODE = "J"; // 주식·ETF·ETN 통합
@@ -31,7 +55,30 @@ public class KisDomesticPriceClient {
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 700; // KIS 모의투자 서버 초당 호출 제한 회피용
 
+    /** 시세를 받은 종목만 담는다. KIS 모드는 종목마다 순서대로 부르고 못 받은 종목은 건너뛴다. */
+    public Map<String, DomesticQuote> getQuotes(Collection<String> tickers) {
+        if (securities != null && securities.isActive()) {
+            return securities.domesticQuotes(List.copyOf(tickers), securities.businessDate());
+        }
+        Map<String, DomesticQuote> quotes = new LinkedHashMap<>();
+        for (String ticker : tickers) {
+            try {
+                quotes.put(ticker, getQuote(ticker));
+            } catch (AppException e) {
+                // 못 받은 종목은 결과에서 빠진다.
+            }
+        }
+        return quotes;
+    }
+
     public DomesticQuote getQuote(String ticker) {
+        if (securities != null && securities.isActive()) {
+            DomesticQuote quote = getQuotes(List.of(ticker)).get(ticker);
+            if (quote == null) {
+                throw new AppException(ErrorType.KIS_PRICE_NOT_FOUND, ticker);
+            }
+            return quote;
+        }
         for (int attempt = 1; ; attempt++) {
             try {
                 return fetch(ticker);

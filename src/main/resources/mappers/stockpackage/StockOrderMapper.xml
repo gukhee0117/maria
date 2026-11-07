@@ -19,6 +19,27 @@
              #{rejectReason}, #{securitiesTradeId}, #{processedAt})
     </insert>
 
+    <update id="markSecuritiesRecorded">
+        UPDATE domestic_order
+        SET securities_recorded_at = NOW()
+        WHERE domestic_order_id = #{domesticOrderId}
+          AND securities_recorded_at IS NULL
+    </update>
+
+    <select id="selectUnrecordedCustomerOrders"
+            resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
+        SELECT <include refid="orderColumns"/>, p.ticker, c.ci_hash
+        FROM domestic_order o
+        JOIN domestic_product p ON p.domestic_product_id = o.domestic_product_id
+        JOIN account a ON a.account_id = o.account_id
+        JOIN customer c ON c.customer_id = a.customer_id
+        WHERE o.channel = 'CUSTOMER'
+          AND o.status = 'EXECUTED'
+          AND o.securities_recorded_at IS NULL
+        ORDER BY o.domestic_order_id
+        LIMIT #{limit}
+    </select>
+
     <select id="selectByIdempotencyKey"
             resultType="com.app.maria.domain.stockpackage.vo.StockOrderVO">
         SELECT <include refid="orderColumns"/>, p.ticker, p.name
@@ -92,10 +113,29 @@
 
     <update id="updateBalance">
         UPDATE domestic_stock_balance
-        SET qty = #{qty}, status = #{status}, last_purchase_date = #{lastPurchaseDate},
+        SET qty = #{qty}, status = #{status},
+            <!-- 더 늦은 날짜일 때만 바뀐다(옛 날짜 매수가 마지막 매수일을 되돌리지 않는다) -->
+            last_purchase_date = GREATEST(COALESCE(last_purchase_date, #{lastPurchaseDate}),
+                                          #{lastPurchaseDate}),
             avg_purchase_price = #{avgPurchasePrice}
         WHERE domestic_stock_balance_id = #{domesticStockBalanceId}
     </update>
+
+    <select id="selectHeldProductIds" resultType="long">
+        SELECT DISTINCT domestic_product_id
+        FROM domestic_stock_balance
+        WHERE qty &gt; 0
+        ORDER BY domestic_product_id
+    </select>
+
+    <select id="selectHeldBalancesByAccount"
+            resultType="com.app.maria.domain.stockpackage.vo.StockBalanceVO">
+        SELECT domestic_stock_balance_id, account_id, domestic_product_id, qty, status,
+               last_purchase_date, avg_purchase_price
+        FROM domestic_stock_balance
+        WHERE account_id = #{accountId} AND qty &gt; 0
+        ORDER BY domestic_product_id
+    </select>
 
     <update id="applyOrderAmount">
         UPDATE account a

@@ -264,6 +264,8 @@ public enum ErrorType {
     STOCK_ORDER_ITEM_NOT_IN_PACKAGE(
             HttpStatus.BAD_REQUEST, "패키지에 담지 않은 종목은 주문할 수 없습니다.", LogLevel.WARN),
     STOCK_ORDER_ACCOUNT_NOT_OPEN(HttpStatus.CONFLICT, "개설된 RIA 계좌가 있어야 주문할 수 있습니다.", LogLevel.WARN),
+    STOCK_ORDER_SECURITIES_RECORD_FAILED(
+            HttpStatus.BAD_GATEWAY, "주문을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     STOCK_ORDER_MARKET_CLOSED(HttpStatus.CONFLICT, "지금은 주문할 수 있는 시간이 아닙니다.", LogLevel.WARN),
 
     // 커뮤니티
