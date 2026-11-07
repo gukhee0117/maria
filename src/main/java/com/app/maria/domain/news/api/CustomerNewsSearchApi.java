@@ -34,14 +34,12 @@ public class CustomerNewsSearchApi {
                         .map(
                                 item -> {
                                     String link = safeLink(item.path("link").asText(""));
-                                    if (link == null) return null;
                                     return new NaverNewsItem(
                                             plainText(item.path("title").asText("")),
-                                            link,
+                                            link == null ? "" : link,
                                             plainText(item.path("description").asText("")),
                                             item.path("pubDate").asText(""));
                                 })
-                        .filter(java.util.Objects::nonNull)
                         .toList();
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())

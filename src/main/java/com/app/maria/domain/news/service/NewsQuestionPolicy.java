@@ -35,6 +35,7 @@ public final class NewsQuestionPolicy {
                             + "|팔(?:세요|셔야|아야(?:합니다|해요|해|한다|할)?|아도좋|는게좋|는것이좋|는편이유리)"
                             + "|(?:주식|종목|투자비중|보유비중|주식비중|종목비중|비중)(?:을|를|은|는)?(?:늘리|줄이)(?:세요|셔야|는게좋|는것이좋|길추천|기를추천)"
                             + "|(?:지금|현재)?(?:매수신호|매도신호|매수타이밍|매도타이밍)"
+                            + "|파(?:세요|셔야|는게좋|는것이좋|는편이유리)"
                             + "|수익보장"
                             + "|shouldbuy|shouldsell|recommendbuy|recommendsell");
     private static final Pattern ADVICE_REQUEST =

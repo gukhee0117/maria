@@ -34,7 +34,7 @@ public class NewsAiConfig {
     public ChatClient newsChatClient(
             ChatModel model,
             NewsProperties properties,
-            @Value("${spring.ai.openai.api-key:}") String apiKey,
+            @Value("${OPENAI_API_KEY:}") String apiKey,
             @Value("${spring.ai.openai.base-url:https://api.openai.com}") String baseUrl) {
         // No financial tools, RAG advisors or shared conversation memory.
         ChatModel newsModel = model;
