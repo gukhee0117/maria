@@ -113,6 +113,9 @@ public class FreeNewsProvider implements NewsProvider {
                 lists.add(item.getValue().join());
                 anyResult = true;
             } catch (CompletionException e) {
+                // Do not let a failed completed task be reused if the completion callback has not
+                // removed its in-flight entry yet. A later request must be able to retry.
+                inFlight.remove(item.getKey(), item.getValue());
                 var stale = stale(item.getKey());
                 if (stale != null) {
                     lists.add(stale.articles());
