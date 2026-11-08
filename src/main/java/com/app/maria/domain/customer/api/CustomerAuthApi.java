@@ -1,16 +1,23 @@
 package com.app.maria.domain.customer.api;
 
 import com.app.maria.domain.customer.dto.request.CustomerLoginRequestDTO;
+import com.app.maria.domain.customer.dto.request.CustomerSignupEmailRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
+import com.app.maria.domain.customer.dto.request.CustomerSignupVerifyRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerMeResponseDTO;
+import com.app.maria.domain.customer.dto.response.CustomerSignupChallengeDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
+import com.app.maria.domain.customer.service.CustomerSignupVerificationService;
+import com.app.maria.domain.customer.service.CustomerSignupVerificationService.Pending;
 import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,12 +50,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerAuthApi {
     // 유휴 30분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
     private static final int SESSION_TIMEOUT_SECONDS = 30 * 60;
+    private static final String PENDING_SIGNUP = CustomerAuthApi.class.getName() + ".pending";
 
     private final CustomerAuthService customerAuthService;
     private final SecurityContextRepository contextRepository;
     private final SessionAuthenticationStrategy sessionStrategy;
     private final CookieCsrfTokenRepository csrfRepository;
     private final Clock clock;
+    private final CustomerSignupVerificationService verification;
 
     public CustomerAuthApi(
             CustomerAuthService customerAuthService,
@@ -57,12 +66,14 @@ public class CustomerAuthApi {
             @Qualifier("customerSessionAuthenticationStrategy")
                     SessionAuthenticationStrategy sessionStrategy,
             CookieCsrfTokenRepository customerCsrfTokenRepository,
-            Clock clock) {
+            Clock clock,
+            CustomerSignupVerificationService verification) {
         this.customerAuthService = customerAuthService;
         this.contextRepository = contextRepository;
         this.sessionStrategy = sessionStrategy;
         this.csrfRepository = customerCsrfTokenRepository;
         this.clock = clock;
+        this.verification = verification;
     }
 
     @GetMapping("/csrf")
@@ -73,7 +84,7 @@ public class CustomerAuthApi {
     }
 
     @PostMapping("/auth/login")
-    @Operation(summary = "고객 LOCAL 로그인 (CSRF 필수, JWT 대신 세션 사용)")
+    @Operation(summary = "고객 아이디·비밀번호 로그인 (이메일 불필요)")
     public ApiResponseDTO<CustomerMeResponseDTO> login(
             @Valid @RequestBody CustomerLoginRequestDTO body,
             HttpServletRequest request,
@@ -84,15 +95,48 @@ public class CustomerAuthApi {
                 "로그인 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
     }
 
+    @PostMapping("/auth/signup/email")
+    @Operation(summary = "회원가입 이메일 인증번호 발송·재발송")
+    public ApiResponseDTO<CustomerSignupChallengeDTO> sendSignupEmail(
+            @Valid @RequestBody CustomerSignupEmailRequestDTO body, HttpServletRequest request) {
+        HttpSession session = request.getSession();
+        synchronized (session) {
+            Pending pending = verification.send(session.getId(), body.email());
+            session.setAttribute(PENDING_SIGNUP, pending);
+            return ApiResponseDTO.of("회원가입 인증번호를 보냈습니다.", verification.describe(pending));
+        }
+    }
+
+    @PostMapping("/auth/signup/email/verify")
+    @Operation(summary = "회원가입 이메일 인증번호 확인 (로그인 세션은 생성하지 않음)")
+    public ApiResponseDTO<Void> verifySignupEmail(
+            @Valid @RequestBody CustomerSignupVerifyRequestDTO body, HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) throw new AppException(ErrorType.CUSTOMER_SIGNUP_CODE_INVALID);
+        synchronized (session) {
+            Pending pending = (Pending) session.getAttribute(PENDING_SIGNUP);
+            session.setAttribute(PENDING_SIGNUP, verification.verify(pending, body.code()));
+            return ApiResponseDTO.of("이메일 인증이 완료되었습니다.");
+        }
+    }
+
     @PostMapping("/auth/signup")
-    @Operation(summary = "고객 회원가입 + 자동 로그인 (CSRF 필수)")
+    @Operation(summary = "이메일 인증을 완료한 고객 회원가입 + 자동 로그인 (CSRF 필수)")
     public ApiResponseDTO<CustomerMeResponseDTO> signup(
             @Valid @RequestBody CustomerSignupRequestDTO body,
             HttpServletRequest request,
             HttpServletResponse response) {
-        CustomerPrincipal principal = signupRetryingOnConflict(body);
-        establishSession(principal, request, response);
-        return ApiResponseDTO.of("가입 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+        HttpSession session = request.getSession(false);
+        if (session == null) throw new AppException(ErrorType.CUSTOMER_SIGNUP_CODE_INVALID);
+        synchronized (session) {
+            verification.requireVerified(
+                    (Pending) session.getAttribute(PENDING_SIGNUP), body.getEmail());
+            CustomerPrincipal principal = signupRetryingOnConflict(body);
+            session.removeAttribute(PENDING_SIGNUP);
+            establishSession(principal, request, response);
+            return ApiResponseDTO.of(
+                    "가입 성공", new CustomerMeResponseDTO(principal, expiresAt(request)));
+        }
     }
 
     // 서버가 만드는 닉네임이 동시에 겹치면 DB UNIQUE 위반으로 가입 트랜잭션이 통째로 취소된다. 트랜잭션 안에서는 다시 시도할 수 없어서 여기서 한 번만 다시

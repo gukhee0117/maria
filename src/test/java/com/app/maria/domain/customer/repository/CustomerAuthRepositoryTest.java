@@ -126,7 +126,7 @@ class CustomerAuthRepositoryTest {
     void updatesLastLoginAtOnSuccess() {
         insertAuth(10, "customer1", "LOCAL", true);
 
-        service.authenticate(login("customer1", "test-password"));
+        CustomerPrincipal principal = service.authenticate(login("customer1", "test-password"));
         entityManager.flush();
 
         assertThat(
@@ -135,6 +135,15 @@ class CustomerAuthRepositoryTest {
                                         java.sql.Timestamp.class)
                                 .toLocalDateTime())
                 .isEqualTo(java.time.LocalDateTime.of(2026, 10, 25, 12, 0, 0));
+    }
+
+    @Test
+    void existingCustomerWithoutEmailCanLogin() {
+        insertAuth(10, "customer1", "LOCAL", true);
+        jdbc.update("UPDATE customer SET email = NULL WHERE customer_id = 1");
+        entityManager.clear();
+        assertThat(service.authenticate(login("customer1", "test-password")).customerId())
+                .isEqualTo(1L);
     }
 
     @Test

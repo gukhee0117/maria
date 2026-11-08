@@ -109,6 +109,8 @@ public class CustomerSecurityConfig {
                                         .requestMatchers(
                                                 HttpMethod.POST,
                                                 "/api/customer/auth/login",
+                                                "/api/customer/auth/signup/email/verify",
+                                                "/api/customer/auth/signup/email",
                                                 "/api/customer/auth/signup")
                                         .permitAll()
                                         .anyRequest()

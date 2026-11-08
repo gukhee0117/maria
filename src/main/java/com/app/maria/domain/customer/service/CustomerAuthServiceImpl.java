@@ -43,8 +43,8 @@ public class CustomerAuthServiceImpl implements CustomerAuthService {
                         request.getPassword(), credential.getPassword().getPasswordHash())) {
             throw new AppException(ErrorType.CUSTOMER_LOGIN_FAILED);
         }
-        credential.markLoggedIn(businessClockService.now());
         CustomerEntity customer = credential.getCustomer();
+        credential.markLoggedIn(businessClockService.now());
         return new CustomerPrincipal(
                 customer.getCustomerId(), credential.getLoginId(), customer.getName());
     }

@@ -17,6 +17,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.service.CustomerAuthService;
+import com.app.maria.domain.customer.service.CustomerSignupEmailSender;
+import com.app.maria.domain.customer.service.CustomerSignupVerificationService;
+import com.app.maria.domain.customer.service.SignupCodeStore;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -40,13 +43,20 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @WebMvcTest(CustomerAuthApi.class)
-@Import({CustomerSecurityConfig.class, CustomerAuthTestBeans.class})
+@Import({
+    CustomerSecurityConfig.class,
+    CustomerAuthTestBeans.class,
+    CustomerSignupVerificationService.class
+})
 class CustomerAuthApiTest {
     private static final String SIGNUP = "/api/customer/auth/signup";
+    private static final String EXPIRES_AT = "2026-10-25T03:30:00Z";
 
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private CustomerAuthService customerAuthService;
+    @MockitoBean private SignupCodeStore codes;
+    @MockitoBean private CustomerSignupEmailSender emailSender;
 
     private static String body(String loginId, String password, String rrn) {
         return """
@@ -70,6 +80,7 @@ class CustomerAuthApiTest {
     void signupWithoutCsrfIsForbidden() throws Exception {
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
                 .andExpect(status().isForbidden())
@@ -87,6 +98,7 @@ class CustomerAuthApiTest {
         MvcResult signup =
                 mockMvc.perform(
                                 post(SIGNUP)
+                                        .session(verifiedSession())
                                         .with(csrf())
                                         .contentType(APPLICATION_JSON)
                                         .content(
@@ -102,37 +114,133 @@ class CustomerAuthApiTest {
                 .andExpect(jsonPath("$.data.loginId").value("hong1234"));
     }
 
+    private MockHttpSession verifiedSession() {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(
+                CustomerAuthApi.class.getName() + ".pending",
+                new CustomerSignupVerificationService.Pending(
+                        "hong@example.com",
+                        "identity",
+                        "token",
+                        java.time.Instant.now().plusSeconds(600),
+                        java.time.Instant.now(),
+                        true));
+        return session;
+    }
+
     @Test
-    @DisplayName("가입·로그인으로 만든 세션은 30분 동안 유지된다")
-    void sessionLastsThirtyMinutes() throws Exception {
-        when(customerAuthService.signup(any()))
-                .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
+    void seededCustomerLogsInWithoutEmailOrOtpAndGetsThirtyMinuteSession() throws Exception {
         when(customerAuthService.authenticate(any()))
                 .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
-
-        MvcResult signup =
-                mockMvc.perform(
-                                post(SIGNUP)
-                                        .with(csrf())
-                                        .contentType(APPLICATION_JSON)
-                                        .content(
-                                                body("hong1234", "password-1234", "9001011234567")))
-                        .andReturn();
-        MvcResult login =
+        var result =
                 mockMvc.perform(
                                 post("/api/customer/auth/login")
                                         .with(csrf())
                                         .contentType(APPLICATION_JSON)
                                         .content(
                                                 "{\"loginId\":\"hong1234\",\"password\":\"password-1234\"}"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.customerId").value(7))
                         .andReturn();
-
-        assertThat(signup.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1800);
-        assertThat(login.getRequest().getSession(false).getMaxInactiveInterval()).isEqualTo(1800);
+        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(1800);
+        mockMvc.perform(get("/api/customer/auth/me").session(session)).andExpect(status().isOk());
+        org.mockito.Mockito.verifyNoInteractions(codes, emailSender);
     }
 
-    // 고정 시계(2026-10-25T03:00:00Z) + 30분
-    private static final String EXPIRES_AT = "2026-10-25T03:30:00Z";
+    @Test
+    void signupWithoutEmailProofCannotWriteAnything() throws Exception {
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CUSTOMER_SIGNUP_CODE_INVALID"));
+        verify(customerAuthService, never()).signup(any());
+    }
+
+    @Test
+    void changedEmailCannotUseVerifiedProof() throws Exception {
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .session(verifiedSession())
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(
+                                        body("hong1234", "password-1234", "9001011234567")
+                                                .replace("hong@example.com", "other@example.com")))
+                .andExpect(status().isBadRequest());
+        verify(customerAuthService, never()).signup(any());
+    }
+
+    @Test
+    void emailCodeMustBeConfirmedInSameBrowserBeforeSignup() throws Exception {
+        when(codes.reserveSend(any())).thenReturn(true);
+        var result =
+                mockMvc.perform(
+                                post("/api/customer/auth/signup/email")
+                                        .with(csrf())
+                                        .contentType(APPLICATION_JSON)
+                                        .content("{\"email\":\"hong@example.com\"}"))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        mockMvc.perform(get("/api/customer/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+        when(codes.consume(any(), any(), any())).thenReturn(false, true);
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email/verify")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email/verify")
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email/verify")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isOk());
+        when(customerAuthService.signup(any()))
+                .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isOk());
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(body("hong1234", "password-1234", "9001011234567")))
+                .andExpect(status().isBadRequest());
+        verify(customerAuthService, times(1)).signup(any());
+    }
+
+    @Test
+    void signupCodeSendAndVerifyRequireCsrf() throws Exception {
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email/verify")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"email\":\"hong@example.com\"}"))
+                .andExpect(status().isForbidden());
+    }
 
     private static RequestPostProcessor customerAuth() {
         return authentication(
@@ -193,6 +301,7 @@ class CustomerAuthApiTest {
 
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
@@ -229,6 +338,7 @@ class CustomerAuthApiTest {
     void rejectsMalformedBirthDate() throws Exception {
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(
@@ -247,6 +357,7 @@ class CustomerAuthApiTest {
 
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
@@ -273,6 +384,7 @@ class CustomerAuthApiTest {
 
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
@@ -289,6 +401,7 @@ class CustomerAuthApiTest {
 
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
@@ -310,6 +423,7 @@ class CustomerAuthApiTest {
 
         mockMvc.perform(
                         post(SIGNUP)
+                                .session(verifiedSession())
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content(body("hong1234", "password-1234", "9001011234567")))
@@ -319,7 +433,12 @@ class CustomerAuthApiTest {
     }
 
     private void assertBadRequest(String json) throws Exception {
-        mockMvc.perform(post(SIGNUP).with(csrf()).contentType(APPLICATION_JSON).content(json))
+        mockMvc.perform(
+                        post(SIGNUP)
+                                .session(verifiedSession())
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content(json))
                 .andExpect(status().isBadRequest());
 
         verify(customerAuthService, never()).signup(any());
