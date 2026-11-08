@@ -25,7 +25,7 @@ public class StockPriceHistoryServiceImpl implements StockPriceHistoryService {
 
     @Override
     public List<StockPriceHistoryResponseDTO> getHistory(List<String> tickers, int days) {
-        LinkedHashSet<String> unique = StockQuoteServiceImpl.validateTickers(tickers);
+        LinkedHashSet<String> unique = TickerValidator.validate(tickers);
         int n = Math.max(MIN_DAYS, Math.min(MAX_DAYS, days));
         Map<String, List<ClosePoint>> history = fetchHistory(unique, n);
         return unique.stream().map(t -> toDto(t, history.get(t))).toList();
