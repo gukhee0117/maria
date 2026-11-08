@@ -4,7 +4,12 @@ import com.app.maria.domain.notification.dto.CustomerNotificationConsentDTO;
 import com.app.maria.domain.notification.dto.CustomerNotificationSettingsRequestDTO;
 import com.app.maria.domain.notification.dto.CustomerNotificationSettingsResponseDTO;
 import com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper;
-import java.util.HashMap;
+import com.app.maria.domain.notification.type.NotificationConsentType;
+import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
+import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -16,17 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomerNotificationSettingsServiceImpl
         implements CustomerNotificationSettingsService {
 
-    private static final Map<String, String> CONSENT_TYPES =
-            Map.of(
-                    "push", "NOTIFY_PUSH",
-                    "sms", "NOTIFY_SMS",
-                    "email", "NOTIFY_EMAIL",
-                    "settle", "NOTIFY_SETTLEMENT",
-                    "band", "NOTIFY_BAND",
-                    "reply", "NOTIFY_COMMENT",
-                    "kiru", "NOTIFY_KIRU");
-
     private final CustomerNotificationSettingsMapper settingsMapper;
+    private final BusinessClockService businessClockService;
 
     @Override
     @Transactional(readOnly = true)
@@ -38,44 +34,51 @@ public class CustomerNotificationSettingsServiceImpl
     @Transactional
     public CustomerNotificationSettingsResponseDTO update(
             Long customerId, CustomerNotificationSettingsRequestDTO request) {
-        Map<String, Boolean> values = values(request);
-        CONSENT_TYPES.forEach(
-                (key, consentType) ->
-                        settingsMapper.insertConsent(customerId, consentType, values.get(key)));
+        // 잠금 읽기를 최초 조회로 사용해 같은 고객의 PUT을 직렬화한다.
+        if (settingsMapper.lockCustomer(customerId) == null) {
+            throw new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId);
+        }
+        Map<NotificationConsentType, Boolean> previous =
+                values(settingsMapper.selectLatestByCustomerId(customerId));
+        LocalDateTime changedAt = businessClockService.now();
+        for (NotificationConsentType type : NotificationConsentType.values()) {
+            boolean next = type.requestedValue(request);
+            if (agreed(previous, type) != next) {
+                settingsMapper.insertConsent(customerId, type, next, changedAt);
+            }
+        }
         return get(customerId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Boolean isSettlementPushEnabled(Long customerId) {
+    public boolean isSettlementPushEnabled(Long customerId) {
         CustomerNotificationSettingsResponseDTO settings = get(customerId);
         return settings.push() && settings.settle();
     }
 
     private CustomerNotificationSettingsResponseDTO toResponse(
             List<CustomerNotificationConsentDTO> rows) {
-        Map<String, Boolean> values = new HashMap<>();
-        if (rows != null) {
-            rows.forEach(row -> values.put(row.getConsentType(), row.isAgreed()));
-        }
+        Map<NotificationConsentType, Boolean> values = values(rows);
         return new CustomerNotificationSettingsResponseDTO(
-                values.getOrDefault("NOTIFY_PUSH", true),
-                values.getOrDefault("NOTIFY_SMS", false),
-                values.getOrDefault("NOTIFY_EMAIL", false),
-                values.getOrDefault("NOTIFY_SETTLEMENT", true),
-                values.getOrDefault("NOTIFY_BAND", true),
-                values.getOrDefault("NOTIFY_COMMENT", true),
-                values.getOrDefault("NOTIFY_KIRU", true));
+                agreed(values, NotificationConsentType.NOTIFY_PUSH),
+                agreed(values, NotificationConsentType.NOTIFY_SMS),
+                agreed(values, NotificationConsentType.NOTIFY_EMAIL),
+                agreed(values, NotificationConsentType.NOTIFY_SETTLEMENT),
+                agreed(values, NotificationConsentType.NOTIFY_BAND),
+                agreed(values, NotificationConsentType.NOTIFY_COMMENT),
+                agreed(values, NotificationConsentType.NOTIFY_KIRU));
     }
 
-    private Map<String, Boolean> values(CustomerNotificationSettingsRequestDTO request) {
-        return Map.of(
-                "push", request.push(),
-                "sms", request.sms(),
-                "email", request.email(),
-                "settle", request.settle(),
-                "band", request.band(),
-                "reply", request.reply(),
-                "kiru", request.kiru());
+    private Map<NotificationConsentType, Boolean> values(
+            List<CustomerNotificationConsentDTO> rows) {
+        Map<NotificationConsentType, Boolean> values = new EnumMap<>(NotificationConsentType.class);
+        if (rows != null) rows.forEach(row -> values.put(row.getConsentType(), row.isAgreed()));
+        return values;
+    }
+
+    private boolean agreed(
+            Map<NotificationConsentType, Boolean> values, NotificationConsentType type) {
+        return values.getOrDefault(type, type.defaultValue());
     }
 }

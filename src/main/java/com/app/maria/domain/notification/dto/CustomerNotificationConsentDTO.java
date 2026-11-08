@@ -1,5 +1,6 @@
 package com.app.maria.domain.notification.dto;
 
+import com.app.maria.domain.notification.type.NotificationConsentType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -8,6 +9,6 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class CustomerNotificationConsentDTO {
-    private String consentType;
+    private NotificationConsentType consentType;
     private boolean agreed;
 }

@@ -38,13 +38,14 @@ public class SettlementNotificationServiceImpl implements SettlementNotification
                 event.batchId(), event.accountId())) {
             return;
         }
-        if (customerNotificationService != null
-                && !customerNotificationService.recordSettlementFinalized(
-                        event.accountId(), event.batchId(), event.completedAt())) {
-            return;
+        try {
+            customerNotificationService.recordSettlementFinalized(
+                    event.accountId(), event.batchId(), event.completedAt());
+        } finally {
+            // 화면 데이터 갱신은 푸시 수신 설정·알림 중복·저장 실패와 독립된 채널이다.
+            settlementSseService.sendAccountBatchCompleted(
+                    event.accountId(),
+                    new SettlementNotificationResponseDTO(event.batchId(), event.completedAt()));
         }
-        settlementSseService.sendAccountBatchCompleted(
-                event.accountId(),
-                new SettlementNotificationResponseDTO(event.batchId(), event.completedAt()));
     }
 }

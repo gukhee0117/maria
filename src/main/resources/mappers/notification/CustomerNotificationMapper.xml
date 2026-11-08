@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationMapper">
 
-    <select id="selectRecentByCustomerId" resultType="CustomerNotificationResponseDTO">
+    <select id="selectRecentByCustomerId" resultType="CustomerNotificationVO">
         SELECT notification_id, notification_type, title, content, read_at, created_at
         FROM notification
         WHERE customer_id = #{customerId}
@@ -13,13 +13,21 @@
     </select>
 
     <insert id="insertSettlementFinalized">
-        INSERT IGNORE INTO notification (
+        INSERT INTO notification (
             customer_id, notification_type, title, content, related_type, related_id, created_at
         ) VALUES (
             #{customerId}, 'SETTLEMENT_FINALIZED', #{title}, #{content},
             'SETTLEMENT_BATCH', #{batchId}, #{completedAt}
         )
     </insert>
+
+    <select id="existsSettlementFinalized" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM notification
+            WHERE customer_id = #{customerId} AND notification_type = 'SETTLEMENT_FINALIZED'
+              AND related_type = 'SETTLEMENT_BATCH' AND related_id = #{batchId}
+        )
+    </select>
 
     <update id="markAllUnreadAsRead">
         UPDATE notification

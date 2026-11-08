@@ -9,5 +9,5 @@ public interface CustomerNotificationSettingsService {
     CustomerNotificationSettingsResponseDTO update(
             Long customerId, CustomerNotificationSettingsRequestDTO request);
 
-    Boolean isSettlementPushEnabled(Long customerId);
+    boolean isSettlementPushEnabled(Long customerId);
 }
