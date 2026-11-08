@@ -73,26 +73,6 @@
         </div>
     </section>
 
-    <!-- 원본에 없는 기존 요소: 최근 7일 계좌 신청 추이 차트. 지우지 않고 숨김(코드·Chart.js 로드 유지, 색은 --adm- 변수).
-         선택지: 접이식으로 목록 위/아래에 두기 · 통계보드로 옮기기 · 제거 (보고서 참고) -->
-    <section class="account-trend" id="accountTrend" hidden>
-        <div class="account-trend-head">
-            <strong>최근 7일 계좌 신청 추이</strong>
-            <div class="account-trend-controls">
-                <span id="accountTrendTotal">-</span>
-                <span class="adm-select-wrap">
-                    <select id="accountTrendStatusFilter" class="adm-input adm-select" aria-label="그래프 상태 필터">
-                        <option value="">전체 상태</option>
-                        <option value="APPLIED">신청</option>
-                        <option value="OPENED">승인</option>
-                        <option value="REJECTED">반려</option>
-                        <option value="CLOSURE_REQUESTED">해지신청</option>
-                        <option value="CLOSED">해지</option>
-                    </select>
-                </span>
-            </div>
-        </div>
-        <div class="account-trend-canvas"><canvas id="accountApplicationTrend" aria-label="최근 7일 계좌 신청 추이"></canvas></div>
     </section>
 
     <input id="accountCustomerIdSearch" type="hidden">
@@ -195,6 +175,7 @@
                     <button class="adm-tab" id="accountTabButtonWithdrawals" type="button" role="tab" aria-selected="false" aria-controls="accountTabWithdrawals" data-account-tab="withdrawals">인출</button>
                     <button class="adm-tab" id="accountTabButtonSales" type="button" role="tab" aria-selected="false" aria-controls="accountTabSales" data-account-tab="sales">매도내역</button>
                     <button class="adm-tab" id="accountTabButtonHistory" type="button" role="tab" aria-selected="false" aria-controls="accountTabHistory" data-account-tab="history">상태 이력</button>
+                    <button class="adm-tab" id="accountTabButtonDocuments" type="button" role="tab" aria-selected="false" aria-controls="accountTabDocuments" data-account-tab="documents">확인서</button>
                 </div>
                 <section id="accountTabHoldings" class="account-tab-panel adm-grid-scroll" role="tabpanel" aria-labelledby="accountTabButtonHoldings">
                     <table class="adm-gtable account-tab-table account-holdings-table">
@@ -238,6 +219,18 @@
                         <thead><tr><th class="adm-col-no">No</th><th>변경 일시</th><th>변경 내용</th><th>사유</th></tr></thead>
                         <tbody id="accountHistoryList"></tbody>
                     </table>
+                </section>
+                <section id="accountTabDocuments" class="account-tab-panel" role="tabpanel" aria-labelledby="accountTabButtonDocuments" hidden>
+                    <div class="account-tab-heading account-doc-head">
+                        <span>세제혜택 확인서</span>
+                        <button id="issueDocument" class="adm-btn adm-btn-primary" type="button" hidden>확인서 발급</button>
+                    </div>
+                    <div class="adm-grid-scroll">
+                        <table class="adm-gtable account-tab-table account-documents-table">
+                            <thead><tr><th class="adm-col-no">No</th><th>발급 번호</th><th class="is-c">상태</th><th>발급 주체</th><th>발급 일시</th><th class="is-c">다운로드</th></tr></thead>
+                            <tbody id="detailDocuments"></tbody>
+                        </table>
+                    </div>
                 </section>
             </div>
 
@@ -381,9 +374,6 @@
 </div>
 
 <th:block layout:fragment="pageScripts">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
-            integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
-            crossorigin="anonymous"></script>
     <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/account-management.js}"></script>
 </th:block>

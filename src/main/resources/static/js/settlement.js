@@ -14,16 +14,22 @@ $(function () {
 
     var allBatches = [];         // 받아 온 배치 목록 전체 (요약 집계 기준)
     var filteredBatches = [];    // 검색어·상태까지 거른 결과
+    var sortSpec = null;         // 머리글로 고른 정렬 (받아 온 목록 전체를 정렬한다)
     var businessToday = null;    // 업무일자(GET /api/admin/system-clock) — "오늘" 기준
     var summaryLoaded = false;
     var selectedBatchId = null;
     var failItems = [];          // 선택한 배치의 실패 항목
     var failLoaded = false;
+    var itemScope = "fail";      // 하단 표 범위: fail(실패) / all(전체) / pending(처리대기)
+    var scopeItems = [];         // all·pending 범위의 항목
+    var scopeLoaded = false;
+    var scopeError = null;
+    var scopeHasMore = false;
+    var scopeSeq = 0;
     var failError = null;
     var liveLines = [];          // 실시간 알림(SSE)으로 쌓인 로그
     var failRequestSeq = 0;
     var selectedItemId = null;
-    var trendChart = null;
     var canAct = false;          // ADMIN·SETTLEMENT 만 처리 버튼을 본다 (API 의 @PreAuthorize 와 같음)
     var acting = false;          // 처리 요청 중
     var currentItem = null;      // 항목 상세 패널에 열린 항목
@@ -310,6 +316,12 @@ $(function () {
                 String(batch.runId || "").toLowerCase().indexOf(keyword) >= 0;
         });
 
+        if (sortSpec) {
+            filteredBatches = MARIA.tableSort.sortList(filteredBatches, function (batch) {
+                return sortSpec.key === "status" ? STATUS.settlementBatchKind(batch) : batch[sortSpec.key];
+            }, sortSpec.dir);
+        }
+
         if (!keepPage) {
             currentPage = 0;
         }
@@ -327,7 +339,6 @@ $(function () {
                 summaryLoaded = true;
                 renderSummary();
                 applyFilters(true);
-                renderTrend();
 
                 // 처음이거나 고른 배치가 목록에서 사라졌으면 첫 배치를 고른다 (원본: 처음부터 첫 줄이 선택됨)
                 if (selectedBatchId == null || !findBatch(selectedBatchId)) {
@@ -365,7 +376,110 @@ $(function () {
     }
 
     // ---------- 선택한 배치의 실패 항목 ----------
+    var SCOPE_TITLE = { fail: "실패", all: "전체", pending: "처리대기" };
+
+    function scopeRowHtml(item, index) {
+        var selectedClass = Number(item.itemId) === Number(selectedItemId) ? " is-selected" : "";
+        var reason = item.result === "FAILED" ? STATUS.settlementFailureLabel(item.failureCode, item.failureMessage) : "-";
+        var resultChip = item.result
+            ? chip(STATUS.settlementItemResultTone(item.result), STATUS.settlementItemResultLabel(item.result))
+            : chip("warn", "처리대기");
+        return '<tr class="is-clickable' + selectedClass + '" tabindex="0" data-item-id="' + item.itemId + '">' +
+            '<td class="adm-col-no">' + (index + 1) + "</td>" +
+            '<td><span class="settlement-mono">' + escapeHtml(batchLabel(item.itemId)) + "</span></td>" +
+            "<td><span>" + (item.accountNo ? escapeHtml(MARIA.fmt.hyphenateAccountNo(item.accountNo)) : "-") + "</span></td>" +
+            "<td><span>" + (item.productName || item.ticker ? escapeHtml(productLabel(item)) : "-") + "</span></td>" +
+            '<td class="is-r"><span>' + (item.provisionalAmount == null ? "-" : formatAmount(item.provisionalAmount)) + "</span></td>" +
+            '<td class="is-r"><span>' + (item.finalAmount == null ? "-" : formatAmount(item.finalAmount)) + "</span></td>" +
+            '<td class="is-c">' + resultChip + "</td>" +
+            '<td><span title="' + escapeHtml(item.failureMessage || reason) + '">' + escapeHtml(reason) + "</span></td>" +
+            "<td><span>" + (item.processedAt ? formatDateTime(item.processedAt) : "-") + "</span></td></tr>";
+    }
+
+    function renderScopeItems() {
+        var $body = $("#settlement-fail-list").empty();
+        var batch = selectedBatchId == null ? null : findBatch(selectedBatchId);
+        $("#settlement-fail-batch").text(batch ? batchLabel(batch.batchId) : "");
+        $("#settlement-pending-more").prop("hidden", !(scopeHasMore && itemScope === "pending"));
+        if (!batch) {
+            $("#settlement-fail-count").text("-");
+            $body.append(stateRow(FAIL_COLUMNS, "settlement-fail-none", "배치를 선택하세요."));
+        } else if (scopeError) {
+            $("#settlement-fail-count").text("-");
+            $body.append(stateRow(FAIL_COLUMNS, "settlement-fail-error", escapeHtml(scopeError)));
+        } else if (!scopeLoaded) {
+            $("#settlement-fail-count").text("-");
+            $body.html(skeleton(FAIL_COLUMNS, 3, "settlement-fail-loading"));
+        } else if (!scopeItems.length) {
+            $("#settlement-fail-count").text("0");
+            $body.append(stateRow(FAIL_COLUMNS, "settlement-fail-empty", "이 배치에는 " + SCOPE_TITLE[itemScope] + " 항목이 없습니다."));
+        } else {
+            $("#settlement-fail-count").text(formatCount(scopeItems.length) + (scopeHasMore ? "+" : ""));
+            scopeItems.forEach(function (item, index) { $body.append(scopeRowHtml(item, index)); });
+        }
+    }
+
+    // all: GET /batches/detail/{batchId}, pending: GET /batches/{batchId}/items/pending?lastItemId= (이어 받기)
+    function loadScopeItems(append) {
+        var batchId = selectedBatchId;
+        var seq = ++scopeSeq;
+        if (!append) {
+            scopeItems = [];
+            scopeLoaded = false;
+            scopeHasMore = false;
+        }
+        scopeError = null;
+        renderScopeItems();
+        if (batchId == null) {
+            return;
+        }
+        var req = itemScope === "all"
+            ? { url: "/api/admin/settlement/batches/detail/" + batchId, method: "GET" }
+            : { url: "/api/admin/settlement/batches/" + batchId + "/items/pending", method: "GET",
+                data: { lastItemId: append && scopeItems.length ? scopeItems[scopeItems.length - 1].itemId : 0 } };
+        MARIA.auth.ajax(req).done(function (res) {
+            if (seq !== scopeSeq) {
+                return;
+            }
+            var rows = res.data || [];
+            scopeItems = append ? scopeItems.concat(rows) : rows;
+            // 서버가 한 번에 100건씩 준다 — 100건 미만이면 마지막 쪽
+            scopeHasMore = itemScope === "pending" && rows.length >= 100;
+            scopeLoaded = true;
+            renderScopeItems();
+        }).fail(function (xhr) {
+            if (seq !== scopeSeq || xhr.status === 401) {
+                return;
+            }
+            scopeError = errorMessage(xhr, "항목을 불러오지 못했습니다.");
+            renderScopeItems();
+        });
+    }
+
+    function setScope(scope) {
+        itemScope = scope;
+        $("#settlement-scope button").removeClass("is-on").filter(function () { return $(this).attr("data-scope") === scope; }).addClass("is-on");
+        $("#settlement-scope-title").text(SCOPE_TITLE[scope]);
+        $("#settlement-pending-more").prop("hidden", true);
+        if (scope === "fail") {
+            renderFailItems();
+        } else {
+            loadScopeItems(false);
+        }
+    }
+    $("#settlement-scope").on("click", "button", function () {
+        var scope = $(this).attr("data-scope");
+        if (scope !== itemScope) {
+            setScope(scope);
+        }
+    });
+    $("#settlement-pending-more").on("click", function () { loadScopeItems(true); });
+
     function renderFailItems() {
+        if (itemScope !== "fail") {
+            renderScopeItems();
+            return;
+        }
         var $body = $("#settlement-fail-list").empty();
         var batch = selectedBatchId == null ? null : findBatch(selectedBatchId);
         $("#settlement-fail-batch").text(batch ? batchLabel(batch.batchId) : "");
@@ -453,6 +567,9 @@ $(function () {
             .filter(function () { return Number($(this).data("batch-id")) === selectedBatchId; }).addClass("is-selected");
         renderRunPanel();
         loadFailItems();
+        if (itemScope !== "fail") {
+            loadScopeItems(false);
+        }
         updateActionButtons();
     }
 
@@ -776,59 +893,6 @@ $(function () {
 
     $(window).on("pagehide beforeunload", closeNotifications);
 
-    // ---------- 최근 14일 추이 (원본에 없는 기존 요소 — 지금은 숨김) ----------
-    function cssVar(name) {
-        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    }
-
-    function renderTrend() {
-        if ($("#settlement-trend").prop("hidden") || !window.Chart) {
-            return;
-        }
-        var latest = allBatches.reduce(function (acc, batch) {
-            var at = parseDate(batch.executedAt);
-            return at && (!acc || at > acc) ? at : acc;
-        }, null) || new Date();
-        var end = new Date(latest.getFullYear(), latest.getMonth(), latest.getDate());
-        var days = [];
-        for (var i = 13; i >= 0; i--) {
-            days.push(new Date(end.getFullYear(), end.getMonth(), end.getDate() - i));
-        }
-        function sumOn(day, key) {
-            return allBatches.reduce(function (sum, batch) {
-                return formatDate(batch.executedAt) === formatDate(day) ? sum + Number(batch[key] || 0) : sum;
-            }, 0);
-        }
-        var groups = [
-            { key: "totalCount", label: "전체", color: cssVar("--adm-chart-1") },
-            { key: "successCount", label: "성공", color: cssVar("--adm-ok-fg") },
-            { key: "failedCount", label: "실패", color: cssVar("--adm-fail-fg") }
-        ];
-        $("#settlement-trend-total").text(formatCount(allBatches.reduce(function (s, b) { return s + Number(b.totalCount || 0); }, 0)) + "건");
-        if (trendChart) {
-            trendChart.destroy();
-        }
-        trendChart = new Chart($("#settlement-trend-canvas")[0], {
-            type: "line",
-            data: {
-                labels: days.map(function (d) { return (d.getMonth() + 1) + "/" + d.getDate(); }),
-                datasets: groups.map(function (g) {
-                    return { label: g.label, borderColor: g.color, backgroundColor: g.color, tension: 0.3, borderWidth: 2, pointRadius: 3,
-                        data: days.map(function (d) { return sumOn(d, g.key); }) };
-                })
-            },
-            options: {
-                animation: false,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: cssVar("--adm-sub"), font: { size: 10 } } },
-                    y: { beginAtZero: true, ticks: { precision: 0, color: cssVar("--adm-sub"), font: { size: 10 } }, grid: { color: cssVar("--adm-line") } }
-                }
-            }
-        });
-    }
-
     // ---------- 좁은 화면 ----------
     // 화면 너비 ÷ 글자 크기 배율 < 900 이면 세로로 쌓고(is-narrow), 높이 ÷ 배율 < 800 이면 실행 현황을 낮춘다(is-short).
     // 좁으면 본문이 스크롤된다 (원본 기준). 배율은 layout.js 가 #admShell 의 --font-scale 로 정한다.
@@ -860,5 +924,10 @@ $(function () {
         loadBusinessToday();
         loadBatches();
         connectNotifications();
+    });
+
+    MARIA.tableSort.bind(".settlement-batch-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        applyFilters(false);
     });
 });

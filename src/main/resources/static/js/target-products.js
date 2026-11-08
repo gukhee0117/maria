@@ -2,6 +2,7 @@ $(function () {
     var STATUS = MARIA.status; // 구분 한글 표기는 js/admin/status-labels.js 의 공통 매핑
     var PAGE_SIZE = 20;
     var currentPage = 0;
+    var sortSpec = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
     var newJudgementIds = [];
     var SKELETON_ROWS = 8;
     var SKELETON_WIDTHS = ["62%", "70%", "48%", "54%", "66%", "78%", "56%", "40%"];
@@ -226,7 +227,7 @@ $(function () {
 
     function loadTargetProducts(page) {
         var targetPage = page || 0;
-        var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams(), getCardFilterParams());
+        var requestData = $.extend({ page: targetPage, size: PAGE_SIZE }, getFilterParams(), getCardFilterParams(), sortSpec ? { sort: sortSpec.key, direction: sortSpec.dir } : {});
         renderLoading();
         MARIA.auth.ajax({
             url: "/api/admin/target-products",
@@ -270,6 +271,10 @@ $(function () {
     }
 
     $("#tpFilterSubmit").on("click", function () {
+        loadTargetProducts(0);
+    });
+    MARIA.tableSort.bind(".tp-judgement-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
         loadTargetProducts(0);
     });
     $("#tpFilterReset").on("click", resetFilters);
@@ -352,4 +357,61 @@ $(function () {
 
     loadSummary();
     loadTargetProducts(0);
+    // ---------- 판정 실패(영구 실패) 목록 패널 ----------
+    var failPage = 0;
+    var failSort = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
+    function failState(text) {
+        $("#tpFailBody").html('<tr class="is-state"><td colspan="7"><div class="tp-fail-empty">' + escapeHtml(text) + "</div></td></tr>");
+    }
+    function loadFailures(page) {
+        failPage = page;
+        failState("불러오는 중...");
+        MARIA.auth.ajax({ url: "/api/admin/target-products/failures", method: "GET", data: $.extend({ page: page, size: 20 }, failSort ? { sort: failSort.key, direction: failSort.dir } : {}) })
+            .done(function (res) {
+                var d = res.data || {};
+                var rows = d.content || [];
+                $("#tpFailTotal").text("총 " + (d.totalElements || 0) + "건");
+                if (!rows.length) {
+                    failState("판정 실패 건이 없습니다.");
+                } else {
+                    $("#tpFailBody").html(rows.map(function (r, i) {
+                        return "<tr>" + '<td class="adm-col-no">' + (page * 20 + i + 1) + "</td>" +
+                            "<td>" + escapeHtml(r.customerName || "-") + "</td>" +
+                            '<td class="is-c">' + escapeHtml(r.tradeDate || "-") + "</td>" +
+                            '<td class="is-r">' + escapeHtml(r.failureCount) + "</td>" +
+                            '<td><span title="' + escapeHtml(r.lastError || "") + '">' + escapeHtml(r.lastError || "-") + "</span></td>" +
+                            "<td>" + escapeHtml(formatDateTime(r.firstFailedAt).slice(5)) + "</td>" +
+                            "<td>" + escapeHtml(formatDateTime(r.lastFailedAt).slice(5)) + "</td></tr>";
+                    }).join(""));
+                }
+                var pages = d.totalPages || 0;
+                $("#tpFailPager").html(pages > 1
+                    ? '<button type="button" class="adm-btn" data-fail-page="' + (page - 1) + '"' + (page <= 0 ? " disabled" : "") + ">이전</button>" +
+                      "<span>" + (page + 1) + " / " + pages + "</span>" +
+                      '<button type="button" class="adm-btn" data-fail-page="' + (page + 1) + '"' + (page >= pages - 1 ? " disabled" : "") + ">다음</button>"
+                    : "");
+            })
+            .fail(function () { failState("판정 실패 목록을 불러오지 못했습니다."); });
+    }
+    function openFail() {
+        $("#tpFailScrim, #tpFailPanel").addClass("is-open");
+        $("#tpFailPanel").attr("aria-hidden", "false");
+        loadFailures(0);
+        $("#tpFailClose").trigger("focus");
+    }
+    function closeFail() {
+        $("#tpFailScrim, #tpFailPanel").removeClass("is-open");
+        $("#tpFailPanel").attr("aria-hidden", "true");
+        $("#tpFailOpen").trigger("focus");
+    }
+    $("#tpFailOpen").on("click", openFail);
+    MARIA.tableSort.bind(".tp-fail-table", function (key, dir) {
+        failSort = { key: key, dir: dir };
+        loadFailures(0);
+    });
+    $("#tpFailClose, #tpFailScrim").on("click", closeFail);
+    $("#tpFailPager").on("click", "[data-fail-page]", function () {
+        loadFailures(parseInt($(this).attr("data-fail-page"), 10) || 0);
+    });
+
 });

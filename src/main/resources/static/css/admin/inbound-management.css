@@ -86,3 +86,7 @@
 .inbound-management .adm-alloc-meta + .adm-alloc-meta {
     margin-top: 2px;
 }
+
+/* 보유 종목 보기 */
+.inbound-holdings-table { --adm-cols: 40px minmax(120px, 2fr) minmax(70px, 1fr) minmax(100px, 1.2fr) minmax(60px, 0.8fr) minmax(90px, 1fr); --adm-cols-min: 480px; }
+#inbound-holdings-body[hidden], #inbound-history-body[hidden] { display: none; }

@@ -77,7 +77,10 @@
         <!-- 오른쪽: 선택한 계좌의 입고 내역 -->
         <section class="adm-grid">
             <div class="adm-grid-head">
-                <span class="adm-grid-title">입고 내역</span>
+                <div class="adm-seg" id="inbound-view" role="group" aria-label="보기">
+                    <button type="button" data-view="inbounds" class="is-on">입고 내역</button>
+                    <button type="button" data-view="holdings">보유 종목</button>
+                </div>
                 <span class="adm-grid-total">총 <b id="inbound-count">-</b>건</span>
                 <div class="adm-pager" id="inbound-pagination"></div>
                 <div class="adm-per">페이지당
@@ -89,19 +92,29 @@
                 </div>
                 <span class="inbound-selected-account" id="inbound-selected-account"></span>
             </div>
-            <div class="adm-grid-body">
+            <div class="adm-grid-body" id="inbound-holdings-body" hidden>
+                <div class="adm-grid-scroll">
+                    <table class="adm-gtable inbound-holdings-table">
+                        <thead>
+                        <tr><th class="adm-col-no">No</th><th>종목</th><th>티커</th><th>시장 · 통화</th><th class="is-c">구분</th><th class="is-r">현재 보유수량</th></tr>
+                        </thead>
+                        <tbody id="inbound-holdings-list"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="adm-grid-body" id="inbound-history-body">
                 <div class="adm-grid-scroll">
                     <table class="adm-gtable inbound-table">
                         <thead>
                         <tr>
                             <th class="adm-col-no">No</th>
-                            <th>종목</th>
-                            <th class="is-r inbound-col-req">신청수량</th>
-                            <th class="is-r">기준일수량</th>
-                            <th class="is-r">현재보유수량</th>
-                            <th class="is-r">승인수량</th>
-                            <th>출처</th>
-                            <th>처리일시</th>
+                            <th data-sort-key="productName">종목</th>
+                            <th class="is-r inbound-col-req" data-sort-key="requestedQty">신청수량</th>
+                            <th class="is-r" data-sort-key="snapshotQty">기준일수량</th>
+                            <th class="is-r" data-sort-key="currentHoldingAtRequest">현재보유수량</th>
+                            <th class="is-r" data-sort-key="approvedQty">승인수량</th>
+                            <th data-sort-key="sourceBroker">출처</th>
+                            <th data-sort-key="processedAt">처리일시</th>
                         </tr>
                         </thead>
                         <tbody id="inbound-list">

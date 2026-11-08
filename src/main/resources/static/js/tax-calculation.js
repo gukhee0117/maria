@@ -22,6 +22,7 @@ $(function () {
 
     var accountMap = {};
     var allSnapshots = [];
+    var sortSpec = null; // 머리글로 고른 정렬 (받아 온 목록 전체를 정렬한다)
     var snapshotByAccountId = {};
     var confirmedByAccountId = {};
     var filteredSnapshots = [];
@@ -142,10 +143,24 @@ $(function () {
     }
 
     function getFilteredSnapshots() {
-        return allSnapshots.filter(function (snapshot) {
+        var rows = allSnapshots.filter(function (snapshot) {
             return matchesSearch(snapshot) &&
                 (!statusFilter || calculationStatus(snapshot.accountId) === statusFilter);
         });
+        if (!sortSpec) {
+            return rows;
+        }
+        return MARIA.tableSort.sortList(rows, function (snapshot) {
+            var account = accountFor(snapshot.accountId);
+            switch (sortSpec.key) {
+                case "accountNo": return account.accountNo;
+                case "customerName": return account.customerName;
+                case "benefit": return account.benefit;
+                case "status": return calculationStatus(snapshot.accountId);
+                case "action": return snapshot.needsClawback ? 2 : (snapshot.needsFinalReport ? 1 : 0);
+                default: return snapshot[sortSpec.key];
+            }
+        }, sortSpec.dir);
     }
 
     function renderSummary() {
@@ -793,6 +808,12 @@ $(function () {
         $("#taxSearchInput").val(deepLinkAccountNo);
         searchKeyword = deepLinkAccountNo.toLowerCase();
     }
+
+    MARIA.tableSort.bind(".tax-snapshot-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        currentPage = 1;
+        renderSnapshots();
+    });
 
     loadTax();
     loadBatchHistory();

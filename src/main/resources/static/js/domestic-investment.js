@@ -8,6 +8,7 @@ $(function () {
     var selectedAccountId = null;
     var PAGE_SIZE = 20;
     var currentPage = 0;
+    var sortSpec = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
     var totalCount = 0;
     var totalCashAmount = null; // 예탁금 비중의 분모 (summary.totalCashAmount)
     var businessToday = null;
@@ -189,7 +190,9 @@ $(function () {
             params.keyword = keyword;
         }
         var status = $("#diFilterStatus").val();
-        if (status) {
+        if (status === "AVAILABLE") {
+            params.hasRestrictedHolding = false; // 매수가능 = 거래제한·정지 보유가 없는 계좌
+        } else if (status) {
             params.status = status;
         }
         // 옛 요약 칸(매수불가 종목 보유 / 최근 매수 있음·없음)을 눌러 보내던 파라미터를 그대로 보낸다
@@ -218,7 +221,7 @@ $(function () {
         MARIA.auth.ajax({
             url: "/api/admin/domestic-investments",
             method: "GET",
-            data: $.extend({ page: targetPage, size: PAGE_SIZE }, appliedFilterParams)
+            data: $.extend({ page: targetPage, size: PAGE_SIZE }, appliedFilterParams, sortSpec ? { sort: sortSpec.key, direction: sortSpec.dir } : {})
         })
             .done(function (res) {
                 if (seq !== listRequestSeq) {
@@ -447,6 +450,10 @@ $(function () {
         $("#diFilterUnpurchasable").prop("checked", false);
         loadInvestments(0);
     }
+    MARIA.tableSort.bind(".di-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        loadInvestments(0);
+    });
     $("#diFilterReset").on("click", resetFilters);
     $("#diListBody").on("click", ".di-empty-reset", resetFilters);
     $("#diListBody").on("click", ".di-retry", function () {
@@ -475,6 +482,132 @@ $(function () {
         loadSummary();
         if ($("#diFilterRecentBuy").val()) {
             loadInvestments(0);
+        }
+    });
+
+    // ---------- 점검 목록 패널 (거래제한·정지 / 매수불가 / 최근 매수 / 예탁금 비중) ----------
+    var checkTab = "restricted";
+    var checkCashPage = 0;
+    var CHECK_API = "/api/admin/domestic-investments/";
+
+    function accountNoText(no) {
+        return no ? MARIA.fmt.hyphenateAccountNo(no) : "-";
+    }
+    function checkNo(i) {
+        return '<td class="adm-col-no">' + (i + 1) + "</td>";
+    }
+    function checkState(selector, cols, text) {
+        $(selector).html('<tr class="is-state"><td colspan="' + cols + '"><div class="di-panel-empty">' + escapeHtml(text) + "</div></td></tr>");
+    }
+    function checkList(selector, cols, rows, emptyText, rowHtml) {
+        if (!rows || !rows.length) {
+            checkState(selector, cols, emptyText);
+            return;
+        }
+        $(selector).html(rows.map(rowHtml).join(""));
+    }
+    function productCell(r) {
+        return "<td>" + escapeHtml(r.productName || "-") + ' <span class="di-check-sub">' + escapeHtml(r.ticker || "") + "</span></td>";
+    }
+    function loadCheck(tab) {
+        checkTab = tab;
+        if (tab === "restricted") {
+            checkState("#diCheckRestricted", 5, "불러오는 중...");
+            MARIA.auth.ajax({ url: CHECK_API + "restricted-holdings", method: "GET" }).done(function (res) {
+                checkList("#diCheckRestricted", 5, res.data, "거래제한·정지 종목이 없습니다.", function (r, i) {
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                        productCell(r) + '<td class="is-c">' + statusChip(r.status) + "</td></tr>";
+                });
+            }).fail(function () { checkState("#diCheckRestricted", 5, "목록을 불러오지 못했습니다."); });
+        } else if (tab === "unpurchasable") {
+            checkState("#diCheckUnpurchasable", 6, "불러오는 중...");
+            MARIA.auth.ajax({ url: CHECK_API + "unpurchasable-holdings", method: "GET" }).done(function (res) {
+                checkList("#diCheckUnpurchasable", 6, res.data, "매수불가 종목이 없습니다.", function (r, i) {
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                        productCell(r) +
+                        '<td class="is-r">' + (r.domesticStockRatio == null ? "-" : escapeHtml(Number(r.domesticStockRatio).toFixed(1)) + "%") + "</td>" +
+                        '<td class="is-c">' + escapeHtml(r.inceptionDate || "-") + "</td></tr>";
+                });
+            }).fail(function () { checkState("#diCheckUnpurchasable", 6, "목록을 불러오지 못했습니다."); });
+        } else if (tab === "recent") {
+            var flag = $("#diRecentFlag .is-on").attr("data-flag") === "true";
+            checkState("#diCheckRecent", 3, "불러오는 중...");
+            MARIA.auth.ajax({ url: CHECK_API + "recent-buy-accounts", method: "GET", data: { days: recentDays, hasRecentBuy: flag } }).done(function (res) {
+                checkList("#diCheckRecent", 3, res.data, "해당하는 계좌가 없습니다.", function (r, i) {
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td></tr>";
+                });
+            }).fail(function () { checkState("#diCheckRecent", 3, "목록을 불러오지 못했습니다."); });
+        } else {
+            loadCheckCash(checkCashPage);
+        }
+    }
+    function ratioText(v) {
+        if (v == null) {
+            return "-";
+        }
+        var n = Number(v);
+        return (n <= 1 ? n * 100 : n).toFixed(1) + "%";
+    }
+    var cashSort = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
+    function loadCheckCash(page) {
+        checkCashPage = page;
+        checkState("#diCheckCash", 6, "불러오는 중...");
+        MARIA.auth.ajax({ url: CHECK_API + "cash-heavy-accounts", method: "GET", data: $.extend({ page: page, size: 20 }, cashSort ? { sort: cashSort.key, direction: cashSort.dir } : {}) }).done(function (res) {
+            var d = res.data || {};
+            checkList("#diCheckCash", 6, d.content, "예탁금 비중이 높은 계좌가 없습니다.", function (r, i) {
+                return "<tr>" + checkNo(page * 20 + i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                    '<td class="is-r">' + escapeHtml(formatAmount(r.cashAmount)) + '</td><td class="is-r">' + escapeHtml(formatAmount(r.investedAmount)) +
+                    '</td><td class="is-r">' + escapeHtml(ratioText(r.cashRatio)) + "</td></tr>";
+            });
+            var pages = d.totalPages || 0;
+            $("#diCheckCashPager").html(pages > 1
+                ? '<button type="button" class="adm-btn" data-cash-page="' + (page - 1) + '"' + (page <= 0 ? " disabled" : "") + ">이전</button>" +
+                  "<span>" + (page + 1) + " / " + pages + " (총 " + (d.totalElements || 0) + "건)</span>" +
+                  '<button type="button" class="adm-btn" data-cash-page="' + (page + 1) + '"' + (page >= pages - 1 ? " disabled" : "") + ">다음</button>"
+                : "");
+        }).fail(function () { checkState("#diCheckCash", 6, "목록을 불러오지 못했습니다."); });
+    }
+    function setCheckTab(name) {
+        $("#diCheckTabs .adm-tab").each(function () {
+            var on = $(this).attr("data-check") === name;
+            $(this).toggleClass("is-on", on).attr("aria-selected", on ? "true" : "false");
+        });
+        $("[data-check-pane]").each(function () {
+            $(this).prop("hidden", $(this).attr("data-check-pane") !== name);
+        });
+        $("#diCheckTools").prop("hidden", name !== "recent");
+        loadCheck(name);
+    }
+    MARIA.tableSort.bind(".di-check-cash", function (key, dir) {
+        cashSort = { key: key, dir: dir };
+        loadCheckCash(0);
+    });
+
+    function openCheck() {
+        $("#diCheckScrim, #diCheckPanel").addClass("is-open");
+        $("#diCheckPanel").attr("aria-hidden", "false");
+        setCheckTab(checkTab);
+        $("#diCheckClose").trigger("focus");
+    }
+    function closeCheck() {
+        $("#diCheckScrim, #diCheckPanel").removeClass("is-open");
+        $("#diCheckPanel").attr("aria-hidden", "true");
+        $("#diCheckOpen").trigger("focus");
+    }
+    $("#diCheckOpen").on("click", openCheck);
+    $("#diCheckClose, #diCheckScrim").on("click", closeCheck);
+    $("#diCheckTabs").on("click", ".adm-tab", function () { setCheckTab($(this).attr("data-check")); });
+    $("#diRecentFlag").on("click", "button", function () {
+        $("#diRecentFlag button").removeClass("is-on");
+        $(this).addClass("is-on");
+        loadCheck("recent");
+    });
+    $("#diCheckCashPager").on("click", "[data-cash-page]", function () {
+        loadCheckCash(parseInt($(this).attr("data-cash-page"), 10) || 0);
+    });
+    $("#diRecentDays").on("change", function () {
+        if ($("#diCheckPanel").hasClass("is-open") && checkTab === "recent") {
+            loadCheck("recent");
         }
     });
 
