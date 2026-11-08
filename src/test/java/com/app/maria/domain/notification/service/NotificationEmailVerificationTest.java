@@ -3,8 +3,6 @@ package com.app.maria.domain.notification.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.app.maria.domain.notification.dto.SettlementEmailDetails;
-import com.app.maria.domain.notification.event.CustomerNotificationCreated;
 import com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper;
 import com.app.maria.global.exception.AppException;
 import jakarta.mail.Session;
@@ -85,16 +83,13 @@ class NotificationEmailVerificationTest {
             keys.add(
                     "notification:email:request:day:"
                             + NotificationEmailVerificationService.hash(address));
-            keys.add(
-                    "notification:email:delivery:"
-                            + NotificationEmailVerificationService.hash(address));
         }
         redis.delete(keys);
         factory.destroy();
     }
 
     @Test
-    void proofIsOneTimeBoundToAddressAndRepliesHaveRecipientCooldown() {
+    void proofIsOneTimeAndBoundToCurrentAddress() {
         assertThat(verification.status(id).verified()).isFalse();
         verification.send(id);
         assertThat(
@@ -103,21 +98,9 @@ class NotificationEmailVerificationTest {
                 .isBetween(290L, 300L);
         assertThat(verification.confirm(id, code).verified()).isTrue();
         assertThatThrownBy(() -> verification.confirm(id, code)).isInstanceOf(AppException.class);
-        var reply = new CustomerNotificationCreated(id, "title", "content", true, email);
-        assertThat(verification.canDeliver(reply)).isTrue();
-        assertThat(verification.canDeliver(reply)).isFalse();
-        var settlement =
-                new CustomerNotificationCreated(
-                        id,
-                        "title",
-                        "content",
-                        true,
-                        email,
-                        new SettlementEmailDetails(
-                                java.math.BigDecimal.ONE, LocalDateTime.of(2026, 11, 8, 12, 0)));
-        assertThat(verification.canDeliver(settlement)).isTrue();
+        assertThat(verification.isVerified(id, email)).isTrue();
         when(contacts.selectEmail(id)).thenReturn("changed-" + email);
-        assertThat(verification.canDeliver(settlement)).isFalse();
+        assertThat(verification.isVerified(id, email)).isFalse();
         assertThat(verification.status(id).verified()).isFalse();
     }
 

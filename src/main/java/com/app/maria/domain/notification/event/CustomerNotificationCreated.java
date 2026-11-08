@@ -8,9 +8,4 @@ public record CustomerNotificationCreated(
         String content,
         boolean pushEnabled,
         String email,
-        SettlementEmailDetails settlement) {
-    public CustomerNotificationCreated(
-            Long customerId, String title, String content, boolean pushEnabled, String email) {
-        this(customerId, title, content, pushEnabled, email, null);
-    }
-}
+        SettlementEmailDetails settlement) {}

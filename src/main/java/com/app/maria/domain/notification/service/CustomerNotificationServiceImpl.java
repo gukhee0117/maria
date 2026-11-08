@@ -55,8 +55,7 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public boolean recordSettlementFinalized(
-            Long accountId, Long batchId, LocalDateTime completedAt) {
+    public boolean recordSettlementFinalized(Long accountId, Long batchId) {
         AccountDTO account = accountMapper.selectByAccountId(accountId).orElse(null);
         if (account == null
                 || notificationMapper.existsSettlementFinalized(account.getCustomerId(), batchId))

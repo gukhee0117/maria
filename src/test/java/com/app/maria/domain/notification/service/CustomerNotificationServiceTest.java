@@ -57,7 +57,7 @@ class CustomerNotificationServiceTest {
                         anyString(),
                         eq(now)))
                 .thenReturn(1);
-        assertThat(service.recordSettlementFinalized(3L, 20L, now)).isFalse();
+        assertThat(service.recordSettlementFinalized(3L, 20L)).isFalse();
         verify(events).publishEvent(any(CustomerNotificationCreated.class));
     }
 
@@ -66,7 +66,7 @@ class CustomerNotificationServiceTest {
         when(accounts.selectByAccountId(3L))
                 .thenReturn(java.util.Optional.of(AccountDTO.builder().customerId(1L).build()));
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> service.recordSettlementFinalized(3L, 20L, now))
+                        () -> service.recordSettlementFinalized(3L, 20L))
                 .isInstanceOf(com.app.maria.global.exception.AppException.class);
         verifyNoInteractions(events);
         verify(mapper, never())

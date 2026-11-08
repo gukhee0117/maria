@@ -33,27 +33,18 @@ public class NotificationEmailRenderer {
     }
 
     public Rendered render(CustomerNotificationCreated event) {
-        boolean settlement = event.settlement() != null;
-        String actionUrl = webBaseUrl + (settlement ? "/account" : "/community");
-        String actionLabel = settlement ? "내 계좌에서 확인하기" : "답글 확인하기";
+        var details = java.util.Objects.requireNonNull(event.settlement(), "정산 정보가 필요합니다.");
+        String actionUrl = webBaseUrl + "/account";
+        String actionLabel = "내 계좌에서 확인하기";
         String amount =
-                settlement
-                        ? new DecimalFormat(
-                                                "#,##0.##",
-                                                DecimalFormatSymbols.getInstance(Locale.KOREA))
-                                        .format(event.settlement().getSettledAmount())
-                                + "원"
-                        : null;
+                new DecimalFormat("#,##0.##", DecimalFormatSymbols.getInstance(Locale.KOREA))
+                                .format(details.getSettledAmount())
+                        + "원";
         String completedAt =
-                settlement
-                        ? event.settlement()
-                                .getCompletedAt()
-                                .format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"))
-                        : null;
+                details.getCompletedAt().format(DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"));
         Context context = new Context(Locale.KOREA);
         context.setVariable("title", event.title());
         context.setVariable("content", event.content());
-        context.setVariable("settlement", settlement);
         context.setVariable("amount", amount);
         context.setVariable("completedAt", completedAt);
         context.setVariable("actionUrl", actionUrl);
@@ -64,9 +55,11 @@ public class NotificationEmailRenderer {
                         + "\n\n"
                         + event.content()
                         + "\n\n"
-                        + (settlement
-                                ? "정산 금액: " + amount + "\n정산 완료 시각(KST): " + completedAt + "\n\n"
-                                : "")
+                        + "정산 금액: "
+                        + amount
+                        + "\n정산 완료 시각(KST): "
+                        + completedAt
+                        + "\n\n"
                         + actionLabel
                         + ": "
                         + actionUrl

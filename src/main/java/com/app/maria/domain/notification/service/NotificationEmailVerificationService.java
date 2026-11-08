@@ -1,6 +1,5 @@
 package com.app.maria.domain.notification.service;
 
-import com.app.maria.domain.notification.event.CustomerNotificationCreated;
 import com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -149,19 +148,6 @@ public class NotificationEmailVerificationService {
                                         hash(salt + ":" + code))))
             throw new AppException(ErrorType.NOTIFICATION_EMAIL_VERIFICATION_INVALID);
         return new Status(true, mask(email));
-    }
-
-    public boolean canDeliver(CustomerNotificationCreated event) {
-        if (!isVerified(event.customerId(), event.email())) return false;
-        return event.settlement() != null
-                || Boolean.TRUE.equals(
-                        redis.opsForValue()
-                                .setIfAbsent(
-                                        PREFIX
-                                                + "delivery:"
-                                                + hash(event.email().toLowerCase(Locale.ROOT)),
-                                        "1",
-                                        Duration.ofSeconds(60)));
     }
 
     private String requireEmail(Long customerId) {

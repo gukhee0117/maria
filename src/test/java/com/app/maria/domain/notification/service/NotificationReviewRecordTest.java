@@ -62,7 +62,7 @@ class NotificationReviewRecordTest {
                         anyString(),
                         eq(now)))
                 .thenThrow(new DuplicateKeyException("event"));
-        assertThat(service.recordSettlementFinalized(7L, 10L, now)).isFalse();
+        assertThat(service.recordSettlementFinalized(7L, 10L)).isFalse();
     }
 
     @Test
@@ -77,14 +77,14 @@ class NotificationReviewRecordTest {
                         anyString(),
                         eq(now)))
                 .thenThrow(new DataIntegrityViolationException("constraint"));
-        assertThatThrownBy(() -> service.recordSettlementFinalized(7L, 10L, now))
+        assertThatThrownBy(() -> service.recordSettlementFinalized(7L, 10L))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     void existingEventSkipsRepeatedConsentReads() {
         when(mapper.existsSettlementFinalized(1L, 10L)).thenReturn(true);
-        assertThat(service.recordSettlementFinalized(7L, 10L, now)).isFalse();
+        assertThat(service.recordSettlementFinalized(7L, 10L)).isFalse();
         verify(mapper, never()).selectDeliveryTarget(anyLong(), any(NotificationConsentType.class));
     }
 }

@@ -22,7 +22,14 @@ class NotificationEmailServiceTest {
     }
 
     private CustomerNotificationCreated event(String email) {
-        return new CustomerNotificationCreated(1L, "새 답글", "내용", true, email);
+        return new CustomerNotificationCreated(
+                1L,
+                "정산이 완료됐어요",
+                "내용",
+                true,
+                email,
+                new com.app.maria.domain.notification.dto.SettlementEmailDetails(
+                        java.math.BigDecimal.ONE, java.time.LocalDateTime.of(2026, 11, 8, 12, 0)));
     }
 
     private NotificationEmailRenderer renderer() {
@@ -41,7 +48,7 @@ class NotificationEmailServiceTest {
 
     private NotificationEmailVerificationService verification() {
         var guard = mock(NotificationEmailVerificationService.class);
-        when(guard.canDeliver(any())).thenReturn(true);
+        when(guard.isVerified(anyLong(), anyString())).thenReturn(true);
         return guard;
     }
 
@@ -52,13 +59,13 @@ class NotificationEmailServiceTest {
         when(provider.getIfAvailable()).thenReturn(sender);
         when(sender.createMimeMessage()).thenReturn(message());
         new NotificationEmailService(provider, "from@example.com", renderer(), verification())
-                .deliver(event("to@example.com"));
+                .deliverSettlement(event("to@example.com"));
         var captured = ArgumentCaptor.forClass(MimeMessage.class);
         verify(sender).send(captured.capture());
         MimeMessage message = captured.getValue();
         message.saveChanges();
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo("to@example.com");
-        assertThat(message.getSubject()).isEqualTo("[Returns] 새 답글");
+        assertThat(message.getSubject()).isEqualTo("[Returns] 정산이 완료됐어요");
         assertThat(message.getContentType()).contains("multipart/");
         var output = new java.io.ByteArrayOutputStream();
         message.writeTo(output);
@@ -84,9 +91,9 @@ class NotificationEmailServiceTest {
         var provider = provider();
         var renderer = mock(NotificationEmailRenderer.class);
         var service = new NotificationEmailService(provider, "", renderer, verification());
-        service.deliver(event(null));
+        service.deliverSettlement(event(null));
         verifyNoInteractions(provider, renderer);
-        service.deliver(event("to@example.com"));
+        service.deliverSettlement(event("to@example.com"));
         verify(provider).getIfAvailable();
         verifyNoInteractions(renderer);
     }
@@ -104,26 +111,26 @@ class NotificationEmailServiceTest {
         var service =
                 new NotificationEmailService(
                         provider, "from@example.com", renderer(), verification());
-        service.deliver(event("to@example.com"));
+        service.deliverSettlement(event("to@example.com"));
         verify(sender, times(1)).send(any(MimeMessage.class));
         reset(sender);
         when(sender.createMimeMessage()).thenReturn(message());
         doThrow(new MailAuthenticationException("invalid"))
                 .when(sender)
                 .send(any(MimeMessage.class));
-        service.deliver(event("to@example.com"));
+        service.deliverSettlement(event("to@example.com"));
         verify(sender, times(1)).send(any(MimeMessage.class));
     }
 
     @Test
-    void unverifiedOrThrottledRecipientNeverReachesSmtp() {
+    void unverifiedRecipientNeverReachesSmtp() {
         var provider = provider();
         var sender = mock(JavaMailSender.class);
         var guard = mock(NotificationEmailVerificationService.class);
         var renderer = mock(NotificationEmailRenderer.class);
         when(provider.getIfAvailable()).thenReturn(sender);
         new NotificationEmailService(provider, "from@example.com", renderer, guard)
-                .deliver(event("to@example.com"));
+                .deliverSettlement(event("to@example.com"));
         verifyNoInteractions(sender, renderer);
     }
 
@@ -135,7 +142,7 @@ class NotificationEmailServiceTest {
         when(provider.getIfAvailable()).thenReturn(sender);
         when(renderer.render(any())).thenThrow(new IllegalStateException("template"));
         new NotificationEmailService(provider, "from@example.com", renderer, verification())
-                .deliver(event("to@example.com"));
+                .deliverSettlement(event("to@example.com"));
         verify(sender, never()).send(any(MimeMessage.class));
     }
 }

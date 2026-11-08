@@ -40,19 +40,6 @@ public class NotificationMailConfig {
     }
 
     @Bean
-    public ThreadPoolTaskExecutor notificationMailExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(2);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("notification-mail-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(15);
-        return executor;
-    }
-
-    @Bean
     @ConditionalOnProperty(name = "SMTP_ENABLED", havingValue = "true")
     public JavaMailSender notificationMailSender(
             @Value("${SMTP_HOST:}") String host,

@@ -2,15 +2,15 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title th:text="${title}">Returns 알림</title></head>
 <body style="margin:0;padding:0;background:#f3f5f8;color:#12233f;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;" th:text="${settlement ? '원화 정산이 완료됐어요. 정산 금액과 내역을 확인해 주세요.' : content}"></div>
+<div style="display:none;max-height:0;overflow:hidden;">원화 정산이 완료됐어요. 정산 금액과 내역을 확인해 주세요.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f5f8;"><tr><td align="center" style="padding:40px 16px;">
   <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e3e8ef;border-radius:20px;">
     <tr><td style="padding:32px 32px 24px;border-bottom:1px solid #edf0f5;"><img src="cid:returns-logo" width="126" height="25" alt="Returns" style="display:block;border:0;width:126px;height:25px;"></td></tr>
-    <tr><td style="padding:32px 32px 0;"><span style="font-size:12px;letter-spacing:1px;font-weight:bold;color:#64748b;" th:text="${settlement ? 'SETTLEMENT COMPLETE' : 'RETURNS NOTIFICATION'}">SETTLEMENT COMPLETE</span>
+    <tr><td style="padding:32px 32px 0;"><span style="font-size:12px;letter-spacing:1px;font-weight:bold;color:#64748b;">SETTLEMENT COMPLETE</span>
       <h1 style="margin:14px 0 14px;font-size:28px;line-height:1.4;letter-spacing:-1px;color:#09264d;" th:text="${title}">정산이 완료됐어요</h1>
       <p style="margin:0;font-size:15px;line-height:1.8;color:#5b687b;" th:text="${content}">매도 대금이 원화로 정산됐어요.</p>
     </td></tr>
-    <tr th:if="${settlement}"><td style="padding:24px 32px 0;">
+    <tr><td style="padding:24px 32px 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fb;border:1px solid #e8edf5;border-radius:12px;">
         <tr><td style="padding:24px 24px 8px;color:#65738a;font-size:13px;">정산 금액</td></tr>
         <tr><td style="padding:0 24px 24px;color:#09264d;font-size:32px;line-height:1.3;font-weight:bold;letter-spacing:-1px;" th:text="${amount}">1,234,567원</td></tr>

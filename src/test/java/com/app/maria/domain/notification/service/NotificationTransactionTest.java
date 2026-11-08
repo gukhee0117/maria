@@ -138,7 +138,7 @@ class NotificationTransactionTest {
                                                 .TransactionSynchronization() {
                                             @Override
                                             public void afterCommit() {
-                                                service.recordSettlementFinalized(3L, 20L, NOW);
+                                                service.recordSettlementFinalized(3L, 20L);
                                             }
                                         }));
         assertThat(count("notification")).isEqualTo(1);

@@ -46,7 +46,7 @@ class NotificationEmailRendererTest {
     }
 
     @Test
-    void repliesEscapeUntrustedTextAndLinkToCommunity() {
+    void settlementEscapesUntrustedTextAndLinksToAccount() {
         var result =
                 new NotificationEmailRenderer(templates(), "https://returns.example/app/")
                         .render(
@@ -55,10 +55,13 @@ class NotificationEmailRendererTest {
                                         "<script>alert(1)</script>",
                                         "<img src=x onerror=alert(1)>",
                                         true,
-                                        "test@example.com"));
+                                        "test@example.com",
+                                        new SettlementEmailDetails(
+                                                BigDecimal.ONE,
+                                                LocalDateTime.of(2026, 11, 8, 12, 0))));
         assertThat(result.html())
-                .contains("&lt;script&gt;", "&lt;img", "https://returns.example/app/community");
-        assertThat(result.html()).doesNotContain("<script>", "정산 금액");
+                .contains("&lt;script&gt;", "&lt;img", "https://returns.example/app/account");
+        assertThat(result.html()).doesNotContain("<script>");
     }
 
     @Test

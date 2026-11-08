@@ -33,25 +33,16 @@ public class NotificationEmailService {
         this.verification = verification;
     }
 
-    @Async("notificationMailExecutor")
-    public void deliver(CustomerNotificationCreated event) {
-        send(event);
-    }
-
     @Async("settlementMailExecutor")
     public void deliverSettlement(CustomerNotificationCreated event) {
-        send(event);
-    }
-
-    private void send(CustomerNotificationCreated event) {
-        if (event.email() == null) return;
+        if (event.settlement() == null || event.email() == null) return;
         JavaMailSender sender = senders.getIfAvailable();
         if (sender == null || from.isBlank()) {
             log.warn("[NOTIFICATION_EMAIL_NOT_CONFIGURED] customerId={}", event.customerId());
             return;
         }
         try {
-            if (!verification.canDeliver(event)) return;
+            if (!verification.isVerified(event.customerId(), event.email())) return;
         } catch (RuntimeException failure) {
             log.warn("[NOTIFICATION_EMAIL_GUARD_UNAVAILABLE] customerId={}", event.customerId());
             return;

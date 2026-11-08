@@ -40,7 +40,7 @@ public class SettlementNotificationServiceImpl implements SettlementNotification
         }
         try {
             customerNotificationService.recordSettlementFinalized(
-                    event.accountId(), event.batchId(), event.completedAt());
+                    event.accountId(), event.batchId());
         } finally {
             // 화면 데이터 갱신은 푸시 수신 설정·알림 중복·저장 실패와 독립된 채널이다.
             settlementSseService.sendAccountBatchCompleted(

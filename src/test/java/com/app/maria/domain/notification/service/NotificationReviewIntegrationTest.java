@@ -228,12 +228,11 @@ class NotificationReviewIntegrationTest {
                                         new TransactionSynchronization() {
                                             @Override
                                             public void afterCommit() {
-                                                notifications.recordSettlementFinalized(
-                                                        7L, 10L, NOW);
+                                                notifications.recordSettlementFinalized(7L, 10L);
                                             }
                                         }));
         assertThat(count("notification")).isEqualTo(1);
-        assertThat(notifications.recordSettlementFinalized(7L, 10L, NOW)).isFalse();
+        assertThat(notifications.recordSettlementFinalized(7L, 10L)).isFalse();
         assertThat(count("notification")).isEqualTo(1);
         notifications.markAllRead(2L);
         assertThat(notifications.list(1L).get(0).getReadAt()).isNull();
@@ -262,7 +261,7 @@ class NotificationReviewIntegrationTest {
                 1L, NotificationType.KIRU_REPLY, "COMMUNITY_COMMENT", 2L, "kiru", "old kiru", NOW);
         assertThat(count("notification")).isEqualTo(2);
         assertThat(notifications.list(1L)).isEmpty();
-        notifications.recordSettlementFinalized(7L, 10L, NOW);
+        notifications.recordSettlementFinalized(7L, 10L);
         assertThat(notifications.list(1L)).hasSize(1);
         assertThat(notifications.list(1L).get(0).getNotificationType())
                 .isEqualTo(NotificationType.SETTLEMENT_FINALIZED);
@@ -270,7 +269,7 @@ class NotificationReviewIntegrationTest {
 
     @Test
     void enumAndVoMappingKeepsExistingJsonContract() throws Exception {
-        notifications.recordSettlementFinalized(7L, 10L, NOW);
+        notifications.recordSettlementFinalized(7L, 10L);
         assertThat(notificationMapper.selectRecentByCustomerId(1L, 50).get(0))
                 .isInstanceOf(CustomerNotificationVO.class);
         assertThat(notifications.list(1L).get(0).getNotificationType())
@@ -326,13 +325,13 @@ class NotificationReviewIntegrationTest {
                     pool.submit(
                             () -> {
                                 await(start);
-                                notifications.recordSettlementFinalized(7L, 10L, NOW);
+                                notifications.recordSettlementFinalized(7L, 10L);
                             });
             Future<?> second =
                     pool.submit(
                             () -> {
                                 await(start);
-                                notifications.recordSettlementFinalized(7L, 10L, NOW);
+                                notifications.recordSettlementFinalized(7L, 10L);
                             });
             start.countDown();
             first.get(10, TimeUnit.SECONDS);
