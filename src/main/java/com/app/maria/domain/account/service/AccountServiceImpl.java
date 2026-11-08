@@ -12,6 +12,7 @@ import com.app.maria.domain.account.dto.response.AccountManagementDetailResponse
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -91,6 +92,19 @@ public class AccountServiceImpl implements AccountService {
                 accountTransactionalService.apply(
                         auditActorProvider.getCurrentAdminId(), account, appliedAt, autoApprove);
         return new AccountResponseDTO(appliedAccount);
+    }
+
+    @Override
+    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
+        validateCustomerExists(customerId);
+        validateLimitInput(limitAmount);
+        LocalDateTime appliedAt = getApplicationTime();
+        validateLimitAvailability(limitAmount, calculateAvailableLimit(customerId));
+        AccountDTO account =
+                AccountDTO.builder().customerId(customerId).limitAmount(limitAmount).build();
+        return new AccountResponseDTO(
+                accountTransactionalService.applyAs(
+                        AuditActor.customer(customerId), account, appliedAt, true));
     }
 
     @Override

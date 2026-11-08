@@ -15,6 +15,7 @@ import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.AuditLogReasonCode;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.exception.AppException;
@@ -384,6 +385,98 @@ class AccountTransactionalServiceImplTest {
         assertThatThrownBy(() -> service.updateAmount(increase))
                 .isInstanceOf(AppException.class)
                 .hasMessage(ErrorType.ACCOUNT_AMOUNT_UPDATE_FAILED.getMessage());
+    }
+
+    @Test
+    void customerApplicationRecordsCustomerAudit() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        when(accountMapper.insertApplication(any())).thenReturn(1);
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(applied));
+
+        assertThat(
+                        service.applyAs(AuditActor.customer(CUSTOMER_ID), applied, NOW, false)
+                                .getStatus())
+                .isEqualTo(Status.APPLIED);
+
+        verify(accountLogService).recordStatusChange(applied, null, NOW, "최초 개설 신청");
+        ArgumentCaptor<AuditLogDTO> audit = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, org.mockito.Mockito.atLeastOnce()).log(audit.capture());
+        assertThat(audit.getAllValues())
+                .allSatisfy(
+                        entry -> {
+                            assertThat(entry.getAdminId()).isNull();
+                            assertThat(entry.getActorType()).isEqualTo(AuditActor.Type.CUSTOMER);
+                            assertThat(entry.getActorId()).isEqualTo(CUSTOMER_ID);
+                        });
+        verify(accountMapper, never()).approve(any());
+    }
+
+    @Test
+    void customerAutoApprovalPreservesStatusAndBenefitHistory() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        AccountDTO opened = openedAccount();
+        when(accountMapper.insertApplication(any())).thenReturn(1);
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID))
+                .thenReturn(Optional.of(applied), Optional.of(opened));
+        when(accountMapper.approve(any())).thenReturn(1);
+
+        assertThat(
+                        service.applyAs(AuditActor.customer(CUSTOMER_ID), applied, NOW, true)
+                                .getStatus())
+                .isEqualTo(Status.OPENED);
+
+        verify(accountLogService).recordStatusChange(applied, null, NOW, "최초 개설 신청");
+        verify(accountLogService).recordStatusChange(opened, Status.APPLIED, NOW, "자동 판정 승인");
+        verify(accountLogService).recordBenefitChange(opened, null, NOW, "계좌 개설에 따른 세제혜택 가능");
+        ArgumentCaptor<AuditLogDTO> audit = ArgumentCaptor.forClass(AuditLogDTO.class);
+        verify(auditLogService, org.mockito.Mockito.atLeastOnce()).log(audit.capture());
+        assertThat(audit.getAllValues())
+                .allSatisfy(
+                        entry -> {
+                            assertThat(entry.getAdminId()).isNull();
+                            assertThat(entry.getActorType()).isEqualTo(AuditActor.Type.CUSTOMER);
+                            assertThat(entry.getActorId()).isEqualTo(CUSTOMER_ID);
+                        });
+    }
+
+    @Test
+    void repeatedCustomerApplicationDoesNotSaveAgain() {
+        when(accountMapper.existsByCustomerId(CUSTOMER_ID)).thenReturn(true);
+        assertThatThrownBy(
+                        () ->
+                                service.applyAs(
+                                        AuditActor.customer(CUSTOMER_ID),
+                                        account(Status.APPLIED, LIMIT),
+                                        NOW,
+                                        false))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_ALREADY_EXISTS.getMessage());
+        verify(accountMapper, never()).insertApplication(any());
+        org.mockito.Mockito.verifyNoInteractions(accountLogService, auditLogService);
+    }
+
+    @Test
+    void concurrentDuplicateInsertBecomesExistingAccountError() {
+        when(accountMapper.insertApplication(any()))
+                .thenThrow(new DuplicateKeyException("customer"));
+        assertThatThrownBy(
+                        () ->
+                                service.applyAs(
+                                        AuditActor.customer(CUSTOMER_ID),
+                                        account(Status.APPLIED, LIMIT),
+                                        NOW,
+                                        true))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_ALREADY_EXISTS.getMessage());
+        verify(accountMapper, never()).approve(any());
+        org.mockito.Mockito.verifyNoInteractions(accountLogService, auditLogService);
+    }
+
+    @Test
+    void missingAdminActorFailsBeforeWritingInsteadOfSkippingAudit() {
+        assertThatThrownBy(() -> service.apply(null, account(Status.APPLIED, LIMIT), NOW, false))
+                .isInstanceOf(NullPointerException.class);
+        org.mockito.Mockito.verifyNoInteractions(accountMapper, auditLogService);
     }
 
     private AccountDTO account(Status status, BigDecimal limit) {
