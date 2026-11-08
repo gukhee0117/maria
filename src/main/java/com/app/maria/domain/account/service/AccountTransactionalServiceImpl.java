@@ -81,6 +81,19 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     @Transactional(rollbackFor = Exception.class)
     public AccountDTO apply(
             Long adminId, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
+        return applyInternal(adminId, account, appliedAt, autoApprove);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AccountDTO applyForCustomer(
+            AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
+        // 고객 행위는 계좌 상태·혜택 이력에 남긴다. 관리자 ID를 임의로 발급하지 않는다.
+        return applyInternal(null, account, appliedAt, autoApprove);
+    }
+
+    private AccountDTO applyInternal(
+            Long adminId, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
         if (accountMapper.existsByCustomerId(account.getCustomerId())) {
             throw new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, account.getCustomerId());
         }
@@ -95,12 +108,14 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
         }
         AccountDTO appliedAccount = findByCustomer(account.getCustomerId());
         accountLogService.recordStatusChange(appliedAccount, null, appliedAt, "최초 개설 신청");
-        logAudit(
-                adminId,
-                appliedAccount.getAccountId(),
-                null,
-                appliedAccount.getStatus().name(),
-                AuditLogReasonCode.ACCOUNT_APPLY);
+        if (adminId != null) {
+            logAudit(
+                    adminId,
+                    appliedAccount.getAccountId(),
+                    null,
+                    appliedAccount.getStatus().name(),
+                    AuditLogReasonCode.ACCOUNT_APPLY);
+        }
         if (!autoApprove) {
             return appliedAccount;
         }
@@ -110,12 +125,14 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
         accountLogService.recordStatusChange(openedAccount, Status.APPLIED, appliedAt, "자동 판정 승인");
         assertBenefit(openedAccount, BenefitType.POSSIBLE);
         accountLogService.recordBenefitChange(openedAccount, null, appliedAt, "계좌 개설에 따른 세제혜택 가능");
-        logAudit(
-                adminId,
-                openedAccount.getAccountId(),
-                Status.APPLIED.name(),
-                openedAccount.getStatus().name(),
-                AuditLogReasonCode.ACCOUNT_OPENED);
+        if (adminId != null) {
+            logAudit(
+                    adminId,
+                    openedAccount.getAccountId(),
+                    Status.APPLIED.name(),
+                    openedAccount.getStatus().name(),
+                    AuditLogReasonCode.ACCOUNT_OPENED);
+        }
         return openedAccount;
     }
 

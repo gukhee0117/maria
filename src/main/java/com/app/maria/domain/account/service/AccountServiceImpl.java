@@ -76,6 +76,18 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public AccountResponseDTO applyAccount(AccountRequestDTO requestDTO) {
+        return applyAccount(requestDTO, false);
+    }
+
+    @Override
+    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
+        return applyAccount(
+                AccountRequestDTO.builder().customerId(customerId).limitAmount(limitAmount).build(),
+                true);
+    }
+
+    private AccountResponseDTO applyAccount(
+            AccountRequestDTO requestDTO, boolean customerApplication) {
         Long customerId = requestDTO.getCustomerId();
         validateCustomerExists(customerId);
         LocalDateTime appliedAt = businessClockService.now();
@@ -88,8 +100,14 @@ public class AccountServiceImpl implements AccountService {
                         && account.getLimitAmount().compareTo(availableLimit) <= 0
                         && availableLimit.compareTo(MIN_LIMIT_AMOUNT) >= 0;
         AccountDTO appliedAccount =
-                accountTransactionalService.apply(
-                        auditActorProvider.getCurrentAdminId(), account, appliedAt, autoApprove);
+                customerApplication
+                        ? accountTransactionalService.applyForCustomer(
+                                account, appliedAt, autoApprove)
+                        : accountTransactionalService.apply(
+                                auditActorProvider.getCurrentAdminId(),
+                                account,
+                                appliedAt,
+                                autoApprove);
         return new AccountResponseDTO(appliedAccount);
     }
 

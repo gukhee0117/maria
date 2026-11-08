@@ -386,6 +386,61 @@ class AccountTransactionalServiceImplTest {
                 .hasMessage(ErrorType.ACCOUNT_AMOUNT_UPDATE_FAILED.getMessage());
     }
 
+    @Test
+    void customerApplicationRecordsStatusWithoutAdminAudit() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        when(accountMapper.insertApplication(any())).thenReturn(1);
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(applied));
+
+        assertThat(service.applyForCustomer(applied, NOW, false).getStatus())
+                .isEqualTo(Status.APPLIED);
+
+        verify(accountLogService).recordStatusChange(applied, null, NOW, "최초 개설 신청");
+        org.mockito.Mockito.verifyNoInteractions(auditLogService);
+        verify(accountMapper, never()).approve(any());
+    }
+
+    @Test
+    void customerAutoApprovalPreservesStatusAndBenefitHistory() {
+        AccountDTO applied = account(Status.APPLIED, LIMIT);
+        AccountDTO opened = openedAccount();
+        when(accountMapper.insertApplication(any())).thenReturn(1);
+        when(accountMapper.selectByCustomerId(CUSTOMER_ID))
+                .thenReturn(Optional.of(applied), Optional.of(opened));
+        when(accountMapper.approve(any())).thenReturn(1);
+
+        assertThat(service.applyForCustomer(applied, NOW, true).getStatus())
+                .isEqualTo(Status.OPENED);
+
+        verify(accountLogService).recordStatusChange(applied, null, NOW, "최초 개설 신청");
+        verify(accountLogService).recordStatusChange(opened, Status.APPLIED, NOW, "자동 판정 승인");
+        verify(accountLogService).recordBenefitChange(opened, null, NOW, "계좌 개설에 따른 세제혜택 가능");
+        org.mockito.Mockito.verifyNoInteractions(auditLogService);
+    }
+
+    @Test
+    void repeatedCustomerApplicationDoesNotSaveAgain() {
+        when(accountMapper.existsByCustomerId(CUSTOMER_ID)).thenReturn(true);
+        assertThatThrownBy(
+                        () -> service.applyForCustomer(account(Status.APPLIED, LIMIT), NOW, false))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_ALREADY_EXISTS.getMessage());
+        verify(accountMapper, never()).insertApplication(any());
+        org.mockito.Mockito.verifyNoInteractions(accountLogService, auditLogService);
+    }
+
+    @Test
+    void concurrentDuplicateInsertBecomesExistingAccountError() {
+        when(accountMapper.insertApplication(any()))
+                .thenThrow(new DuplicateKeyException("customer"));
+        assertThatThrownBy(
+                        () -> service.applyForCustomer(account(Status.APPLIED, LIMIT), NOW, true))
+                .isInstanceOf(AppException.class)
+                .hasMessage(ErrorType.ACCOUNT_ALREADY_EXISTS.getMessage());
+        verify(accountMapper, never()).approve(any());
+        org.mockito.Mockito.verifyNoInteractions(accountLogService, auditLogService);
+    }
+
     private AccountDTO account(Status status, BigDecimal limit) {
         return AccountDTO.builder()
                 .accountId(ACCOUNT_ID)

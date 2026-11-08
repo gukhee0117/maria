@@ -67,7 +67,7 @@ class AccountServiceImplTest {
     }
 
     @Test
-    void updateLimitDoesNotSyncMydataForAppliedAccount() {
+    void updateLimitReturnsAppliedAccount() {
         when(accountTransactionalService.updateLimit(
                         ADMIN_ID, CUSTOMER_ID, LIMIT, CHANGED_LIMIT, NOW))
                 .thenReturn(account(Status.APPLIED, CHANGED_LIMIT));
@@ -79,13 +79,64 @@ class AccountServiceImplTest {
     }
 
     @Test
-    void updateLimitSyncsOnlyLimitForOpenedAccount() {
+    void customerApplicationReusesApprovalWithoutAdminActor() {
+        AccountDTO opened = account(Status.OPENED, LIMIT);
+        when(accountTransactionalService.applyForCustomer(any(), eq(NOW), eq(true)))
+                .thenReturn(opened);
+
+        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT).getStatus())
+                .isEqualTo(Status.OPENED);
+
+        ArgumentCaptor<AccountDTO> request = ArgumentCaptor.forClass(AccountDTO.class);
+        verify(accountTransactionalService).applyForCustomer(request.capture(), eq(NOW), eq(true));
+        assertThat(request.getValue().getCustomerId()).isEqualTo(CUSTOMER_ID);
+        assertThat(request.getValue().getLimitAmount()).isEqualByComparingTo(LIMIT);
+        verifyNoInteractions(auditActorProvider);
+    }
+
+    @Test
+    void customerApplicationExceedingAvailableLimitRemainsApplied() {
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .thenReturn(new BigDecimal("40000000"));
+        when(accountTransactionalService.applyForCustomer(any(), eq(NOW), eq(false)))
+                .thenReturn(account(Status.APPLIED, LIMIT));
+
+        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT).getStatus())
+                .isEqualTo(Status.APPLIED);
+        verifyNoInteractions(auditActorProvider);
+    }
+
+    @Test
+    void customerApplicationOutsidePeriodRemainsApplied() {
+        LocalDateTime outsidePeriod = LocalDateTime.of(2027, 1, 1, 0, 0);
+        when(businessClockService.now()).thenReturn(outsidePeriod);
+        when(accountTransactionalService.applyForCustomer(any(), eq(outsidePeriod), eq(false)))
+                .thenReturn(account(Status.APPLIED, LIMIT));
+
+        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT).getStatus())
+                .isEqualTo(Status.APPLIED);
+        verifyNoInteractions(auditActorProvider);
+    }
+
+    @Test
+    void customerApplicationRejectsInvalidAmountBeforeSaving() {
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, BigDecimal.ZERO))
+                .isInstanceOf(AppException.class);
+        verifyNoInteractions(accountTransactionalService, auditActorProvider);
+    }
+
+    @Test
+    void updateLimitReturnsOpenedAccount() {
         AccountDTO updated = account(Status.OPENED, CHANGED_LIMIT);
         when(accountTransactionalService.updateLimit(
                         ADMIN_ID, CUSTOMER_ID, LIMIT, CHANGED_LIMIT, NOW))
                 .thenReturn(updated);
 
-        accountService.updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT));
+        assertThat(
+                        accountService
+                                .updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT))
+                                .getStatus())
+                .isEqualTo(Status.OPENED);
     }
 
     @Test

@@ -7,6 +7,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface AccountTransactionalService {
+    AccountDTO applyForCustomer(AccountDTO account, LocalDateTime appliedAt, boolean autoApprove);
+
     AccountDTO updateLimit(
             Long adminId,
             Long customerId,
