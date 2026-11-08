@@ -8,5 +8,6 @@ public record CustomerNotificationSettingsRequestDTO(
         @NotNull Boolean email,
         @NotNull Boolean settle,
         @NotNull Boolean band,
-        @NotNull Boolean reply,
-        @NotNull Boolean kiru) {}
+        // Retired fields are accepted only for compatibility and ignored.
+        Boolean reply,
+        Boolean kiru) {}

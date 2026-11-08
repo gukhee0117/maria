@@ -12,6 +12,11 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface CustomerNotificationMapper {
+    int markVisibleAsRead(
+            @Param("customerId") Long customerId,
+            @Param("notificationIds") List<Long> ids,
+            @Param("readAt") LocalDateTime readAt);
+
     SettlementEmailDetails selectSettlementEmailDetails(
             @Param("accountId") Long accountId, @Param("batchId") Long batchId);
 
@@ -30,13 +35,6 @@ public interface CustomerNotificationMapper {
 
     List<CustomerNotificationVO> selectRecentByCustomerId(
             @Param("customerId") Long customerId, @Param("limit") int limit);
-
-    int insertSettlementFinalized(
-            @Param("customerId") Long customerId,
-            @Param("batchId") Long batchId,
-            @Param("title") String title,
-            @Param("content") String content,
-            @Param("completedAt") LocalDateTime completedAt);
 
     int markAllUnreadAsRead(
             @Param("customerId") Long customerId, @Param("readAt") LocalDateTime readAt);

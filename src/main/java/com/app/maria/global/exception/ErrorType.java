@@ -59,6 +59,16 @@ public enum ErrorType {
     CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),
     CUSTOMER_NOTIFICATION_EMAIL_REQUIRED(
             HttpStatus.BAD_REQUEST, "등록된 이메일이 없습니다. 기본 정보에서 이메일을 등록해 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_REQUIRED(
+            HttpStatus.BAD_REQUEST, "이메일로 받은 인증번호를 확인한 뒤 알림을 켜 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_INVALID(
+            HttpStatus.BAD_REQUEST, "인증번호가 올바르지 않거나 만료되었습니다. 5회 틀리면 새 번호를 받아 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "인증 메일 요청 한도에 도달했습니다. 60초 간격, 고객당 시간당 10회·주소당 하루 10회까지 받을 수 있습니다.",
+            LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     // 비밀번호 변경. 401이 아닌 400이다: 화면이 401을 세션 만료로 처리하기 때문.
     CUSTOMER_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
     CUSTOMER_PASSWORD_NOT_SET(

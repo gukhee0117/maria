@@ -22,7 +22,7 @@ class NotificationEmailRendererTest {
     }
 
     @Test
-    void settlementRendersCustomerSummaryAndGeneratesStandalonePreview() throws Exception {
+    void settlementRendersCustomerSummary() {
         var event =
                 new CustomerNotificationCreated(
                         1L,
@@ -43,15 +43,6 @@ class NotificationEmailRendererTest {
                         "cid:returns-logo");
         assertThat(result.html()).doesNotContain("배치 번호");
         assertThat(result.text()).contains("정산 금액: 1,234,567원", "http://localhost:5173/account");
-        java.nio.file.Path preview = java.nio.file.Path.of("build/email-preview.html");
-        try (var logo =
-                getClass().getClassLoader().getResourceAsStream("mail/returns-wordmark.png")) {
-            String inline =
-                    "data:image/png;base64,"
-                            + java.util.Base64.getEncoder().encodeToString(logo.readAllBytes());
-            java.nio.file.Files.writeString(
-                    preview, result.html().replace("cid:returns-logo", inline));
-        }
     }
 
     @Test

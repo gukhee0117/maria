@@ -13,7 +13,6 @@ import com.app.maria.domain.community.type.CommunityStatus;
 import com.app.maria.domain.community.type.KkiruStatus;
 import com.app.maria.domain.customer.entity.CustomerEntity;
 import com.app.maria.domain.customer.repository.CustomerRepository;
-import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -37,7 +36,6 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
     private final KkiruCallPlanner kkiruCallPlanner;
     private final BusinessClockService clock;
     private final ApplicationEventPublisher events;
-    private final CustomerNotificationService notificationService;
 
     /** 댓글을 쓴다. READ_COMMITTED는 끼루 한도 확인용(KkiruCallPlanner 참고). */
     @Override
@@ -77,11 +75,6 @@ public class CommunityCommentServiceImpl implements CommunityCommentService {
                                 sanitized,
                                 kkiruStatus,
                                 clock.now()));
-        notificationService.recordReply(
-                target == null ? post.getCustomerId() : target.getCustomerId(),
-                customerId,
-                saved.getCommunityCommentId(),
-                false);
         if (kkiruStatus == KkiruStatus.PENDING) {
             events.publishEvent(new KkiruCallRequestedEvent(postId, saved.getCommunityCommentId()));
         }

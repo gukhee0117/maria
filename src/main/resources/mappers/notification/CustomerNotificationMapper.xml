@@ -3,6 +3,12 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationMapper">
+    <update id="markVisibleAsRead">
+        UPDATE notification SET read_at = #{readAt}
+        WHERE customer_id = #{customerId} AND read_at IS NULL
+        AND notification_id IN
+        <foreach collection="notificationIds" item="id" open="(" close=")" separator=",">#{id}</foreach>
+    </update>
 
     <select id="selectSettlementEmailDetails" resultType="SettlementEmailDetails">
         SELECT SUM(ke.final_amount) AS settled_amount, MAX(latest.processed_at) AS completed_at
@@ -20,13 +26,16 @@
     </select>
 
     <select id="selectDeliveryTarget" resultType="NotificationDeliveryDTO">
+        <bind name="pushDefault" value="@com.app.maria.domain.notification.type.NotificationConsentType@NOTIFY_PUSH.defaultValue()"/>
+        <bind name="emailDefault" value="@com.app.maria.domain.notification.type.NotificationConsentType@NOTIFY_EMAIL.defaultValue()"/>
+        <bind name="kindDefault" value="consentType.defaultValue()"/>
         SELECT c.email,
             COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
-                AND consent_type = 'NOTIFY_PUSH' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), 1) AS push_enabled,
+                AND consent_type = 'NOTIFY_PUSH' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{pushDefault}) AS push_enabled,
             COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
-                AND consent_type = 'NOTIFY_EMAIL' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), 0) AS email_enabled,
+                AND consent_type = 'NOTIFY_EMAIL' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{emailDefault}) AS email_enabled,
             COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
-                AND consent_type = #{consentType} ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), 1) AS kind_enabled
+                AND consent_type = #{consentType} ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{kindDefault}) AS kind_enabled
         FROM customer c WHERE c.customer_id = #{customerId}
     </select>
 
@@ -40,18 +49,10 @@
         SELECT notification_id, notification_type, title, content, read_at, created_at
         FROM notification
         WHERE customer_id = #{customerId}
+          AND notification_type NOT IN ('COMMUNITY_COMMENT', 'KIRU_REPLY')
         ORDER BY notification_id DESC
         LIMIT #{limit}
     </select>
-
-    <insert id="insertSettlementFinalized">
-        INSERT INTO notification (
-            customer_id, notification_type, title, content, related_type, related_id, created_at
-        ) VALUES (
-            #{customerId}, 'SETTLEMENT_FINALIZED', #{title}, #{content},
-            'SETTLEMENT_BATCH', #{batchId}, #{completedAt}
-        )
-    </insert>
 
     <update id="markAllUnreadAsRead">
         UPDATE notification

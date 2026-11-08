@@ -155,8 +155,7 @@ class KkiruReplyServiceTest {
         assertThat(ai.get(0).getContent()).isEqualTo("최근 30일 동안 공시가 3건 올라왔어요. 자체 산정 위험등급은 2등급이에요.");
         assertThat(ai.get(0).getSourcesJson()).contains("DART:1").contains("RISK:7");
         assertThat(ai.get(0).getCreatedAt()).isEqualTo(NOW);
-        org.mockito.Mockito.verify(notificationService)
-                .recordReply(post.getCustomerId(), null, ai.get(0).getCommunityCommentId(), true);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         CommunityPostEntity reloaded =
                 postRepository.findById(post.getCommunityPostId()).orElseThrow();
         assertThat(reloaded.getKkiruStatus()).isEqualTo(KkiruStatus.ANSWERED);
@@ -177,8 +176,7 @@ class KkiruReplyServiceTest {
         List<CommunityCommentEntity> ai = aiComments();
         assertThat(ai).hasSize(1);
         assertThat(ai.get(0).getParentCommentId()).isEqualTo(caller.getCommunityCommentId());
-        org.mockito.Mockito.verify(notificationService)
-                .recordReply(caller.getCustomerId(), null, ai.get(0).getCommunityCommentId(), true);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         assertThat(
                         commentRepository
                                 .findById(caller.getCommunityCommentId())

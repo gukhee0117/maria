@@ -9,6 +9,8 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface CustomerNotificationSettingsMapper {
+    String selectEmail(@Param("customerId") Long customerId);
+
     boolean hasRegisteredEmail(@Param("customerId") Long customerId);
 
     Long lockCustomer(@Param("customerId") Long customerId);

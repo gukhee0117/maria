@@ -9,7 +9,7 @@ public interface CustomerNotificationService {
 
     void markAllRead(Long customerId);
 
-    boolean recordSettlementFinalized(Long accountId, Long batchId, LocalDateTime completedAt);
+    void markVisibleRead(Long customerId, List<Long> notificationIds);
 
-    void recordReply(Long recipientId, Long authorId, Long commentId, boolean kiru);
+    boolean recordSettlementFinalized(Long accountId, Long batchId, LocalDateTime completedAt);
 }

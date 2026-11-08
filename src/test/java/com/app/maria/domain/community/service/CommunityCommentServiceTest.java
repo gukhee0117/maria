@@ -155,8 +155,7 @@ class CommunityCommentServiceTest {
         assertThat(byOther.replyToCommentId()).isNull();
         assertThat(byOther.replyToNickname()).isNull();
         assertThat(byOther.createdAt()).isEqualTo(NOW);
-        org.mockito.Mockito.verify(notificationService)
-                .recordReply(postAuthor, other, byOther.id(), false);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         assertThat(byAuthor.postAuthor()).isTrue();
     }
 
@@ -228,10 +227,8 @@ class CommunityCommentServiceTest {
         CommentResponseDTO third = write(other, "답의 답", second.id());
 
         assertThat(third.replyToCommentId()).isEqualTo(second.id());
-        org.mockito.Mockito.verify(notificationService)
-                .recordReply(other, postAuthor, second.id(), false);
-        org.mockito.Mockito.verify(notificationService)
-                .recordReply(postAuthor, other, third.id(), false);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         assertThat(service.list(other, postId, null, 10).items()).hasSize(3);
     }
 

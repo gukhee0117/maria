@@ -39,13 +39,19 @@ class NotificationEmailServiceTest {
         return new MimeMessage(Session.getInstance(new Properties()));
     }
 
+    private NotificationEmailVerificationService verification() {
+        var guard = mock(NotificationEmailVerificationService.class);
+        when(guard.canDeliver(any())).thenReturn(true);
+        return guard;
+    }
+
     @Test
     void smtpReceivesUtf8HtmlPlainAlternativeAndEmbeddedLogo() throws Exception {
         var provider = provider();
         var sender = mock(JavaMailSender.class);
         when(provider.getIfAvailable()).thenReturn(sender);
         when(sender.createMimeMessage()).thenReturn(message());
-        new NotificationEmailService(provider, "from@example.com", renderer())
+        new NotificationEmailService(provider, "from@example.com", renderer(), verification())
                 .deliver(event("to@example.com"));
         var captured = ArgumentCaptor.forClass(MimeMessage.class);
         verify(sender).send(captured.capture());
@@ -77,7 +83,7 @@ class NotificationEmailServiceTest {
     void missingAddressAndUnconfiguredSmtpNeverPretendToSend() {
         var provider = provider();
         var renderer = mock(NotificationEmailRenderer.class);
-        var service = new NotificationEmailService(provider, "", renderer);
+        var service = new NotificationEmailService(provider, "", renderer, verification());
         service.deliver(event(null));
         verifyNoInteractions(provider, renderer);
         service.deliver(event("to@example.com"));
@@ -86,7 +92,7 @@ class NotificationEmailServiceTest {
     }
 
     @Test
-    void transientFailureRetriesAndAuthenticationFailureDoesNot() {
+    void smtpFailureAndAuthenticationFailureAreAttemptedOnlyOnce() {
         var provider = provider();
         var sender = mock(JavaMailSender.class);
         when(provider.getIfAvailable()).thenReturn(sender);
@@ -95,9 +101,11 @@ class NotificationEmailServiceTest {
                 .doNothing()
                 .when(sender)
                 .send(any(MimeMessage.class));
-        var service = new NotificationEmailService(provider, "from@example.com", renderer());
+        var service =
+                new NotificationEmailService(
+                        provider, "from@example.com", renderer(), verification());
         service.deliver(event("to@example.com"));
-        verify(sender, times(2)).send(any(MimeMessage.class));
+        verify(sender, times(1)).send(any(MimeMessage.class));
         reset(sender);
         when(sender.createMimeMessage()).thenReturn(message());
         doThrow(new MailAuthenticationException("invalid"))
@@ -108,13 +116,25 @@ class NotificationEmailServiceTest {
     }
 
     @Test
+    void unverifiedOrThrottledRecipientNeverReachesSmtp() {
+        var provider = provider();
+        var sender = mock(JavaMailSender.class);
+        var guard = mock(NotificationEmailVerificationService.class);
+        var renderer = mock(NotificationEmailRenderer.class);
+        when(provider.getIfAvailable()).thenReturn(sender);
+        new NotificationEmailService(provider, "from@example.com", renderer, guard)
+                .deliver(event("to@example.com"));
+        verifyNoInteractions(sender, renderer);
+    }
+
+    @Test
     void renderingFailureDoesNotSendAnIncompleteMessage() {
         var provider = provider();
         var sender = mock(JavaMailSender.class);
         var renderer = mock(NotificationEmailRenderer.class);
         when(provider.getIfAvailable()).thenReturn(sender);
         when(renderer.render(any())).thenThrow(new IllegalStateException("template"));
-        new NotificationEmailService(provider, "from@example.com", renderer)
+        new NotificationEmailService(provider, "from@example.com", renderer, verification())
                 .deliver(event("to@example.com"));
         verify(sender, never()).send(any(MimeMessage.class));
     }

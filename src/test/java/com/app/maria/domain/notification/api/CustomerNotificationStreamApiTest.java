@@ -33,7 +33,9 @@ class CustomerNotificationStreamApiTest {
 
     @Test
     void streamUsesSessionCustomerNotQueryCustomerId() throws Exception {
-        when(stream.subscribe(1L)).thenReturn(new SseEmitter());
+        when(stream.subscribe(
+                        org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new SseEmitter());
         mvc.perform(
                         get("/api/customer/notifications/stream?customerId=999")
                                 .with(
@@ -45,8 +47,13 @@ class CustomerNotificationStreamApiTest {
                                                                 new SimpleGrantedAuthority(
                                                                         "ROLE_CUSTOMER"))))))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-cache"))
+                .andExpect(header().string("X-Accel-Buffering", "no"))
                 .andExpect(request().asyncStarted());
-        verify(stream).subscribe(1L);
-        verify(stream, never()).subscribe(999L);
+        verify(stream)
+                .subscribe(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
+        verify(stream, never())
+                .subscribe(
+                        org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.any());
     }
 }

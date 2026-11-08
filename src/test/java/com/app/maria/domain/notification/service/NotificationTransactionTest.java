@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.community.CommunityTestSchema;
-import com.app.maria.domain.community.entity.CommunityCommentEntity;
 import com.app.maria.domain.notification.event.NotificationDeliveryListener;
 import com.app.maria.domain.notification.mapper.CustomerNotificationMapper;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -118,77 +117,6 @@ class NotificationTransactionTest {
         jdbc.execute("DROP TABLE notification");
         jdbc.execute("DROP TABLE customer_consent");
         CommunityTestSchema.drop(jdbc);
-    }
-
-    @Test
-    void commentAndNotificationRollbackTogetherAndNeverDeliverBeforeCommit() {
-        assertThatThrownBy(
-                        () ->
-                                new TransactionTemplate(transactions)
-                                        .execute(
-                                                status -> {
-                                                    CommunityCommentEntity comment =
-                                                            CommunityCommentEntity.ofCustomer(
-                                                                    1L, null, 2L, "reply", null,
-                                                                    NOW);
-                                                    em.persist(comment);
-                                                    service.recordReply(
-                                                            1L,
-                                                            2L,
-                                                            comment.getCommunityCommentId(),
-                                                            false);
-                                                    assertThat(count("notification")).isEqualTo(1);
-                                                    verifyNoInteractions(stream, email);
-                                                    throw new IllegalStateException("rollback");
-                                                }))
-                .isInstanceOf(IllegalStateException.class);
-        assertThat(count("notification")).isZero();
-        assertThat(count("community_comment")).isZero();
-        verifyNoInteractions(stream, email);
-    }
-
-    @Test
-    void commitDeliversOnceAndRetryDoesNotDuplicate() {
-        TransactionTemplate tx = new TransactionTemplate(transactions);
-        tx.executeWithoutResult(s -> service.recordReply(1L, 2L, 777L, false));
-        tx.executeWithoutResult(s -> service.recordReply(1L, 2L, 777L, false));
-        assertThat(count("notification")).isEqualTo(1);
-        verify(stream, times(1)).changed(1L);
-    }
-
-    @Test
-    void concurrentSameEventCreatesOneNotification() throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch start = new CountDownLatch(1);
-        Callable<Void> task =
-                () -> {
-                    start.await();
-                    new TransactionTemplate(transactions)
-                            .executeWithoutResult(s -> service.recordReply(1L, 2L, 888L, true));
-                    return null;
-                };
-        try {
-            Future<Void> one = executor.submit(task), two = executor.submit(task);
-            start.countDown();
-            one.get(10, TimeUnit.SECONDS);
-            two.get(10, TimeUnit.SECONDS);
-            assertThat(count("notification")).isEqualTo(1);
-            verify(stream, times(1)).changed(1L);
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    @Test
-    void latestConsentControlsKindsAndChannelsIndependently() {
-        jdbc.execute(
-                "INSERT INTO customer_consent(customer_id,consent_type,agreed) VALUES (1,'NOTIFY_COMMENT',TRUE),(1,'NOTIFY_COMMENT',FALSE),(1,'NOTIFY_KIRU',TRUE),(1,'NOTIFY_PUSH',FALSE),(1,'NOTIFY_EMAIL',TRUE)");
-        TransactionTemplate tx = new TransactionTemplate(transactions);
-        tx.executeWithoutResult(s -> service.recordReply(1L, 2L, 10L, false));
-        tx.executeWithoutResult(s -> service.recordReply(1L, null, 11L, true));
-        assertThat(count("notification")).isEqualTo(1);
-        verifyNoInteractions(stream);
-        verify(email).deliver(any());
     }
 
     @Test

@@ -47,6 +47,13 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
     }
 
     @Override
+    @Transactional
+    public void markVisibleRead(Long customerId, List<Long> notificationIds) {
+        notificationMapper.markVisibleAsRead(
+                customerId, notificationIds, businessClockService.now());
+    }
+
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean recordSettlementFinalized(
             Long accountId, Long batchId, LocalDateTime completedAt) {
@@ -72,24 +79,6 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
                 "매도 대금이 원화로 정산됐어요. 내 계좌에서 정산 내역을 확인해 주세요.",
                 details.getCompletedAt(),
                 details);
-    }
-
-    @Override
-    @Transactional(
-            transactionManager = "jpaTransactionManager",
-            propagation = Propagation.MANDATORY)
-    public void recordReply(Long recipientId, Long authorId, Long commentId, boolean kiru) {
-        if (recipientId == null || recipientId.equals(authorId)) return;
-        record(
-                recipientId,
-                kiru ? NotificationConsentType.NOTIFY_KIRU : NotificationConsentType.NOTIFY_COMMENT,
-                kiru ? NotificationType.KIRU_REPLY : NotificationType.COMMUNITY_COMMENT,
-                "COMMUNITY_COMMENT",
-                commentId,
-                kiru ? "끼루가 답글을 남겼어요" : "새 답글이 달렸어요",
-                kiru ? "커뮤니티에서 끼루의 답변을 확인해 주세요." : "커뮤니티에서 내 글·댓글에 달린 답글을 확인해 주세요.",
-                businessClockService.now(),
-                null);
     }
 
     private boolean record(
