@@ -21,4 +21,5 @@ public class FundFlowLeakageDTO {
     private LocalDateTime snapshotCalculatedAt;
     private Long total;
     private List<FundFlowLeakageCategoryDTO> categories;
+    private List<FundFlowRatioBinDTO> ratioBins;
 }

@@ -15,6 +15,7 @@
         <div class="adm-screen-head">
             <h1 class="adm-screen-title"><span class="adm-screen-no">[1401]</span> 국내투자 현황</h1>
             <span class="adm-screen-path">자산 · 인출 &gt; 국내투자 현황</span>
+            <button type="button" class="adm-btn adm-btn-md di-check-open" id="diCheckOpen">점검 목록</button>
         </div>
 
         <!-- 요약: /api/admin/domestic-investments/summary -->
@@ -46,7 +47,7 @@
                     <span class="adm-select-wrap">
                         <select id="diFilterStatus" class="adm-input adm-select">
                             <option value="">전체</option>
-                            <option value="AVAILABLE" disabled>매수가능 (준비 중)</option>
+                            <option value="AVAILABLE">매수가능</option>
                             <option value="TRADE_RESTRICTED">거래제한</option>
                             <option value="TRADE_SUSPENDED">거래정지</option>
                             <!-- 원본에 없는 기존 요소: 보유 상태로 거르기 -->
@@ -109,12 +110,12 @@
                     <thead>
                     <tr>
                         <th class="adm-col-no">No</th>
-                        <th>계좌번호</th>
-                        <th>고객명</th>
-                        <th class="is-r">예탁금</th>
-                        <th class="is-r">예탁금 비중</th>
-                        <th class="is-r">보유종목 수</th>
-                        <th class="is-c">매수가능 여부</th>
+                        <th data-sort-key="accountNo">계좌번호</th>
+                        <th data-sort-key="customerName">고객명</th>
+                        <th class="is-r" data-sort-key="cashAmount">예탁금</th>
+                        <th class="is-r" data-sort-key="cashAmount">예탁금 비중</th>
+                        <th class="is-r" data-sort-key="holdingCount">보유종목 수</th>
+                        <th class="is-c" data-sort-key="hasRestrictedHolding">매수가능 여부</th>
                     </tr>
                     </thead>
                     <tbody id="diListBody">
@@ -215,6 +216,61 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
+    </aside>
+    <!-- 점검 목록 패널: 거래제한·정지 / 매수불가 / 최근 매수 / 예탁금 비중 높은 계좌 (기존 API 연결) -->
+    <div class="adm-scrim" id="diCheckScrim"></div>
+    <aside class="adm-panel" id="diCheckPanel" aria-label="국내투자 점검 목록" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1401]</span>
+                <span class="adm-panel-name">점검 목록</span>
+            </div>
+            <button type="button" class="adm-panel-close" id="diCheckClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div class="adm-tabs" role="tablist" id="diCheckTabs">
+                <button type="button" class="adm-tab is-on" role="tab" aria-selected="true" data-check="restricted">거래제한·정지</button>
+                <button type="button" class="adm-tab" role="tab" aria-selected="false" data-check="unpurchasable">매수불가 종목</button>
+                <button type="button" class="adm-tab" role="tab" aria-selected="false" data-check="recent">최근 매수</button>
+                <button type="button" class="adm-tab" role="tab" aria-selected="false" data-check="cash">예탁금 비중</button>
+            </div>
+            <div class="di-check-tools" id="diCheckTools" hidden>
+                <div class="adm-seg" id="diRecentFlag" role="group" aria-label="최근 매수 여부">
+                    <button type="button" data-flag="true" class="is-on">매수 있음</button>
+                    <button type="button" data-flag="false">매수 없음</button>
+                </div>
+                <span class="di-check-note">기간은 조회조건의 '기간'을 따릅니다.</span>
+            </div>
+            <div class="adm-grid-scroll" data-check-pane="restricted">
+                <table class="adm-gtable di-check-table di-check-restricted">
+                    <thead><tr><th class="adm-col-no">No</th><th>고객명</th><th>계좌번호</th><th>종목</th><th class="is-c">상태</th></tr></thead>
+                    <tbody id="diCheckRestricted"></tbody>
+                </table>
+            </div>
+            <div class="adm-grid-scroll" data-check-pane="unpurchasable" hidden>
+                <table class="adm-gtable di-check-table di-check-unpurchasable">
+                    <thead><tr><th class="adm-col-no">No</th><th>고객명</th><th>계좌번호</th><th>종목</th><th class="is-r">국내주식 비중</th><th class="is-c">설정일</th></tr></thead>
+                    <tbody id="diCheckUnpurchasable"></tbody>
+                </table>
+            </div>
+            <div class="adm-grid-scroll" data-check-pane="recent" hidden>
+                <table class="adm-gtable di-check-table di-check-recent">
+                    <thead><tr><th class="adm-col-no">No</th><th>고객명</th><th>계좌번호</th></tr></thead>
+                    <tbody id="diCheckRecent"></tbody>
+                </table>
+            </div>
+            <div data-check-pane="cash" hidden>
+                <div class="adm-grid-scroll">
+                    <table class="adm-gtable di-check-table di-check-cash">
+                        <thead><tr><th class="adm-col-no">No</th><th data-sort-key="customerName">고객명</th><th data-sort-key="accountNo">계좌번호</th><th class="is-r" data-sort-key="cashAmount">예탁금</th><th class="is-r" data-sort-key="investedAmount">투자금</th><th class="is-r" data-sort-key="cashRatio">예탁금 비중</th></tr></thead>
+                        <tbody id="diCheckCash"></tbody>
+                    </table>
+                </div>
+                <div class="di-check-pager" id="diCheckCashPager"></div>
             </div>
         </div>
     </aside>

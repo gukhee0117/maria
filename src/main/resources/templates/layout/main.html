@@ -14,9 +14,6 @@
             document.documentElement.setAttribute("data-theme", theme);
         })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
-          rel="stylesheet">
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link rel="stylesheet" th:href="@{/css/layout.css}">
@@ -197,12 +194,6 @@
                         <span class="adm-side-caret">▸</span>
                     </button>
                     <div class="adm-side-groupbody"><div class="adm-side-groupinner">
-                        <a class="adm-side-item" th:href="@{/admin/statistics}" data-no="9001" data-label="통계보드" title="[9001] 통계보드"
-                           th:classappend="${activePath == '/admin/statistics'} ? ' is-active' : ''">
-                            <span class="adm-side-bar"></span>
-                            <svg class="adm-side-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-                            <span class="adm-side-label">통계보드</span>
-                        </a>
                         <a class="adm-side-item" th:href="@{/admin/audit-log}" data-no="9002" data-label="감사 로그" title="[9002] 감사 로그"
                            th:classappend="${activePath == '/admin/audit-log'} ? ' is-active' : ''">
                             <span class="adm-side-bar"></span>
@@ -324,6 +315,9 @@
 <script th:src="@{/js/lib/jquery-3.7.1.min.js}"></script>
 <script th:src="@{/js/auth.js}"></script>
 <script th:src="@{/js/layout.js}"></script>
+<script th:src="@{/js/admin/table-freeze.js}"></script>
+<script th:src="@{/js/admin/table-sort.js}"></script>
+<script th:src="@{/js/admin/table-polish.js}"></script>
 <th:block layout:fragment="pageScripts"></th:block>
 </body>
 </html>

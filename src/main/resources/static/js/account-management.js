@@ -1,10 +1,10 @@
 $(function () {
     var STATUS_CONFIG = [
-        { value: "APPLIED", label: "심사 대기", trendLabel: "신청", color: "--adm-chart-3", summarySelector: "#appliedAccountCount" },
-        { value: "OPENED", label: "개설 완료", trendLabel: "승인", color: "--adm-chart-1", summarySelector: "#openedAccountCount" },
-        { value: "REJECTED", label: "반려", trendLabel: "반려", color: "--adm-chart-gold", summarySelector: "#rejectedAccountCount" },
-        { value: "CLOSURE_REQUESTED", label: "해지 접수", trendLabel: "해지신청", color: "--adm-chart-4", summarySelector: "#closureRequestedAccountCount" },
-        { value: "CLOSED", label: "해지", trendLabel: "해지", color: "--adm-chart-gray", summarySelector: "#closedAccountCount" }
+        { value: "APPLIED", label: "심사 대기", summarySelector: "#appliedAccountCount" },
+        { value: "OPENED", label: "개설 완료", summarySelector: "#openedAccountCount" },
+        { value: "REJECTED", label: "반려", summarySelector: "#rejectedAccountCount" },
+        { value: "CLOSURE_REQUESTED", label: "해지 접수", summarySelector: "#closureRequestedAccountCount" },
+        { value: "CLOSED", label: "해지", summarySelector: "#closedAccountCount" }
     ];
     var KRW_FORMATTER = new Intl.NumberFormat("ko-KR");
     var accounts = [];
@@ -17,7 +17,6 @@ $(function () {
     var sortKey = "createdAt";
     var sortDirection = -1;
     var availableLimitRequestIds = {};
-    var accountApplicationChart = null;
     var customerSearchTimer = null;
     var customerSearchRequest = null;
     var businessToday = null; // "YYYY-MM-DD" - system_clock 기준(실제 브라우저 시간 아님)
@@ -57,10 +56,6 @@ $(function () {
 
     function formatAmount(amount) {
         return KRW_FORMATTER.format(Number(amount || 0)) + "원";
-    }
-
-    function cssVar(name) {
-        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
     function formatDetailAmount(amount) {
@@ -287,68 +282,6 @@ $(function () {
         STATUS_CONFIG.forEach(function (status) {
             $(status.summarySelector).text(accounts.filter(function (account) { return account.status === status.value; }).length);
             applyDelta(status.summarySelector.replace("Count", "Delta"), status.value);
-        });
-    }
-
-    function renderApplicationTrend() {
-        // 원본에 없는 기존 차트(숨김). 숨겨져 있거나 Chart.js 가 없으면 그리지 않는다.
-        if ($("#accountTrend").prop("hidden") || !window.Chart) {
-            return;
-        }
-        var selectedTrendStatus = $("#accountTrendStatusFilter").val();
-        var latestCreatedAt = accounts.reduce(function (latest, account) {
-            if (!account.createdAt) return latest;
-            var createdAt = new Date(account.createdAt);
-            return !latest || createdAt > latest ? createdAt : latest;
-        }, null);
-        var today = latestCreatedAt || (businessToday ? new Date(businessToday + "T00:00:00") : new Date(0));
-        today.setHours(0, 0, 0, 0);
-        var dates = Array.from({ length: 7 }, function (_, index) {
-            var date = new Date(today);
-            date.setDate(today.getDate() - 6 + index);
-            return date;
-        });
-        var trendGroups = selectedTrendStatus
-            ? STATUS_CONFIG.filter(function (status) { return status.value === selectedTrendStatus; }).map(function (status) {
-                return { label: status.trendLabel, statuses: [status.value], color: cssVar(status.color) };
-            })
-            : [
-                { label: "신청·개설", statuses: ["APPLIED", "OPENED"], color: cssVar("--adm-chart-3") },
-                { label: "반려", statuses: ["REJECTED"], color: cssVar("--adm-chart-gold") },
-                { label: "해지신청·해지", statuses: ["CLOSURE_REQUESTED", "CLOSED"], color: cssVar("--adm-chart-4") }
-            ];
-        var datasets = trendGroups.map(function (group) {
-            return {
-                label: group.label,
-                data: dates.map(function (date) {
-                    return accounts.filter(function (account) {
-                        if (!account.createdAt || group.statuses.indexOf(account.status) === -1) return false;
-                        var createdAt = new Date(account.createdAt);
-                        createdAt.setHours(0, 0, 0, 0);
-                        return createdAt.getTime() === date.getTime();
-                    }).length;
-                }),
-                borderColor: group.color,
-                backgroundColor: group.color,
-                tension: 0.3,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                pointHitRadius: 12
-            };
-        });
-        var labels = dates.map(function (date) { return (date.getMonth() + 1) + "/" + date.getDate(); });
-        $("#accountTrendTotal").text(datasets.reduce(function (total, dataset) { return total + dataset.data.reduce(function (sum, count) { return sum + count; }, 0); }, 0) + "건");
-        if (accountApplicationChart) accountApplicationChart.destroy();
-        accountApplicationChart = new Chart($("#accountApplicationTrend")[0], {
-            type: "line",
-            data: { labels: labels, datasets: datasets },
-            options: {
-                animation: false,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: { label: function (context) { return context.dataset.label + ": " + context.parsed.y + "건"; } } } },
-                scales: { x: { grid: { display: false }, ticks: { color: cssVar("--adm-sub"), font: { size: 10 } } }, y: { beginAtZero: true, ticks: { precision: 0, color: cssVar("--adm-sub"), font: { size: 10 } }, grid: { color: cssVar("--adm-bd") } } }
-            }
         });
     }
 
@@ -803,6 +736,48 @@ $(function () {
             });
     }
 
+    function canIssueDocument() {
+        return MARIA.auth.hasRole("ADMIN") || MARIA.auth.hasRole("SETTLEMENT");
+    }
+
+    function loadDocuments(accountId) {
+        var canDownload = canIssueDocument();
+        $("#issueDocument").prop("hidden", !canDownload);
+        $("#detailDocuments").html(relatedMessageHtml("#detailDocuments", "불러오는 중..."));
+        MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "GET" })
+            .done(function (res) {
+                if (selectedAccountId !== accountId) return;
+                renderRelatedList("#detailDocuments", res.data, function (item, index) {
+                    var revoked = item.status === "REVOKED";
+                    var link = canDownload && !revoked
+                        ? '<a class="adm-btn" href="/api/admin/documents/' + encodeURIComponent(item.documentIssueId) + '/download" target="_blank" rel="noopener">PDF</a>'
+                        : "-";
+                    return "<tr>" + noCell(index) +
+                        "<td>" + escapeHtml(item.issueNo) + "</td>" +
+                        '<td class="is-c">' + chipHtml(revoked ? "off" : "ok", revoked ? "취소됨" : "발급됨") + "</td>" +
+                        "<td>" + (item.issuedByType === "ADMIN" ? "관리자" : "고객") + "</td>" +
+                        "<td>" + escapeHtml(formatDateTime(item.issuedAt)) + "</td>" +
+                        '<td class="is-c">' + link + "</td></tr>";
+                }, "발급된 확인서가 없습니다.");
+            })
+            .fail(function (xhr) {
+                if (selectedAccountId === accountId) {
+                    $("#detailDocuments").html(relatedMessageHtml("#detailDocuments", "확인서 목록을 불러오지 못했습니다."));
+                    handleRequestFailure(xhr, "확인서 목록을 불러오지 못했습니다.");
+                }
+            });
+    }
+
+    function issueDocument() {
+        var accountId = selectedAccountId;
+        if (!accountId || !canIssueDocument()) return;
+        $("#issueDocument").prop("disabled", true);
+        MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "POST" })
+            .done(function () { loadDocuments(accountId); })
+            .fail(function (xhr) { handleRequestFailure(xhr, "확인서를 발급하지 못했습니다."); })
+            .always(function () { $("#issueDocument").prop("disabled", false); });
+    }
+
     function selectAccount(accountId) {
         var requestedAccountId = Number(accountId);
         selectedAccountId = requestedAccountId;
@@ -816,6 +791,7 @@ $(function () {
                 renderAccounts();
                 renderDetail(account);
                 loadStatusLogs(account.accountId);
+                loadDocuments(account.accountId);
                 loadManagementDetail(account.accountId);
             })
             .fail(function (xhr) {
@@ -831,7 +807,6 @@ $(function () {
             .done(function (res) {
                 accounts = res.data || [];
                 renderSummary();
-                renderApplicationTrend();
                 renderAccounts();
                 loadPendingAccountCount();
                 if (!deepLinkHandled) {
@@ -990,6 +965,7 @@ $(function () {
         currentPage = 1;
         renderAccounts();
     });
+    $(document).on("click", "#issueDocument", issueDocument);
     $(document).on("click", "#accountListRetry", function () { loadAccounts(); });
     $(document).on("click", ".account-reset-empty", function () { $("#accountFilterReset").trigger("click"); });
     $(document).on("click", "#accountPageSize button", function () {
@@ -1033,9 +1009,6 @@ $(function () {
             event.preventDefault();
             $("#accountFilterSearch").trigger("click");
         }
-    });
-    $("#accountTrendStatusFilter").on("change", function () {
-        renderApplicationTrend();
     });
     $("#closeAccountDetail, #accountDetailBackdrop").on("click", closeAccountDetail);
     $(document).on("keydown", function (event) {

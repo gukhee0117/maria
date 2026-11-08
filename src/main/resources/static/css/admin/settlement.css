@@ -76,12 +76,6 @@
     min-height: 0;
 }
 
-/* 원본에 없는 기존 요소: 최근 14일 추이 (지금은 숨김) */
-.settlement-management .settlement-trend-chart {
-    height: 220px;
-    padding: 8px 10px;
-}
-
 /* 낮은 화면(원본: 화면 높이 ÷ 글자 배율 < 800): 실행 현황·로그 높이 120px, 안쪽 여백 8px 12px, 시작·성공·실패 칸 숨김 */
 .settlement-management.is-short .adm-live {
     grid-template-rows: 120px;

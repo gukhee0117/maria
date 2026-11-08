@@ -30,8 +30,16 @@ public interface TargetProductMapper {
 
     void deleteFailureByMydataTradeId(Long mydataTradeId);
 
-    List<TargetProductJudgementFailureListDTO> selectPermanentFailures(
+    default List<TargetProductJudgementFailureListDTO> selectPermanentFailures(
+            LocalDateTime cutoff, int offset, int size) {
+        return selectPermanentFailuresOrdered(
+                cutoff, "f.first_failed_at ASC, f.failure_id ASC", offset, size);
+    }
+
+    /** orderBy 는 OrderBySpec 이 만든 안전한 문자열만 넘긴다. */
+    List<TargetProductJudgementFailureListDTO> selectPermanentFailuresOrdered(
             @Param("cutoff") LocalDateTime cutoff,
+            @Param("orderBy") String orderBy,
             @Param("offset") int offset,
             @Param("size") int size);
 

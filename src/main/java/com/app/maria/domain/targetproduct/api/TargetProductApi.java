@@ -36,6 +36,8 @@ public class TargetProductApi {
             @RequestParam(required = false) TradeType tradeType,
             @RequestParam(required = false) Boolean todayOnly,
             @RequestParam(required = false) Boolean inheritanceGiftOnly,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
             @RequestParam(defaultValue = "0") @PositiveOrZero int page,
             @RequestParam(defaultValue = "20") @Positive int size) {
         TargetProductSearchRequestDTO request =
@@ -46,6 +48,8 @@ public class TargetProductApi {
                         .tradeType(tradeType)
                         .todayOnly(todayOnly)
                         .inheritanceGiftOnly(inheritanceGiftOnly)
+                        .sort(sort)
+                        .direction(direction)
                         .page(page)
                         .size(size)
                         .build();
@@ -65,11 +69,13 @@ public class TargetProductApi {
     @GetMapping("/failures")
     public ResponseEntity<ApiResponseDTO<TargetProductJudgementFailurePageResponseDTO>>
             getPermanentFailures(
+                    @RequestParam(required = false) String sort,
+                    @RequestParam(required = false) String direction,
                     @RequestParam(defaultValue = "0") @PositiveOrZero int page,
                     @RequestParam(defaultValue = "20") @Positive int size) {
         TargetProductJudgementFailurePageResponseDTO result =
                 new TargetProductJudgementFailurePageResponseDTO(
-                        targetProductService.getPermanentFailures(page, size));
+                        targetProductService.getPermanentFailures(page, size, sort, direction));
         return ResponseEntity.ok(ApiResponseDTO.of("외부거래 영구실패 목록 조회 성공", result));
     }
 }

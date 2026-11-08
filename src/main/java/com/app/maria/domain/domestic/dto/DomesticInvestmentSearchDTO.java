@@ -18,6 +18,7 @@ public class DomesticInvestmentSearchDTO {
     private List<Long> unpurchasableAccountIds;
     private Boolean hasRecentBuy;
     private LocalDate recentBuySinceDate;
+    @Builder.Default private String orderBy = "a.account_id";
     private int offset;
     private int size;
 }

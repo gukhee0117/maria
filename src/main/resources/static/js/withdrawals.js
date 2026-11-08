@@ -14,6 +14,7 @@ $(function () {
     var accountMetaByNo = {};    // 계좌 목록(GET /api/admin/account/list) — 개설 시각·잔액·세제혜택
     var businessToday = null;    // 업무일자(GET /api/admin/system-clock) — "오늘 인출 신청" 기준
     var filteredRows = [];       // 화면 조건(검색어·계좌 구분)까지 거른 결과
+    var sortSpec = null;         // 머리글로 고른 정렬 (받아 온 목록 전체를 정렬한다)
     var selectedWithdrawalId = null;
     var summaryLoaded = false;   // 조건 없는 목록을 한 번이라도 받았는지
 
@@ -209,6 +210,12 @@ $(function () {
                 accountNo.indexOf(keyword) >= 0 ||
                 MARIA.fmt.hyphenateAccountNo(accountNo).toLowerCase().indexOf(keyword) >= 0;
         });
+
+        if (sortSpec) {
+            filteredRows = MARIA.tableSort.sortList(filteredRows, function (item) {
+                return sortSpec.key === "kind" ? STATUS.withdrawalKind(item) : item[sortSpec.key];
+            }, sortSpec.dir);
+        }
 
         currentPage = 0;
         $("#withdrawal-count").text(KRW_FORMATTER.format(filteredRows.length));
@@ -406,6 +413,43 @@ $(function () {
         selectedWithdrawalId = null;
     }
 
+    // 선택한 인출 건의 계좌 인출 내역: GET /api/admin/withdrawals/accounts/{accountId}
+    function accountHistoryState(text) {
+        $("#withdrawal-account-history").html('<tr class="is-state"><td colspan="4">' + escapeHtml(text) + "</td></tr>");
+    }
+    function loadAccountWithdrawals(withdrawalId, accountId) {
+        $("#withdrawal-account-count").text("");
+        if (!accountId) {
+            accountHistoryState("-");
+            return;
+        }
+        accountHistoryState("불러오는 중...");
+        MARIA.auth.ajax({ url: "/api/admin/withdrawals/accounts/" + accountId, method: "GET" })
+            .done(function (res) {
+                if (Number(selectedWithdrawalId) !== Number(withdrawalId)) {
+                    return;
+                }
+                var rows = res.data || [];
+                $("#withdrawal-account-count").text("· " + rows.length + "건");
+                if (!rows.length) {
+                    accountHistoryState("인출 내역이 없습니다.");
+                    return;
+                }
+                $("#withdrawal-account-history").html(rows.map(function (r, i) {
+                    var current = Number(r.withdrawalId) === Number(withdrawalId) ? ' class="is-selected"' : "";
+                    return "<tr" + current + '><td class="adm-col-no">' + (i + 1) + "</td>" +
+                        '<td class="is-r">' + escapeHtml(formatAmount(r.requestedAmount)) + "</td>" +
+                        '<td class="is-c">' + statusChip(r.status) + "</td>" +
+                        "<td>" + escapeHtml(formatDateTime(r.processedAt)) + "</td></tr>";
+                }).join(""));
+            })
+            .fail(function (xhr) {
+                if (xhr.status !== 401 && Number(selectedWithdrawalId) === Number(withdrawalId)) {
+                    accountHistoryState("계좌 인출 내역을 불러오지 못했습니다.");
+                }
+            });
+    }
+
     function openDrawer(withdrawalId) {
         MARIA.auth.ajax({
             url: "/api/admin/withdrawals/" + withdrawalId,
@@ -416,6 +460,7 @@ $(function () {
                     return;
                 }
                 renderDrawer(res.data || {});
+                loadAccountWithdrawals(withdrawalId, (res.data || {}).accountId);
             })
             .fail(function (xhr) {
                 if (xhr.status === 401) {
@@ -500,6 +545,11 @@ $(function () {
     if (deepLinkAccountNo) {
         $("#withdrawal-keyword").val(deepLinkAccountNo);
     }
+
+    MARIA.tableSort.bind(".withdrawals-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        applyClientFilters();
+    });
 
     loadBusinessToday();
     loadAccountMeta();

@@ -48,6 +48,7 @@ $(function () {
     };
     var PAGE_SIZE = 10;
     var currentPage = 0;
+    var sortSpec = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
     var totalCount = 0;
     var currentLogs = [];
     var selectedIndex = -1;
@@ -193,6 +194,10 @@ $(function () {
 
     function buildSearchParams() {
         var params = { page: currentPage, size: PAGE_SIZE };
+        if (sortSpec) {
+            params.sort = sortSpec.key;
+            params.direction = sortSpec.dir;
+        }
         var targetTable = $("#auditTargetTableFilter").val();
         var adminKeyword = ($("#auditAdminKeywordFilter").val() || "").trim();
         var targetKeyword = ($("#auditTargetKeywordFilter").val() || "").trim();
@@ -513,6 +518,12 @@ $(function () {
     });
 
     $(document).on("maria:system-clock-changed", function () {
+        currentPage = 0;
+        loadAuditLogs();
+    });
+
+    MARIA.tableSort.bind("#auditLogTable", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
         currentPage = 0;
         loadAuditLogs();
     });

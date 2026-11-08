@@ -70,7 +70,7 @@
         LEFT JOIN settlement_batch target_batch
             ON al.target_table = 'SETTLEMENT_BATCH' AND CAST(target_batch.batch_id AS CHAR(20)) = al.target_pk
         <include refid="auditLogSearchCondition"/>
-        ORDER BY al.processed_at DESC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 

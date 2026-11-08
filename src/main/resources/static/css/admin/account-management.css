@@ -40,21 +40,28 @@
     cursor: pointer;
 }
 
+/* 정렬 표시는 다른 표와 같은 삼각형 둘(▲▼) — 누른 방향만 파랗게 */
 .account-list-table th .account-sort::after {
-    content: "↕";
-    margin-left: 4px;
-    color: var(--adm-sub);
-    font-size: 10px;
+    content: "▲▼";
+    margin-left: 3px;
+    font-size: 9px;
+    line-height: 1;
+    color: transparent;
+    background: var(--adm-bd2);
+    -webkit-background-clip: text;
+    background-clip: text;
 }
 
 .account-list-table th .account-sort.is-sorted[data-direction="asc"]::after {
-    content: "↑";
-    color: var(--adm-navy-fg);
+    background: linear-gradient(to right, var(--adm-navy-fg) 50%, var(--adm-bd2) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
 }
 
 .account-list-table th .account-sort.is-sorted[data-direction="desc"]::after {
-    content: "↓";
-    color: var(--adm-navy-fg);
+    background: linear-gradient(to right, var(--adm-bd2) 50%, var(--adm-navy-fg) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
 }
 
 .account-list-table .adm-chip {
@@ -74,40 +81,6 @@
     flex: 0 0 auto;
     margin-left: auto;
     white-space: nowrap;
-}
-
-/* ---------- 최근 7일 신청 추이 (원본에 없는 기존 요소 — 지금은 숨김) ---------- */
-.account-trend {
-    flex: 0 0 auto;
-    padding: 8px 10px;
-    border: 1px solid var(--adm-bd);
-    background: var(--adm-panel);
-}
-
-.account-trend[hidden] {
-    display: none;
-}
-
-.account-trend-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 12.5px;
-}
-
-.account-trend-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--adm-sub);
-    font-size: 11.5px;
-}
-
-.account-trend-canvas {
-    position: relative;
-    height: 160px;
-    margin-top: 6px;
 }
 
 /* ---------- 상세 패널 ---------- */
@@ -397,3 +370,7 @@
         align-self: flex-end;
     }
 }
+
+.account-doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.account-documents-table .adm-btn { height: 24px; padding: 0 10px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; }
+.account-documents-table { --adm-cols: 32px minmax(104px, 1fr) 72px 52px 140px 60px; --adm-cols-min: 460px; }

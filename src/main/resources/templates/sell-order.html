@@ -87,6 +87,8 @@
                     <button type="button" data-size="100">100</button>
                 </div>건
             </div>
+            <div class="adm-grid-spacer"></div>
+            <button type="button" id="sellAcctOpen" class="adm-btn adm-btn-sm">계좌 한도 조회</button>
         </div>
         <div class="adm-grid-body">
             <div class="adm-grid-scroll">
@@ -94,15 +96,15 @@
                     <thead>
                     <tr>
                         <th class="adm-col-no">No</th>
-                        <th>계좌번호</th>
-                        <th>고객명</th>
-                        <th>종목</th>
-                        <th class="is-r">매도수량</th>
-                        <th class="is-r">매도기준가</th>
-                        <th>매도시각</th>
-                        <th class="is-r">가환전액</th>
-                        <th class="is-r">확정액</th>
-                        <th class="is-c">상태</th>
+                        <th data-sort-key="accountNo">계좌번호</th>
+                        <th data-sort-key="customerName">고객명</th>
+                        <th data-sort-key="name">종목</th>
+                        <th class="is-r" data-sort-key="sellQty">매도수량</th>
+                        <th class="is-r" data-sort-key="basePrice">매도기준가</th>
+                        <th data-sort-key="processedAt">매도시각</th>
+                        <th class="is-r" data-sort-key="provisionalAmount">가환전액</th>
+                        <th class="is-r" data-sort-key="finalAmount">확정액</th>
+                        <th class="is-c" data-sort-key="status">상태</th>
                     </tr>
                     </thead>
                     <tbody id="sellOrderListBody">
@@ -200,6 +202,31 @@
                     <div class="adm-kv-k">정산 상태</div>
                     <div class="adm-kv-v" id="sellorder-detail-settlement-status">-</div>
                 </div>
+            </div>
+        </div>
+    </aside>
+    <!-- 계좌 한도 조회 패널: GET /api/admin/account/search?accountNo= | customerName= -->
+    <div class="adm-scrim" id="sellAcctScrim"></div>
+    <aside class="adm-panel" id="sellAcctPanel" aria-label="계좌 한도 조회" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1202]</span>
+                <span class="adm-panel-name">계좌 한도 조회</span>
+            </div>
+            <button type="button" class="adm-panel-close" id="sellAcctClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div class="sellacct-search">
+                <input id="sellAcctKeyword" class="adm-input" type="text" placeholder="계좌번호 또는 고객명" autocomplete="off">
+                <button type="button" id="sellAcctSubmit" class="adm-btn adm-btn-primary">조회</button>
+            </div>
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable sellacct-table">
+                    <thead><tr><th class="adm-col-no">No</th><th>계좌번호</th><th>고객명</th><th class="is-c">상태</th><th class="is-r">한도</th><th class="is-r">사용액</th><th class="is-r">잔여 한도</th></tr></thead>
+                    <tbody id="sellAcctBody"><tr class="is-state"><td colspan="7"><div class="sellacct-empty">계좌번호 또는 고객명을 입력해 조회하세요.</div></td></tr></tbody>
+                </table>
             </div>
         </div>
     </aside>

@@ -10,10 +10,12 @@ import com.app.maria.domain.targetproduct.type.TradeType;
 import com.app.maria.global.client.mydatafund.MydataFundClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.properties.ExternalTradeSyncProperties;
+import com.app.maria.global.sort.OrderBySpec;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -139,13 +141,54 @@ public class TargetProductServiceImpl implements TargetProductService {
     @Override
     @Transactional(readOnly = true)
     public TargetProductJudgementFailurePageDTO getPermanentFailures(int page, int size) {
-        LocalDateTime cutoff =
-                businessClockService
-                        .now()
-                        .minusDays(externalTradeSyncProperties.getMaxJudgeFailureDays());
-        int offset = page * size;
-        List<TargetProductJudgementFailureListDTO> content =
-                targetProductMapper.selectPermanentFailures(cutoff, offset, size);
+        LocalDateTime cutoff = failureCutoff();
+        return toFailurePage(
+                targetProductMapper.selectPermanentFailures(cutoff, page * size, size),
+                cutoff,
+                page,
+                size);
+    }
+
+    /** 영구 실패 목록의 정렬 키(화면 머리글) → 정렬 열. 여기 없는 키는 무시한다. */
+    private static final Map<String, String> FAILURE_SORT_COLUMNS =
+            Map.of(
+                    "customerName", "c.name",
+                    "tradeDate", "f.trade_date",
+                    "failureCount", "f.failure_count",
+                    "lastError", "f.last_error",
+                    "firstFailedAt", "f.first_failed_at",
+                    "lastFailedAt", "f.last_failed_at");
+
+    @Override
+    @Transactional(readOnly = true)
+    public TargetProductJudgementFailurePageDTO getPermanentFailures(
+            int page, int size, String sort, String direction) {
+        LocalDateTime cutoff = failureCutoff();
+        String orderBy =
+                OrderBySpec.resolve(
+                        FAILURE_SORT_COLUMNS,
+                        sort,
+                        direction,
+                        "f.first_failed_at ASC, f.failure_id ASC");
+        return toFailurePage(
+                targetProductMapper.selectPermanentFailuresOrdered(
+                        cutoff, orderBy, page * size, size),
+                cutoff,
+                page,
+                size);
+    }
+
+    private LocalDateTime failureCutoff() {
+        return businessClockService
+                .now()
+                .minusDays(externalTradeSyncProperties.getMaxJudgeFailureDays());
+    }
+
+    private TargetProductJudgementFailurePageDTO toFailurePage(
+            List<TargetProductJudgementFailureListDTO> content,
+            LocalDateTime cutoff,
+            int page,
+            int size) {
         long totalElements = targetProductMapper.countPermanentFailures(cutoff);
         int totalPages = (int) Math.ceil((double) totalElements / size);
 

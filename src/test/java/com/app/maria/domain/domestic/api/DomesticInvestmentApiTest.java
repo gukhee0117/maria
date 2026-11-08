@@ -276,7 +276,7 @@ class DomesticInvestmentApiTest {
                                 .totalElements(1)
                                 .totalPages(1)
                                 .build());
-        when(domesticInvestmentService.getCashHeavyAccounts(0, 20)).thenReturn(page);
+        when(domesticInvestmentService.getCashHeavyAccounts(0, 20, null, null)).thenReturn(page);
 
         mockMvc.perform(get("/api/admin/domestic-investments/cash-heavy-accounts"))
                 .andExpect(status().isOk())
@@ -284,7 +284,7 @@ class DomesticInvestmentApiTest {
                 .andExpect(jsonPath("$.data.content[0].customerName").value("홍길동"))
                 .andExpect(jsonPath("$.data.totalElements").value(1));
 
-        verify(domesticInvestmentService).getCashHeavyAccounts(0, 20);
+        verify(domesticInvestmentService).getCashHeavyAccounts(0, 20, null, null);
     }
 
     @Test

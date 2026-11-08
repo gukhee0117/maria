@@ -74,11 +74,14 @@ public class InboundApi {
     @GetMapping("/by-account/{accountId}")
     public ResponseEntity<ApiResponseDTO<InboundPageResponseDTO>> getInboundsByAccount(
             @PathVariable @Positive Long accountId,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
             @RequestParam(defaultValue = "0") @PositiveOrZero int page,
             @RequestParam(defaultValue = "20") @Positive int size) {
         InboundPageResponseDTO result =
                 new InboundPageResponseDTO(
-                        inboundService.getInboundsByAccount(accountId, page, size));
+                        inboundService.getInboundsByAccount(
+                                accountId, sort, direction, page, size));
         return ResponseEntity.ok(ApiResponseDTO.of("계좌별 입고 내역 조회 성공", result));
     }
 

@@ -46,8 +46,14 @@ public interface InboundMapper {
 
     int countAccountsWithInbounds(@Param("keyword") String keyword);
 
-    List<InboundListDTO> selectInboundsByAccountId(
+    default List<InboundListDTO> selectInboundsByAccountId(Long accountId, int offset, int size) {
+        return selectInboundsByAccountIdOrdered(accountId, "i.processed_at DESC", offset, size);
+    }
+
+    /** orderBy 는 OrderBySpec 이 만든 안전한 문자열만 넘긴다. */
+    List<InboundListDTO> selectInboundsByAccountIdOrdered(
             @Param("accountId") Long accountId,
+            @Param("orderBy") String orderBy,
             @Param("offset") int offset,
             @Param("size") int size);
 

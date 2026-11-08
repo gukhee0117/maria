@@ -24,8 +24,17 @@ public interface DomesticStockBalanceMapper {
 
     List<DomesticRestrictedHoldingDTO> selectRestrictedHoldings();
 
-    List<DomesticCashHeavyAccountDTO> selectCashHeavyAccounts(
-            @Param("offset") int offset, @Param("size") int size);
+    default List<DomesticCashHeavyAccountDTO> selectCashHeavyAccounts(int offset, int size) {
+        return selectCashHeavyAccountsOrdered(DEFAULT_CASH_HEAVY_ORDER_BY, offset, size);
+    }
+
+    String DEFAULT_CASH_HEAVY_ORDER_BY =
+            "(a.amount / NULLIF(a.amount + COALESCE(SUM(dsb.qty * dsb.avg_purchase_price), 0), 0))"
+                    + " DESC";
+
+    /** orderBy 는 OrderBySpec 이 만든 안전한 문자열만 넘긴다. */
+    List<DomesticCashHeavyAccountDTO> selectCashHeavyAccountsOrdered(
+            @Param("orderBy") String orderBy, @Param("offset") int offset, @Param("size") int size);
 
     int countCashHeavyAccounts();
 

@@ -424,7 +424,7 @@ class InboundApiTest {
                         .totalElements(1)
                         .totalPages(1)
                         .build();
-        when(inboundService.getInboundsByAccount(1L, 0, 20)).thenReturn(page);
+        when(inboundService.getInboundsByAccount(1L, null, null, 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/api/admin/inbounds/by-account/1"))
                 .andExpect(status().isOk())
@@ -443,7 +443,7 @@ class InboundApiTest {
                         .totalElements(0)
                         .totalPages(0)
                         .build();
-        when(inboundService.getInboundsByAccount(1L, 0, 20)).thenReturn(page);
+        when(inboundService.getInboundsByAccount(1L, null, null, 0, 20)).thenReturn(page);
 
         mockMvc.perform(get("/api/admin/inbounds/by-account/1"))
                 .andExpect(status().isOk())

@@ -197,6 +197,162 @@ class FundFlowMapperTest {
     }
 
     @Test
+    @DisplayName("개요: 기간 하한(periodFrom)이 있으면 그 날 이후 유입·매수·매도만 합산하고 개설 계좌는 누적으로 둔다")
+    void selectOverviewAppliesPeriodLowerBoundToFlowsOnly() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-09-30 23:59:59'),"
+                        + " (1, 'FINALIZED', 400000, '2026-10-01 00:00:00')");
+        insertOrder(1L, "BUY", "EXECUTED", -100000, 0, 0, "2026-09-30 10:00:00");
+        insertOrder(1L, "BUY", "EXECUTED", -200000, 0, 0, "2026-10-05 10:00:00");
+        insertOrder(1L, "SELL", "EXECUTED", 50000, 0, 0, "2026-10-06 10:00:00");
+
+        var result =
+                fundFlowMapper.selectOverview(
+                        filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
+
+        assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+        assertThat(result.getInflowTotal()).isEqualByComparingTo("400000");
+        assertThat(result.getDomesticBuyTotal()).isEqualByComparingTo("200000");
+        assertThat(result.getDomesticSellTotal()).isEqualByComparingTo("50000");
+    }
+
+    @Test
+    @DisplayName("퍼널: 기간 하한이 있으면 그 날 이후 가입한 고객만 코호트로 센다")
+    void selectFunnelCountsOnlyCustomersSignedUpInPeriod() throws SQLException {
+        insertCustomer(1L);
+        insertCustomer(2L);
+        execute("UPDATE customer SET created_at = '2026-09-15 10:00:00' WHERE customer_id = 1");
+        execute("UPDATE customer SET created_at = '2026-10-15 10:00:00' WHERE customer_id = 2");
+
+        List<FundFlowFunnelStageDTO> all = fundFlowMapper.selectFunnel(filter());
+        List<FundFlowFunnelStageDTO> october =
+                fundFlowMapper.selectFunnel(
+                        filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
+
+        assertThat(all.get(0).getCustomers()).isEqualTo(2L);
+        assertThat(october.get(0).getCustomers()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("조정비율 구간: 매도한 계좌만, 경계값은 아래 구간에 넣지 않고 위 구간에 넣는다")
+    void selectRatioBinsCountsSoldAccountsByRatio() throws SQLException {
+        insertSnapshotAccount(1L, "POSSIBLE", "0", "0", "0", "2026-11-17 02:00:00"); // 매도 없음 제외
+        insertSnapshotAccount(2L, "REDUCED", "100", "0", "100", "2026-11-17 02:00:00");
+        insertSnapshotAccount(3L, "REDUCED", "100", "0.25", "75", "2026-11-17 02:00:00");
+        insertSnapshotAccount(4L, "REDUCED", "100", "0.2499", "75", "2026-11-17 02:00:00");
+        insertSnapshotAccount(5L, "REDUCED", "100", "0.9999", "1", "2026-11-17 02:00:00");
+        insertSnapshotAccount(6L, "POSSIBLE", "100", "1", "0", "2026-11-17 02:00:00");
+
+        var result = fundFlowMapper.selectRatioBins();
+
+        assertThat(result)
+                .extracting(b -> b.getCode() + ":" + b.getAccounts())
+                .containsExactlyInAnyOrder(
+                        "ZERO:1", "UNDER_25:1", "UNDER_50:1", "UNDER_100:1", "FULL:1");
+    }
+
+    @Test
+    @DisplayName("감면액 목록: 0보다 큰 계좌만 오름차순으로 낸다")
+    void selectReliefAmountsReturnsPositiveSortedAmounts() throws SQLException {
+        execute(
+                "INSERT INTO tax_rule (rule_type, rule_value, valid_from, valid_to) VALUES"
+                        + " ('BASIC_DEDUCTION', 2500000, '2026-01-01', '9999-12-31'),"
+                        + " ('TAX_RATE', 0.22, '2026-01-01', '9999-12-31')");
+        // 계좌1: 일반 과세 2,200,000 - 최종 1,000,000 = 1,200,000
+        execute(
+                "INSERT INTO tax_snapshot VALUES (1, '2026-11-17 02:00:00', 100, 12500000, 0, 0.5, 0, 1000000)");
+        // 계좌2: 일반 과세 0 → 감면 0 (제외)
+        execute(
+                "INSERT INTO tax_snapshot VALUES (2, '2026-11-17 02:00:00', 100, 1000000, 0, 1, 0, 0)");
+        // 계좌3: 일반 과세 0.22 × (4,500,000 - 2,500,000) = 440,000 - 최종 40,000 = 400,000
+        execute(
+                "INSERT INTO tax_snapshot VALUES (3, '2026-11-17 02:00:00', 100, 4500000, 0, 0.5, 0, 40000)");
+
+        var result = fundFlowMapper.selectReliefAmounts(filter());
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0)).isEqualByComparingTo("400000");
+        assertThat(result.get(1)).isEqualByComparingTo("1200000");
+    }
+
+    @Test
+    @DisplayName("원금 유지 원천: 확정 건만, 1년 미경과 인출이 있으면 사건과 경과일, 없으면 업무시계까지 절단")
+    void selectRetentionLotsMarksEventAndCensoring() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-10-01 00:00:00'),"
+                        + " (1, 'FINALIZED', 2000000, '2026-10-20 00:00:00'),"
+                        + " (1, 'PROVISIONAL', 500000, NULL),"
+                        + " (1, 'FINALIZED', 700000, '2026-11-18 00:00:00')");
+        execute("INSERT INTO left_amount (exchange_id, cur_amount) VALUES (1, 0), (2, 2000000)");
+        execute(
+                "INSERT INTO withdrawal_allocation (withdrawal_id, left_amount_id, allocated_amount,"
+                        + " withdrawal_at, type) VALUES"
+                        + " (1, 1, 1000000, '2026-10-11 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED'),"
+                        + " (1, 2, 5, '2026-10-11 09:00:00', 'EARNINGS_ONLY')");
+
+        var result = fundFlowMapper.selectRetentionLots(filter());
+
+        assertThat(result)
+                .extracting(
+                        r ->
+                                r.getFinalAmount().toBigInteger()
+                                        + ":"
+                                        + r.getDays()
+                                        + ":"
+                                        + r.getEvent())
+                .containsExactly("1000000:10:true", "2000000:29:false");
+    }
+
+    @Test
+    @DisplayName("원금 유지 원천: 기간 하한이 있으면 그 날 이후 확정된 건만 코호트로 센다")
+    void selectRetentionLotsAppliesPeriodLowerBound() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-09-30 00:00:00'),"
+                        + " (1, 'FINALIZED', 2000000, '2026-10-20 00:00:00')");
+
+        var result =
+                fundFlowMapper.selectRetentionLots(
+                        filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getFinalAmount()).isEqualByComparingTo("2000000");
+    }
+
+    @Test
+    @DisplayName("계좌별 유입·매수: 연령대와 함께 계좌 단위로 낸다 (유입이 없는 계좌는 0)")
+    void selectAccountFlowsReturnsPerAccountRows() throws SQLException {
+        insertCustomerWith(1L, "1990-01-01", "ACTIVE");
+        insertAccount(1L, 1L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomerWith(2L, "1960-01-01", "ACTIVE");
+        insertAccount(2L, 2L, "2026-04-01 10:00:00", "2026-04-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-05-01 00:00:00')");
+        insertOrder(1L, "BUY", "EXECUTED", -600500, 500, 0, "2026-06-01 10:00:00");
+
+        var result = fundFlowMapper.selectAccountFlows(filter());
+
+        assertThat(result)
+                .extracting(
+                        r ->
+                                r.getAgeBand()
+                                        + ":"
+                                        + r.getInflow().toBigInteger()
+                                        + ":"
+                                        + r.getBuyExec().toBigInteger())
+                .containsExactlyInAnyOrder("30대:1000000:600000", "60대 이상:0:0");
+    }
+
+    @Test
     @DisplayName("누수: 위에서부터 먼저 걸리는 하나로 분류하고 타 계좌 순매수 보유 계좌 수를 센다")
     void selectLeakageClassifiesByPriority() throws SQLException {
         insertSnapshotAccount(1L, "POSSIBLE", "0", "0", "0", "2026-11-17 02:00:00"); // NO_SELL

@@ -5,97 +5,129 @@
 <head>
     <meta charset="UTF-8">
     <th:block layout:fragment="pageStyles">
-        <link rel="stylesheet" th:href="@{/css/account-closures.css}">
+        <link rel="stylesheet" th:href="@{/css/admin/account-closures.css}">
     </th:block>
 </head>
 <body>
 <div layout:fragment="breadcrumb">계좌 해지 관리</div>
 
-<div layout:fragment="content" class="account-closures">
-    <div class="closure-page-header">
-        <div>
-            <h1>계좌 해지 관리</h1>
-            <p>해지 신청을 검토하고 강제인출 동의 여부를 확인한 뒤 승인 또는 반려합니다.</p>
+<div layout:fragment="content" class="adm-page account-closures">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1403]</span> 계좌 해지 관리</h1>
+            <span class="adm-screen-path">자산 · 인출 &gt; 계좌 해지 관리</span>
         </div>
-        <span class="closure-policy-badge">잔고 0원 확인 · 조기인출 혜택 취소 연동</span>
-    </div>
 
-    <div class="closure-filter">
-        <label for="closure-status">처리 상태</label>
-        <select id="closure-status">
-            <option value="REQUESTED">해지 신청</option>
-            <option value="COMPLETED">해지 완료</option>
-            <option value="REJECTED">반려</option>
-        </select>
-        <button type="button" id="search-button">조회</button>
-    </div>
+        <div class="adm-notice is-box is-warn closure-policy">
+            해지 신청을 검토하고 강제인출 동의 여부를 확인한 뒤 승인 또는 반려합니다. 잔고 0원 확인 · 조기인출 혜택 취소가 연동됩니다.
+        </div>
 
-    <div class="closure-workspace">
-        <section class="closure-list-card">
-            <div class="closure-card-header">
-                <h2>해지 신청 목록</h2>
-                <span id="closure-count">총 0건</span>
+        <div class="adm-qbox">
+            <div class="adm-qgrid">
+                <label class="adm-qfield" for="closure-status">처리 상태
+                    <span class="adm-select-wrap">
+                        <select id="closure-status" class="adm-input adm-select">
+                            <option value="REQUESTED">해지 신청</option>
+                            <option value="COMPLETED">해지 완료</option>
+                            <option value="REJECTED">반려</option>
+                        </select>
+                    </span>
+                </label>
             </div>
-            <div id="closure-list" class="closure-list">
-                <div class="closure-empty">해지 신청 내역을 조회하고 있습니다.</div>
+            <div class="adm-qbtns">
+                <button type="button" id="search-button" class="adm-btn adm-btn-primary adm-btn-md">조회</button>
             </div>
-            <div id="closure-pagination" class="closure-pagination" hidden>
-                <button type="button" id="previous-closure-page">이전</button>
-                <span id="closure-page-info"></span>
-                <button type="button" id="next-closure-page">다음</button>
-            </div>
-        </section>
+        </div>
+    </section>
 
-        <section id="closure-detail" class="closure-detail-card is-empty">
-            <div id="closure-detail-empty" class="closure-detail-empty">
-                왼쪽 목록에서 해지 신청을 선택해 주세요.
+    <section class="adm-grid">
+        <div class="adm-grid-head">
+            <span class="adm-grid-title">해지 신청 목록</span>
+            <span class="adm-grid-total">총 <b id="closure-count">-</b>건</span>
+            <div class="adm-pager" id="closure-pagination"></div>
+        </div>
+        <div class="adm-grid-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable closure-table">
+                    <thead>
+                    <tr>
+                        <th class="adm-col-no">No</th>
+                        <th data-sort-key="accountNo">RIA 계좌번호</th>
+                        <th class="closure-col-name" data-sort-key="customerName">고객명</th>
+                        <th data-sort-key="requestedAt">신청 일시</th>
+                        <th class="is-c" data-sort-key="status">처리 상태</th>
+                    </tr>
+                    </thead>
+                    <tbody id="closure-list">
+                    <tr class="is-state"><td colspan="6">불러오는 중...</td></tr>
+                    </tbody>
+                </table>
             </div>
+        </div>
+    </section>
 
-            <div id="closure-detail-content" class="closure-detail-content" hidden>
-                <div class="closure-card-header">
-                    <div>
-                        <span class="closure-section-label">신청 상세</span>
-                        <h2 id="detail-request-title">해지 신청</h2>
-                    </div>
-                    <span id="detail-status" class="closure-status-badge"></span>
+    <!-- 상세 패널. 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
+    <div class="adm-scrim" id="closure-drawer-backdrop"></div>
+    <aside class="adm-panel" id="closure-detail" aria-label="해지 신청 상세" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1403]</span>
+                <span class="adm-panel-name" id="detail-request-title">해지 신청</span>
+                <span class="adm-panel-sub" id="detail-status"></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="closure-drawer-close" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div>
+                <div class="adm-section-title">신청 상세</div>
+                <div class="adm-kv">
+                    <div class="adm-kv-k">고객명</div>
+                    <div class="adm-kv-v" id="detail-customer-name">-</div>
+                    <div class="adm-kv-k">RIA 계좌번호</div>
+                    <div class="adm-kv-v" id="detail-account-no">-</div>
+                    <div class="adm-kv-k">현재 계좌 잔액</div>
+                    <div class="adm-kv-v" id="detail-account-amount">-</div>
+                    <div class="adm-kv-k">인출 목적지 일반계좌</div>
+                    <div class="adm-kv-v" id="detail-destination-id">-</div>
+                    <div class="adm-kv-k">신청 시각</div>
+                    <div class="adm-kv-v" id="detail-requested-at">-</div>
+                    <div class="adm-kv-k">조기인출 동의</div>
+                    <div class="adm-kv-v" id="detail-early-agreed">-</div>
+                    <div class="adm-kv-k" id="detail-immature-label">실제 미경과 원금</div>
+                    <div class="adm-kv-v" id="detail-immature-principal">-</div>
+                    <div class="adm-kv-k" id="detail-tax-label">세제혜택 영향</div>
+                    <div class="adm-kv-v" id="detail-tax-impact">-</div>
                 </div>
+            </div>
 
-                <dl class="closure-detail-grid">
-                    <div><dt>고객명</dt><dd id="detail-customer-name">-</dd></div>
-                    <div><dt>RIA 계좌번호</dt><dd id="detail-account-no">-</dd></div>
-                    <div><dt>현재 계좌 잔액</dt><dd id="detail-account-amount">-</dd></div>
-                    <div><dt>인출 목적지 일반계좌</dt><dd id="detail-destination-id">-</dd></div>
-                    <div><dt>신청 시각</dt><dd id="detail-requested-at">-</dd></div>
-                    <div><dt>조기인출 동의</dt><dd id="detail-early-agreed">-</dd></div>
-                    <div><dt id="detail-immature-label">실제 미경과 원금</dt><dd id="detail-immature-principal">-</dd></div>
-                    <div><dt id="detail-tax-label">세제혜택 영향</dt><dd id="detail-tax-impact">-</dd></div>
-                </dl>
+            <div id="early-withdrawal-warning" class="adm-notice is-box is-warn" hidden>
+                <strong>승인 시 세제혜택이 전체 취소됩니다.</strong>
+                <p>현재 잔액에 1년 미경과 원금이 포함되어 강제인출 시 조기인출로 처리됩니다.</p>
+            </div>
 
-                <div id="early-withdrawal-warning" class="closure-warning" hidden>
-                    <strong>승인 시 세제혜택이 전체 취소됩니다.</strong>
-                    <p>현재 잔액에 1년 미경과 원금이 포함되어 강제인출 시 조기인출로 처리됩니다.</p>
-                </div>
+            <div id="early-withdrawal-not-agreed" class="adm-notice is-box" hidden>
+                실제 미경과 원금이 없어 승인 시 세제혜택 취소가 발생하지 않습니다.
+            </div>
 
-                <div id="early-withdrawal-not-agreed" class="closure-notice" hidden>
-                    실제 미경과 원금이 없어 승인 시 세제혜택 취소가 발생하지 않습니다.
-                </div>
-
-                <div id="closure-actions" class="closure-actions">
-                    <label for="rejection-reason">반려 사유</label>
-                    <textarea id="rejection-reason" rows="3"
+            <div id="closure-actions" class="closure-actions">
+                <div class="adm-section-title">처리</div>
+                <label class="adm-qfield" for="rejection-reason">반려 사유
+                    <textarea id="rejection-reason" class="adm-input closure-reason" rows="3"
                               placeholder="반려할 경우 사유를 입력해 주세요."></textarea>
-                    <div class="closure-action-buttons">
-                        <button type="button" id="approve-button" class="closure-approve-button">해지 승인</button>
-                        <button type="button" id="reject-button" class="closure-reject-button">해지 반려</button>
-                    </div>
-                </div>
-
-                <div id="closure-readonly-notice" class="closure-notice" hidden>
-                    처리 완료된 신청이거나 승인·반려 권한이 없어 조회만 가능합니다.
+                </label>
+                <div class="closure-action-buttons">
+                    <button type="button" id="approve-button" class="adm-btn adm-btn-primary adm-btn-md">해지 승인</button>
+                    <button type="button" id="reject-button" class="adm-btn adm-btn-warn adm-btn-md">해지 반려</button>
                 </div>
             </div>
-        </section>
-    </div>
+
+            <div id="closure-readonly-notice" class="adm-notice is-box" hidden>
+                처리 완료된 신청이거나 승인·반려 권한이 없어 조회만 가능합니다.
+            </div>
+        </div>
+    </aside>
 </div>
 
 <th:block layout:fragment="pageScripts">

@@ -83,12 +83,12 @@
                     <thead>
                     <tr>
                         <th class="adm-col-no">No</th>
-                        <th>계좌번호</th>
-                        <th class="withdrawals-col-name">고객명</th>
-                        <th class="is-c">인출 구분</th>
-                        <th class="is-r">인출 금액</th>
-                        <th>신청 일시</th>
-                        <th class="is-c">처리 상태</th>
+                        <th data-sort-key="riaAccountNo">계좌번호</th>
+                        <th class="withdrawals-col-name" data-sort-key="customerName">고객명</th>
+                        <th class="is-c" data-sort-key="kind">인출 구분</th>
+                        <th class="is-r" data-sort-key="requestedAmount">인출 금액</th>
+                        <th data-sort-key="processedAt">신청 일시</th>
+                        <th class="is-c" data-sort-key="status">처리 상태</th>
                     </tr>
                     </thead>
                     <tbody id="withdrawal-list">
@@ -132,6 +132,16 @@
             <div>
                 <div class="adm-section-title">납입건별 인출 배분 <span class="adm-section-sub">· 먼저 납입한 순서</span></div>
                 <div id="withdrawal-allocations"></div>
+            </div>
+
+            <div>
+                <div class="adm-section-title">이 계좌의 인출 내역 <span class="adm-section-sub" id="withdrawal-account-count"></span></div>
+                <div class="adm-grid-scroll">
+                    <table class="adm-gtable withdrawal-account-table">
+                        <thead><tr><th class="adm-col-no">No</th><th class="is-r">인출 금액</th><th class="is-c">상태</th><th>처리 일시</th></tr></thead>
+                        <tbody id="withdrawal-account-history"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- 조기 인출이면 세제 혜택 경고 (원본 문구). 계좌 세제혜택이 "제외"면 옛 화면의 계좌 경고도 같이 보인다 -->

@@ -6,6 +6,7 @@ $(function () {
 
     var admins = [];
     var filtered = [];
+    var sortSpec = null; // 머리글로 고른 정렬 (받아 온 목록 전체를 정렬한다)
     var isAdmin = false;
     var PAGE_SIZE = 20;
     var currentPage = 0;
@@ -52,6 +53,11 @@ $(function () {
                 (!keyword || String(admin.name || "").toLowerCase().indexOf(keyword) >= 0 ||
                     String(admin.loginId || "").toLowerCase().indexOf(keyword) >= 0);
         });
+        if (sortSpec) {
+            filtered = MARIA.tableSort.sortList(filtered, function (admin) {
+                return admin[sortSpec.key];
+            }, sortSpec.dir);
+        }
     }
 
     // ---------- 요약 (목록 전체 기준) ----------
@@ -357,6 +363,11 @@ $(function () {
         $(this).addClass("is-on");
         currentPage = 0;
         renderRows();
+    });
+
+    MARIA.tableSort.bind(".admin-users-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        runSearch();
     });
 
     MARIA.auth.requireAuth().done(function (admin) {

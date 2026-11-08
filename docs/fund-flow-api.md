@@ -15,6 +15,7 @@
 | 기준일 | 모든 응답에 `asOfDate`를 담는다. **`asOfDate` = 업무시계 날짜 − 1일** (전일까지 집계). 시드의 업무시계가 2026-11-18 00:00이므로 `asOfDate`는 2026-11-17이고 분석 기준일과 같다. 화면은 "OO 기준"으로 노출 |
 | 업무시계 | `BusinessClockService.now()` 사용. `LocalDate.now()` 금지 |
 | 집계 범위 | 일자 조건은 `< 업무시계 날짜`(즉 `asOfDate`까지)로 건다. 스냅샷·종가처럼 날짜가 박힌 값은 그 날짜를 그대로 따른다 |
+| 기간 | 쿼리 `period` = `ALL`(기본, 출시 이후 누적) / `MONTH`(이번 달) / `QUARTER`(분기). 기준일(`asOfDate`)이 속한 달·분기의 첫날부터 기준일까지. `overview`, `funnel`, `monthly`, `segments`, `allocation`, `retention`이 받는다. `leakage`, `relief`, `concentration`은 세액 스냅샷(기준일 값)이라 받지 않는다 |
 | 관리자 경로 | `/api/admin/fund-flow/**`, `@PreAuthorize("hasAnyRole('ADMIN','SETTLEMENT','REVIEWER','VIEWER')")`. 조회 전용 |
 | 고객 경로 | `/api/customer/fund-flow/**`, `@AuthenticationPrincipal CustomerPrincipal`로 본인 계좌만 조회 |
 | 소규모 칸 | 5명 미만 칸의 합계·비율은 `null`로 내려보낸다 (개인 식별 방지). 칸 크기(`accounts`)는 내려보낸다 |
@@ -49,6 +50,8 @@
 
 ### 2-1. `GET /api/admin/fund-flow/overview` — 상단 핵심 지표
 
+쿼리: `period`. 개설 계좌 수는 기간과 무관한 누적(해지 포함)이고, 확정 유입·국내 매수·매도 합계만 기간으로 거른다.
+
 ```json
 {
   "message": "자금 환류 개요 조회 성공",
@@ -68,6 +71,7 @@
 ### 2-2. `GET /api/admin/fund-flow/funnel` — 가입→첫 매수 퍼널
 
 각 단계는 앞 단계를 모두 지난 고객만 센다(중첩). 고객당 "처음 도달" 1회.
+쿼리: `period`. 기간을 주면 **그 기간에 가입한 고객 코호트**만 따라간다(`customer.created_at >= 기간 첫날`). 그 고객들이 지금까지 각 단계에 도달한 비율이다.
 
 ```json
 "data": {
@@ -83,7 +87,7 @@
 
 ### 2-3. `GET /api/admin/fund-flow/monthly` — 월별 자금 흐름
 
-쿼리: `fromMonth`, `toMonth` (선택, `yyyy-MM`).
+쿼리: `fromMonth`, `toMonth` (선택, `yyyy-MM`), `period`. `fromMonth`를 주지 않으면 `period`의 첫 달이 하한이 된다.
 원천: `fund_flow_monthly`를 월별로 합산한다.
 
 ```json
@@ -129,6 +133,8 @@
 ```
 기준값: 매도 없음 22,518 / 혜택 취소 1,789 / 영향 없음 39,486 / 부분 축소 9,441 / 순매수 소멸 1,812.
 
+응답에 `ratioBins`(조정비율 히스토그램)가 함께 온다. 매도한 계좌(`weighted_sell > 0`)만 대상이고 구간은 `ZERO`(0) / `UNDER_25` / `UNDER_50` / `UNDER_75` / `UNDER_100`(0.75 이상 1 미만) / `FULL`(1)이다. 비어 있는 구간도 순서대로 0으로 채워 낸다. `share`는 매도한 계좌 대비다.
+
 ### 2-5. `GET /api/admin/fund-flow/segments` — 연령대 × 투자성향 재투자율
 
 ```json
@@ -146,7 +152,8 @@
 }
 ```
 - `ageBand`: 20대 이하 / 30대 / 40대 / 50대 / 60대 이상. `investorType`이 `null`이면 연령대 소계, 둘 다 `null`이면 전체.
-- 계좌별 재투자율 중앙값은 1차 범위에서 **제외**한다(롤업과 윈도 함수를 한 쿼리에 섞는 비용이 큼). 시간이 남으면 추가한다.
+- 쿼리: `period`. 칸의 `accounts`는 누적 개설 계좌이고, 유입·매수·매도는 기간 합계다.
+- 응답에 `ageMedians`가 함께 온다: 연령대별(`ageBand`가 `null`이면 전체) **계좌별** 확정 유입 중앙값(`inflowMedian`)과 재투자율(매수 ÷ 유입) 중앙값(`reinvestMedian`). 확정 유입이 있는 계좌만 대상이고 그런 계좌가 5개 미만이면 두 값은 `null`이다. 중앙값은 SQL이 아니라 서비스에서 계산한다(`FundFlowStatistics.median`).
 
 ### 2-6. `GET /api/admin/fund-flow/relief` — 감면액
 
@@ -188,6 +195,42 @@
 - 업종(`sector_name`)은 주식에만 있어 펀드·ETF는 `ETF·펀드` 한 항목으로 묶는다.
 - `topNetBuy` = 순매수(매수 체결금액 − 매도 체결금액) 상위 10종목. `domestic_order`만으로 계산한다.
 - **분석 결과(평가액 기준 HHI)와 숫자가 다르므로 기준값 대조 대상이 아니다.** 평가액·HHI는 종가 조회 API가 생기면 `valueBasis = "MARKET_VALUE"`로 추가한다.
+
+### 2-8. `GET /api/admin/fund-flow/concentration` — 혜택 집중도 (잠정)
+
+세액 스냅샷 기준 예상값이라 `period`를 받지 않는다. 감면액(= 일반 과세 세액 − 최종세액, §2-6과 같은 식)이 0보다 큰 계좌만 대상이다.
+
+```json
+"data": {
+  "asOfDate": "2026-11-17",
+  "accounts": 20333,
+  "reliefTotal": 0,
+  "top10Share": 0.3580,
+  "gini": 0.5300,
+  "lorenz": [ { "populationShare": 0.0000, "valueShare": 0.0000 }, { "populationShare": 0.0500, "valueShare": 0.0050 } ],
+  "basis": "..."
+}
+```
+- `lorenz`는 하위 0%, 5%, … 100%의 21점이다. `gini = 2·Σ(i·xᵢ) / (n·Σx) − (n+1)/n` (xᵢ 오름차순).
+- `top10Share`는 상위 10%(올림한 인원)의 감면액 합 ÷ 전체. 분석 기준값은 지니 0.53, 상위 10% 점유 35.8%.
+
+### 2-9. `GET /api/admin/fund-flow/retention` — 원금 유지 (Kaplan–Meier)
+
+쿼리: `period`(기간 = 그 기간에 환전이 **확정된** 건의 코호트). 단위는 확정된 환전 건(`krw_exchange` FINALIZED), 시작 = `final_at`, 사건 = 그 건의 `IMMATURE_PRINCIPAL_INCLUDED` 인출, 사건이 없으면 업무시계 날짜에서 중도절단.
+
+```json
+"data": {
+  "asOfDate": "2026-11-17",
+  "lots": 159470, "accounts": 0, "events": 5356,
+  "maxObservedDays": 236, "bootstrapReplicates": 200,
+  "points": [ { "day": 0, "survival": 1.0000, "lower": 1.0000, "upper": 1.0000, "weightedSurvival": 1.0000, "atRisk": 159470 } ],
+  "basis": "..."
+}
+```
+- `points`는 10일 간격 + 마지막 관찰일. `survival`은 건수 기준, `weightedSurvival`은 금액 가중(신뢰구간 없음).
+- 신뢰구간은 **계좌 단위 부트스트랩**(200회, 시드 고정 → 같은 입력이면 같은 값)의 2.5·97.5 백분위다. 같은 계좌의 건은 사건 시점을 공유하므로 건 단위 Greenwood는 쓰지 않는다.
+- 최대 관찰이 1년에 못 미치므로 **1년 유지율은 정의하지 않는다**. 분석 기준값은 210일 95.5% [95.2, 95.7], 금액 가중 97.6%.
+- 약 16만 건·7.5만 계좌 규모에서 계산 약 0.9초(요청마다 계산, 캐시 없음).
 
 ---
 

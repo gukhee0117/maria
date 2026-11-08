@@ -14,7 +14,10 @@ $(function () {
     var closures = [];
     var selectedClosureId = null;
     var currentPage = 1;
-    var PAGE_SIZE = 6;
+    var PAGE_SIZE = 20;
+    var COLUMN_COUNT = 5;
+    var sortSpec = null; // 머리글로 고른 정렬 (받아 온 목록 전체를 정렬한다)
+    var TONE = { REQUESTED: "warn", COMPLETED: "ok", REJECTED: "off" };
 
     function escapeHtml(value) {
         return $("<div>").text(value == null ? "" : value).html();
@@ -32,10 +35,6 @@ $(function () {
         return STATUS_LABEL[status] || status || "-";
     }
 
-    function statusClass(status) {
-        return (status || "").toLowerCase();
-    }
-
     function showError(message) {
         MARIA.ui.showError(message);
     }
@@ -44,60 +43,109 @@ $(function () {
         return MARIA.auth.hasRole("REVIEWER");
     }
 
+    function statusChip(status) {
+        return '<span class="adm-chip adm-chip-' + (TONE[status] || "off") + '">' + escapeHtml(statusLabel(status)) + "</span>";
+    }
+
+    function stateRow(innerHtml) {
+        return '<tr class="is-state"><td colspan="' + COLUMN_COUNT + '">' + innerHtml + "</td></tr>";
+    }
+
+    function sortedClosures() {
+        if (!sortSpec) {
+            return closures;
+        }
+        return MARIA.tableSort.sortList(closures, function (c) { return c[sortSpec.key]; }, sortSpec.dir);
+    }
+
     function renderList() {
-        var $list = $("#closure-list").empty();
-        $("#closure-count").text("총 " + closures.length + "건");
+        var $body = $("#closure-list").empty();
+        $("#closure-count").text(closures.length);
 
         if (!closures.length) {
-            $list.append('<div class="closure-empty">해당 상태의 해지 신청이 없습니다.</div>');
-            $("#closure-pagination").prop("hidden", true);
-            clearDetail();
+            $body.append(stateRow('<div class="adm-state-empty">' +
+                '<img src="/images/admin/char-front.png" alt="">' +
+                '<div class="adm-state-empty-title">해당 상태의 해지 신청이 없습니다.</div></div>'));
+            $("#closure-pagination").empty();
             return;
         }
 
         var totalPages = Math.max(1, Math.ceil(closures.length / PAGE_SIZE));
         currentPage = Math.min(currentPage, totalPages);
         var startIndex = (currentPage - 1) * PAGE_SIZE;
-        var pageClosures = closures.slice(startIndex, startIndex + PAGE_SIZE);
+        var pageClosures = sortedClosures().slice(startIndex, startIndex + PAGE_SIZE);
 
-        pageClosures.forEach(function (closure) {
-            var selectedClass =
-                Number(closure.closureRequestId) === Number(selectedClosureId)
-                    ? " is-selected"
-                    : "";
-            $list.append(
-                '<button type="button" class="closure-list-item' + selectedClass + '"' +
-                ' data-closure-id="' + closure.closureRequestId + '">' +
-                '<span class="closure-list-primary">' +
-                '<span>' + escapeHtml(closure.customerName || "-") + '</span>' +
-                '<span class="closure-status-badge ' + statusClass(closure.status) + '">' +
-                escapeHtml(statusLabel(closure.status)) + '</span></span>' +
-                '<span class="closure-list-secondary">' +
-                '<span>RIA ' + MARIA.fmt.accountNoHtml(closure.accountNo) + '</span>' +
-                '<span>' + escapeHtml(formatDateTime(closure.requestedAt)) + '</span>' +
-                '</span></button>'
+        pageClosures.forEach(function (closure, index) {
+            var selected = Number(closure.closureRequestId) === Number(selectedClosureId) ? " is-selected" : "";
+            $body.append(
+                '<tr class="is-clickable' + selected + '" tabindex="0" data-closure-id="' + closure.closureRequestId + '">' +
+                '<td class="adm-col-no">' + (startIndex + index + 1) + "</td>" +
+                "<td><span>" + MARIA.fmt.accountNoHtml(closure.accountNo) + "</span></td>" +
+                '<td class="closure-col-name"><span>' + escapeHtml(closure.customerName || "-") + "</span></td>" +
+                "<td><span>" + escapeHtml(formatDateTime(closure.requestedAt)) + "</span></td>" +
+                '<td class="is-c">' + statusChip(closure.status) + "</td></tr>"
             );
         });
-
-        $("#closure-page-info").text(currentPage + " / " + totalPages);
-        $("#previous-closure-page").prop("disabled", currentPage === 1);
-        $("#next-closure-page").prop("disabled", currentPage === totalPages);
-        $("#closure-pagination").prop("hidden", false);
+        renderPager(totalPages);
     }
 
-    function clearDetail() {
+    function renderPager(totalPages) {
+        var $pager = $("#closure-pagination").empty();
+        if (totalPages <= 1) {
+            return;
+        }
+        var BLOCK = 10;
+        var blockStart = Math.floor((currentPage - 1) / BLOCK) * BLOCK + 1;
+        var blockEnd = Math.min(totalPages, blockStart + BLOCK - 1);
+
+        function add(label, page, disabled, active) {
+            var $b = $('<button type="button" class="adm-page-btn' + (active ? " is-active" : "") +
+                (/^[0-9]+$/.test(label) ? "" : " is-nav") + '">' + label + "</button>");
+            $b.prop("disabled", disabled || active);
+            if (!disabled && !active) {
+                $b.on("click", function () {
+                    currentPage = page;
+                    closeDrawer();
+                    renderList();
+                });
+            }
+            $pager.append($b);
+        }
+        if (blockStart > 1) {
+            add("이전", blockStart - 1, false, false);
+        }
+        for (var n = blockStart; n <= blockEnd; n++) {
+            add(String(n), n, false, n === currentPage);
+        }
+        if (blockEnd < totalPages) {
+            add("다음", blockEnd + 1, false, false);
+        }
+    }
+
+    function formatNumber(value) {
+        return value == null ? "-" : new Intl.NumberFormat("ko-KR").format(Math.trunc(Number(value)));
+    }
+
+    function openDrawer() {
+        $("#closure-drawer-backdrop, #closure-detail").addClass("is-open");
+        $("#closure-detail").attr("aria-hidden", "false");
+        $("#closure-detail .adm-panel-body").scrollTop(0);
+        $("#closure-drawer-close").trigger("focus");
+    }
+
+    function closeDrawer() {
+        if (!$("#closure-detail").hasClass("is-open")) {
+            return;
+        }
+        $("#closure-drawer-backdrop, #closure-detail").removeClass("is-open");
+        $("#closure-detail").attr("aria-hidden", "true");
         selectedClosureId = null;
-        $("#closure-detail").addClass("is-empty");
-        $("#closure-detail-empty").show();
-        $("#closure-detail-content").prop("hidden", true);
+        $("#closure-list tr.is-selected").removeClass("is-selected");
     }
 
     function renderDetail(closure) {
         selectedClosureId = Number(closure.closureRequestId);
-        $("#closure-detail").removeClass("is-empty");
-        $("#closure-detail-empty").hide();
-        $("#closure-detail-content").prop("hidden", false);
-        $("#detail-request-title").text((closure.customerName || "-") + " 고객 해지 신청");
+        $("#detail-request-title").text((closure.customerName || "-") + " 님");
         $("#detail-customer-name").text(closure.customerName || "-");
         $("#detail-account-no").html(MARIA.fmt.accountNoHtml(closure.accountNo));
         $("#detail-account-amount").text(formatAmount(closure.accountAmount));
@@ -128,9 +176,7 @@ $(function () {
                 closure.taxBenefitCancellationExpected ? "승인 시 전체 취소" : "영향 없음"
             );
         }
-        $("#detail-status")
-            .attr("class", "closure-status-badge " + statusClass(closure.status))
-            .text(statusLabel(closure.status));
+        $("#detail-status").text(statusLabel(closure.status));
 
         var hasTaxImpact = closure.taxBenefitCancellationExpected ||
             closure.taxBenefitCancellationOccurred;
@@ -153,6 +199,7 @@ $(function () {
         $("#closure-actions").toggle(editable);
         $("#closure-readonly-notice").prop("hidden", editable);
         renderList();
+        openDrawer();
     }
 
     function loadDetail(closureRequestId) {
@@ -172,7 +219,8 @@ $(function () {
 
     function loadClosures() {
         var status = $("#closure-status").val();
-        $("#closure-list").html('<div class="closure-loading">불러오는 중...</div>');
+        closeDrawer();
+        $("#closure-list").html(stateRow("불러오는 중..."));
         $("#search-button").prop("disabled", true);
 
         MARIA.auth.ajax({
@@ -183,18 +231,16 @@ $(function () {
             .done(function (response) {
                 closures = response.data || [];
                 currentPage = 1;
-                if (closures.length) {
-                    selectedClosureId = Number(closures[0].closureRequestId);
-                    renderList();
-                    loadDetail(selectedClosureId);
-                } else {
-                    selectedClosureId = null;
-                    renderList();
-                }
+                selectedClosureId = null;
+                renderList();
             })
             .fail(function (xhr) {
                 closures = [];
                 renderList();
+                if (xhr.status === 403) {
+                    $("#closure-list").html(stateRow("접근 권한이 없습니다. 해지 신청은 심사담당 이상만 볼 수 있습니다."));
+                    $("#closure-count").text("-");
+                }
                 if (xhr.status !== 401) {
                     showError((xhr.responseJSON && xhr.responseJSON.message) || "해지 신청 목록을 불러오지 못했습니다.");
                 }
@@ -245,21 +291,25 @@ $(function () {
     }
 
     $("#search-button").on("click", loadClosures);
-    $(document).on("click", ".closure-list-item", function () {
-        loadDetail(Number($(this).data("closure-id")));
+    $("#closure-list").on("click", "tr[data-closure-id]", function () {
+        var id = Number($(this).data("closure-id"));
+        selectedClosureId = id;
+        $("#closure-list tr.is-selected").removeClass("is-selected");
+        $(this).addClass("is-selected");
+        loadDetail(id);
     });
-    $("#previous-closure-page").on("click", function () {
-        if (currentPage > 1) {
-            currentPage -= 1;
-            selectFirstClosureOnCurrentPage();
+    $("#closure-list").on("keydown", "tr[data-closure-id]", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            $(this).trigger("click");
         }
     });
-    $("#next-closure-page").on("click", function () {
-        var totalPages = Math.max(1, Math.ceil(closures.length / PAGE_SIZE));
-        if (currentPage < totalPages) {
-            currentPage += 1;
-            selectFirstClosureOnCurrentPage();
-        }
+    $("#closure-drawer-close, #closure-drawer-backdrop").on("click", closeDrawer);
+    MARIA.tableSort.bind(".closure-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        currentPage = 1;
+        closeDrawer();
+        renderList();
     });
     $("#approve-button").on("click", function () {
         processClosure("approve");
@@ -272,19 +322,4 @@ $(function () {
     MARIA.auth.requireAuth().done(function () {
         loadClosures();
     });
-
-    function selectFirstClosureOnCurrentPage() {
-        var firstIndex = (currentPage - 1) * PAGE_SIZE;
-        var firstClosure = closures[firstIndex];
-
-        if (!firstClosure) {
-            renderList();
-            clearDetail();
-            return;
-        }
-
-        selectedClosureId = Number(firstClosure.closureRequestId);
-        renderList();
-        loadDetail(selectedClosureId);
-    }
 });

@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -92,6 +93,49 @@ public class SecuritiesMarketClient {
         return quotes;
     }
 
+    /**
+     * 종목별 최근 days개 영업일 종가(asOf 이하, 날짜 오름차순). 요청한 종목 중 증권사에 종가가 있는 종목만 담는다. 증권사가 asOf 이후 날짜를 주더라도
+     * 여기서 걸러서 업무일 이후의 값이 화면에 나가지 않게 한다.
+     */
+    public Map<String, List<ClosePoint>> domesticHistory(
+            Collection<String> tickers, LocalDate asOf, int days) {
+        List<String> requested = List.copyOf(new LinkedHashSet<>(tickers));
+        Map<String, List<ClosePoint>> history = new HashMap<>();
+        for (int from = 0; from < requested.size(); from += BATCH_SIZE) {
+            List<String> batch =
+                    requested.subList(from, Math.min(from + BATCH_SIZE, requested.size()));
+            for (HistoryRow row :
+                    fetch(
+                            "/api/domestic-prices/history",
+                            "tickers",
+                            batch,
+                            asOf,
+                            Map.of("days", days),
+                            new ParameterizedTypeReference<ApiResponseDTO<List<HistoryRow>>>() {},
+                            ErrorType.KIS_PRICE_NOT_FOUND,
+                            String.join(",", batch))) {
+                if (row == null || !batch.contains(row.ticker()) || row.points() == null) {
+                    continue;
+                }
+                List<ClosePoint> points =
+                        row.points().stream()
+                                .filter(
+                                        p ->
+                                                p != null
+                                                        && p.baseDate() != null
+                                                        && !p.baseDate().isAfter(asOf)
+                                                        && p.closeKrw() != null
+                                                        && p.closeKrw().signum() > 0)
+                                .sorted(Comparator.comparing(ClosePoint::baseDate))
+                                .toList();
+                if (!points.isEmpty()) {
+                    history.put(row.ticker(), points);
+                }
+            }
+        }
+        return history;
+    }
+
     public PriceWithDate foreignPreviousClose(String ticker, LocalDate asOf) {
         for (ForeignRow row :
                 fetch(
@@ -152,15 +196,29 @@ public class SecuritiesMarketClient {
             ParameterizedTypeReference<ApiResponseDTO<List<T>>> type,
             ErrorType failure,
             String errorData) {
+        return fetch(path, param, keys, asOf, Map.of(), type, failure, errorData);
+    }
+
+    private <T> List<T> fetch(
+            String path,
+            String param,
+            List<String> keys,
+            LocalDate asOf,
+            Map<String, ?> extraParams,
+            ParameterizedTypeReference<ApiResponseDTO<List<T>>> type,
+            ErrorType failure,
+            String errorData) {
         try {
             ApiResponseDTO<List<T>> response =
                     client.get()
                             .uri(
-                                    builder ->
-                                            builder.path(path)
-                                                    .queryParam(param, String.join(",", keys))
-                                                    .queryParam("asOf", asOf)
-                                                    .build())
+                                    builder -> {
+                                        builder.path(path)
+                                                .queryParam(param, String.join(",", keys))
+                                                .queryParam("asOf", asOf);
+                                        extraParams.forEach(builder::queryParam);
+                                        return builder.build();
+                                    })
                             .accept(MediaType.APPLICATION_JSON)
                             .retrieve()
                             .body(type);
@@ -175,6 +233,11 @@ public class SecuritiesMarketClient {
     }
 
     record DomesticRow(String ticker, BigDecimal priceKrw, BigDecimal previousCloseKrw) {}
+
+    /** 증권사가 주는 일별 종가 한 점. */
+    public record ClosePoint(LocalDate baseDate, BigDecimal closeKrw) {}
+
+    record HistoryRow(String ticker, List<ClosePoint> points) {}
 
     record ForeignRow(String ticker, BigDecimal previousClose, LocalDate previousCloseDate) {}
 

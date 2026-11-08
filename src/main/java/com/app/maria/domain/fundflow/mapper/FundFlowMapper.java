@@ -1,5 +1,6 @@
 package com.app.maria.domain.fundflow.mapper;
 
+import com.app.maria.domain.fundflow.dto.FundFlowAccountFlowRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerReliefDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerSummaryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
@@ -9,7 +10,9 @@ import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowNetBuyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowOverviewDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRatioBinDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowReliefDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRetentionLotRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowTransactionRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotRowDTO;
@@ -28,6 +31,9 @@ public interface FundFlowMapper {
 
     List<FundFlowLeakageCategoryDTO> selectLeakage();
 
+    /** 매도한 계좌(weighted_sell > 0)의 조정비율 구간별 계좌 수. 코드는 AdjustRatioBin 이름. */
+    List<FundFlowRatioBinDTO> selectRatioBins();
+
     LocalDateTime selectSnapshotCalculatedAt();
 
     /** fund_flow_monthly 기반의 완료된 달(monthStart 이전). */
@@ -39,6 +45,15 @@ public interface FundFlowMapper {
     List<FundFlowSegmentRowDTO> selectSegments(FundFlowFilterDTO filter);
 
     FundFlowReliefDTO selectRelief(FundFlowFilterDTO filter);
+
+    /** 계좌별 기간 내 확정 유입·국내 매수 체결금액(연령대 포함). 개설된 계좌만. */
+    List<FundFlowAccountFlowRowDTO> selectAccountFlows(FundFlowFilterDTO filter);
+
+    /** 감면액이 0보다 큰 계좌의 감면액, 오름차순. */
+    List<java.math.BigDecimal> selectReliefAmounts(FundFlowFilterDTO filter);
+
+    /** 확정된 환전 건별 경과일과 사건(1년 미경과 원금 인출) 여부, 계좌 순. */
+    List<FundFlowRetentionLotRowDTO> selectRetentionLots(FundFlowFilterDTO filter);
 
     List<FundFlowProductCostDTO> selectProductCosts();
 

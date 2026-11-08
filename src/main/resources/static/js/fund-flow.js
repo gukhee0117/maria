@@ -1,13 +1,15 @@
 /* 자금 환류 대시보드 (1405) — A-14a · A-14b
    - 7개 API(overview · funnel · monthly · leakage · segments · relief · allocation)를 동시에 부르고, 패널마다 따로 로딩 · 오류(다시 시도) · 빈 상태를 둔다.
    - 모든 숫자는 API 응답에서만 온다. 화면에서 하는 계산은 응답 값끼리의 합계 · 비율 · 차이뿐이고, 계산식은 패널 아래 근거 문구에 적는다.
-   - ① 요약 6칸 ② Sankey(SVG) ③ 월별 콤보(Chart.js) ④ 예수금 브리지(SVG) ⑤ 퍼널(CSS) ⑥ 혜택 누수(CSS) ⑦ 감면 워터폴(SVG) ⑧ 국내 운용처(CSS)
-     ⑨ 연령대 × 투자성향 히트맵(CSS grid) ⑩ 지표 정의 · 데이터 품질(표) + PDF 로 저장(새 창 A4 세로 인쇄). */
+   - ① 요약 6칸 ② Sankey(SVG) ③ 월별 콤보(Chart.js) ④ 퍼널(CSS) ⑤ 혜택 누수(CSS · 조정비율 히스토그램) ⑥ 감면 워터폴(SVG) ⑦ 혜택 집중도(SVG · 로렌츠)
+     ⑧ 원금 유지(SVG · Kaplan-Meier) ⑨ 국내 운용처(CSS) ⑩ 예수금 브리지(SVG) ⑪ 연령대 × 투자성향 히트맵(CSS grid · 연령대별 중앙값) ⑫ 지표 정의 · 데이터 품질(표)
+   + PDF 로 저장(새 창 A4 세로 인쇄). 기간(이번 달 · 분기 · 출시 이후)은 period 를 받는 API 에만 적용하고 세액 스냅샷 패널은 기간과 무관하다. */
 $(function () {
     var KRW = new Intl.NumberFormat("ko-KR");
     var state = {};          // API 이름 → 응답 data
     var chart = null;        // ③ Chart.js 인스턴스
     var segMetric = "reinvestRatio";
+    var period = "ALL";      // 조회 기간: MONTH(이번 달) · QUARTER(분기) · ALL(출시 이후 누적)
     var BOUNDARIES = ["05", "07"]; // 공제율 구간 경계: 5/31 · 7/31
     var LEAK_ORDER = ["NO_SELL", "NO_IMPACT", "PARTIAL_REDUCED", "BENEFIT_CANCELED", "EXTERNAL_BUY_OFFSET"];
     var LEAK_COLOR = {
@@ -21,13 +23,15 @@ $(function () {
     var LIGHT_BG = { "--adm-chart-gray": 1, "--adm-chart-gold": 1, "--adm-chart-5": 1, "--adm-chart-4": 1 }; // 밝은 바탕은 글자색을 어둡게
 
     var API = {
-        overview: { url: "/api/admin/fund-flow/overview" },
-        funnel: { url: "/api/admin/fund-flow/funnel" },
-        monthly: { url: "/api/admin/fund-flow/monthly" },
-        leakage: { url: "/api/admin/fund-flow/leakage" },
-        segments: { url: "/api/admin/fund-flow/segments" },
-        relief: { url: "/api/admin/fund-flow/relief" },
-        allocation: { url: "/api/admin/fund-flow/allocation" }
+        overview: { url: "/api/admin/fund-flow/overview", period: true },
+        funnel: { url: "/api/admin/fund-flow/funnel", period: true },
+        monthly: { url: "/api/admin/fund-flow/monthly", period: true },
+        leakage: { url: "/api/admin/fund-flow/leakage" },       // 세액 스냅샷: 기간과 무관
+        segments: { url: "/api/admin/fund-flow/segments", period: true },
+        relief: { url: "/api/admin/fund-flow/relief" },         // 세액 스냅샷: 기간과 무관
+        allocation: { url: "/api/admin/fund-flow/allocation", period: true }, // 구성은 현재 보유(무관), 순매수 Top 10 만 기간 적용
+        retention: { url: "/api/admin/fund-flow/retention", period: true },     // 기간 = 그 기간에 환전이 확정된 건의 코호트
+        concentration: { url: "/api/admin/fund-flow/concentration" }           // 세액 스냅샷: 기간과 무관
     };
 
     /* ---------- 표기 ---------- */
@@ -99,6 +103,29 @@ $(function () {
         return shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--font-scale")) || 1 : 1;
     }
 
+    // 서버와 같은 규칙: 기준일(asOfDate)이 속한 달 · 분기의 첫날부터 기준일까지. ALL 은 하한 없음.
+    function periodStart(asOf) {
+        if (period === "ALL" || !asOf) return null;
+        var y = Number(String(asOf).slice(0, 4)), m = Number(String(asOf).slice(5, 7));
+        var startMonth = period === "MONTH" ? m : Math.floor((m - 1) / 3) * 3 + 1;
+        return y + "-" + (startMonth < 10 ? "0" : "") + startMonth + "-01";
+    }
+
+    function periodName() {
+        return period === "MONTH" ? "이번 달" : period === "QUARTER" ? "분기" : "출시 이후 누적";
+    }
+
+    // "이번 달 (2026-11-01 ~ 2026-11-17)" 형태. 기준일을 아직 모르면 이름만.
+    function periodLabel() {
+        var asOf = (state.overview && state.overview.asOfDate) || (state.monthly && state.monthly.asOfDate);
+        var from = periodStart(asOf);
+        return from ? periodName() + " (" + from + " ~ " + asOf + ")" : periodName();
+    }
+
+    function renderPeriodRange() {
+        $("#ffPeriodRange").text(periodLabel());
+    }
+
     function monthKey(m) {
         return String(m.flowMonth || "").slice(0, 7);
     }
@@ -167,11 +194,12 @@ $(function () {
         summarySet("ffSumInflow", krwShort(d.inflowTotal), "확정된 원화 유입 합계 (가정산 제외)");
         summarySet("ffSumReinvest", d.reinvestRatio == null ? "-" : (d.reinvestRatio * 100).toFixed(1), "재투자율 = 국내 매수 체결금액 합계 ÷ 확정 원화 유입 합계 (합계 비율)");
         $("#ffAsOf").text("집계 기준일 " + (d.asOfDate || "-"));
+        renderPeriodRange();
     }
 
     function renderReliefSummary() {
         var d = state.relief;
-        summarySet("ffSumRelief", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계 (예상값)");
+        summarySet("ffSumRelief", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계 (예상값) · 기간과 무관한 기준일 스냅샷");
         if (d.investPerRelief == null) {
             summarySet("ffSumPerRelief", "-", "감면액이 0원이라 계산하지 않아요");
         } else {
@@ -392,7 +420,7 @@ $(function () {
         // 근거 문구
         var range = months.length ? monthKey(months[0]) + " ~ " + monthKey(months[months.length - 1]) : "-";
         var partial = months.filter(function (m) { return m.partial; }).map(monthKey);
-        addNote($notes, "기간: 출시 이후 누적 · 월별 합계(" + range + ")" +
+        addNote($notes, "기간: " + periodLabel() + " · 월별 합계(" + range + ")" +
             (partial.length ? " · 진행 중인 달(" + partial.join(", ") + ")은 집계 기준일까지 포함" : "") + " · 비율은 해외 매도 대비", false);
         addNote($notes, "예수금 잔류 = 확정 원화 + 국내 매도 회수 − 국내 매수 − 인출 (월별 합계로 계산). 연결선의 출처 배분은 인출 → 국내 매수 → 잔류 순으로 채운 표시용 배치이고, 노드 금액이 실제 합계예요", false);
         if (gapOut > 0) {
@@ -508,7 +536,7 @@ $(function () {
                 labels: monthLabels(months),
                 datasets: [
                     { type: "bar", label: "확정 원화 유입", data: inflow, backgroundColor: colors(cInflow, pInflow), borderColor: cInflow, borderWidth: borderW, yAxisID: "y", order: 2, maxBarThickness: 28 },
-                    { type: "bar", label: "국내 매수", data: buy, backgroundColor: colors(cBuy, pBuy), borderColor: cBuy, borderWidth: borderW, yAxisID: "y", order: 2, maxBarThickness: 28 },
+                    { type: "bar", label: "국내 매수(수수료 포함)", data: buy, backgroundColor: colors(cBuy, pBuy), borderColor: cBuy, borderWidth: borderW, yAxisID: "y", order: 2, maxBarThickness: 28 },
                     { type: "line", label: "월 재투자율", data: rate, borderColor: cRate, backgroundColor: cRate, pointBackgroundColor: cRate, pointRadius: 3, borderWidth: 2, tension: 0, yAxisID: "y1", order: 1 }
                 ]
             },
@@ -525,7 +553,7 @@ $(function () {
                             label: function (ctx) {
                                 if (ctx.dataset.yAxisID === "y1") return ctx.dataset.label + " " + pct1(ctx.parsed.y);
                                 var m = months[ctx.dataIndex];
-                                return ctx.dataset.label + " " + krwShort(ctx.parsed.y) + "원" + (ctx.dataset.label === "국내 매수" && num(m.krwInflowAmount) > 0 ? " (유입 대비 " + pct1(num(m.domesticBuyAmount) / num(m.krwInflowAmount)) + ")" : "");
+                                return ctx.dataset.label + " " + krwShort(ctx.parsed.y) + "원" + (ctx.dataset.label === "국내 매수(수수료 포함)" && num(m.krwInflowAmount) > 0 ? " (유입 대비 " + pct1(num(m.domesticBuyAmount) / num(m.krwInflowAmount)) + ")" : "");
                             },
                             afterBody: function (items) {
                                 var m = months[items[0].dataIndex];
@@ -557,7 +585,7 @@ $(function () {
         addNote($notes, "세로 점선 = 공제율 구간 경계(5/31, 7/31), 빗금 = 진행 중인 달(집계 기준일까지)", false);
     }
 
-    /* ---------- ④ 예수금 브리지 (워터폴) ---------- */
+    /* ---------- ⑩ 예수금 브리지 (워터폴) ---------- */
     function fillBridgeSelect() {
         var months = monthsOf();
         var $sel = $("#ffBridgeMonth").empty();
@@ -686,7 +714,7 @@ $(function () {
         buildBridge($("#ffBridge"), $("#ffBridgeNotes"), Number($("#ffBridgeMonth").val()));
     }
 
-    /* ---------- ⑤ 퍼널 (CSS 가로 막대) ---------- */
+    /* ---------- ④ 퍼널 (CSS 가로 막대) ---------- */
     function renderFunnel() {
         var d = state.funnel || {};
         var stages = d.stages || [];
@@ -713,10 +741,11 @@ $(function () {
         $("#ffFunnel").html(html);
         var $notes = $("#ffFunnelNotes").empty();
         addNote($notes, "고객 수 기준 · 오른쪽 % = 처음 단계(웹 가입) 대비, 회색 막대 = 직전 단계에서 이탈한 고객(직전 단계 − 이 단계)", false);
+        if (period !== "ALL") addNote($notes, "기간 적용: " + periodLabel() + "에 가입한 고객만 따라가는 코호트 기준이에요(이 고객들이 지금까지 각 단계에 도달한 비율)", false);
         if (d.basis) addNote($notes, d.basis, false);
     }
 
-    /* ---------- ⑥ 혜택 누수 (100% 누적 막대) ---------- */
+    /* ---------- ⑤ 혜택 누수 (100% 누적 막대) ---------- */
     function renderLeakage() {
         var d = state.leakage || {};
         var $card = $("#ffPanelLeakage");
@@ -750,7 +779,21 @@ $(function () {
         });
         $("#ffLeakRows").html(rows);
 
+        var bins = d.ratioBins || [];
+        var soldTotal = bins.reduce(function (sum, b) { return sum + num(b.accounts); }, 0);
+        var maxShare = Math.max.apply(null, bins.map(function (b) { return num(b.share); }).concat([0.0001]));
+        $("#ffRatioHist").html(bins.map(function (b) {
+            var share = num(b.share);
+            var tip = "조정비율 " + b.label + "\n" + KRW.format(num(b.accounts)) + "계좌 (매도한 계좌의 " + pct1(share) + ")";
+            return '<div class="ff-hist-col" data-tip="' + esc(tip) + '"><span class="ff-hist-val">' + pct1(share) + '</span>' +
+                '<div class="ff-hist-bar" style="height:' + Math.round(share / maxShare * 78) + 'px"></div>' +
+                '<span class="ff-hist-lab">' + esc(b.label) + '</span></div>';
+        }).join("") || '<div class="ff-soon-text">매도한 계좌가 없어요</div>');
+
         var $notes = $("#ffLeakNotes").empty();
+        if (bins.length) {
+            addNote($notes, "조정비율 = 1 − (타 계좌 순매수 가중합 ÷ RIA 내 매도 가중합), 0~1로 제한. 매도한 " + KRW.format(soldTotal) + "계좌 기준이고, 혜택 취소 계좌도 조정비율 값대로 들어가요", false);
+        }
         var extSold = cats.filter(function (c) { return MARIA.status.leakageGroup(c.code) !== "excluded"; })
             .reduce(function (s, c) { return s + num(c.withExternalBuy); }, 0);
         addNote($notes, "다른 계좌 순매수가 있는 계좌 비율(매도한 계좌 기준) = " + KRW.format(extSold) + " ÷ " + KRW.format(g.base) + " = " + pct1(extSold / g.base), false);
@@ -768,7 +811,7 @@ $(function () {
         if (d.snapshotCalculatedAt) addNote($notes, "세액 스냅샷 계산 시각 " + String(d.snapshotCalculatedAt).replace("T", " ").slice(0, 16) + " · 표시용 예상값이며 확정 세액이 아니에요", false);
     }
 
-    /* ---------- ⑦ 감면 성과 (워터폴, 잠정) ---------- */
+    /* ---------- ⑥ 감면 성과 (워터폴, 잠정) ---------- */
     function buildRelief($host, width) {
         var d = state.relief || {};
         $host.empty();
@@ -833,7 +876,7 @@ $(function () {
         addNote($notes, "잠정 지표예요: 감면 계산에 쓰는 양도소득 범위가 아직 확정되지 않았어요(표시용 스냅샷 기준 예상값)", true);
     }
 
-    /* ---------- ⑧ 국내 운용처 ---------- */
+    /* ---------- ⑨ 국내 운용처 ---------- */
     function renderAllocation() {
         var d = state.allocation || {};
         var $card = $("#ffPanelAllocation");
@@ -891,12 +934,13 @@ $(function () {
 
         var $notes = $("#ffAllocNotes").empty();
         addNote($notes, "매입금액 기준(보유수량 × 평균 매입가)이고 현재가 평가액이 아니에요. 예수금은 포함하지 않아요(보유 종목 매입금액만)", false);
+        if (period !== "ALL") addNote($notes, "기간 적용: 순매수 상위 10종목만 " + periodLabel() + " 체결분이에요. 구성 막대와 HHI 는 현재 보유 기준이라 기간과 무관해요", false);
         addNote($notes, "막대·범례는 응답 buckets 를 업종 상위 5 + ETF·펀드(따로) + 기타(나머지 업종 " + rest.length + "개)로 묶은 것이고, 비중 = 금액 ÷ buckets 합계(" + krwShort(bucketSum) + "원)예요", false);
         addNote($notes, "HHI = 점유율² 합, 0(분산) ~ 1(쏠림). 응답 값 그대로이며 묶기 전 전체 buckets(업종 " + sectors.length + "개 + ETF·펀드) 기준이에요. 순매수 = 매수 체결금액 − 매도 체결금액", false);
         if (d.basis) addNote($notes, d.basis, false);
     }
 
-    /* ---------- ⑨ 연령대 × 투자성향 히트맵 ---------- */
+    /* ---------- ⑪ 연령대 × 투자성향 히트맵 ---------- */
     function renderSegments() {
         var d = state.segments || {};
         var $card = $("#ffPanelSegments");
@@ -959,13 +1003,156 @@ $(function () {
         html += cell(map["|"], false, "전체") + '</div>';
         $("#ffHeat").html(html).css("--ff-heat-cols", typeList.length + 1);
         $("#ffHeatLegend").html('<i class="ff-heat-ramp"></i>낮음 → 높음 <span class="ff-heat-null">-</span> 5명 미만 비공개 <b>' + nullCount + '칸</b>');
+        var meds = d.ageMedians || [];
+        var medHtml = '<div class="ff-leak-row is-head"><span>연령대</span><span class="is-r">유입 있는 계좌</span><span class="is-r">확정 유입 중앙값</span><span class="is-r">재투자율 중앙값</span><span class="is-r">재투자율(합계 비율)</span></div>';
+        meds.forEach(function (m) {
+            var sumCell = map[(m.ageBand || "") + "|"];
+            var hidden = m.inflowMedian == null;
+            medHtml += '<div class="ff-leak-row"><span>' + esc(m.ageBand || "전체") + '</span>' +
+                '<span class="is-r">' + KRW.format(num(m.accountsWithInflow)) + ' / ' + KRW.format(num(m.accounts)) + '</span>' +
+                '<span class="is-r">' + (hidden ? "-" : krwShort(m.inflowMedian) + "원") + '</span>' +
+                '<span class="is-r">' + (hidden ? "-" : pct1(Number(m.reinvestMedian))) + '</span>' +
+                '<span class="is-r">' + (sumCell && sumCell.reinvestRatio != null ? pct1(Number(sumCell.reinvestRatio)) : "-") + '</span></div>';
+        });
+        $("#ffMedian").html(meds.length ? medHtml : '<div class="ff-soon-text">계좌별 값이 없어요</div>');
+
         var $notes = $("#ffSegNotes").empty();
+        if (meds.length) {
+            addNote($notes, "중앙값 = 확정 유입이 있는 계좌별 값(재투자율은 국내 매수 ÷ 확정 유입)을 줄 세웠을 때 가운데 값이에요. 큰 계좌 한두 개에 끌려가지 않아서, 합계 비율과 많이 다르면 일부 큰 계좌가 전체 비율을 끌고 있다는 신호예요. 유입이 있는 계좌가 5개 미만이면 가려요", false);
+        }
         addNote($notes, "칸 값 = 칸별 합계 비율(" + (segMetric === "reinvestRatio" ? "Σ국내 매수 체결금액 ÷ Σ확정 유입" : "(Σ매수 − Σ매도) ÷ Σ확정 유입") + ") — 계좌별 비율의 평균이나 중앙값이 아니에요. 색은 이 표 안 최솟값 " + pct1(min) + " ~ 최댓값 " + pct1(max), false);
         addNote($notes, "5명 미만인 칸은 개인 식별 방지를 위해 비율을 가려요(비공개 " + nullCount + "칸 / 표시 칸 " + bodyCount + "개)", false);
+        if (period !== "ALL") addNote($notes, "기간 적용: 유입 · 매수 · 매도는 " + periodLabel() + " 합계이고, 칸의 계좌 수(5명 미만 가림 기준)는 누적 개설 계좌예요", false);
         if (d.basis) addNote($notes, d.basis, false);
     }
 
-    /* ---------- ⑩ 지표 정의 · 데이터 품질 ---------- */
+    /* ---------- ⑧ 원금 유지 (Kaplan-Meier + 95% 구간) ---------- */
+    function renderRetention() {
+        var d = state.retention || {};
+        var $card = $("#ffPanelRetention");
+        var pts = d.points || [];
+        if (!num(d.lots) || !pts.length) { showPanelEmpty($card); return; }
+        setPanel($card, "ready");
+
+        var W = 600, H = 214, L = 46, R = 12, T = 14, B = 34;
+        var XMAX = 365, obs = num(d.maxObservedDays);
+        var minLow = Math.min.apply(null, pts.map(function (p) { return num(p.lower); }));
+        var yMin = Math.floor(minLow * 20) / 20;
+        if (yMin > 0.95) yMin = 0.95;
+        function X(day) { return L + day / XMAX * (W - L - R); }
+        function Y(v) { return T + (1 - (v - yMin) / (1 - yMin)) * (H - T - B); }
+        function pctTick(v) { return (Math.round(v * 1000) / 10) + "%"; }
+
+        var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "확정 후 경과일별 원금 유지 확률과 95% 구간" });
+        if (obs < XMAX) {
+            var un = svgEl("rect", { x: X(obs), y: T, width: X(XMAX) - X(obs), height: H - T - B, "class": "ff-unobs" }, svg);
+            un.setAttribute("data-tip", "아직 관찰되지 않은 구간\n확정 후 " + obs + "일을 넘긴 건이 없어서\n1년(365일) 유지율은 계산할 수 없어요");
+            svgText(svg, (X(obs) + X(XMAX)) / 2, T + 16, "middle", "ff-t-sub", 11, "관찰 전", "");
+        }
+        for (var i = 0; i <= 4; i++) {
+            var v = yMin + (1 - yMin) * i / 4;
+            svgEl("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v), "class": "ff-grid-line" }, svg);
+            svgText(svg, L - 6, Y(v) + 4, "end", "ff-t-sub", 11, pctTick(v), "");
+        }
+        [0, 90, 180, 270, 365].forEach(function (day) {
+            svgText(svg, X(day), H - B + 15, "middle", "ff-t-sub", 11, day + "일", "");
+        });
+        svgText(svg, (L + W - R) / 2, H - 3, "middle", "ff-t-sub", 11, "확정 후 경과일", "");
+        svgEl("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, "class": "ff-axis" }, svg);
+
+        var upper = pts.map(function (p) { return X(p.day).toFixed(1) + "," + Y(num(p.upper)).toFixed(1); });
+        var lower = pts.map(function (p) { return X(p.day).toFixed(1) + "," + Y(num(p.lower)).toFixed(1); }).reverse();
+        svgEl("polygon", { points: upper.concat(lower).join(" "), "class": "ff-ci" }, svg);
+        svgEl("polyline", { points: pts.map(function (p) { return X(p.day).toFixed(1) + "," + Y(num(p.survival)).toFixed(1); }).join(" "), "class": "ff-km" }, svg);
+
+        var stepW = pts.length > 1 ? X(pts[1].day) - X(pts[0].day) : 12;
+        pts.forEach(function (p) {
+            var tip = "확정 후 " + p.day + "일\n원금 유지 " + pct1(Number(p.survival)) +
+                "\n95% 구간 " + pct1(Number(p.lower)) + " ~ " + pct1(Number(p.upper)) +
+                "\n금액 가중 " + pct1(Number(p.weightedSurvival)) +
+                "\n위험집합 " + KRW.format(num(p.atRisk)) + "건";
+            var hit = svgEl("rect", { x: X(p.day) - stepW / 2, y: T, width: stepW, height: H - T - B, "class": "ff-hit" }, svg);
+            hit.setAttribute("data-tip", tip);
+        });
+        $("#ffRetention").empty().get(0).appendChild(svg);
+
+        var rowsPts = [];
+        [30, 90, 180].forEach(function (day) {
+            var hit = pts.filter(function (q) { return q.day === day; })[0];
+            if (hit) rowsPts.push(hit);
+        });
+        var lastPt = pts[pts.length - 1];
+        if (rowsPts.indexOf(lastPt) < 0) rowsPts.push(lastPt);
+        var html = '<div class="ff-leak-row is-head"><span>경과일</span><span class="is-r">유지율(건수)</span><span class="is-r">95% 구간</span><span class="is-r">유지율(금액 가중)</span><span class="is-r">위험집합</span></div>';
+        rowsPts.forEach(function (p) {
+            html += '<div class="ff-leak-row"><span>확정 후 ' + p.day + '일</span>' +
+                '<span class="is-r">' + pct1(Number(p.survival)) + '</span>' +
+                '<span class="is-r">' + pct1(Number(p.lower)) + ' ~ ' + pct1(Number(p.upper)) + '</span>' +
+                '<span class="is-r">' + pct1(Number(p.weightedSurvival)) + '</span>' +
+                '<span class="is-r">' + KRW.format(num(p.atRisk)) + '건</span></div>';
+        });
+        $("#ffRetTable").html(html);
+
+        var $notes = $("#ffRetNotes").empty();
+        addNote($notes, "확정된 환전 " + KRW.format(num(d.lots)) + "건(" + KRW.format(num(d.accounts)) + "계좌) 중 1년 미경과 원금 인출 " + KRW.format(num(d.events)) +
+            "건. 시작 = 환전 확정, 사건 = 그 건의 1년 미경과 원금 인출, 사건이 없으면 기준일에서 중도절단", false);
+        addNote($notes, "가장 오래 관찰된 건이 확정 후 " + obs + "일이라 1년(365일) 유지율은 계산할 수 없어요. 회색은 아직 관찰되지 않은 구간이에요", false);
+        addNote($notes, "세로축은 " + pctTick(yMin) + "부터 시작해요(변화를 보이게 하려고 아래쪽을 잘랐어요). 띠는 95% 구간: 같은 계좌의 건은 사건 시점을 공유해 계좌 단위로 " + num(d.bootstrapReplicates) + "회 다시 뽑아 구했어요", false);
+        var tail = num(lastPt.atRisk) / num(d.lots);
+        if (tail < 0.1) {
+            addNote($notes, "오른쪽 끝(" + lastPt.day + "일)은 위험집합이 " + KRW.format(num(lastPt.atRisk)) + "건(전체의 " + pct1(tail) + ")뿐이라 구간이 넓고 해석을 조심해야 해요", true);
+        }
+        addNote($notes, "합성 데이터 주의: 1년 미경과 원금 인출이 해지 강제 인출뿐이라 곡선이 평평한 것은 고객 행동이 아니라 데이터 생성 규칙의 결과일 수 있어요", false);
+    }
+
+    /* ---------- ⑦ 혜택 집중도 (로렌츠 곡선 · 지니계수, 잠정) ---------- */
+    function renderConcentration() {
+        var d = state.concentration || {};
+        var $card = $("#ffPanelConc");
+        var pts = d.lorenz || [];
+        if (!num(d.accounts) || !pts.length) { showPanelEmpty($card); return; }
+        setPanel($card, "ready");
+
+        var S = 230, L = 38, R = 10, T = 10, B = 34;
+        var w = S - L - R, h = S - T - B;
+        function X(v) { return L + v * w; }
+        function Y(v) { return T + (1 - v) * h; }
+        var svg = svgEl("svg", { viewBox: "0 0 " + S + " " + S, role: "img", "aria-label": "감면액 로렌츠 곡선" });
+        [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+            svgEl("line", { x1: L, x2: S - R, y1: Y(v), y2: Y(v), "class": "ff-grid-line" }, svg);
+            svgText(svg, L - 5, Y(v) + 4, "end", "ff-t-sub", 10.5, Math.round(v * 100) + "%", "");
+            svgText(svg, X(v), S - B + 14, "middle", "ff-t-sub", 10.5, Math.round(v * 100) + "%", "");
+        });
+        svgText(svg, (L + S - R) / 2, S - 3, "middle", "ff-t-sub", 10.5, "계좌 누적(감면액 적은 순)", "");
+        svgEl("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), "class": "ff-diag" }, svg);
+        var curve = pts.map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.valueShare)).toFixed(1); });
+        var back = pts.slice().reverse().map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.populationShare)).toFixed(1); });
+        svgEl("polygon", { points: curve.concat(back).join(" "), "class": "ff-ci" }, svg);
+        svgEl("polyline", { points: curve.join(" "), "class": "ff-km" }, svg);
+        pts.forEach(function (p) {
+            if (num(p.populationShare) <= 0) return;
+            var c = svgEl("circle", { cx: X(num(p.populationShare)), cy: Y(num(p.valueShare)), r: 4, "class": "ff-hit" }, svg);
+            c.setAttribute("data-tip", "감면액이 적은 쪽 " + pct1(num(p.populationShare)) + "의 계좌가\n전체 감면액의 " + pct1(num(p.valueShare)) + "를 가져가요");
+        });
+        $("#ffLorenz").empty().get(0).appendChild(svg);
+
+        var gini = d.gini == null ? "-" : Number(d.gini).toFixed(2);
+        $("#ffConcBig").html(
+            '<div class="ff-big-label">지니계수</div>' +
+            '<div class="ff-big-value">' + esc(gini) + '</div>' +
+            '<div class="ff-big-sub">0 균등 ~ 1 한 계좌 독점</div>' +
+            '<div class="ff-big-line"><span>상위 10% 계좌 점유율</span><b>' + pct1(d.top10Share == null ? null : Number(d.top10Share)) + '</b></div>');
+        $("#ffConcKv").html(
+            '<div>감면을 받는 계좌<b>' + KRW.format(num(d.accounts)) + '개</b></div>' +
+            '<div>감면액 합계<b>' + krwShort(d.reliefTotal) + '원</b></div>' +
+            '<div>계좌당 평균 감면액<b>' + krwShort(num(d.reliefTotal) / num(d.accounts)) + '원</b></div>');
+        var $notes = $("#ffConcNotes").empty();
+        addNote($notes, "감면액이 0보다 큰 계좌만 대상이에요. 곡선이 대각선(완전 균등)에서 멀수록, 지니계수가 클수록 소수 계좌에 감면이 몰려 있다는 뜻이에요", false);
+        addNote($notes, "감면액은 양도소득 규모에 비례해 커지는 구조라, 집중이 곧 불공평을 뜻하지는 않아요(규모 효과). 자산 규모 구간별 형평성 분석은 구간 정의가 정해지면 추가해요", false);
+        addNote($notes, "잠정 지표예요: 감면액 정의(draft-1)와 양도소득 범위가 확정되지 않았어요. 세액 스냅샷 기준 예상값이라 기간 선택과 무관해요", true);
+    }
+
+    /* ---------- ⑫ 지표 정의 · 데이터 품질 ---------- */
     function asOfOf(api) {
         return state[api] && state[api].asOfDate ? state[api].asOfDate : "-";
     }
@@ -985,7 +1172,11 @@ $(function () {
             ["예상 감면액 [잠정]", "일반 과세 세액 − 최종 세액 합계", "-", "세액 스냅샷 · 범위 " + scope, asOfOf("relief")],
             ["감면 1원당 국내 운용액 [잠정]", "순투자액(국내 매수 − 국내 매도)", "예상 감면액", "세액 스냅샷 · 범위 " + scope, asOfOf("relief")],
             ["국내 운용처", "보유 종목 매입금액(수량 × 평균 매입가)", "운용처 합계", "보유 수량 > 0", asOfOf("allocation")],
-            ["연령대 × 투자성향", "칸별 Σ 국내 매수 체결금액 · 순투자액", "칸별 Σ 확정 원화 유입", "5명 미만 칸은 비공개", asOfOf("segments")]
+            ["연령대 × 투자성향", "칸별 Σ 국내 매수 체결금액 · 순투자액", "칸별 Σ 확정 원화 유입", "5명 미만 칸은 비공개", asOfOf("segments")],
+            ["연령대별 중앙값", "계좌별 확정 유입 · 재투자율(매수 ÷ 유입)의 가운데 값", "-", "확정 유입이 있는 계좌(5개 미만 비공개)", asOfOf("segments")],
+            ["조정비율 분포", "조정비율 구간별 계좌 수", "매도한 계좌 수", "세액 스냅샷 계좌", snap || asOfOf("leakage")],
+            ["원금 유지 [Kaplan-Meier]", "확정 후 경과일까지 1년 미경과 원금이 인출되지 않은 건 비율", "그 경과일 이상 관찰된 건(위험집합)", "확정된 환전 건 · 95% 구간은 계좌 단위 부트스트랩", asOfOf("retention")],
+            ["혜택 집중도 [잠정]", "감면액 상위 10% 계좌 점유율 · 지니계수 · 로렌츠 곡선", "감면액 합계", "감면액 > 0 계좌 · 세액 스냅샷", asOfOf("concentration")]
         ];
         var html = '<div class="ff-defs-row is-head" role="row"><span>지표</span><span>분자</span><span>분모</span><span>대상</span><span>기준 시각</span></div>';
         rows.forEach(function (r) {
@@ -1003,8 +1194,229 @@ $(function () {
         addNote($l, "한계 · 혜택 상태 3분류 묶는 기준: 정상 = 영향 없음, 부분 축소 = 부분 축소, 취소 = 혜택 취소 + 순매수 소멸. 분모는 매도 없음을 뺀 계좌(매도한 계좌)예요. 계좌 관리 화면의 \"일부 감액\"(외부 순매수가 있는 모든 계좌)과는 다른 값이에요", false);
         addNote($l, "한계 · 국내 매수 기준 차이: 상단 재투자율(overview)은 체결금액(수수료 제외), 월별 그래프(monthly)는 수수료를 포함한 예수금 순액이라 두 값이 달라요" + diffNote + " (백엔드 요청 #74)", false);
         addNote($l, "한계 · 잠정 지표: 예상 감면액과 감면 1원당 국내 운용액은 정의 " + ((state.relief && state.relief.definitionVersion) || "draft-1") + " 기준 예상값이에요. 세액 스냅샷은 표시용이며 확정 세액이 아니에요", true);
-        addNote($l, "한계 · 이 화면에 없는 지표: 기간 선택(이번 달·분기, #72), 원금 유지율(KM), 혜택 집중도(로렌츠·지니), 연령대별 중앙값(#73), 퍼널의 금액 기준 전환(API 없음). 기간은 \"출시 이후 누적\" 한 가지예요", false);
+        addNote($l, "한계 · 이 화면에 없는 지표: 퍼널의 금액 기준 전환(API 없음), 자산 규모 구간별 형평성(구간 정의 미확정). 혜택 누수 · 감면 성과 · 혜택 집중도는 세액 스냅샷이라 기간 선택을 따르지 않아요(기준일 값)", false);
+        addNote($l, "한계 · 원금 유지: 가장 오래 관찰된 건이 1년에 못 미쳐 1년 유지율은 정의할 수 없고, 관찰된 기간까지만 보여요. 오른쪽 끝은 위험집합이 작아 구간이 넓어요", false);
         addNote($l, "한계 · 인과 효과가 아니에요(RIA가 없었어도 돌아왔을 돈을 구분하지 못해요). 5명 미만 칸은 가려요. PDF 저장은 감사 로그에 남기지 않아요(기록 API 없음, #75)", false);
+    }
+
+    /* ---------- 해석 층: 핵심 한 줄(응답 값으로 만든 문장) + 접어둔 상세 해석 ----------
+       문장은 모두 state 의 값에서 만든다. 원인을 단정하는 표현(~때문에, ~덕분, ~효과)은 쓰지 않고,
+       "무엇을 보나 / 어떻게 읽나 / 말할 수 없는 것"을 나눠 적는다. PDF 에서는 상세 해석을 펼쳐서 낸다. */
+    function setInterp(sel, insight, detail) {
+        var $card = $(sel);
+        var $body = $card.children(".ff-body");
+        if (!$body.length) return;
+        var $box = $body.children(".ff-interp");
+        if (!$box.length) {
+            $box = $('<div class="ff-interp"></div>');
+            var $notes = $body.children(".ff-notes").first();
+            if ($notes.length) $box.insertBefore($notes); else $box.appendTo($body);
+        }
+        var html = "";
+        if (insight) html += '<p class="ff-insight"><b>핵심</b>' + esc(insight) + '</p>';
+        if (detail) {
+            html += '<details class="ff-detail"><summary>해석 보기</summary><dl>' +
+                '<dt>무엇을 보나</dt><dd>' + esc(detail.see) + '</dd>' +
+                '<dt>어떻게 읽나</dt><dd>' + esc(detail.read) + '</dd>' +
+                '<dt>말할 수 없는 것</dt><dd>' + esc(detail.limit) + '</dd></dl></details>';
+        }
+        $box.html(html);
+    }
+
+    function hhiWord(v) {
+        if (v == null) return "-";
+        return v < 0.15 ? "분산" : v > 0.25 ? "집중" : "보통";
+    }
+
+    var INTERP = {
+        sankey: function () {
+            var months = monthsOf();
+            if (!months.length) return;
+            var t = totals(months);
+            var base = t.sell || t.krw || 1;
+            var rest = t.krw + t.dsell - t.buy - t.wd;
+            setInterp("#ffPanelSankey",
+                "해외 매도 " + krwShort(t.sell) + "원 중 확정 원화는 " + krwShort(t.krw) + "원(" + pct1(t.krw / base) + ")이고, 여기에 국내 매도 회수 " + krwShort(t.dsell) +
+                "원을 더해 국내 매수 " + krwShort(t.buy) + "원 · 인출 " + krwShort(t.wd) + "원을 쓰고 " + krwShort(Math.max(0, rest)) + "원이 예수금에 남았어요",
+                {
+                    see: "해외 주식을 판 돈이 원화로 확정된 뒤 국내 매수, 예수금 잔류, 인출로 나뉘는 규모를 월별 합계로 본 그림이에요.",
+                    read: "노드 높이가 금액이에요. 해외 매도와 확정 원화의 '차이'는 환율 · 수수료 · 미확정 가환전분이에요. 국내 매수가 크고 예수금 잔류가 작을수록 돈이 국내 투자로 이어진 비중이 커요.",
+                    limit: "연결선의 출처 배분은 표시용 배치라서 '이 돈이 저기로 갔다'는 개별 추적이 아니에요. 합계 흐름이므로 계좌마다 어떻게 움직였는지는 알 수 없어요."
+                });
+        },
+        monthly: function () {
+            var months = monthsOf().filter(function (m) { return !m.partial; });
+            if (!months.length) return;
+            function group(m) {
+                var mm = Number(monthKey(m).slice(5, 7));
+                return mm <= 5 ? "1~5월" : mm <= 7 ? "6~7월" : "8월 이후";
+            }
+            var sums = {}, counts = {};
+            months.forEach(function (m) {
+                var g = group(m);
+                sums[g] = (sums[g] || 0) + num(m.krwInflowAmount);
+                counts[g] = (counts[g] || 0) + 1;
+            });
+            var parts = ["1~5월", "6~7월", "8월 이후"].filter(function (g) { return counts[g]; }).map(function (g) {
+                return g + " " + krwShort(sums[g] / counts[g]) + "원";
+            });
+            var rates = months.filter(function (m) { return num(m.krwInflowAmount) > 0; }).map(function (m) {
+                return { key: monthKey(m), v: num(m.domesticBuyAmount) / num(m.krwInflowAmount) };
+            });
+            var tail = "";
+            if (rates.length) {
+                var lo = rates.reduce(function (a, b) { return b.v < a.v ? b : a; });
+                var hi = rates.reduce(function (a, b) { return b.v > a.v ? b : a; });
+                tail = " · 월 재투자율은 " + lo.key + " " + pct1(lo.v) + " ~ " + hi.key + " " + pct1(hi.v) + " 범위예요";
+            }
+            setInterp("#ffPanelMonthly", "월평균 확정 원화 유입: " + parts.join(" · ") + tail,
+                {
+                    see: "달마다 확정된 원화 유입과 국내 매수, 그리고 유입 대비 매수 비율(월 재투자율)이에요. 점선은 공제율이 바뀌는 5/31, 7/31이에요.",
+                    read: "구간 경계 앞뒤로 월평균 유입이 크게 다르면 감면율이 내려가기 전후로 매도 시점이 달랐다는 신호예요. 월 재투자율이 100%를 넘는 달은 이전 예수금이나 국내 매도 회수금이 함께 쓰인 거예요.",
+                    limit: "경계 앞에서 유입이 많다고 해서 감면율 때문이라고 단정할 수 없어요(상관만 보여요). 진행 중인 달은 부분 집계이고, 월별 국내 매수는 수수료를 포함한 순액이라 상단 재투자율과 값이 달라요."
+                });
+        },
+        bridge: function () {
+            var m = monthsOf()[Number($("#ffBridgeMonth").val())];
+            if (!m) return;
+            var parts = ["확정 원화 +" + krwShort(num(m.krwInflowAmount)), "국내 매수 −" + krwShort(num(m.domesticBuyAmount)),
+                "국내 매도 +" + krwShort(num(m.domesticSellAmount)), "인출 −" + krwShort(num(m.withdrawalAmount))];
+            var net = num(m.krwInflowAmount) - num(m.domesticBuyAmount) + num(m.domesticSellAmount) - num(m.withdrawalAmount);
+            setInterp("#ffPanelBridge", monthKey(m) + (m.partial ? "(진행 중)" : "") + ": " + parts.join(", ") + " → 예수금 순증감 " + (net >= 0 ? "+" : "−") + krwShort(Math.abs(net)) + "원",
+                {
+                    see: "고른 달에 예수금이 어디서 들어와 어디로 나갔는지 월초 잔고에서 월말 잔고까지 나눠 본 그림이에요.",
+                    read: "초록 막대가 늘리고 주황 막대가 줄이는 항목이에요. 회색 '차이' 막대가 없으면 계산한 월말과 실제 월말 예수금이 맞는다는 뜻이라 데이터가 앞뒤로 맞물려요.",
+                    limit: "달 전체의 합계라 하루 중 어느 시점에 움직였는지는 알 수 없어요. 차이 막대가 생기면 원천 값을 확인해야 하고, 그 원인은 이 화면에서 알 수 없어요."
+                });
+        },
+        funnel: function () {
+            var st = (state.funnel && state.funnel.stages) || [];
+            if (st.length < 2) return;
+            var worst = 1;
+            for (var i = 2; i < st.length; i++) {
+                if (num(st[i].convPrev) < num(st[worst].convPrev)) worst = i;
+            }
+            var last = st[st.length - 1];
+            var drop = Math.max(0, num(st[worst - 1].customers) - num(st[worst].customers));
+            setInterp("#ffPanelFunnel",
+                (period === "ALL" ? "" : periodLabel() + "에 가입한 고객 기준 · ") +
+                "가장 크게 빠지는 단계는 '" + st[worst - 1].stage + " → " + st[worst].stage + "'(" + pct1(num(st[worst].convPrev)) + " 통과, " + KRW.format(drop) +
+                "명 이탈)이고, 가입한 고객의 " + pct1(num(last.convTotal)) + "가 '" + last.stage + "'까지 도달했어요",
+                {
+                    see: "웹에 가입한 고객이 마이데이터 동의, 계좌 신청, 개설, 첫 매도, 첫 국내 매수 순으로 몇 명이나 다음 단계에 도달했는지예요. 앞 단계를 모두 지난 고객만 세요.",
+                    read: "직전 단계 대비 전환율이 낮은 단계가 이탈이 큰 지점이에요. 회색 막대는 직전 단계에서 빠진 고객이고, 오른쪽 %는 가입 고객 대비 누적 도달률이에요. 기간을 고르면 그 기간에 가입한 고객만 따라가요.",
+                    limit: "고객 수 기준이라 금액 규모는 알 수 없고, 이탈한 이유도 이 화면에서는 알 수 없어요. 합성 데이터라 단계 간 전환율에는 데이터 생성 규칙이 반영돼 있어요."
+                });
+        },
+        leakage: function () {
+            var d = state.leakage;
+            if (!d) return;
+            var g = leakageGroups(d);
+            if (!g.base) return;
+            var offset = (d.categories || []).filter(function (c) { return c.code === "EXTERNAL_BUY_OFFSET"; })[0];
+            setInterp("#ffPanelLeakage",
+                "매도한 " + KRW.format(g.base) + "계좌 중 영향 없음 " + pct1(g.normal / g.base) + ", 부분 축소 " + pct1(g.reduced / g.base) + ", 취소 · 소멸 " + pct1(g.canceled / g.base) +
+                "예요. 타 계좌 순매수로 혜택이 사라진 계좌는 " + KRW.format(num(offset && offset.accounts)) + "개(전체의 " + pct1(num(offset && offset.accounts) / num(d.total)) + ")예요",
+                {
+                    see: "RIA 밖 계좌에서 해외주식을 다시 사면 그만큼 혜택이 줄어요. 모든 계좌를 '매도 없음 → 혜택 취소 → 영향 없음 → 부분 축소 → 순매수 소멸' 중 먼저 걸리는 하나로만 분류했어요.",
+                    read: "조정비율이 1이면 영향 없음, 0과 1 사이면 부분 축소, 0이면 소멸이에요. 조정비율 0 안에 매도 없음 · 해지 · 순매수 소멸이 섞여 있어서 원인별로 따로 셌어요. 아래 히스토그램은 매도한 계좌의 조정비율 분포예요.",
+                    limit: "세액 스냅샷의 예상값이고 확정 세액이 아니에요. 계좌 수 비율이라 금액 규모는 반영되지 않아서, 소멸 계좌가 적어도 금액이 작다고 말할 수는 없어요."
+                });
+        },
+        relief: function () {
+            var d = state.relief;
+            if (!d || d.generalTaxTotal == null) return;
+            var ratio = num(d.generalTaxTotal) > 0 ? num(d.reliefTotal) / num(d.generalTaxTotal) : null;
+            setInterp("#ffPanelRelief",
+                "예상 감면액 " + krwShort(d.reliefTotal) + "원(일반 과세 세액의 " + pct1(ratio) + ")이고, 감면을 받는 계좌는 " + KRW.format(num(d.accountsWithRelief)) + " / " + KRW.format(num(d.accounts)) +
+                "개(" + pct1(num(d.accounts) ? num(d.accountsWithRelief) / num(d.accounts) : null) + ")예요" +
+                (d.investPerRelief == null ? "" : ". 감면 1원당 국내 순투자는 " + Number(d.investPerRelief).toFixed(1) + "원이에요"),
+                {
+                    see: "RIA가 없었다면 냈을 일반 과세 세액과 RIA를 적용한 최종 세액의 차이(감면액), 그리고 감면 1원당 국내에 순투자된 금액이에요.",
+                    read: "감면 비율이 높을수록 정부가 포기한 세수가 커요. 감면 1원당 순투자는 클수록 같은 감면으로 더 많은 돈이 국내에 남았다는 뜻이고, 분모를 전체 계좌로 볼지 감면 받는 계좌만으로 볼지에 따라 값이 크게 달라져요.",
+                    limit: "감면 1원당 투자액은 상관을 나눈 값이라 '감면 1원이 이만큼을 만들었다'는 정책 효과가 아니에요. 감면이 없었어도 돌아왔을 돈이 섞여 있어요. 양도소득 범위 정의가 확정되지 않은 잠정 값이에요."
+                });
+        },
+        allocation: function () {
+            var d = state.allocation;
+            if (!d || !(d.buckets || []).length) return;
+            var top = d.buckets.slice().sort(function (a, b) { return num(b.value) - num(a.value); })[0];
+            var tn = (d.topNetBuy || [])[0];
+            setInterp("#ffPanelAllocation",
+                "보유 중인 국내 자산 중 가장 큰 항목은 '" + top.label + "'(" + pct1(num(top.share)) + ")이에요. 구성 쏠림(HHI) " + Number(d.hhiBucket).toFixed(3) + "(" + hhiWord(Number(d.hhiBucket)) +
+                "), 종목 쏠림 " + Number(d.hhiProduct).toFixed(3) + "(" + hhiWord(Number(d.hhiProduct)) + ")" + (tn ? ". " + periodName() + " 순매수 1위 종목: " + tn.name : ""),
+                {
+                    see: "RIA 계좌들이 국내에 투자해 들고 있는 자산을 업종 · ETF·펀드로 나눈 구성과, 점유율 제곱합(HHI)으로 본 쏠림, 순매수 상위 종목이에요.",
+                    read: "HHI는 0에 가까울수록 분산, 1에 가까울수록 한 곳에 쏠려요(통상 0.15 미만 분산, 0.25 초과 집중으로 봐요). 업종 구성 쏠림과 종목 쏠림을 따로 봐야 해요. 순매수는 기간을 고르면 그 기간 체결분만 보여요.",
+                    limit: "현재가가 아니라 매입금액 기준이라 오른 종목의 비중은 작게 보일 수 있어요. 구성과 HHI는 현재 보유 기준이라 기간 선택을 따르지 않아요. 왜 그 종목을 샀는지는 알 수 없어요."
+                });
+        },
+        segments: function () {
+            var cells = (state.segments && state.segments.cells) || [];
+            var key = segMetric;
+            var body = cells.filter(function (c) { return c.ageBand && c.investorType && c[key] != null; });
+            if (!body.length) return;
+            var hi = body.reduce(function (a, b) { return Number(b[key]) > Number(a[key]) ? b : a; });
+            var lo = body.reduce(function (a, b) { return Number(b[key]) < Number(a[key]) ? b : a; });
+            var all = cells.filter(function (c) { return !c.ageBand && !c.investorType; })[0];
+            var all2 = (state.segments.ageMedians || []).filter(function (m) { return !m.ageBand; })[0];
+            var name = key === "reinvestRatio" ? "재투자율" : "순투자율";
+            function label(c) { return c.ageBand + " · " + MARIA.status.investorTypeLabel(c.investorType); }
+            var tail = "";
+            if (key === "reinvestRatio" && all && all.reinvestRatio != null && all2 && all2.reinvestMedian != null) {
+                tail = ". 전체 합계 비율은 " + pct1(Number(all.reinvestRatio)) + ", 계좌별 중앙값은 " + pct1(Number(all2.reinvestMedian)) + "예요";
+            }
+            setInterp("#ffPanelSegments",
+                name + "이 가장 높은 칸은 " + label(hi) + " " + pct1(Number(hi[key])) + ", 가장 낮은 칸은 " + label(lo) + " " + pct1(Number(lo[key])) + "(격차 " + ((Number(hi[key]) - Number(lo[key])) * 100).toFixed(1) + "%p)예요" + tail,
+                {
+                    see: "고객을 연령대와 투자성향으로 나눠, 칸마다 확정 원화 유입 대비 국내 매수(재투자율) 또는 순투자 비율을 본 거예요.",
+                    read: "색이 진할수록 비율이 높아요(이 표 안의 최솟값~최댓값 기준이라 다른 지표와 색을 비교하면 안 돼요). 아래 중앙값 표에서 합계 비율과 중앙값이 많이 다르면 일부 큰 계좌가 전체 비율을 끌고 있다는 신호예요.",
+                    limit: "칸마다 계좌 수가 달라서 계좌가 적은 칸의 극단값을 과하게 해석하면 안 돼요. 5명 미만 칸은 가려요. 연령이나 성향이 재투자를 '만든다'고 말할 수 없고, 합성 데이터의 분포일 뿐이에요."
+                });
+        },
+        retention: function () {
+            var d = state.retention;
+            var pts = (d && d.points) || [];
+            if (!d || !num(d.lots) || !pts.length) return;
+            var last = pts[pts.length - 1];
+            setInterp("#ffPanelRetention",
+                "확정 후 " + last.day + "일 시점까지 원금이 유지된 비율은 " + pct1(Number(last.survival)) + "(95% 구간 " + pct1(Number(last.lower)) + " ~ " + pct1(Number(last.upper)) +
+                ")이고, 1년 미경과 원금이 인출된 건은 " + KRW.format(num(d.events)) + " / " + KRW.format(num(d.lots)) + "건이에요",
+                {
+                    see: "환전이 확정된 뒤 1년이 되기 전에 원금을 빼면 혜택이 취소돼요. 확정 후 며칠이 지나도록 원금이 그대로 남아 있는 건이 얼마나 되는지를 Kaplan-Meier 방식으로 본 곡선이에요.",
+                    read: "곡선이 내려갈수록 중간에 원금이 인출된 건이 늘어난다는 뜻이고, 띠(95% 구간)가 좁을수록 믿을 만해요. 금액 가중 값이 건수 기준보다 높으면 큰 금액은 상대적으로 덜 인출됐다는 뜻이에요.",
+                    limit: "가장 오래 관찰된 건이 1년이 안 돼서 1년 유지율은 정의할 수 없어요. 오른쪽 끝은 관찰된 건이 적어 불확실해요. 인출이 대부분 해지 강제 인출이라, 곡선의 모양은 고객 행동이 아니라 데이터 생성 규칙의 결과일 수 있어요."
+                });
+        },
+        concentration: function () {
+            var d = state.concentration;
+            if (!d || !num(d.accounts)) return;
+            setInterp("#ffPanelConc",
+                "감면을 받는 " + KRW.format(num(d.accounts)) + "개 계좌 중 상위 10%가 감면액의 " + pct1(d.top10Share == null ? null : Number(d.top10Share)) + "를 차지하고, 지니계수는 " +
+                (d.gini == null ? "-" : Number(d.gini).toFixed(2)) + "예요",
+                {
+                    see: "감면액이 계좌들 사이에 얼마나 고르게(또는 한쪽으로) 나뉘어 있는지를 로렌츠 곡선과 지니계수, 상위 10% 점유율로 본 거예요.",
+                    read: "곡선이 대각선에 붙어 있으면 감면이 고르게 나뉜 거예요. 대각선에서 멀수록(지니계수가 1에 가까울수록) 소수 계좌에 몰려 있어요. 상위 10% 점유율은 그 쏠림을 가장 직관적으로 보여줘요.",
+                    limit: "감면액은 양도소득이 클수록 커지는 구조라 집중이 곧 불공평은 아니에요. 자산 규모 구간별 비교는 구간 정의가 없어서 아직 못 해요. 감면액 정의가 잠정이라 값도 잠정이에요."
+                });
+        }
+    };
+
+    var INTERP_OF = {
+        monthly: ["sankey", "monthly", "bridge"],
+        funnel: ["funnel"],
+        leakage: ["leakage"],
+        relief: ["relief"],
+        allocation: ["allocation"],
+        segments: ["segments"],
+        retention: ["retention"],
+        concentration: ["concentration"]
+    };
+
+    function refreshInterp(api) {
+        (INTERP_OF[api] || []).forEach(function (name) {
+            try { INTERP[name](); } catch (e) { if (window.console) console.warn("해석 문장을 만들지 못했어요", name, e); }
+        });
     }
 
     /* ---------- PDF 로 저장 (새 창 A4 세로 인쇄) ---------- */
@@ -1030,6 +1442,7 @@ $(function () {
             $c.find("[data-ff-retry]").removeAttr("data-ff-retry");
             $c.find("[title]").removeAttr("title");
             $c.find("[data-tip]").removeAttr("data-tip");
+            $c.find("details.ff-detail").attr("open", "open");
             $root.append($c);
         });
         var PW = 660;
@@ -1060,7 +1473,7 @@ $(function () {
         $root.find("canvas").remove();
 
         var cover = '<section class="ff-cover"><h1>RIA 자금 환류 보고서</h1>' +
-            '<p>서비스: Returns RIA</p><p>기간: 출시 이후 누적</p><p>집계 기준일: ' + esc(asOf) + '</p><p>출력 일시(업무시각): ' + esc(clock) + '</p>' +
+            '<p>서비스: Returns RIA</p><p>기간: ' + esc(periodLabel()) + '</p><p>집계 기준일: ' + esc(asOf) + '</p><p>출력 일시(업무시각): ' + esc(clock) + '</p>' +
             '<p>집계 데이터만 담았고 개인을 식별할 수 있는 정보(고객명·계좌번호)는 넣지 않았어요 · 5명 미만 칸은 \'-\'로 가렸어요</p>' +
             '<p>혜택 감면 지표는 잠정 정의(' + esc((state.relief && state.relief.definitionVersion) || "draft-1") + ')의 예상값이에요</p></section>';
 
@@ -1110,14 +1523,16 @@ $(function () {
         leakage: ["#ffPanelLeakage"],
         relief: ["#ffPanelRelief"],
         allocation: ["#ffPanelAllocation"],
-        segments: ["#ffPanelSegments"]
+        segments: ["#ffPanelSegments"],
+        retention: ["#ffPanelRetention"],
+        concentration: ["#ffPanelConc"]
     };
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1133,12 +1548,16 @@ $(function () {
         renderBridge();
     }
 
+    var loadSeq = {}; // API 별 요청 번호: 기간을 연달아 바꿀 때 늦게 온 옛 응답이 새 응답을 덮지 않게 한다
+
     function load(api) {
+        var seq = (loadSeq[api] = (loadSeq[api] || 0) + 1);
         var panels = PANELS_OF[api] || [];
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
 
-        return MARIA.auth.ajax({ url: API[api].url, method: "GET" }).done(function (res) {
+        return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
+            if (seq !== loadSeq[api]) return;
             state[api] = (res && res.data) || {};
             setAsOf(api);
             if (api === "overview") {
@@ -1158,9 +1577,15 @@ $(function () {
                 renderAllocation();
             } else if (api === "segments") {
                 renderSegments();
+            } else if (api === "retention") {
+                renderRetention();
+            } else if (api === "concentration") {
+                renderConcentration();
             }
+            refreshInterp(api);
             renderDefs();
         }).fail(function () {
+            if (seq !== loadSeq[api]) return;
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
@@ -1172,12 +1597,29 @@ $(function () {
         load($(this).attr("data-ff-retry"));
     });
 
-    $("#ffBridgeMonth").on("change", renderBridge);
+    // 기간을 바꾸면 기간을 따르는 API 만 다시 부른다 (혜택 누수 · 감면은 스냅샷이라 그대로)
+    $("#ffPeriod").on("click", "button", function () {
+        var next = $(this).attr("data-period");
+        if (next === period) return;
+        period = next;
+        $("#ffPeriod button").removeClass("is-on");
+        $(this).addClass("is-on");
+        renderPeriodRange();
+        Object.keys(API).forEach(function (api) { if (API[api].period) load(api); });
+    });
+
+    $("#ffBridgeMonth").on("change", function () {
+        renderBridge();
+        refreshInterp("monthly");
+    });
     $("#ffSegMetric").on("click", "button", function () {
         segMetric = $(this).attr("data-metric");
         $("#ffSegMetric button").removeClass("is-on");
         $(this).addClass("is-on");
-        if (state.segments) renderSegments();
+        if (state.segments) {
+            renderSegments();
+            refreshInterp("segments");
+        }
     });
     $("#ffPdfBtn").on("click", savePdf);
 

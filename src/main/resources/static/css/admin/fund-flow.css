@@ -31,6 +31,11 @@
     color: var(--adm-text);
 }
 
+.fund-flow .ff-bar-item .adm-seg {
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
 .fund-flow .ff-bar-spacer {
     flex: 1;
 }
@@ -344,7 +349,7 @@
 
 /* ================= A-14b 패널들 ================= */
 
-/* ---- ⑤ 퍼널 (원본: 84px 이름 · 막대 14px · 값 · 비율) ---- */
+/* ---- ④ 퍼널 (원본: 84px 이름 · 막대 14px · 값 · 비율) ---- */
 .fund-flow .ff-funnel {
     display: flex;
     flex-direction: column;
@@ -402,7 +407,7 @@
     color: var(--adm-sub);
 }
 
-/* ---- 100% 누적 막대 (⑥ 혜택 누수 · ⑧ 운용처) ---- */
+/* ---- 100% 누적 막대 (⑤ 혜택 누수 · ⑨ 운용처) ---- */
 .fund-flow .ff-stack {
     display: flex;
     height: 22px;
@@ -439,7 +444,7 @@
     border-left: 1px solid var(--adm-panel);
 }
 
-/* ---- ⑥ 분류 표 ---- */
+/* ---- ⑤ 분류 표 ---- */
 .fund-flow .ff-leak-row {
     display: grid;
     grid-template-columns: minmax(0, 1.7fr) repeat(4, minmax(0, 1fr));
@@ -478,7 +483,7 @@
     display: inline-block;
 }
 
-/* ---- ⑦ 감면 성과 ---- */
+/* ---- ⑥ 감면 성과 ---- */
 .fund-flow .ff-relief {
     display: flex;
     flex-wrap: wrap;
@@ -541,7 +546,7 @@
     color: var(--adm-text);
 }
 
-/* ---- ⑧ 운용처 ---- */
+/* ---- ⑨ 운용처 ---- */
 .fund-flow .ff-legend {
     display: flex;
     flex-wrap: wrap;
@@ -664,7 +669,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* ---- ⑨ 히트맵 ---- */
+/* ---- ⑪ 히트맵 ---- */
 .fund-flow .ff-seg-pick {
     display: flex;
     align-items: center;
@@ -762,7 +767,7 @@
     background: transparent;
 }
 
-/* ---- ⑩ 지표 정의 표 (원본 ⑨ 정의 · 품질) ---- */
+/* ---- ⑫ 지표 정의 표 (원본 ⑨ 정의 · 품질) ---- */
 .fund-flow #ffPanelDefs[data-state="ready"] > .ff-body {
     padding: 0;
     gap: 0;
@@ -820,7 +825,7 @@
     content: "· ";
 }
 
-/* ⑦ 아래 합계 표 */
+/* ⑥ 아래 합계 표 */
 .fund-flow .ff-kv {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -841,4 +846,131 @@
     font-size: 12.5px;
     color: var(--adm-text);
     font-variant-numeric: tabular-nums;
+}
+
+/* ---- 신규 패널: 조정비율 히스토그램 · 원금 유지 · 로렌츠 ---- */
+.fund-flow .ff-svg-fluid svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.fund-flow .ff-lorenz {
+    flex: 0 1 240px;
+    min-width: 180px;
+}
+
+.fund-flow .ff-hist {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 118px;
+    padding: 2px 2px 0;
+}
+
+.fund-flow .ff-hist-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px;
+}
+
+.fund-flow .ff-hist-bar {
+    width: 70%;
+    min-height: 2px;
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow .ff-hist-val {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow .ff-hist-lab {
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-ci {
+    fill: var(--adm-chart-bar);
+    fill-opacity: 0.18;
+    stroke: none;
+}
+
+.fund-flow .ff-km {
+    fill: none;
+    stroke: var(--adm-chart-bar);
+    stroke-width: 2;
+}
+
+.fund-flow .ff-diag {
+    stroke: var(--adm-bd2);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.fund-flow .ff-unobs {
+    fill: var(--adm-line);
+    fill-opacity: 0.7;
+}
+
+.fund-flow .ff-hit {
+    fill: transparent;
+}
+
+.fund-flow .ff-hit:hover {
+    fill: var(--adm-chart-bar);
+    fill-opacity: 0.08;
+}
+
+/* ---- 해석 층: 핵심 한 줄 + 접어둔 상세 해석 ---- */
+.fund-flow .ff-interp {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--adm-qbox);
+    border-left: 3px solid var(--adm-chart-bar);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.fund-flow .ff-insight {
+    margin: 0;
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-insight b {
+    margin-right: 6px;
+    color: var(--adm-navy-fg);
+}
+
+.fund-flow .ff-detail summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--adm-sub);
+}
+
+.fund-flow .ff-detail dl {
+    margin: 4px 0 0;
+}
+
+.fund-flow .ff-detail dt {
+    margin-top: 4px;
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow .ff-detail dd {
+    margin: 1px 0 0;
+    color: var(--adm-sub);
+}
+
+.fund-flow.ff-print .ff-detail summary {
+    cursor: default;
 }

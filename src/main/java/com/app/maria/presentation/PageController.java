@@ -17,12 +17,6 @@ public class PageController {
         return "login";
     }
 
-    @GetMapping("/admin/statistics")
-    public String statistics(Model model) {
-        model.addAttribute("activePath", "/admin/statistics");
-        return "statistics";
-    }
-
     @GetMapping("/admin/target-products")
     public String targetProducts(Model model) {
         model.addAttribute("activePath", "/admin/target-products");
