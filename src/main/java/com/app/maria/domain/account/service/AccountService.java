@@ -22,8 +22,11 @@ public interface AccountService {
     // 고객 마이페이지용 한도 변경: APPLIED, OPENED 상태에서만 허용
     AccountResponseDTO updateAccountLimit(AccountLimitUpdateRequestDTO requestDTO);
 
-    // 관리자 대리 신청과 사용자 본인 신청이 공통으로 사용
+    // 관리자 대리 신청
     AccountResponseDTO applyAccount(AccountRequestDTO requestDTO);
+
+    // 고객 본인 신청: 인증된 세션의 customerId만 전달한다.
+    AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount);
 
     // 관리자 기능
     AccountResponseDTO approveAccount(Long accountId);
