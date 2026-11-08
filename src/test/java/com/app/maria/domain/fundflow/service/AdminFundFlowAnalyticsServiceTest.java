@@ -6,15 +6,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.app.maria.domain.fundflow.dto.FundFlowAccountFlowRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowNetBuyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowOverviewDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRatioBinDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowReliefDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRetentionLotRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentRowDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowMonthlyRequestDTO;
+import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowReliefRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
@@ -67,7 +71,7 @@ class AdminFundFlowAnalyticsServiceTest {
                                 .domesticSellTotal(new BigDecimal("460"))
                                 .build());
 
-        FundFlowOverviewResponseDTO result = service.getOverview();
+        FundFlowOverviewResponseDTO result = service.getOverview(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getAsOfDate()).isEqualTo(LocalDate.of(2026, 11, 17));
         assertThat(result.getReinvestRatio()).isEqualByComparingTo("0.7100");
@@ -87,7 +91,7 @@ class AdminFundFlowAnalyticsServiceTest {
                                 .domesticSellTotal(BigDecimal.ZERO)
                                 .build());
 
-        FundFlowOverviewResponseDTO result = service.getOverview();
+        FundFlowOverviewResponseDTO result = service.getOverview(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getReinvestRatio()).isNull();
         assertThat(result.getNetInvestRatio()).isNull();
@@ -205,7 +209,7 @@ class AdminFundFlowAnalyticsServiceTest {
                                 row("30대", "NEUTRAL", 6, 2000, 1000, 200),
                                 row("40대", "ACTIVE", 10, 1000, 100, 0)));
 
-        FundFlowSegmentResponseDTO result = service.getSegments();
+        FundFlowSegmentResponseDTO result = service.getSegments(new FundFlowPeriodRequestDTO());
 
         List<FundFlowSegmentResponseDTO.Cell> cells = result.getCells();
         assertThat(cells)
@@ -289,7 +293,8 @@ class AdminFundFlowAnalyticsServiceTest {
         when(fundFlowMapper.selectTopNetBuy(any()))
                 .thenReturn(List.of(FundFlowNetBuyDTO.builder().name("삼성전자").build()));
 
-        FundFlowAllocationResponseDTO result = service.getAllocation();
+        FundFlowAllocationResponseDTO result =
+                service.getAllocation(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getValueBasis()).isEqualTo("PURCHASE_COST");
         assertThat(result.getTotalValue()).isEqualByComparingTo("1000");
@@ -309,7 +314,8 @@ class AdminFundFlowAnalyticsServiceTest {
         when(fundFlowMapper.selectProductCosts()).thenReturn(List.of());
         when(fundFlowMapper.selectTopNetBuy(any())).thenReturn(List.of());
 
-        FundFlowAllocationResponseDTO result = service.getAllocation();
+        FundFlowAllocationResponseDTO result =
+                service.getAllocation(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getTotalValue()).isEqualByComparingTo("0");
         assertThat(result.getBuckets()).isEmpty();
@@ -336,6 +342,133 @@ class AdminFundFlowAnalyticsServiceTest {
                 .type(type)
                 .sectorName(sector)
                 .purchaseCost(new BigDecimal(cost))
+                .build();
+    }
+
+    @Test
+    @DisplayName("조정비율 구간: 비어 있는 구간도 순서대로 0으로 채우고 비율은 매도한 계좌 대비다")
+    void leakageFillsAllRatioBinsInOrder() {
+        when(fundFlowMapper.selectLeakage()).thenReturn(List.of());
+        when(fundFlowMapper.selectRatioBins())
+                .thenReturn(
+                        List.of(
+                                FundFlowRatioBinDTO.builder().code("FULL").accounts(3L).build(),
+                                FundFlowRatioBinDTO.builder().code("ZERO").accounts(1L).build()));
+
+        var result = service.getLeakage();
+
+        assertThat(result.getRatioBins())
+                .extracting(b -> b.getCode() + ":" + b.getAccounts())
+                .containsExactly(
+                        "ZERO:1",
+                        "UNDER_25:0",
+                        "UNDER_50:0",
+                        "UNDER_75:0",
+                        "UNDER_100:0",
+                        "FULL:3");
+        assertThat(result.getRatioBins().get(5).getShare()).isEqualByComparingTo("0.7500");
+    }
+
+    @Test
+    @DisplayName("연령대 중앙값: 유입이 있는 계좌가 5개 미만이면 가리고, 5개 이상이면 평균이 아닌 중앙값을 낸다")
+    void ageMediansMaskSmallBandsAndUseMedian() {
+        when(fundFlowMapper.selectSegments(any())).thenReturn(List.of());
+        List<FundFlowAccountFlowRowDTO> rows = new java.util.ArrayList<>();
+        // 30대 5개: 유입 100, 200, 300, 400, 10,000 (극단값) / 매수 50, 100, 150, 200, 10,000
+        long[] inflows = {100, 200, 300, 400, 10000};
+        long[] buys = {50, 100, 150, 200, 10000};
+        for (int i = 0; i < 5; i++) {
+            rows.add(flow("30대", inflows[i], buys[i]));
+        }
+        // 40대 4개: 가림 대상
+        for (int i = 0; i < 4; i++) {
+            rows.add(flow("40대", 100, 10));
+        }
+        // 50대 1개는 유입 없음
+        rows.add(flow("50대", 0, 0));
+        when(fundFlowMapper.selectAccountFlows(any())).thenReturn(rows);
+
+        var result = service.getSegments(new FundFlowPeriodRequestDTO());
+
+        var byBand =
+                result.getAgeMedians().stream()
+                        .collect(
+                                java.util.stream.Collectors.toMap(
+                                        m -> String.valueOf(m.getAgeBand()), m -> m));
+        assertThat(byBand.get("30대").getInflowMedian()).isEqualByComparingTo("300");
+        assertThat(byBand.get("30대").getReinvestMedian()).isEqualByComparingTo("0.5");
+        assertThat(byBand.get("40대").getInflowMedian()).isNull();
+        assertThat(byBand.get("40대").getAccountsWithInflow()).isEqualTo(4L);
+        assertThat(byBand.get("50대").getAccountsWithInflow()).isZero();
+        assertThat(byBand.get("null").getAccounts()).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("혜택 집중도: 감면액 목록으로 지니계수·상위 10%·로렌츠 21점을 낸다")
+    void concentrationUsesReliefAmounts() {
+        when(fundFlowMapper.selectReliefAmounts(any()))
+                .thenReturn(List.of(new BigDecimal("1"), new BigDecimal("3")));
+
+        var result = service.getConcentration();
+
+        assertThat(result.getAccounts()).isEqualTo(2L);
+        assertThat(result.getReliefTotal()).isEqualByComparingTo("4");
+        assertThat(result.getGini()).isEqualByComparingTo("0.25");
+        assertThat(result.getTop10Share()).isEqualByComparingTo("0.75");
+        assertThat(result.getLorenz()).hasSize(21);
+    }
+
+    @Test
+    @DisplayName("원금 유지: 건 단위 행으로 곡선을 만들고 사건 수와 최대 관찰일을 낸다")
+    void retentionBuildsCurveFromLotRows() {
+        when(fundFlowMapper.selectRetentionLots(any()))
+                .thenReturn(
+                        List.of(
+                                lot(1L, "1000", 5, true),
+                                lot(2L, "1000", 10, false),
+                                lot(3L, "1000", 10, true),
+                                lot(4L, "1000", 20, false)));
+
+        var result = service.getRetention(new FundFlowPeriodRequestDTO());
+
+        assertThat(result.getLots()).isEqualTo(4L);
+        assertThat(result.getAccounts()).isEqualTo(4L);
+        assertThat(result.getEvents()).isEqualTo(2L);
+        assertThat(result.getMaxObservedDays()).isEqualTo(20);
+        assertThat(result.getBootstrapReplicates()).isEqualTo(200);
+        assertThat(result.getPoints())
+                .extracting(pt -> pt.getDay() + ":" + pt.getSurvival().toPlainString())
+                .containsExactly("0:1.0000", "10:0.5000", "20:0.5000");
+    }
+
+    @Test
+    @DisplayName("원금 유지: 확정된 건이 없으면 빈 곡선(생존 1)을 낸다")
+    void retentionWithoutLotsReturnsFlatCurve() {
+        when(fundFlowMapper.selectRetentionLots(any())).thenReturn(List.of());
+
+        var result = service.getRetention(new FundFlowPeriodRequestDTO());
+
+        assertThat(result.getLots()).isZero();
+        assertThat(result.getBootstrapReplicates()).isZero();
+        assertThat(result.getPoints()).hasSize(1);
+        assertThat(result.getPoints().get(0).getSurvival()).isEqualByComparingTo("1");
+    }
+
+    private static FundFlowAccountFlowRowDTO flow(String ageBand, long inflow, long buy) {
+        return FundFlowAccountFlowRowDTO.builder()
+                .ageBand(ageBand)
+                .inflow(BigDecimal.valueOf(inflow))
+                .buyExec(BigDecimal.valueOf(buy))
+                .build();
+    }
+
+    private static FundFlowRetentionLotRowDTO lot(
+            long accountId, String amount, int days, boolean event) {
+        return FundFlowRetentionLotRowDTO.builder()
+                .accountId(accountId)
+                .finalAmount(new BigDecimal(amount))
+                .days(days)
+                .event(event)
                 .build();
     }
 }

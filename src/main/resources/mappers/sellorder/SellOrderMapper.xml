@@ -58,7 +58,7 @@
             LEFT JOIN customer c ON c.customer_id = acc.customer_id
             LEFT JOIN foreign_product fp ON fp.foreign_product_id = s.foreign_product_id
         <include refid="sellOrderHistoryFilter"/>
-        ORDER BY s.processed_at DESC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 

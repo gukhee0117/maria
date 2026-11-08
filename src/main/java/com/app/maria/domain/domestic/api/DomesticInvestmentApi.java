@@ -31,6 +31,8 @@ public class DomesticInvestmentApi {
             @RequestParam(required = false) Boolean hasUnpurchasableHolding,
             @RequestParam(required = false) Boolean hasRecentBuy,
             @RequestParam(required = false) Integer recentBuyDays,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
             @RequestParam(defaultValue = "0") @PositiveOrZero int page,
             @RequestParam(defaultValue = "20") @Positive int size) {
         DomesticInvestmentSearchRequestDTO request =
@@ -41,6 +43,8 @@ public class DomesticInvestmentApi {
                         .hasUnpurchasableHolding(hasUnpurchasableHolding)
                         .hasRecentBuy(hasRecentBuy)
                         .recentBuyDays(recentBuyDays)
+                        .sort(sort)
+                        .direction(direction)
                         .page(page)
                         .size(size)
                         .build();
@@ -80,12 +84,15 @@ public class DomesticInvestmentApi {
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")
     @GetMapping("/cash-heavy-accounts")
     public ResponseEntity<ApiResponseDTO<DomesticCashHeavyPageResponseDTO>> getCashHeavyAccounts(
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
             @RequestParam(defaultValue = "0") @PositiveOrZero int page,
             @RequestParam(defaultValue = "20") @Positive int size) {
         return ResponseEntity.ok(
                 ApiResponseDTO.of(
                         "예탁금 비중 높은 계좌 목록 조회 성공",
-                        domesticInvestmentService.getCashHeavyAccounts(page, size)));
+                        domesticInvestmentService.getCashHeavyAccounts(
+                                page, size, sort, direction)));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT', 'REVIEWER', 'VIEWER')")

@@ -11,8 +11,10 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
+import com.app.maria.global.sort.OrderBySpec;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -199,8 +201,39 @@ public class DomesticInvestmentServiceImpl implements DomesticInvestmentService 
 
     @Override
     public DomesticCashHeavyPageResponseDTO getCashHeavyAccounts(int page, int size) {
-        List<DomesticCashHeavyAccountDTO> content =
-                domesticStockBalanceMapper.selectCashHeavyAccounts(page * size, size);
+        return toCashHeavyPage(
+                domesticStockBalanceMapper.selectCashHeavyAccounts(page * size, size), page, size);
+    }
+
+    /** 예탁금 비중 높은 계좌 목록의 정렬 키(화면 머리글) → 정렬 식. 여기 없는 키는 무시한다. */
+    private static final Map<String, String> CASH_HEAVY_SORT_COLUMNS =
+            Map.of(
+                    "accountNo", "a.account_no",
+                    "customerName", "c.name",
+                    "cashAmount", "a.amount",
+                    "investedAmount", "investedAmount",
+                    "cashRatio",
+                            "(a.amount / NULLIF(a.amount + COALESCE(SUM(dsb.qty * dsb.avg_purchase_price), 0),"
+                                    + " 0))");
+
+    @Override
+    public DomesticCashHeavyPageResponseDTO getCashHeavyAccounts(
+            int page, int size, String sort, String direction) {
+        String orderBy =
+                OrderBySpec.resolve(
+                        CASH_HEAVY_SORT_COLUMNS,
+                        sort,
+                        direction,
+                        DomesticStockBalanceMapper.DEFAULT_CASH_HEAVY_ORDER_BY);
+        return toCashHeavyPage(
+                domesticStockBalanceMapper.selectCashHeavyAccountsOrdered(
+                        orderBy, page * size, size),
+                page,
+                size);
+    }
+
+    private DomesticCashHeavyPageResponseDTO toCashHeavyPage(
+            List<DomesticCashHeavyAccountDTO> content, int page, int size) {
         int totalElements = domesticStockBalanceMapper.countCashHeavyAccounts();
         int totalPages = (int) Math.ceil((double) totalElements / size);
         return new DomesticCashHeavyPageResponseDTO(

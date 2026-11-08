@@ -480,44 +480,78 @@ class SellOrderServiceImplTest {
     void getSellOrderHistoryComputesOffsetAndWrapsMapperResultsInPageResponse() {
         List<SellOrderHistoryDTO> content =
                 List.of(SellOrderHistoryDTO.builder().accountNo("1000000001").build());
-        when(sellOrderMapper.selectSellOrderHistory(null, null, null, null, 40, 20))
+        when(sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC, s.order_id DESC", 40, 20))
                 .thenReturn(content);
         when(sellOrderMapper.countSellOrderHistory(null, null, null, null)).thenReturn(45);
 
         PageResponseDTO<SellOrderHistoryDTO> result =
-                sellOrderService.getSellOrderHistory(null, null, null, null, 2, 20);
+                sellOrderService.getSellOrderHistory(null, null, null, null, null, null, 2, 20);
 
         assertThat(result.getContent()).isEqualTo(content);
         assertThat(result.getTotalCount()).isEqualTo(45);
         assertThat(result.getPage()).isEqualTo(2);
         assertThat(result.getSize()).isEqualTo(20);
-        verify(sellOrderMapper).selectSellOrderHistory(null, null, null, null, 40, 20);
+        verify(sellOrderMapper)
+                .selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC, s.order_id DESC", 40, 20);
         verify(sellOrderMapper).countSellOrderHistory(null, null, null, null);
     }
 
     @Test
     @DisplayName("keyword 필터를 그대로 매퍼에 전달한다")
     void getSellOrderHistoryPassesKeywordThroughToMapper() {
-        when(sellOrderMapper.selectSellOrderHistory("1234567890", null, null, null, 0, 20))
+        when(sellOrderMapper.selectSellOrderHistory(
+                        "1234567890",
+                        null,
+                        null,
+                        null,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20))
                 .thenReturn(List.of());
         when(sellOrderMapper.countSellOrderHistory("1234567890", null, null, null)).thenReturn(0);
 
-        sellOrderService.getSellOrderHistory("1234567890", null, null, null, 0, 20);
+        sellOrderService.getSellOrderHistory("1234567890", null, null, null, null, null, 0, 20);
 
-        verify(sellOrderMapper).selectSellOrderHistory("1234567890", null, null, null, 0, 20);
+        verify(sellOrderMapper)
+                .selectSellOrderHistory(
+                        "1234567890",
+                        null,
+                        null,
+                        null,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20);
         verify(sellOrderMapper).countSellOrderHistory("1234567890", null, null, null);
     }
 
     @Test
     @DisplayName("status는 enum 이름 문자열로 변환해서 매퍼에 전달한다")
     void getSellOrderHistoryConvertsStatusEnumToNameForMapper() {
-        when(sellOrderMapper.selectSellOrderHistory(null, "REJECTED", null, null, 0, 20))
+        when(sellOrderMapper.selectSellOrderHistory(
+                        null,
+                        "REJECTED",
+                        null,
+                        null,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20))
                 .thenReturn(List.of());
         when(sellOrderMapper.countSellOrderHistory(null, "REJECTED", null, null)).thenReturn(0);
 
-        sellOrderService.getSellOrderHistory(null, SellOrderStatus.REJECTED, null, null, 0, 20);
+        sellOrderService.getSellOrderHistory(
+                null, SellOrderStatus.REJECTED, null, null, null, null, 0, 20);
 
-        verify(sellOrderMapper).selectSellOrderHistory(null, "REJECTED", null, null, 0, 20);
+        verify(sellOrderMapper)
+                .selectSellOrderHistory(
+                        null,
+                        "REJECTED",
+                        null,
+                        null,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20);
         verify(sellOrderMapper).countSellOrderHistory(null, "REJECTED", null, null);
     }
 
@@ -528,27 +562,42 @@ class SellOrderServiceImplTest {
         LocalDate endDate = LocalDate.of(2026, 8, 10);
         LocalDateTime expectedStart = LocalDateTime.of(2026, 8, 1, 0, 0, 0);
         LocalDateTime expectedEnd = LocalDateTime.of(2026, 8, 10, 23, 59, 59);
-        when(sellOrderMapper.selectSellOrderHistory(null, null, expectedStart, expectedEnd, 0, 20))
+        when(sellOrderMapper.selectSellOrderHistory(
+                        null,
+                        null,
+                        expectedStart,
+                        expectedEnd,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20))
                 .thenReturn(List.of());
         when(sellOrderMapper.countSellOrderHistory(null, null, expectedStart, expectedEnd))
                 .thenReturn(0);
 
-        sellOrderService.getSellOrderHistory(null, null, startDate, endDate, 0, 20);
+        sellOrderService.getSellOrderHistory(null, null, startDate, endDate, null, null, 0, 20);
 
         verify(sellOrderMapper)
-                .selectSellOrderHistory(null, null, expectedStart, expectedEnd, 0, 20);
+                .selectSellOrderHistory(
+                        null,
+                        null,
+                        expectedStart,
+                        expectedEnd,
+                        "s.processed_at DESC, s.order_id DESC",
+                        0,
+                        20);
         verify(sellOrderMapper).countSellOrderHistory(null, null, expectedStart, expectedEnd);
     }
 
     @Test
     @DisplayName("매도 이력이 없으면 빈 목록과 0건을 담은 PageResponseDTO를 반환한다")
     void getSellOrderHistoryReturnsEmptyPageWhenNoOrdersExist() {
-        when(sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 20))
+        when(sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC, s.order_id DESC", 0, 20))
                 .thenReturn(List.of());
         when(sellOrderMapper.countSellOrderHistory(null, null, null, null)).thenReturn(0);
 
         PageResponseDTO<SellOrderHistoryDTO> result =
-                sellOrderService.getSellOrderHistory(null, null, null, null, 0, 20);
+                sellOrderService.getSellOrderHistory(null, null, null, null, null, null, 0, 20);
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalCount()).isZero();

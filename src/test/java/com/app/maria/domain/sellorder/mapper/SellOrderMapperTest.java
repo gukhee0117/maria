@@ -331,7 +331,8 @@ class SellOrderMapperTest {
         insertKrwExchange(order.getOrderId(), "2970000", "2970000");
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(1);
         SellOrderHistoryDTO found = result.get(0);
@@ -358,7 +359,8 @@ class SellOrderMapperTest {
         sellOrderMapper.insertSellOrder(order);
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getProvisionalAmount()).isNull();
@@ -380,7 +382,8 @@ class SellOrderMapperTest {
                 newSellOrder(2L, 10L, null, "1", "10", SellOrderStatus.EXECUTED, "1000"));
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory("1111", null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        "1111", null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getAccountNo()).isEqualTo("1111111111");
@@ -400,7 +403,8 @@ class SellOrderMapperTest {
                 newSellOrder(2L, 10L, null, "1", "10", SellOrderStatus.EXECUTED, "1000"));
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory("홍길동", null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        "홍길동", null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getCustomerName()).isEqualTo("홍길동");
@@ -418,7 +422,8 @@ class SellOrderMapperTest {
                 newSellOrder(1L, 10L, null, "1", "10", SellOrderStatus.REJECTED, null));
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory(null, "REJECTED", null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, "REJECTED", null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getStatus()).isEqualTo("REJECTED");
@@ -457,6 +462,7 @@ class SellOrderMapperTest {
                         null,
                         LocalDateTime.of(2026, 8, 1, 0, 0),
                         LocalDateTime.of(2026, 8, 10, 23, 59, 59),
+                        "s.processed_at DESC",
                         0,
                         10);
 
@@ -492,7 +498,8 @@ class SellOrderMapperTest {
         sellOrderMapper.insertSellOrder(newer);
 
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getSellQty()).isEqualByComparingTo("2");
@@ -511,9 +518,11 @@ class SellOrderMapperTest {
         }
 
         List<SellOrderHistoryDTO> firstPage =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 2);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 0, 2);
         List<SellOrderHistoryDTO> secondPage =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 2, 2);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 2, 2);
 
         assertThat(firstPage).hasSize(2);
         assertThat(secondPage).hasSize(1);
@@ -523,7 +532,8 @@ class SellOrderMapperTest {
     @DisplayName("매도내역이 없으면 빈 목록을 반환한다")
     void selectSellOrderHistoryReturnsEmptyListWhenNoOrdersExist() {
         List<SellOrderHistoryDTO> result =
-                sellOrderMapper.selectSellOrderHistory(null, null, null, null, 0, 10);
+                sellOrderMapper.selectSellOrderHistory(
+                        null, null, null, null, "s.processed_at DESC", 0, 10);
 
         assertThat(result).isEmpty();
     }

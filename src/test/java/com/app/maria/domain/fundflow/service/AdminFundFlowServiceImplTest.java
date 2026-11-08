@@ -2,13 +2,16 @@ package com.app.maria.domain.fundflow.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelStageDTO;
+import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
+import com.app.maria.domain.fundflow.type.FundFlowPeriod;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,7 +42,8 @@ class AdminFundFlowServiceImplTest {
         when(businessClockService.now()).thenReturn(NOW);
         when(fundFlowMapper.selectFunnel(any())).thenReturn(List.of());
 
-        FundFlowFunnelResponseDTO result = adminFundFlowService.getFunnel();
+        FundFlowFunnelResponseDTO result =
+                adminFundFlowService.getFunnel(new FundFlowPeriodRequestDTO());
 
         ArgumentCaptor<FundFlowFilterDTO> captor = ArgumentCaptor.forClass(FundFlowFilterDTO.class);
         verify(fundFlowMapper).selectFunnel(captor.capture());
@@ -69,12 +73,34 @@ class AdminFundFlowServiceImplTest {
                                         .convTotal(new BigDecimal("0.9047"))
                                         .build()));
 
-        FundFlowFunnelResponseDTO result = adminFundFlowService.getFunnel();
+        FundFlowFunnelResponseDTO result =
+                adminFundFlowService.getFunnel(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getStages()).hasSize(2);
         assertThat(result.getStages().get(0).getConvPrev()).isNull();
         assertThat(result.getStages().get(1).getCustomers()).isEqualTo(85996L);
         assertThat(result.getStages().get(1).getConvPrev()).isEqualByComparingTo("0.9047");
         assertThat(result.getBasis()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("기간을 고르면 기준일이 속한 달·분기의 첫날이 하한(periodFrom)이 된다")
+    void getFunnelSetsPeriodFromByPeriod() {
+        when(businessClockService.now()).thenReturn(NOW);
+        when(fundFlowMapper.selectFunnel(any())).thenReturn(List.of());
+
+        FundFlowPeriodRequestDTO month = new FundFlowPeriodRequestDTO();
+        month.setPeriod(FundFlowPeriod.MONTH);
+        FundFlowPeriodRequestDTO quarter = new FundFlowPeriodRequestDTO();
+        quarter.setPeriod(FundFlowPeriod.QUARTER);
+        adminFundFlowService.getFunnel(new FundFlowPeriodRequestDTO());
+        adminFundFlowService.getFunnel(month);
+        adminFundFlowService.getFunnel(quarter);
+
+        ArgumentCaptor<FundFlowFilterDTO> captor = ArgumentCaptor.forClass(FundFlowFilterDTO.class);
+        verify(fundFlowMapper, times(3)).selectFunnel(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(FundFlowFilterDTO::getPeriodFrom)
+                .containsExactly(null, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 10, 1));
     }
 }

@@ -30,6 +30,8 @@ public interface SellOrderService {
             SellOrderStatus status,
             LocalDate startDate,
             LocalDate endDate,
+            String sort,
+            String direction,
             int page,
             int size);
 }

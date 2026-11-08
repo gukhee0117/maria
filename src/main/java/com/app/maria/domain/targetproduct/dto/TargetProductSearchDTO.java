@@ -19,6 +19,7 @@ public class TargetProductSearchDTO {
     private Boolean inheritanceGiftOnly;
     private LocalDateTime judgedAtFrom;
     private LocalDateTime judgedAtTo;
+    @Builder.Default private String orderBy = "j.judged_at DESC, j.judgement_id DESC";
     private int offset;
     private int size;
 }

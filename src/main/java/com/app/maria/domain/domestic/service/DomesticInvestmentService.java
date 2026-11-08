@@ -17,6 +17,9 @@ public interface DomesticInvestmentService {
 
     DomesticCashHeavyPageResponseDTO getCashHeavyAccounts(int page, int size);
 
+    DomesticCashHeavyPageResponseDTO getCashHeavyAccounts(
+            int page, int size, String sort, String direction);
+
     List<DomesticUnpurchasableHoldingResponseDTO> getUnpurchasableHoldings();
 
     List<DomesticAccountLiteResponseDTO> getRecentBuyAccounts(int days, boolean hasRecentBuy);

@@ -1,5 +1,6 @@
 package com.app.maria.domain.fundflow.api;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,7 +40,7 @@ class AdminFundFlowApiTest {
     @DisplayName("퍼널을 조회하면 200과 기준일, 6단계 목록, 분모 문구를 반환한다")
     @WithMockUser(roles = "VIEWER")
     void getFunnelReturns200WithStages() throws Exception {
-        when(adminFundFlowService.getFunnel())
+        when(adminFundFlowService.getFunnel(any()))
                 .thenReturn(
                         new FundFlowFunnelResponseDTO(
                                 FundFlowFunnelDTO.builder()
@@ -77,6 +78,6 @@ class AdminFundFlowApiTest {
     void getFunnelReturns401WhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/admin/fund-flow/funnel")).andExpect(status().isUnauthorized());
 
-        verify(adminFundFlowService, never()).getFunnel();
+        verify(adminFundFlowService, never()).getFunnel(any());
     }
 }

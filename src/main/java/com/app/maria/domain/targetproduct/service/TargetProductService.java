@@ -16,4 +16,7 @@ public interface TargetProductService {
     TargetProductSummaryDTO getSummary();
 
     TargetProductJudgementFailurePageDTO getPermanentFailures(int page, int size);
+
+    TargetProductJudgementFailurePageDTO getPermanentFailures(
+            int page, int size, String sort, String direction);
 }

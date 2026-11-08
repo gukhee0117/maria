@@ -185,7 +185,7 @@
         ) counted
     </select>
 
-    <select id="selectInboundsByAccountId" resultType="InboundListDTO">
+    <select id="selectInboundsByAccountIdOrdered" resultType="InboundListDTO">
         SELECT
         i.inbound_id        AS inboundId,
         fp.foreign_product_id AS foreignProductId,
@@ -218,7 +218,7 @@
         JOIN foreign_product fp ON fp.foreign_product_id = id.foreign_product_id
         JOIN inbound_min im ON im.inbound_detail_id = id.inbound_detail_id
         WHERE i.account_id = #{accountId}
-        ORDER BY i.processed_at DESC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 

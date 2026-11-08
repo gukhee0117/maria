@@ -26,6 +26,7 @@ public class AuditLogSearchDTO {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
 
+    @Builder.Default private String orderBy = "al.processed_at DESC, al.audit_id DESC";
     private int size;
     private int offset;
 }

@@ -36,6 +36,12 @@
                 WHERE dsb2.account_id = a.account_id AND dsb2.status IN ('TRADE_RESTRICTED', 'TRADE_SUSPENDED')
                 )
             </if>
+            <if test="hasRestrictedHolding != null and !hasRestrictedHolding">
+                AND NOT EXISTS (
+                SELECT 1 FROM domestic_stock_balance dsb2
+                WHERE dsb2.account_id = a.account_id AND dsb2.status IN ('TRADE_RESTRICTED', 'TRADE_SUSPENDED')
+                )
+            </if>
             <if test="unpurchasableAccountIds != null">
                 AND a.account_id IN
                 <foreach item="id" collection="unpurchasableAccountIds" open="(" separator="," close=")">
@@ -67,7 +73,7 @@
         <include refid="accountSummaryFrom"/>
         <include refid="accountSummaryWhere"/>
         GROUP BY a.account_id, a.account_no, c.name, a.amount
-        ORDER BY a.account_id
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -173,7 +179,7 @@
         ORDER BY dsb.last_purchase_date DESC
     </select>
 
-    <select id="selectCashHeavyAccounts" resultType="DomesticCashHeavyAccountDTO">
+    <select id="selectCashHeavyAccountsOrdered" resultType="DomesticCashHeavyAccountDTO">
         SELECT
         a.account_id AS accountId,
         a.account_no AS accountNo,
@@ -186,7 +192,7 @@
         AND dsb.status NOT IN ('SOLD_OUT', 'TERMINATED')
         WHERE a.status = 'OPENED'
         GROUP BY a.account_id, a.account_no, c.name, a.amount
-        ORDER BY (a.amount / NULLIF(a.amount + COALESCE(SUM(dsb.qty * dsb.avg_purchase_price), 0), 0)) DESC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 
