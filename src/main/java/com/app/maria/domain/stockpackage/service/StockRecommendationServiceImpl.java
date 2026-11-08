@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,11 +71,6 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     private final StockTendencyService tendencyService;
     private final AccountMapper accountMapper;
     private final StockOrderMapper stockOrderMapper;
-
-    @Override
-    public StockRecommendationResponseDTO recommend(Long customerId, String filter, int limit) {
-        return recommend(customerId, filter, limit, BASIS_SURVEY);
-    }
 
     @Override
     public StockRecommendationResponseDTO recommend(
@@ -146,16 +142,9 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         LocalDateTime now = businessClockService.now();
 
         if (!candidates.isProfileAvailable()) {
-            return StockRecommendationVO.builder()
-                    .items(List.of())
+            return empty(filter, BASIS_SURVEY, now)
                     .profileAvailable(false)
-                    .basis(BASIS_SURVEY)
-                    .basisAvailable(false)
-                    .basisFacts(List.of())
-                    .filter(filter)
                     .subtitle("투자성향 진단이 필요해요")
-                    .disclaimer(DISCLAIMER)
-                    .checkedAt(now)
                     .build();
         }
         int minGrade = candidates.getAllowedMinGrade();
@@ -193,6 +182,19 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 .build();
     }
 
+    /** 추천을 줄 수 없을 때 공통으로 채우는 빈 결과. 호출하는 쪽이 profileAvailable·안내 문구를 더해 build한다. */
+    private static StockRecommendationVO.StockRecommendationVOBuilder empty(
+            String filter, String basis, LocalDateTime now) {
+        return StockRecommendationVO.builder()
+                .items(List.of())
+                .basis(basis)
+                .basisAvailable(false)
+                .basisFacts(List.of())
+                .filter(filter)
+                .disclaimer(DISCLAIMER)
+                .checkedAt(now);
+    }
+
     // ───── 거래 기준 추천 ─────
 
     /**
@@ -211,33 +213,20 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
 
         // 허용 범위(설문 진단)를 모르면 거래 기준도 범위를 정할 수 없어 추천하지 않는다
         if (!candidates.isProfileAvailable()) {
-            return StockRecommendationVO.builder()
-                    .items(List.of())
+            return empty(filter, BASIS_TRADING, now)
                     .profileAvailable(false)
-                    .basis(BASIS_TRADING)
-                    .basisAvailable(false)
                     .basisFacts(List.of(TRADING_NEEDS_PROFILE))
                     .tradeBuyCount(trading.getBuyCount())
                     .minBuyCount(trading.getMinBuyCount())
-                    .filter(filter)
                     .subtitle("투자성향 진단이 필요해요")
-                    .disclaimer(DISCLAIMER)
-                    .checkedAt(now)
                     .build();
         }
         if (!trading.isAvailable() || trading.getAvgBuyGrade() == null) {
-            return StockRecommendationVO.builder()
-                    .items(List.of())
+            return empty(filter, BASIS_TRADING, now)
                     .profileAvailable(true)
-                    .basis(BASIS_TRADING)
-                    .basisAvailable(false)
-                    .basisFacts(List.of())
                     .tradeBuyCount(trading.getBuyCount())
                     .minBuyCount(trading.getMinBuyCount())
-                    .filter(filter)
                     .subtitle("거래 " + trading.getMinBuyCount() + "건 이상 매수하면 볼 수 있어요")
-                    .disclaimer(DISCLAIMER)
-                    .checkedAt(now)
                     .build();
         }
 
@@ -257,7 +246,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                         i -> tradingLead(i, avg),
                         false);
         List<String> facts = new ArrayList<>();
-        facts.add("평균 매수 위험등급은 " + avg.stripTrailingZeros().toPlainString() + "등급이에요.");
+        facts.add("평균 매수 위험등급은 " + plain(avg) + "등급이에요.");
         if (target.adjusted()) {
             facts.add(
                     "평균 매수 등급이 설문 허용 범위("
@@ -281,7 +270,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 .tradeBuyCount(trading.getBuyCount())
                 .minBuyCount(trading.getMinBuyCount())
                 .filter(filter)
-                .subtitle("내 거래 경향 · 평균 매수 " + avg.stripTrailingZeros().toPlainString() + "등급 근처")
+                .subtitle("내 거래 경향 · 평균 매수 " + plain(avg) + "등급 근처")
                 .disclaimer(DISCLAIMER)
                 .checkedAt(now)
                 .targetAdjusted(target.adjusted())
@@ -394,7 +383,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                         .sorted(order)
                         .toList();
 
-        List<StockCandidateResponseDTO.ItemResponse> picked = new ArrayList<>();
+        Set<StockCandidateResponseDTO.ItemResponse> picked = new LinkedHashSet<>();
         Set<String> seen = new HashSet<>();
         for (StockCandidateResponseDTO.ItemResponse i : pool) {
             if (picked.size() >= size) {
@@ -408,12 +397,12 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             if (picked.size() >= size) {
                 break;
             }
-            if (!picked.contains(i)) {
-                picked.add(i);
-            }
+            picked.add(i);
         }
-        picked.sort(order);
-        return picked.stream().map(i -> toItem(i, lead.apply(i), taste, withThemeLine)).toList();
+        return picked.stream()
+                .sorted(order)
+                .map(i -> toItem(i, lead.apply(i), taste, withThemeLine))
+                .toList();
     }
 
     /** 0이 가장 앞이다: 업종·테마 모두 같으면 0, 업종만 1, 테마만 2, 둘 다 아니면 3. */
@@ -447,7 +436,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
 
     private static String tradingLead(StockCandidateResponseDTO.ItemResponse i, BigDecimal avg) {
         return "내 거래의 평균 매수 위험등급은 "
-                + avg.stripTrailingZeros().toPlainString()
+                + plain(avg)
                 + "등급이고, 이 상품은 가까운 "
                 + i.getRiskGrade()
                 + "등급("
@@ -473,10 +462,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         reasons.add(
                 "RIA 계좌에서 살 수 있는 국내 상장 " + (i.getType() == Type.FUND ? "펀드·ETF" : "주식") + "이에요.");
         if (i.getVolatilityPercent() != null) {
-            reasons.add(
-                    "과거 3년 가격으로 계산한 연 변동성은 "
-                            + i.getVolatilityPercent().stripTrailingZeros().toPlainString()
-                            + "%예요.");
+            reasons.add("과거 3년 가격으로 계산한 연 변동성은 " + plain(i.getVolatilityPercent()) + "%예요.");
         }
         if (withThemeLine) {
             if (!i.getThemes().isEmpty()) {
@@ -522,7 +508,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                     vol
                             ? focus.name()
                                     + "의 연 변동성은 "
-                                    + focus.volatilityPercent().stripTrailingZeros().toPlainString()
+                                    + plain(focus.volatilityPercent())
                                     + "%예요. 가격이 1년 동안 오르내린 폭을 과거 3년 가격으로 계산한 값이고, 앞으로의 수익을 예측하는 값은 아니에요."
                             : focus.name()
                                     + "은(는) "
@@ -536,14 +522,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             return Optional.of(
                     items.stream()
                                     .filter(i -> i.volatilityPercent() != null)
-                                    .map(
-                                            i ->
-                                                    i.name()
-                                                            + " "
-                                                            + i.volatilityPercent()
-                                                                    .stripTrailingZeros()
-                                                                    .toPlainString()
-                                                            + "%")
+                                    .map(i -> i.name() + " " + plain(i.volatilityPercent()) + "%")
                                     .collect(Collectors.joining(" · "))
                             + "\n연 변동성은 가격이 1년 동안 오르내린 폭을 과거 3년 가격으로 계산한 값이에요. 앞으로의 수익을 예측하는 값은 아니에요.");
         }
@@ -568,9 +547,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                                                     + (i.volatilityPercent() == null
                                                             ? ""
                                                             : ", 연 변동성 "
-                                                                    + i.volatilityPercent()
-                                                                            .stripTrailingZeros()
-                                                                            .toPlainString()
+                                                                    + plain(i.volatilityPercent())
                                                                     + "%"))
                             .collect(Collectors.joining("\n")));
         }
@@ -611,8 +588,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                             + "등급, 연 변동성 "
                             + (i.volatilityPercent() == null
                                     ? "계산 전"
-                                    : i.volatilityPercent().stripTrailingZeros().toPlainString()
-                                            + "%")
+                                    : plain(i.volatilityPercent()) + "%")
                             + (i.sectorName() == null ? "" : ", 업종 " + i.sectorName())
                             + (i.themes().isEmpty() ? "" : ", 테마 " + String.join("/", i.themes())));
         }
@@ -664,6 +640,11 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         }
         String f = filter.trim().toUpperCase();
         return f.equals("STOCK") || f.equals("FUND") ? f : "ALL";
+    }
+
+    /** 15.50 → 15.5. 끝의 0을 떼고 지수 표기 없이 문자열로 만든다. */
+    private static String plain(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
     }
 
     private static String sectorKey(StockCandidateResponseDTO.ItemResponse i) {

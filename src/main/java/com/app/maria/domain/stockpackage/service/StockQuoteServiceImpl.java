@@ -32,6 +32,13 @@ public class StockQuoteServiceImpl implements StockQuoteService {
 
     @Override
     public List<StockQuoteVO> findQuotes(List<String> tickers) {
+        LinkedHashSet<String> unique = validateTickers(tickers);
+        Map<String, DomesticQuote> quotes = fetchQuotes(unique);
+        return unique.stream().map(ticker -> toVo(ticker, quotes.get(ticker))).toList();
+    }
+
+    /** 종목 수(1~MAX_TICKERS)와 코드 형식을 검사하고, 앞뒤 공백을 뗀 코드를 요청 순서대로 중복 없이 돌려준다. 현재가·종가 이력 조회가 함께 쓴다. */
+    static LinkedHashSet<String> validateTickers(List<String> tickers) {
         if (tickers == null || tickers.isEmpty() || tickers.size() > MAX_TICKERS) {
             throw new AppException(ErrorType.STOCK_PACKAGE_QUOTE_INVALID);
         }
@@ -43,8 +50,7 @@ public class StockQuoteServiceImpl implements StockQuoteService {
             }
             unique.add(ticker);
         }
-        Map<String, DomesticQuote> quotes = fetchQuotes(unique);
-        return unique.stream().map(ticker -> toVo(ticker, quotes.get(ticker))).toList();
+        return unique;
     }
 
     private Map<String, DomesticQuote> fetchQuotes(LinkedHashSet<String> tickers) {
