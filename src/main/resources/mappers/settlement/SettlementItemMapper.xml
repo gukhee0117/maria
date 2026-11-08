@@ -169,7 +169,7 @@
                     AND newer.item_id &gt; latest.item_id
               )
             GROUP BY ke.account_id
-            HAVING SUM(CASE WHEN latest.result = 'SUCCESS' THEN 1 ELSE 0 END) = COUNT(*)
+            HAVING SUM(CASE WHEN latest.result = 'SUCCESS' AND ke.settlement_status = 'FINALIZED' THEN 1 ELSE 0 END) = COUNT(*)
         )
     </select>
 

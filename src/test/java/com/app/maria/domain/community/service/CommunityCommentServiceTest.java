@@ -17,6 +17,7 @@ import com.app.maria.domain.community.repository.CommunityPostRepository;
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
 import com.app.maria.domain.community.type.KkiruStatus;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.JpaConfig;
 import com.app.maria.global.config.TransactionConfig;
@@ -70,6 +71,8 @@ class CommunityCommentServiceTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private EntityManager entityManager;
     @Autowired private ApplicationEvents events;
+    @MockitoBean private CustomerNotificationService notificationService;
+
     @MockitoBean private BusinessClockService clock;
 
     private long postAuthor;
@@ -152,6 +155,7 @@ class CommunityCommentServiceTest {
         assertThat(byOther.replyToCommentId()).isNull();
         assertThat(byOther.replyToNickname()).isNull();
         assertThat(byOther.createdAt()).isEqualTo(NOW);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         assertThat(byAuthor.postAuthor()).isTrue();
     }
 
@@ -223,6 +227,8 @@ class CommunityCommentServiceTest {
         CommentResponseDTO third = write(other, "답의 답", second.id());
 
         assertThat(third.replyToCommentId()).isEqualTo(second.id());
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
+        org.mockito.Mockito.verifyNoInteractions(notificationService);
         assertThat(service.list(other, postId, null, 10).items()).hasSize(3);
     }
 

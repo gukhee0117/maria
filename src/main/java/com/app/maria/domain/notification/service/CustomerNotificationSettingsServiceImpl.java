@@ -23,6 +23,7 @@ public class CustomerNotificationSettingsServiceImpl
 
     private final CustomerNotificationSettingsMapper settingsMapper;
     private final BusinessClockService businessClockService;
+    private final NotificationEmailVerificationService verification;
 
     @Override
     @Transactional(readOnly = true)
@@ -38,23 +39,26 @@ public class CustomerNotificationSettingsServiceImpl
         if (settingsMapper.lockCustomer(customerId) == null) {
             throw new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId);
         }
+        if (Boolean.TRUE.equals(request.email())
+                && !settingsMapper.hasRegisteredEmail(customerId)) {
+            throw new AppException(ErrorType.CUSTOMER_NOTIFICATION_EMAIL_REQUIRED);
+        }
+        if (Boolean.TRUE.equals(request.email())
+                && !verification.isVerified(customerId, settingsMapper.selectEmail(customerId))) {
+            throw new AppException(ErrorType.NOTIFICATION_EMAIL_VERIFICATION_REQUIRED);
+        }
         Map<NotificationConsentType, Boolean> previous =
                 values(settingsMapper.selectLatestByCustomerId(customerId));
         LocalDateTime changedAt = businessClockService.now();
         for (NotificationConsentType type : NotificationConsentType.values()) {
+            if (type == NotificationConsentType.NOTIFY_COMMENT
+                    || type == NotificationConsentType.NOTIFY_KIRU) continue;
             boolean next = requestedValue(request, type);
             if (agreed(previous, type) != next) {
                 settingsMapper.insertConsent(customerId, type, next, changedAt);
             }
         }
         return get(customerId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean isSettlementPushEnabled(Long customerId) {
-        CustomerNotificationSettingsResponseDTO settings = get(customerId);
-        return settings.push() && settings.settle();
     }
 
     private CustomerNotificationSettingsResponseDTO toResponse(
@@ -66,8 +70,8 @@ public class CustomerNotificationSettingsServiceImpl
                 agreed(values, NotificationConsentType.NOTIFY_EMAIL),
                 agreed(values, NotificationConsentType.NOTIFY_SETTLEMENT),
                 agreed(values, NotificationConsentType.NOTIFY_BAND),
-                agreed(values, NotificationConsentType.NOTIFY_COMMENT),
-                agreed(values, NotificationConsentType.NOTIFY_KIRU));
+                false,
+                false);
     }
 
     private Map<NotificationConsentType, Boolean> values(
@@ -90,8 +94,8 @@ public class CustomerNotificationSettingsServiceImpl
             case NOTIFY_EMAIL -> request.email();
             case NOTIFY_SETTLEMENT -> request.settle();
             case NOTIFY_BAND -> request.band();
-            case NOTIFY_COMMENT -> request.reply();
-            case NOTIFY_KIRU -> request.kiru();
+            case NOTIFY_COMMENT -> false;
+            case NOTIFY_KIRU -> false;
         };
     }
 }
