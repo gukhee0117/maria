@@ -1,7 +1,6 @@
 package com.app.maria.domain.notification.service;
 
 import com.app.maria.domain.notification.dto.CustomerNotificationResponseDTO;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CustomerNotificationService {
@@ -9,5 +8,7 @@ public interface CustomerNotificationService {
 
     void markAllRead(Long customerId);
 
-    boolean recordSettlementFinalized(Long accountId, Long batchId, LocalDateTime completedAt);
+    void markVisibleRead(Long customerId, List<Long> notificationIds);
+
+    boolean recordSettlementFinalized(Long accountId, Long batchId);
 }

@@ -45,6 +45,7 @@ dependencyManagement {
 dependencies {
     // Spring Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // SOAP / WebService 사용하는 경우만 유지
     implementation 'org.springframework.boot:spring-boot-starter-web-services'

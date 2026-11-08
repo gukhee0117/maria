@@ -89,7 +89,7 @@ class SettlementNotificationServiceTest {
     void disabledOrDuplicateNotificationStillRefreshesTheOpenAccountScreen() {
         LocalDateTime at = LocalDateTime.of(2026, 11, 8, 10, 0);
         when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(true);
-        when(customerNotificationService.recordSettlementFinalized(7L, 1L, at)).thenReturn(false);
+        when(customerNotificationService.recordSettlementFinalized(7L, 1L)).thenReturn(false);
         service.notifyAccountIfCompleted(new SettlementItemCompletedEvent(1L, 7L, at));
         verify(settlementSseService)
                 .sendAccountBatchCompleted(7L, new SettlementNotificationResponseDTO(1L, at));
@@ -99,7 +99,7 @@ class SettlementNotificationServiceTest {
     void notificationStorageFailureIsNotHiddenAndStillRefreshesScreen() {
         LocalDateTime at = LocalDateTime.of(2026, 11, 8, 10, 0);
         when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(true);
-        when(customerNotificationService.recordSettlementFinalized(7L, 1L, at))
+        when(customerNotificationService.recordSettlementFinalized(7L, 1L))
                 .thenThrow(new IllegalStateException("storage"));
         assertThatThrownBy(
                         () ->

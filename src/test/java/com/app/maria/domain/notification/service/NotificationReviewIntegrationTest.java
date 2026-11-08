@@ -102,9 +102,18 @@ class NotificationReviewIntegrationTest {
         }
 
         @Bean
+        NotificationEmailVerificationService verification() {
+            var verification = mock(NotificationEmailVerificationService.class);
+            when(verification.isVerified(any(), any())).thenReturn(true);
+            return verification;
+        }
+
+        @Bean
         CustomerNotificationSettingsService settings(
-                CustomerNotificationSettingsMapper mapper, BusinessClockService clock) {
-            return new CustomerNotificationSettingsServiceImpl(mapper, clock);
+                CustomerNotificationSettingsMapper mapper,
+                BusinessClockService clock,
+                NotificationEmailVerificationService verification) {
+            return new CustomerNotificationSettingsServiceImpl(mapper, clock, verification);
         }
 
         @Bean
@@ -112,18 +121,28 @@ class NotificationReviewIntegrationTest {
                 CustomerNotificationMapper mapper,
                 AccountMapper accounts,
                 CustomerNotificationSettingsService settings,
-                BusinessClockService clock) {
-            return new CustomerNotificationServiceImpl(mapper, accounts, settings, clock);
+                BusinessClockService clock,
+                org.springframework.context.ApplicationEventPublisher events) {
+            return new CustomerNotificationServiceImpl(mapper, accounts, clock, events);
         }
     }
 
     @BeforeEach
     void setup() {
+        jdbc.execute("DROP TABLE IF EXISTS settlement_item");
+        jdbc.execute("DROP TABLE IF EXISTS krw_exchange");
+        jdbc.execute(
+                "CREATE TABLE krw_exchange (exchange_id BIGINT PRIMARY KEY, account_id BIGINT, final_amount DECIMAL(20,2), settlement_status VARCHAR(20))");
+        jdbc.execute(
+                "CREATE TABLE settlement_item (item_id BIGINT PRIMARY KEY, batch_id BIGINT, exchange_id BIGINT, result VARCHAR(20), processed_at TIMESTAMP)");
+        jdbc.execute("INSERT INTO krw_exchange VALUES (7,7,1234567,'FINALIZED')");
+        jdbc.update("INSERT INTO settlement_item VALUES (1,10,7,'SUCCESS',?)", NOW);
         jdbc.execute("DROP TABLE IF EXISTS notification");
         jdbc.execute("DROP TABLE IF EXISTS customer_consent");
         jdbc.execute("DROP TABLE IF EXISTS customer");
-        jdbc.execute("CREATE TABLE customer (customer_id BIGINT PRIMARY KEY)");
-        jdbc.execute("INSERT INTO customer VALUES (1),(2)");
+        jdbc.execute(
+                "CREATE TABLE customer (customer_id BIGINT PRIMARY KEY, email VARCHAR(100) DEFAULT 'test@example.com')");
+        jdbc.execute("INSERT INTO customer(customer_id) VALUES (1),(2)");
         jdbc.execute(
                 "CREATE TABLE customer_consent (customer_consent_id BIGINT AUTO_INCREMENT PRIMARY KEY, customer_id BIGINT NOT NULL REFERENCES customer(customer_id), consent_type VARCHAR(30) NOT NULL, agreed BOOLEAN NOT NULL, changed_at TIMESTAMP NOT NULL)");
         jdbc.execute(
@@ -177,13 +196,25 @@ class NotificationReviewIntegrationTest {
     void normalInsertSurfacesLengthAndForeignKeyFailuresInsteadOfIgnoringThem() {
         assertThatThrownBy(
                         () ->
-                                notificationMapper.insertSettlementFinalized(
-                                        1L, 10L, "x".repeat(101), "body", NOW))
+                                notificationMapper.insertEvent(
+                                        1L,
+                                        NotificationType.SETTLEMENT_FINALIZED,
+                                        "SETTLEMENT_BATCH",
+                                        10L,
+                                        "x".repeat(101),
+                                        "body",
+                                        NOW))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(
                         () ->
-                                notificationMapper.insertSettlementFinalized(
-                                        999L, 10L, "title", "body", NOW))
+                                notificationMapper.insertEvent(
+                                        999L,
+                                        NotificationType.SETTLEMENT_FINALIZED,
+                                        "SETTLEMENT_BATCH",
+                                        10L,
+                                        "title",
+                                        "body",
+                                        NOW))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(count("notification")).isZero();
     }
@@ -197,12 +228,11 @@ class NotificationReviewIntegrationTest {
                                         new TransactionSynchronization() {
                                             @Override
                                             public void afterCommit() {
-                                                notifications.recordSettlementFinalized(
-                                                        7L, 10L, NOW);
+                                                notifications.recordSettlementFinalized(7L, 10L);
                                             }
                                         }));
         assertThat(count("notification")).isEqualTo(1);
-        assertThat(notifications.recordSettlementFinalized(7L, 10L, NOW)).isFalse();
+        assertThat(notifications.recordSettlementFinalized(7L, 10L)).isFalse();
         assertThat(count("notification")).isEqualTo(1);
         notifications.markAllRead(2L);
         assertThat(notifications.list(1L).get(0).getReadAt()).isNull();
@@ -211,8 +241,35 @@ class NotificationReviewIntegrationTest {
     }
 
     @Test
+    void retiredReplySettingsCannotBeEnabledAndOldReplyHistoryIsHidden() {
+        settings.update(
+                1L,
+                new CustomerNotificationSettingsRequestDTO(
+                        true, false, false, true, true, true, true));
+        assertThat(settings.get(1L).reply()).isFalse();
+        assertThat(settings.get(1L).kiru()).isFalse();
+        assertThat(count("customer_consent")).isZero();
+        notificationMapper.insertEvent(
+                1L,
+                NotificationType.COMMUNITY_COMMENT,
+                "COMMUNITY_COMMENT",
+                1L,
+                "reply",
+                "old reply",
+                NOW);
+        notificationMapper.insertEvent(
+                1L, NotificationType.KIRU_REPLY, "COMMUNITY_COMMENT", 2L, "kiru", "old kiru", NOW);
+        assertThat(count("notification")).isEqualTo(2);
+        assertThat(notifications.list(1L)).isEmpty();
+        notifications.recordSettlementFinalized(7L, 10L);
+        assertThat(notifications.list(1L)).hasSize(1);
+        assertThat(notifications.list(1L).get(0).getNotificationType())
+                .isEqualTo(NotificationType.SETTLEMENT_FINALIZED);
+    }
+
+    @Test
     void enumAndVoMappingKeepsExistingJsonContract() throws Exception {
-        notifications.recordSettlementFinalized(7L, 10L, NOW);
+        notifications.recordSettlementFinalized(7L, 10L);
         assertThat(notificationMapper.selectRecentByCustomerId(1L, 50).get(0))
                 .isInstanceOf(CustomerNotificationVO.class);
         assertThat(notifications.list(1L).get(0).getNotificationType())
@@ -252,9 +309,7 @@ class NotificationReviewIntegrationTest {
                                     result.sms(),
                                     result.email(),
                                     result.settle(),
-                                    result.band(),
-                                    result.reply(),
-                                    result.kiru()))
+                                    result.band()))
                     .allMatch(value -> value.equals(result.push()));
         } finally {
             pool.shutdownNow();
@@ -270,13 +325,13 @@ class NotificationReviewIntegrationTest {
                     pool.submit(
                             () -> {
                                 await(start);
-                                notifications.recordSettlementFinalized(7L, 10L, NOW);
+                                notifications.recordSettlementFinalized(7L, 10L);
                             });
             Future<?> second =
                     pool.submit(
                             () -> {
                                 await(start);
-                                notifications.recordSettlementFinalized(7L, 10L, NOW);
+                                notifications.recordSettlementFinalized(7L, 10L);
                             });
             start.countDown();
             first.get(10, TimeUnit.SECONDS);
@@ -293,6 +348,31 @@ class NotificationReviewIntegrationTest {
         assertThatThrownBy(() -> settings.update(1L, request(true)))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(count("customer_consent")).isZero();
+    }
+
+    @Test
+    void visibleReadNeverMarksUnseenOrOtherCustomerNotifications() {
+        jdbc.update(
+                "INSERT INTO notification(customer_id,notification_type,title,content,related_type,related_id,created_at) VALUES (1,'SETTLEMENT_FINALIZED','one','body','SETTLEMENT_BATCH',1,?),(1,'SETTLEMENT_FINALIZED','two','body','SETTLEMENT_BATCH',2,?),(2,'SETTLEMENT_FINALIZED','other','body','SETTLEMENT_BATCH',3,?)",
+                NOW,
+                NOW,
+                NOW);
+        var ids =
+                jdbc.queryForList(
+                        "SELECT notification_id FROM notification ORDER BY notification_id",
+                        Long.class);
+        notifications.markVisibleRead(1L, List.of(ids.get(0), ids.get(2)));
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM notification WHERE read_at IS NOT NULL",
+                                Integer.class))
+                .isEqualTo(1);
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT read_at FROM notification WHERE notification_id=?",
+                                LocalDateTime.class,
+                                ids.get(1)))
+                .isNull();
     }
 
     private static void await(CountDownLatch latch) {
