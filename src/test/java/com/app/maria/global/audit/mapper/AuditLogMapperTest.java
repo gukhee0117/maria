@@ -2,6 +2,7 @@ package com.app.maria.global.audit.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.dto.AuditLogSearchDTO;
 import java.io.IOException;
@@ -46,6 +47,38 @@ class AuditLogMapperTest {
         resetSchema();
         sqlSession = sqlSessionFactory.openSession(true);
         auditLogMapper = sqlSession.getMapper(AuditLogMapper.class);
+    }
+
+    @Test
+    void customerActorIsPersistedWithoutAdminAndLegacyAdminStillWorks() throws Exception {
+        auditLogMapper.insertLog(
+                AuditLogDTO.builder()
+                        .actorType(AuditActor.Type.CUSTOMER)
+                        .actorId(42L)
+                        .targetTable("ACCOUNT")
+                        .targetPk("10")
+                        .reasonCode("ACCOUNT_APPLY")
+                        .build());
+        auditLogMapper.insertLog(
+                AuditLogDTO.builder()
+                        .adminId(7L)
+                        .targetTable("ACCOUNT")
+                        .targetPk("11")
+                        .reasonCode("ACCOUNT_APPLY")
+                        .build());
+        try (var query = sqlSession.getConnection().createStatement();
+                var rows =
+                        query.executeQuery(
+                                "SELECT admin_id, actor_type, actor_id FROM audit_log ORDER BY audit_id")) {
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getObject("admin_id")).isNull();
+            assertThat(rows.getString("actor_type")).isEqualTo("CUSTOMER");
+            assertThat(rows.getLong("actor_id")).isEqualTo(42L);
+            assertThat(rows.next()).isTrue();
+            assertThat(rows.getLong("admin_id")).isEqualTo(7L);
+            assertThat(rows.getString("actor_type")).isEqualTo("ADMIN");
+            assertThat(rows.getLong("actor_id")).isEqualTo(7L);
+        }
     }
 
     @AfterEach
@@ -603,7 +636,7 @@ class AuditLogMapperTest {
                     """
                     CREATE TABLE audit_log (
                         audit_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
-                        admin_id     BIGINT NOT NULL,
+                        admin_id     BIGINT NULL, actor_type VARCHAR(10) DEFAULT 'ADMIN', actor_id BIGINT NULL,
                         target_table VARCHAR(50) NOT NULL,
                         target_pk    VARCHAR(50) NOT NULL,
                         before_value TEXT NULL,

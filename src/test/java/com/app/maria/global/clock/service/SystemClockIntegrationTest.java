@@ -195,7 +195,7 @@ class SystemClockIntegrationTest {
                     """
                     CREATE TABLE audit_log (
                         audit_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                        admin_id BIGINT NOT NULL,
+                        admin_id BIGINT NULL, actor_type VARCHAR(10) DEFAULT 'ADMIN', actor_id BIGINT NULL,
                         target_table VARCHAR(50) NOT NULL,
                         target_pk VARCHAR(50) NOT NULL,
                         before_value TEXT,

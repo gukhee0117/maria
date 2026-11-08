@@ -13,6 +13,8 @@ public class AuditLogDTO {
 
     private Long auditId;
     private Long adminId;
+    private AuditActor.Type actorType;
+    private Long actorId;
     private String targetTable;
     private String targetPk;
     private String beforeValue;

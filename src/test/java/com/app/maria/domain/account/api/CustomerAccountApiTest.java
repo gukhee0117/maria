@@ -95,44 +95,21 @@ class CustomerAccountApiTest {
         verifyNoInteractions(accountService);
     }
 
-    @Test
-    void requiresCustomerSession() throws Exception {
-        mvc.perform(
-                        post(URL)
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"limitAmount\":1}"))
-                .andExpect(status().isUnauthorized());
-        verifyNoInteractions(accountService);
-    }
-
-    @Test
-    void rejectsAdminPrincipal() throws Exception {
-        mvc.perform(
-                        post(URL)
-                                .with(
-                                        authentication(
-                                                new UsernamePasswordAuthenticationToken(
-                                                        99L,
-                                                        null,
-                                                        List.of(
-                                                                new SimpleGrantedAuthority(
-                                                                        "ROLE_REVIEWER")))))
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"limitAmount\":1}"))
-                .andExpect(status().isForbidden());
-        verifyNoInteractions(accountService);
-    }
-
-    @Test
-    void requiresCsrfToken() throws Exception {
-        mvc.perform(
-                        post(URL)
-                                .with(customer())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"limitAmount\":1}"))
-                .andExpect(status().isForbidden());
+    @ParameterizedTest
+    @ValueSource(strings = {"anonymous", "admin", "missing-csrf"})
+    void rejectsRequestsWithoutCustomerAuthorizationOrCsrf(String mode) throws Exception {
+        var request =
+                post(URL).contentType(MediaType.APPLICATION_JSON).content("{\"limitAmount\":1}");
+        if (!mode.equals("missing-csrf")) request.with(csrf());
+        if (mode.equals("missing-csrf")) request.with(customer());
+        if (mode.equals("admin"))
+            request.with(
+                    authentication(
+                            new UsernamePasswordAuthenticationToken(
+                                    99L,
+                                    null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_REVIEWER")))));
+        mvc.perform(request).andExpect(status().is(mode.equals("anonymous") ? 401 : 403));
         verifyNoInteractions(accountService);
     }
 

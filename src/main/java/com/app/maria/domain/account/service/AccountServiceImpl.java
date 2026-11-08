@@ -12,6 +12,7 @@ import com.app.maria.domain.account.dto.response.AccountManagementDetailResponse
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -76,18 +77,6 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public AccountResponseDTO applyAccount(AccountRequestDTO requestDTO) {
-        return applyAccount(requestDTO, false);
-    }
-
-    @Override
-    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
-        return applyAccount(
-                AccountRequestDTO.builder().customerId(customerId).limitAmount(limitAmount).build(),
-                true);
-    }
-
-    private AccountResponseDTO applyAccount(
-            AccountRequestDTO requestDTO, boolean customerApplication) {
         Long customerId = requestDTO.getCustomerId();
         validateCustomerExists(customerId);
         LocalDateTime appliedAt = businessClockService.now();
@@ -100,15 +89,22 @@ public class AccountServiceImpl implements AccountService {
                         && account.getLimitAmount().compareTo(availableLimit) <= 0
                         && availableLimit.compareTo(MIN_LIMIT_AMOUNT) >= 0;
         AccountDTO appliedAccount =
-                customerApplication
-                        ? accountTransactionalService.applyForCustomer(
-                                account, appliedAt, autoApprove)
-                        : accountTransactionalService.apply(
-                                auditActorProvider.getCurrentAdminId(),
-                                account,
-                                appliedAt,
-                                autoApprove);
+                accountTransactionalService.apply(
+                        auditActorProvider.getCurrentAdminId(), account, appliedAt, autoApprove);
         return new AccountResponseDTO(appliedAccount);
+    }
+
+    @Override
+    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
+        validateCustomerExists(customerId);
+        validateLimitInput(limitAmount);
+        LocalDateTime appliedAt = getApplicationTime();
+        validateLimitAvailability(limitAmount, calculateAvailableLimit(customerId));
+        AccountDTO account =
+                AccountDTO.builder().customerId(customerId).limitAmount(limitAmount).build();
+        return new AccountResponseDTO(
+                accountTransactionalService.applyAs(
+                        AuditActor.customer(customerId), account, appliedAt, true));
     }
 
     @Override
