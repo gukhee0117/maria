@@ -7,6 +7,7 @@ import com.app.maria.domain.community.repository.CommunityPostRepository;
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
 import com.app.maria.domain.community.type.KkiruStatus;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class KkiruReplyWriter {
     private final CommunityCommentRepository commentRepository;
     private final KkiruReplyComposer composer;
     private final BusinessClockService clock;
+    private final CustomerNotificationService notificationService;
 
     /** 아직 PENDING인 호출만 질문으로 돌려준다. 이미 끝났거나 없으면 null. */
     @Transactional(transactionManager = "jpaTransactionManager", readOnly = true)
@@ -63,13 +65,25 @@ public class KkiruReplyWriter {
             return end(caller, KkiruStatus.FAILED);
         }
         if (!answerExists(postId, commentId)) {
-            commentRepository.save(
-                    CommunityCommentEntity.ofAi(
-                            postId,
-                            commentId,
-                            composed.get().content(),
-                            composed.get().sourcesJson(),
-                            clock.now()));
+            CommunityCommentEntity saved =
+                    commentRepository.save(
+                            CommunityCommentEntity.ofAi(
+                                    postId,
+                                    commentId,
+                                    composed.get().content(),
+                                    composed.get().sourcesJson(),
+                                    clock.now()));
+            Long recipientId =
+                    commentId == null
+                            ? postRepository
+                                    .findById(postId)
+                                    .map(CommunityPostEntity::getCustomerId)
+                                    .orElse(null)
+                            : commentRepository
+                                    .findById(commentId)
+                                    .map(CommunityCommentEntity::getCustomerId)
+                                    .orElse(null);
+            notificationService.recordReply(recipientId, null, saved.getCommunityCommentId(), true);
         }
         return end(caller, KkiruStatus.ANSWERED);
     }

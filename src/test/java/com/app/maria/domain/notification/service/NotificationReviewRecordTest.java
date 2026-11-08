@@ -6,8 +6,13 @@ import static org.mockito.Mockito.*;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.notification.dto.NotificationDeliveryDTO;
+import com.app.maria.domain.notification.dto.SettlementEmailDetails;
 import com.app.maria.domain.notification.mapper.CustomerNotificationMapper;
+import com.app.maria.domain.notification.type.NotificationConsentType;
+import com.app.maria.domain.notification.type.NotificationType;
 import com.app.maria.global.clock.service.BusinessClockService;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 
@@ -23,7 +29,7 @@ import org.springframework.dao.DuplicateKeyException;
 class NotificationReviewRecordTest {
     @Mock CustomerNotificationMapper mapper;
     @Mock AccountMapper accounts;
-    @Mock CustomerNotificationSettingsService settings;
+    @Mock ApplicationEventPublisher events;
     @Mock BusinessClockService clock;
     @InjectMocks CustomerNotificationServiceImpl service;
     private final LocalDateTime now = LocalDateTime.of(2026, 11, 8, 10, 0);
@@ -34,18 +40,42 @@ class NotificationReviewRecordTest {
                 .thenReturn(Optional.of(AccountDTO.builder().customerId(1L).build()));
     }
 
+    private void ready() {
+        when(mapper.selectSettlementEmailDetails(7L, 10L))
+                .thenReturn(new SettlementEmailDetails(BigDecimal.ONE, now));
+        NotificationDeliveryDTO target = new NotificationDeliveryDTO();
+        target.setPushEnabled(true);
+        target.setKindEnabled(true);
+        when(mapper.selectDeliveryTarget(1L, NotificationConsentType.NOTIFY_SETTLEMENT))
+                .thenReturn(target);
+    }
+
     @Test
     void concurrentDuplicateIsTheOnlySuppressedInsertError() {
-        when(settings.isSettlementPushEnabled(1L)).thenReturn(true);
-        when(mapper.insertSettlementFinalized(eq(1L), eq(10L), anyString(), anyString(), eq(now)))
+        ready();
+        when(mapper.insertEvent(
+                        eq(1L),
+                        eq(NotificationType.SETTLEMENT_FINALIZED),
+                        eq("SETTLEMENT_BATCH"),
+                        eq(10L),
+                        anyString(),
+                        anyString(),
+                        eq(now)))
                 .thenThrow(new DuplicateKeyException("event"));
         assertThat(service.recordSettlementFinalized(7L, 10L, now)).isFalse();
     }
 
     @Test
     void nonDuplicateIntegrityErrorsRemainVisible() {
-        when(settings.isSettlementPushEnabled(1L)).thenReturn(true);
-        when(mapper.insertSettlementFinalized(eq(1L), eq(10L), anyString(), anyString(), eq(now)))
+        ready();
+        when(mapper.insertEvent(
+                        eq(1L),
+                        eq(NotificationType.SETTLEMENT_FINALIZED),
+                        eq("SETTLEMENT_BATCH"),
+                        eq(10L),
+                        anyString(),
+                        anyString(),
+                        eq(now)))
                 .thenThrow(new DataIntegrityViolationException("constraint"));
         assertThatThrownBy(() -> service.recordSettlementFinalized(7L, 10L, now))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -55,6 +85,6 @@ class NotificationReviewRecordTest {
     void existingEventSkipsRepeatedConsentReads() {
         when(mapper.existsSettlementFinalized(1L, 10L)).thenReturn(true);
         assertThat(service.recordSettlementFinalized(7L, 10L, now)).isFalse();
-        verifyNoInteractions(settings);
+        verify(mapper, never()).selectDeliveryTarget(anyLong(), any(NotificationConsentType.class));
     }
 }

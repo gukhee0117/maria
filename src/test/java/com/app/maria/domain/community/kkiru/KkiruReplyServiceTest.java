@@ -16,6 +16,7 @@ import com.app.maria.domain.community.repository.CommunityPostRepository;
 import com.app.maria.domain.community.type.AuthorType;
 import com.app.maria.domain.community.type.CommunityStatus;
 import com.app.maria.domain.community.type.KkiruStatus;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.JpaConfig;
 import com.app.maria.global.config.TransactionConfig;
@@ -72,6 +73,8 @@ class KkiruReplyServiceTest {
     @Autowired private CommunityCommentRepository commentRepository;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private EntityManager entityManager;
+    @MockitoBean private CustomerNotificationService notificationService;
+
     @MockitoBean private EvidenceCollector collector;
     @MockitoBean private KkiruAnswerWriter answerWriter;
     @MockitoBean private BusinessClockService clock;
@@ -152,6 +155,8 @@ class KkiruReplyServiceTest {
         assertThat(ai.get(0).getContent()).isEqualTo("최근 30일 동안 공시가 3건 올라왔어요. 자체 산정 위험등급은 2등급이에요.");
         assertThat(ai.get(0).getSourcesJson()).contains("DART:1").contains("RISK:7");
         assertThat(ai.get(0).getCreatedAt()).isEqualTo(NOW);
+        org.mockito.Mockito.verify(notificationService)
+                .recordReply(post.getCustomerId(), null, ai.get(0).getCommunityCommentId(), true);
         CommunityPostEntity reloaded =
                 postRepository.findById(post.getCommunityPostId()).orElseThrow();
         assertThat(reloaded.getKkiruStatus()).isEqualTo(KkiruStatus.ANSWERED);
@@ -172,6 +177,8 @@ class KkiruReplyServiceTest {
         List<CommunityCommentEntity> ai = aiComments();
         assertThat(ai).hasSize(1);
         assertThat(ai.get(0).getParentCommentId()).isEqualTo(caller.getCommunityCommentId());
+        org.mockito.Mockito.verify(notificationService)
+                .recordReply(caller.getCustomerId(), null, ai.get(0).getCommunityCommentId(), true);
         assertThat(
                         commentRepository
                                 .findById(caller.getCommunityCommentId())

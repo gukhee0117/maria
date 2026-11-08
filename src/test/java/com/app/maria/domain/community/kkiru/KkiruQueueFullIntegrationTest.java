@@ -11,6 +11,7 @@ import com.app.maria.domain.community.entity.CommunityPostEntity;
 import com.app.maria.domain.community.repository.CommunityPostRepository;
 import com.app.maria.domain.community.service.KkiruCallRequestedEvent;
 import com.app.maria.domain.community.type.KkiruStatus;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.JpaConfig;
 import com.app.maria.global.config.TransactionConfig;
@@ -117,6 +118,8 @@ class KkiruQueueFullIntegrationTest {
     private Executor executor;
 
     @Autowired private JdbcTemplate jdbc;
+    @MockitoBean private CustomerNotificationService notificationService;
+
     @MockitoBean private KkiruReplyService replyService;
     @MockitoBean private BusinessClockService clock;
 

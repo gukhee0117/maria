@@ -3,11 +3,19 @@ package com.app.maria.domain.notification.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.notification.dto.CustomerNotificationResponseDTO;
+import com.app.maria.domain.notification.dto.NotificationDeliveryDTO;
+import com.app.maria.domain.notification.dto.SettlementEmailDetails;
+import com.app.maria.domain.notification.event.CustomerNotificationCreated;
 import com.app.maria.domain.notification.mapper.CustomerNotificationMapper;
+import com.app.maria.domain.notification.type.NotificationConsentType;
+import com.app.maria.domain.notification.type.NotificationType;
 import com.app.maria.global.clock.service.BusinessClockService;
+import com.app.maria.global.exception.AppException;
+import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -21,8 +29,8 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
 
     private final CustomerNotificationMapper notificationMapper;
     private final AccountMapper accountMapper;
-    private final CustomerNotificationSettingsService settingsService;
     private final BusinessClockService businessClockService;
+    private final ApplicationEventPublisher events;
 
     @Override
     @Transactional(readOnly = true)
@@ -44,21 +52,74 @@ public class CustomerNotificationServiceImpl implements CustomerNotificationServ
             Long accountId, Long batchId, LocalDateTime completedAt) {
         AccountDTO account = accountMapper.selectByAccountId(accountId).orElse(null);
         if (account == null
-                || notificationMapper.existsSettlementFinalized(account.getCustomerId(), batchId)
-                || !settingsService.isSettlementPushEnabled(account.getCustomerId())) {
+                || notificationMapper.existsSettlementFinalized(account.getCustomerId(), batchId))
             return false;
+        SettlementEmailDetails details =
+                notificationMapper.selectSettlementEmailDetails(accountId, batchId);
+        if (details == null
+                || details.getSettledAmount() == null
+                || details.getCompletedAt() == null) {
+            throw new AppException(
+                    ErrorType.SETTLEMENT_STATE_CONFLICT, "정산 완료 알림의 금액·시각을 확인할 수 없습니다.");
         }
+        return record(
+                account.getCustomerId(),
+                NotificationConsentType.NOTIFY_SETTLEMENT,
+                NotificationType.SETTLEMENT_FINALIZED,
+                "SETTLEMENT_BATCH",
+                batchId,
+                "정산이 완료됐어요",
+                "매도 대금이 원화로 정산됐어요. 내 계좌에서 정산 내역을 확인해 주세요.",
+                details.getCompletedAt(),
+                details);
+    }
+
+    @Override
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            propagation = Propagation.MANDATORY)
+    public void recordReply(Long recipientId, Long authorId, Long commentId, boolean kiru) {
+        if (recipientId == null || recipientId.equals(authorId)) return;
+        record(
+                recipientId,
+                kiru ? NotificationConsentType.NOTIFY_KIRU : NotificationConsentType.NOTIFY_COMMENT,
+                kiru ? NotificationType.KIRU_REPLY : NotificationType.COMMUNITY_COMMENT,
+                "COMMUNITY_COMMENT",
+                commentId,
+                kiru ? "끼루가 답글을 남겼어요" : "새 답글이 달렸어요",
+                kiru ? "커뮤니티에서 끼루의 답변을 확인해 주세요." : "커뮤니티에서 내 글·댓글에 달린 답글을 확인해 주세요.",
+                businessClockService.now(),
+                null);
+    }
+
+    private boolean record(
+            Long customerId,
+            NotificationConsentType consentType,
+            NotificationType type,
+            String relatedType,
+            Long relatedId,
+            String title,
+            String content,
+            LocalDateTime createdAt,
+            SettlementEmailDetails settlement) {
+        NotificationDeliveryDTO target =
+                notificationMapper.selectDeliveryTarget(customerId, consentType);
+        if (target == null || !target.isKindEnabled()) return false;
+        String email =
+                target.isEmailEnabled() && target.getEmail() != null && !target.getEmail().isBlank()
+                        ? target.getEmail().trim()
+                        : null;
+        if (!target.isPushEnabled() && email == null) return false;
         try {
-            return notificationMapper.insertSettlementFinalized(
-                            account.getCustomerId(),
-                            batchId,
-                            "정산이 완료됐어요",
-                            "매도 대금 정산이 완료됐습니다. 배치 번호: " + batchId,
-                            completedAt)
-                    > 0;
+            if (notificationMapper.insertEvent(
+                            customerId, type, relatedType, relatedId, title, content, createdAt)
+                    == 0) return false;
         } catch (DuplicateKeyException duplicate) {
-            // 동시 완료·재실행의 동일 사건만 건너뛴다. 나머지 무결성 오류는 호출자에게 전달한다.
             return false;
         }
+        events.publishEvent(
+                new CustomerNotificationCreated(
+                        customerId, title, content, target.isPushEnabled(), email, settlement));
+        return target.isPushEnabled();
     }
 }

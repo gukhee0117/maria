@@ -10,4 +10,6 @@ public interface CustomerNotificationService {
     void markAllRead(Long customerId);
 
     boolean recordSettlementFinalized(Long accountId, Long batchId, LocalDateTime completedAt);
+
+    void recordReply(Long recipientId, Long authorId, Long commentId, boolean kiru);
 }

@@ -112,18 +112,28 @@ class NotificationReviewIntegrationTest {
                 CustomerNotificationMapper mapper,
                 AccountMapper accounts,
                 CustomerNotificationSettingsService settings,
-                BusinessClockService clock) {
-            return new CustomerNotificationServiceImpl(mapper, accounts, settings, clock);
+                BusinessClockService clock,
+                org.springframework.context.ApplicationEventPublisher events) {
+            return new CustomerNotificationServiceImpl(mapper, accounts, clock, events);
         }
     }
 
     @BeforeEach
     void setup() {
+        jdbc.execute("DROP TABLE IF EXISTS settlement_item");
+        jdbc.execute("DROP TABLE IF EXISTS krw_exchange");
+        jdbc.execute(
+                "CREATE TABLE krw_exchange (exchange_id BIGINT PRIMARY KEY, account_id BIGINT, final_amount DECIMAL(20,2), settlement_status VARCHAR(20))");
+        jdbc.execute(
+                "CREATE TABLE settlement_item (item_id BIGINT PRIMARY KEY, batch_id BIGINT, exchange_id BIGINT, result VARCHAR(20), processed_at TIMESTAMP)");
+        jdbc.execute("INSERT INTO krw_exchange VALUES (7,7,1234567,'FINALIZED')");
+        jdbc.update("INSERT INTO settlement_item VALUES (1,10,7,'SUCCESS',?)", NOW);
         jdbc.execute("DROP TABLE IF EXISTS notification");
         jdbc.execute("DROP TABLE IF EXISTS customer_consent");
         jdbc.execute("DROP TABLE IF EXISTS customer");
-        jdbc.execute("CREATE TABLE customer (customer_id BIGINT PRIMARY KEY)");
-        jdbc.execute("INSERT INTO customer VALUES (1),(2)");
+        jdbc.execute(
+                "CREATE TABLE customer (customer_id BIGINT PRIMARY KEY, email VARCHAR(100) DEFAULT 'test@example.com')");
+        jdbc.execute("INSERT INTO customer(customer_id) VALUES (1),(2)");
         jdbc.execute(
                 "CREATE TABLE customer_consent (customer_consent_id BIGINT AUTO_INCREMENT PRIMARY KEY, customer_id BIGINT NOT NULL REFERENCES customer(customer_id), consent_type VARCHAR(30) NOT NULL, agreed BOOLEAN NOT NULL, changed_at TIMESTAMP NOT NULL)");
         jdbc.execute(

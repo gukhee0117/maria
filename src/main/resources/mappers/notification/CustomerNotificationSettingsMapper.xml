@@ -4,6 +4,11 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper">
 
+    <select id="hasRegisteredEmail" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM customer WHERE customer_id = #{customerId}
+            AND email IS NOT NULL AND TRIM(email) &lt;&gt; '')
+    </select>
+
     <select id="lockCustomer" resultType="Long">
         SELECT customer_id FROM customer WHERE customer_id = #{customerId} FOR UPDATE
     </select>

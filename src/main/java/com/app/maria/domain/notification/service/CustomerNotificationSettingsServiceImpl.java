@@ -38,6 +38,10 @@ public class CustomerNotificationSettingsServiceImpl
         if (settingsMapper.lockCustomer(customerId) == null) {
             throw new AppException(ErrorType.CUSTOMER_NOT_FOUND, customerId);
         }
+        if (Boolean.TRUE.equals(request.email())
+                && !settingsMapper.hasRegisteredEmail(customerId)) {
+            throw new AppException(ErrorType.CUSTOMER_NOTIFICATION_EMAIL_REQUIRED);
+        }
         Map<NotificationConsentType, Boolean> previous =
                 values(settingsMapper.selectLatestByCustomerId(customerId));
         LocalDateTime changedAt = businessClockService.now();
