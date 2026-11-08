@@ -42,7 +42,7 @@ public class CustomerNotificationSettingsServiceImpl
                 values(settingsMapper.selectLatestByCustomerId(customerId));
         LocalDateTime changedAt = businessClockService.now();
         for (NotificationConsentType type : NotificationConsentType.values()) {
-            boolean next = type.requestedValue(request);
+            boolean next = requestedValue(request, type);
             if (agreed(previous, type) != next) {
                 settingsMapper.insertConsent(customerId, type, next, changedAt);
             }
@@ -80,5 +80,18 @@ public class CustomerNotificationSettingsServiceImpl
     private boolean agreed(
             Map<NotificationConsentType, Boolean> values, NotificationConsentType type) {
         return values.getOrDefault(type, type.defaultValue());
+    }
+
+    private boolean requestedValue(
+            CustomerNotificationSettingsRequestDTO request, NotificationConsentType type) {
+        return switch (type) {
+            case NOTIFY_PUSH -> request.push();
+            case NOTIFY_SMS -> request.sms();
+            case NOTIFY_EMAIL -> request.email();
+            case NOTIFY_SETTLEMENT -> request.settle();
+            case NOTIFY_BAND -> request.band();
+            case NOTIFY_COMMENT -> request.reply();
+            case NOTIFY_KIRU -> request.kiru();
+        };
     }
 }
