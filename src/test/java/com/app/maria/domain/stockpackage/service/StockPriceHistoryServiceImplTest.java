@@ -159,4 +159,14 @@ class StockPriceHistoryServiceImplTest {
 
         assertThat(service.getHistory(List.of("0000A0"), 30)).hasSize(1);
     }
+
+    @Test
+    void 증권사_응답을_다루다_예상_밖_오류가_나도_모두_available_false이고_예외를_던지지_않는다() {
+        when(securities.domesticHistory(any(), any(), anyInt()))
+                .thenThrow(new IllegalStateException("예상 밖 오류"));
+
+        var r = service.getHistory(List.of("005930", "000660"), 30);
+
+        assertThat(r).hasSize(2).noneMatch(StockPriceHistoryResponseDTO::isAvailable);
+    }
 }

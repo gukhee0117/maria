@@ -21,7 +21,7 @@ public class StockPriceHistoryApi {
     @GetMapping
     @Operation(
             summary =
-                    "국내주식 일별 종가 이력 (최대 20종목, 쉼표로 구분, days 기본 30·1~60으로 맞춤). 업무일 이전 영업일의 종가만 오며 현재가와 다를 수 있다. 이력이 없는 종목은 available=false")
+                    "국내주식 일별 종가 이력 (최대 20종목, 쉼표로 구분, days 기본 30·1~60으로 맞춤). 업무일까지(업무일 당일 포함) 저장된 종가만 오며 현재가와 다를 수 있다. 이력이 없는 종목은 available=false")
     public ApiResponseDTO<List<StockPriceHistoryResponseDTO>> history(
             @RequestParam List<String> tickers, @RequestParam(defaultValue = "30") int days) {
         return ApiResponseDTO.of("종가 이력 조회 성공", stockPriceHistoryService.getHistory(tickers, days));

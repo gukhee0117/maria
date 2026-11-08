@@ -655,4 +655,53 @@ class StockRecommendationServiceImplTest {
         assertThat(res.getAnswer()).contains("진단");
         verify(answerer, never()).answer(anyString(), anyString());
     }
+
+    @Test
+    @DisplayName("질문에 limit을 보내면 화면에 보이는 추천과 같은 종목으로 답하고, 안 보내면 6종목까지 쓴다")
+    void askUsesSameSetAsScreenWhenLimitGiven() {
+        candidates(
+                true,
+                2,
+                row(1, "A전자", "000001", Type.STOCK, "전기전자", 2, true),
+                row(2, "B전자", "000002", Type.STOCK, "전기전자", 2, true),
+                row(3, "C화학", "000003", Type.STOCK, "화학", 2, true),
+                row(4, "D소재", "000004", Type.STOCK, "소재", 2, true),
+                row(5, "E소재", "000005", Type.STOCK, "소재", 2, true));
+        List<String> names =
+                service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY").getItems().stream()
+                        .map(StockRecommendationResponseDTO.ItemResponse::getName)
+                        .toList();
+        assertThat(names).hasSize(3);
+
+        String withLimit =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("변동성 알려줘", null, "SURVEY", 3))
+                        .getAnswer();
+        String withoutLimit =
+                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("변동성 알려줘", null))
+                        .getAnswer();
+
+        List<String> all = List.of("A전자", "B전자", "C화학", "D소재", "E소재");
+        for (String n : all) {
+            assertThat(withLimit.contains(n)).as("limit=3 답변의 " + n).isEqualTo(names.contains(n));
+            assertThat(withoutLimit).as("limit 없는 답변").contains(n);
+        }
+    }
+
+    @Test
+    @DisplayName("변동성과 위험이 같이 나오면 변동성 답을 하고, 위험등급만 물으면 등급 답을 한다")
+    void volatilityQuestionWinsOverRiskWord() {
+        candidates(true, 2, row(1, "A전자", "000001", Type.STOCK, "전기", 2, true));
+
+        String vol =
+                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("변동성 위험 알려줘", null))
+                        .getAnswer();
+        String grade =
+                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("위험등급 알려줘", null))
+                        .getAnswer();
+
+        assertThat(vol).contains("연 변동성은").contains("21.5%");
+        assertThat(grade).contains("위험등급은 1등급").doesNotContain("연 변동성은");
+    }
 }

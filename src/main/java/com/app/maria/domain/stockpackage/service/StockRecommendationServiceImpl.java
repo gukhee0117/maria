@@ -43,13 +43,15 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class StockRecommendationServiceImpl implements StockRecommendationService {
     static final String DISCLAIMER =
-            "교육용 프로젝트의 자체 분석 결과예요. 수익을 보장하지 않으며, 실제 금융상품 판매·권유 절차를 대체하지 않아요.";
+            "교육용 프로젝트의 자체 분석 결과예요. 수익을 보장하지 않으며, 실제 금융상품 판매·권유 절차를 대체하지 않아요. 투자 판단과 책임은 본인에게 있어요.";
     static final String FALLBACK_ANSWER =
             "지금은 그 질문에 답할 수 있는 정보가 없어요. 추천 종목의 추천 이유, 위험등급, 변동성, 비교에 대해 물어봐 주세요.";
     static final String TRADING_NEEDS_PROFILE = "투자성향 진단 후 거래 경향 추천을 볼 수 있어요.";
     static final String TRADING_NEEDS_PROFILE_ANSWER =
             "투자성향 진단이 없거나 만료돼서 거래 경향 추천을 볼 수 없어요. 내 정보에서 투자성향을 진단해 주세요.";
     static final int MAX_LIMIT = 12;
+    // 질문에서 limit을 주지 않으면 이 개수로 추천을 다시 계산한다. 화면과 같은 종목으로 답하려면 화면이 보여 주는 개수를 보내야 한다
+    static final int DEFAULT_ASK_LIMIT = 6;
     static final String BASIS_SURVEY = "SURVEY";
     static final String BASIS_TRADING = "TRADING";
 
@@ -84,7 +86,9 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     @Override
     public StockRecommendationAskResponseDTO ask(
             Long customerId, StockRecommendationAskRequestDTO request) {
-        StockRecommendationVO rec = build(customerId, "ALL", 6, normalizeBasis(request.basis()));
+        int limit = request.limit() == null ? DEFAULT_ASK_LIMIT : request.limit();
+        StockRecommendationVO rec =
+                build(customerId, "ALL", limit, normalizeBasis(request.basis()));
         String question = request.question().trim();
         List<Item> items = rec.getItems();
         boolean trading = BASIS_TRADING.equals(rec.getBasis());
@@ -375,7 +379,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                                         target.grade()
                                                 .subtract(BigDecimal.valueOf(i.getRiskGrade()))
                                                 .abs())
-                        .thenComparingInt(i -> shuffle(i.getTicker(), day));
+                        .thenComparingInt(i -> shuffle(i.getTicker(), day))
+                        .thenComparing(StockCandidateResponseDTO.ItemResponse::getTicker);
 
         List<StockCandidateResponseDTO.ItemResponse> pool =
                 candidates.getItems().stream()
@@ -526,15 +531,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                                     + gradeName(focus.riskGrade())
                                     + ")이에요. 과거 3년 가격 변동으로 리턴증권이 자체 산정한 값이에요.");
         }
-        if (GRADE_Q.matcher(q).find() && !COMPARE_Q.matcher(q).find()) {
-            return Optional.of(
-                    "위험등급은 1등급(매우 높은 위험)부터 6등급(매우 낮은 위험)까지예요. 과거 3년 가격으로 리턴증권이 자체 산정해요.\n"
-                            + items.stream()
-                                    .map(i -> i.name() + " " + i.riskGrade() + "등급")
-                                    .collect(Collectors.joining(" · "))
-                            + "\n"
-                            + rangeSentence(rec));
-        }
+        // "변동성 위험"처럼 둘이 같이 나오면 더 구체적인 변동성 답을 먼저 한다
         if (VOL_Q.matcher(q).find()) {
             return Optional.of(
                     items.stream()
@@ -549,6 +546,15 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                                                             + "%")
                                     .collect(Collectors.joining(" · "))
                             + "\n연 변동성은 가격이 1년 동안 오르내린 폭을 과거 3년 가격으로 계산한 값이에요. 앞으로의 수익을 예측하는 값은 아니에요.");
+        }
+        if (GRADE_Q.matcher(q).find() && !COMPARE_Q.matcher(q).find()) {
+            return Optional.of(
+                    "위험등급은 1등급(매우 높은 위험)부터 6등급(매우 낮은 위험)까지예요. 과거 3년 가격으로 리턴증권이 자체 산정해요.\n"
+                            + items.stream()
+                                    .map(i -> i.name() + " " + i.riskGrade() + "등급")
+                                    .collect(Collectors.joining(" · "))
+                            + "\n"
+                            + rangeSentence(rec));
         }
         if (COMPARE_Q.matcher(q).find()) {
             return Optional.of(

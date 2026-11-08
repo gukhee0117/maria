@@ -57,6 +57,10 @@ public class StockPriceHistoryServiceImpl implements StockPriceHistoryService {
         } catch (AppException e) {
             log.warn("종가 이력 조회 실패 type={}", e.getErrorType());
             return Map.of();
+        } catch (RuntimeException e) {
+            // 예상 밖 오류도 화면에는 "이력 없음"으로만 알린다. 로그에는 예외 종류만 남긴다
+            log.warn("종가 이력 조회 실패 type={}", e.getClass().getSimpleName());
+            return Map.of();
         }
     }
 
