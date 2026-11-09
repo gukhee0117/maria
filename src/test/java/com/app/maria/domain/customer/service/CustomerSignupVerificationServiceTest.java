@@ -16,10 +16,29 @@ class CustomerSignupVerificationServiceTest {
     CustomerSignupVerificationService service =
             new CustomerSignupVerificationService(codes, sender, Clock.fixed(now, ZoneOffset.UTC));
 
+    private CustomerSignupVerificationService.Pending send(String email) {
+        var prepared = service.prepare("browser", email);
+        service.deliver(prepared);
+        return prepared.pending();
+    }
+
+    @Test
+    void preparationDoesNotStartSmtp() {
+        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
+        var prepared = service.prepare("browser", "user@example.com");
+        verifyNoInteractions(sender);
+        assertThat(prepared.pending().resendAvailableAt()).isEqualTo(now.plusSeconds(60));
+        verify(codes)
+                .save(
+                        eq(prepared.pending().identity()),
+                        eq(prepared.pending().token()),
+                        anyString());
+    }
+
     @Test
     void hashesCodeAndVerifiesOneTimeBeforeAcceptingExactAddress() {
-        when(codes.reserveSend(any())).thenReturn(true);
-        var pending = service.send("browser", "user@example.com");
+        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
+        var pending = send("user@example.com");
         var code = ArgumentCaptor.forClass(String.class);
         verify(sender).send(eq("user@example.com"), code.capture());
         assertThat(code.getValue()).matches("[0-9]{6}");
@@ -45,29 +64,29 @@ class CustomerSignupVerificationServiceTest {
     }
 
     @Test
-    void missingAddressOrCooldownPreventsSend() {
-        assertThatThrownBy(() -> service.send("browser", null)).isInstanceOf(AppException.class);
-        assertThatThrownBy(() -> service.send("browser", "user@example.com"))
-                .isInstanceOf(AppException.class);
+    void cooldownPreventsSendAndSave() {
+        assertThatThrownBy(() -> send("user@example.com")).isInstanceOf(AppException.class);
         verifyNoInteractions(sender);
     }
 
     @Test
     void addressCooldownSpansBrowsersAndCaseVariants() {
-        when(codes.reserveSend(startsWith("browser:"))).thenReturn(true);
-        assertThatThrownBy(() -> service.send("different-browser", "USER@example.com"))
+        assertThatThrownBy(() -> service.prepare("different-browser", "USER@example.com"))
                 .isInstanceOf(AppException.class);
         verify(codes)
                 .reserveSend(
-                        CustomerSignupVerificationService.digest("address", "user@example.com"));
+                        startsWith("browser:"),
+                        eq(
+                                CustomerSignupVerificationService.digest(
+                                        "address", "user@example.com")));
         verifyNoInteractions(sender);
     }
 
     @Test
     void failedMailCancelsChallenge() {
-        when(codes.reserveSend(any())).thenReturn(true);
+        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
         doThrow(new IllegalStateException("smtp failed")).when(sender).send(any(), any());
-        assertThatThrownBy(() -> service.send("browser", "user@example.com"))
+        assertThatThrownBy(() -> send("user@example.com"))
                 .isInstanceOf(IllegalStateException.class);
         verify(codes).cancel(anyString(), anyString());
     }

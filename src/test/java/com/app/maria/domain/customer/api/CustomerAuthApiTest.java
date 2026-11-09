@@ -175,8 +175,113 @@ class CustomerAuthApiTest {
     }
 
     @Test
+    void smtpRunsOutsideSessionLockAndRegistersOnlyAfterSending() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        when(codes.reserveSend(any(), any())).thenReturn(true);
+        org.mockito.Mockito.doAnswer(
+                        invocation -> {
+                            assertThat(Thread.holdsLock(session)).isFalse();
+                            assertThat(
+                                            session.getAttribute(
+                                                    CustomerAuthApi.class.getName() + ".pending"))
+                                    .isNull();
+                            return null;
+                        })
+                .when(emailSender)
+                .send(any(), any());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"email\":\"hong@example.com\"}"))
+                .andExpect(status().isOk());
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".pending")).isNotNull();
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".sending")).isNull();
+    }
+
+    @Test
+    void sessionInvalidatedDuringSmtpCannotRegisterCodeAndCancelsOnlyThatCode() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        when(codes.reserveSend(any(), any())).thenReturn(true);
+        org.mockito.Mockito.doAnswer(
+                        invocation -> {
+                            session.invalidate();
+                            return null;
+                        })
+                .when(emailSender)
+                .send(any(), any());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"email\":\"hong@example.com\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CUSTOMER_SIGNUP_CODE_INVALID"));
+        verify(codes).cancel(any(), any());
+    }
+
+    @Test
+    void supersededSmtpCompletionCannotOverwriteNewerRequest() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        when(codes.reserveSend(any(), any())).thenReturn(true);
+        org.mockito.Mockito.doAnswer(
+                        invocation -> {
+                            session.setAttribute(
+                                    CustomerAuthApi.class.getName() + ".sending", "newer-token");
+                            return null;
+                        })
+                .when(emailSender)
+                .send(any(), any());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"email\":\"hong@example.com\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".pending")).isNull();
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".sending"))
+                .isEqualTo("newer-token");
+        verify(codes).cancel(any(), any());
+    }
+
+    @Test
+    void smtpFailureClearsOnlyOwnSendingStateAndDoesNotRegisterCode() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        when(codes.reserveSend(any(), any())).thenReturn(true);
+        org.mockito.Mockito.doThrow(new AppException(ErrorType.CUSTOMER_SIGNUP_EMAIL_UNAVAILABLE))
+                .when(emailSender)
+                .send(any(), any());
+        mockMvc.perform(
+                        post("/api/customer/auth/signup/email")
+                                .session(session)
+                                .with(csrf())
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"email\":\"hong@example.com\"}"))
+                .andExpect(status().isServiceUnavailable());
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".pending")).isNull();
+        assertThat(session.getAttribute(CustomerAuthApi.class.getName() + ".sending")).isNull();
+        verify(codes).cancel(any(), any());
+    }
+
+    @Test
+    void malformedOrMissingEmailIsRejectedAtApiBoundaryBeforePreparingCode() throws Exception {
+        for (String json : List.of("{}", "{\"email\":\"\"}", "{\"email\":\"invalid\"}")) {
+            mockMvc.perform(
+                            post("/api/customer/auth/signup/email")
+                                    .with(csrf())
+                                    .contentType(APPLICATION_JSON)
+                                    .content(json))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(codes, emailSender);
+    }
+
+    @Test
     void emailCodeMustBeConfirmedInSameBrowserBeforeSignup() throws Exception {
-        when(codes.reserveSend(any())).thenReturn(true);
+        when(codes.reserveSend(any(), any())).thenReturn(true);
         var result =
                 mockMvc.perform(
                                 post("/api/customer/auth/signup/email")

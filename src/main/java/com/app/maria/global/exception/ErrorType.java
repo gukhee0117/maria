@@ -53,8 +53,6 @@ public enum ErrorType {
     RISK_SYNC_CONFLICT(HttpStatus.CONFLICT, "위험등급 동기화 상태를 확인할 수 없습니다.", LogLevel.WARN),
     // 고객 로그인 (아이디 존재 여부와 비밀번호 오류를 구분해 노출하지 않는다.)
     CUSTOMER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
-    CUSTOMER_SIGNUP_EMAIL_REQUIRED(
-            HttpStatus.BAD_REQUEST, "회원가입 인증을 받을 이메일을 입력해 주세요.", LogLevel.WARN),
     CUSTOMER_SIGNUP_EMAIL_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     CUSTOMER_SIGNUP_CODE_RATE_LIMITED(

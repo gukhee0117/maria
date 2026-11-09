@@ -9,6 +9,7 @@ import com.app.maria.domain.customer.dto.response.CustomerSignupChallengeDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.domain.customer.service.CustomerSignupVerificationService;
 import com.app.maria.domain.customer.service.CustomerSignupVerificationService.Pending;
+import com.app.maria.domain.customer.service.CustomerSignupVerificationService.Prepared;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerAuthApi {
     // 유휴 30분 뒤 세션 만료. 서버 설정 파일이 추적되지 않으므로 코드에서 지정한다.
     private static final int SESSION_TIMEOUT_SECONDS = 30 * 60;
+    private static final String SENDING_SIGNUP = CustomerAuthApi.class.getName() + ".sending";
     private static final String PENDING_SIGNUP = CustomerAuthApi.class.getName() + ".pending";
 
     private final CustomerAuthService customerAuthService;
@@ -100,10 +102,46 @@ public class CustomerAuthApi {
     public ApiResponseDTO<CustomerSignupChallengeDTO> sendSignupEmail(
             @Valid @RequestBody CustomerSignupEmailRequestDTO body, HttpServletRequest request) {
         HttpSession session = request.getSession();
+        Prepared prepared;
         synchronized (session) {
-            Pending pending = verification.send(session.getId(), body.email());
-            session.setAttribute(PENDING_SIGNUP, pending);
-            return ApiResponseDTO.of("회원가입 인증번호를 보냈습니다.", verification.describe(pending));
+            prepared = verification.prepare(session.getId(), body.email());
+            session.setAttribute(SENDING_SIGNUP, prepared.pending().token());
+            session.removeAttribute(PENDING_SIGNUP);
+        }
+        try {
+            verification.deliver(prepared); // SMTP runs without holding the session monitor.
+        } catch (RuntimeException failure) {
+            clearSending(session, prepared.pending().token());
+            throw failure;
+        }
+        if (!registerSentCode(session, prepared.pending())) {
+            verification.cancel(prepared.pending());
+            throw new AppException(ErrorType.CUSTOMER_SIGNUP_CODE_INVALID);
+        }
+        return ApiResponseDTO.of("회원가입 인증번호를 보냈습니다.", verification.describe(prepared.pending()));
+    }
+
+    private boolean registerSentCode(HttpSession session, Pending pending) {
+        try {
+            synchronized (session) {
+                if (!pending.token().equals(session.getAttribute(SENDING_SIGNUP))) return false;
+                session.setAttribute(PENDING_SIGNUP, pending);
+                session.removeAttribute(SENDING_SIGNUP);
+                return true;
+            }
+        } catch (IllegalStateException expired) {
+            return false;
+        }
+    }
+
+    private void clearSending(HttpSession session, String token) {
+        try {
+            synchronized (session) {
+                if (token.equals(session.getAttribute(SENDING_SIGNUP)))
+                    session.removeAttribute(SENDING_SIGNUP);
+            }
+        } catch (IllegalStateException expired) {
+            // An invalidated session cannot retain the pending challenge.
         }
     }
 
