@@ -161,6 +161,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
         var a = allowed(c, id, request.articleVersion());
         // Client history can be forged. Reviewed article intents are self-contained.
         var safeRequest = new QuestionRequest(request.articleVersion(), canonical.get(), List.of());
+        // Figure questions always use article evidence, including when live LLM mode is enabled.
         if (NewsAnswerContent.asksForNumbers(safeRequest.question())) {
             return answer(
                     a,

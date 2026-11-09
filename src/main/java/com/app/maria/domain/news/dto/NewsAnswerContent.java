@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 /** Structured presentation plus source-bound quotations; never executes model-supplied markup. */
 public record NewsAnswerContent(String explanation, List<String> points, String quote) {
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    // Match percentage points (%p) before percent (%) to preserve the complete source unit.
     private static final Pattern NUMBER =
             Pattern.compile(
                     "(?<![A-Za-z\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|GWh|MWh|kWh|GW|MW|kW|kV|㎿|㎾|km|㎞|㎡|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위|시|분|초)?)");

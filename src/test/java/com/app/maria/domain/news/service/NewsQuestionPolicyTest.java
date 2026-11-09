@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class NewsQuestionPolicyTest {
     @Test
     void naturalFigureAndStockQuestionsMapToReviewedIntentsOnly() {
-        for (String q : List.of("수치 알려줘", "기사 수치 알려줘", "숫자 정리해줘"))
+        for (String q : List.of("수치 알려줘", "기사 수치 알려줘", "숫자 정리해줘", "수치 알려주기"))
             assertThat(NewsQuestionPolicy.canonicalQuestion(q)).contains("기사에 나온 숫자만 정리해줘");
         for (String q : List.of("뉴스 관련 종목 알려줘", "관련 회사 알려줘"))
             assertThat(NewsQuestionPolicy.canonicalQuestion(q)).contains("관련 종목이 뭐야?");
