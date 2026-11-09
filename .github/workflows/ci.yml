@@ -42,5 +42,7 @@ jobs:
           RETURNS_SECURITY_URL: http://localhost:1
           MYDATA_URL: http://localhost:1
           CI_PEPPER: ci
+          SIGNUP_REDIS_TEST_HOST: localhost
+          SIGNUP_REDIS_TEST_PASSWORD: ci
           NOTIFICATION_REDIS_TEST_HOST: localhost
           NOTIFICATION_REDIS_TEST_PASSWORD: ci
