@@ -24,6 +24,45 @@ class NewsAnswerContentTest {
                     5);
 
     @Test
+    void equalRankedFiguresStayInSourceOrderAndDuplicatesAreExcluded() {
+        String body =
+                "매출 1억원이다. "
+                        + java.util.stream.IntStream.rangeClosed(1, 80)
+                                .mapToObj(i -> "매출 " + i + "억원이다.")
+                                .collect(java.util.stream.Collectors.joining(" "));
+        var source =
+                new NewsArticle(
+                        "order",
+                        "v1",
+                        "매출 공시",
+                        body,
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source))
+                .containsExactlyElementsOf(
+                        java.util.stream.IntStream.rangeClosed(1, 12)
+                                .mapToObj(i -> "매출 " + i + "억원이다.")
+                                .toList());
+    }
+
+    @Test
+    void numericResultKeepsMatchingAndFallbackMetadataTogether() {
+        var matching = NewsAnswerContent.numericEvidenceResult(article, "매출은 얼마야?");
+        assertThat(matching.matchesQuestion()).isTrue();
+        assertThat(matching.points()).anyMatch(text -> text.contains("1,000억원"));
+        var fallback = NewsAnswerContent.numericEvidenceResult(article, "투자금은 얼마야?");
+        assertThat(fallback.matchesQuestion()).isFalse();
+        assertThat(fallback.points()).isNotEmpty();
+    }
+
+    @Test
     void boundedRankingStillFindsRelevantNumbersAtTheEndOfALongArticle() {
         var source =
                 new NewsArticle(

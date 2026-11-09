@@ -4,6 +4,7 @@ import com.app.maria.domain.customer.entity.InvestorType;
 import com.app.maria.domain.news.dto.NewsAnswerContent;
 import com.app.maria.domain.news.dto.NewsArticle;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +20,7 @@ public class PreparedNewsResponses {
                     case ACTIVE, AGGRESSIVE -> "성장 관점에서는 사업 변화와 함께 위험 요인도 확인해 주세요. ";
                     default -> "사업 변화와 위험 요인을 함께 살펴보세요. ";
                 };
-        var points = new java.util.ArrayList<String>();
+        var points = new ArrayList<String>();
         points.add(focus + article.facts().get(0));
         points.add(article.facts().size() > 1 ? article.facts().get(1) : article.facts().get(0));
         points.add(article.risks().get(0));
@@ -54,9 +55,10 @@ public class PreparedNewsResponses {
     }
 
     public String numbers(NewsArticle article, String question) {
-        var evidence = NewsAnswerContent.numericEvidence(article, question);
-        boolean matches = NewsAnswerContent.matchesNumericQuestion(evidence, question);
-        var points = new java.util.ArrayList<String>();
+        var numeric = NewsAnswerContent.numericEvidenceResult(article, question);
+        var evidence = numeric.points();
+        boolean matches = numeric.matchesQuestion();
+        var points = new ArrayList<String>();
         if (!evidence.isEmpty() && !matches)
             points.add("질문하신 항목과 직접 일치하는 수치는 찾지 못했어요. 아래는 기사에 나온 다른 수치예요.");
         points.addAll(evidence.stream().limit(matches ? 5 : 4).toList());

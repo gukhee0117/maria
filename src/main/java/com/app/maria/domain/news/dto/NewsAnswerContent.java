@@ -72,18 +72,21 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     public static List<String> numericEvidence(NewsArticle article, String question) {
-        Set<String> evidence = new LinkedHashSet<>();
+        return numericEvidenceResult(article, question).points();
+    }
+
+    public record NumericEvidence(List<String> points, boolean matchesQuestion) {}
+
+    public static NumericEvidence numericEvidenceResult(NewsArticle article, String question) {
         var keywords = questionKeywords(question);
-        Comparator<String> rank =
-                Comparator.comparingInt((String text) -> relevance(text, keywords))
-                        .thenComparingInt(NewsAnswerContent::numericWeight);
+        var evidence = new EvidenceCandidates(keywords);
         for (String sentence :
                 (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\n+")) {
             sentence = sentence.strip();
             var matches = NUMBER.matcher(sentence);
             if (!matches.find()) continue;
             int length = sentence.codePointCount(0, sentence.length());
-            if (length <= SHORT_SENTENCE_CODE_POINTS) retainEvidence(evidence, sentence, rank);
+            if (length <= SHORT_SENTENCE_CODE_POINTS) evidence.add(sentence);
             else {
                 do {
                     int start = Math.max(0, sentence.codePointCount(0, matches.start()) - 80);
@@ -100,35 +103,52 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
                                                     sentence.offsetByCodePoints(0, end))
                                             .strip()
                                     + (end < length ? "…" : "");
-                    retainEvidence(evidence, excerpt, rank);
+                    evidence.add(excerpt);
                 } while (matches.find());
             }
         }
-        var ranked = evidence.stream().sorted(rank.reversed()).toList();
-        if (!keywords.isEmpty() && ranked.stream().anyMatch(text -> relevance(text, keywords) > 0))
-            ranked = ranked.stream().filter(text -> relevance(text, keywords) > 0).toList();
-        return ranked.stream().limit(12).toList();
+        var ranked = evidence.ranked();
+        boolean matches =
+                keywords.isEmpty() || ranked.stream().anyMatch(row -> row.keywordScore() > 0);
+        if (!keywords.isEmpty() && matches)
+            ranked = ranked.stream().filter(row -> row.keywordScore() > 0).toList();
+        return new NumericEvidence(
+                ranked.stream().limit(12).map(RankedEvidence::text).toList(), matches);
     }
 
-    private static void retainEvidence(
-            Set<String> evidence, String candidate, Comparator<String> rank) {
-        if (evidence.contains(candidate)) return;
-        if (evidence.size() < MAX_EVIDENCE_CANDIDATES) {
-            evidence.add(candidate);
-            return;
-        }
-        String worst = evidence.stream().min(rank).orElseThrow();
-        // Continue scanning the whole article so a relevant late figure can replace an early date.
-        if (rank.compare(candidate, worst) > 0) {
-            evidence.remove(worst);
-            evidence.add(candidate);
-        }
-    }
+    private record RankedEvidence(String text, int keywordScore, int numericScore, long order) {}
 
-    public static boolean matchesNumericQuestion(List<String> evidence, String question) {
-        var keywords = questionKeywords(question);
-        return keywords.isEmpty()
-                || evidence.stream().anyMatch(text -> relevance(text, keywords) > 0);
+    private static final Comparator<RankedEvidence> EVIDENCE_RANK =
+            Comparator.comparingInt(RankedEvidence::keywordScore)
+                    .thenComparingInt(RankedEvidence::numericScore)
+                    .thenComparing(Comparator.comparingLong(RankedEvidence::order).reversed());
+
+    private static final class EvidenceCandidates {
+        private final List<String> keywords;
+        private final PriorityQueue<RankedEvidence> heap = new PriorityQueue<>(EVIDENCE_RANK);
+        private final Set<String> retained = new HashSet<>();
+        private long sequence;
+
+        private EvidenceCandidates(List<String> keywords) {
+            this.keywords = keywords;
+        }
+
+        private void add(String text) {
+            if (retained.contains(text)) return;
+            var candidate =
+                    new RankedEvidence(
+                            text, relevance(text, keywords), numericWeight(text), sequence++);
+            if (heap.size() >= MAX_EVIDENCE_CANDIDATES) {
+                if (EVIDENCE_RANK.compare(candidate, heap.peek()) <= 0) return;
+                retained.remove(heap.remove().text());
+            }
+            heap.add(candidate);
+            retained.add(text);
+        }
+
+        private List<RankedEvidence> ranked() {
+            return heap.stream().sorted(EVIDENCE_RANK.reversed()).toList();
+        }
     }
 
     private static int numericWeight(String text) {
