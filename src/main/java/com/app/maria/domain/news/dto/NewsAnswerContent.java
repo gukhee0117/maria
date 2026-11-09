@@ -13,6 +13,16 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
             Pattern.compile(
                     "(?<![A-Za-z\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|GWh|MWh|kWh|GW|MW|kW|kV|㎿|㎾|km|㎞|㎡|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위|시|분|초)?)");
 
+    private static final Set<String> KEYWORD_STOP_WORDS =
+            Set.of(
+                    "기사", "뉴스", "기사에", "기사에서", "이기사", "이뉴스", "나온", "관련", "내용", "수치", "숫자", "알려줘",
+                    "알려주세요", "정리해줘", "설명해줘", "무엇", "어떤", "왜", "뭐야", "얼마", "얼마야", "몇", "알려주기", "간단히",
+                    "쉽게", "이유", "핵심", "뜻", "의미", "좀", "자세히", "정확히", "얼마인가요", "뭔데", "무슨", "그런거야",
+                    "이게", "말이야");
+    private static final Pattern WORD_PATTERN = Pattern.compile("[가-힣A-Za-z][가-힣A-Za-z0-9]*");
+    private static final Pattern KEYWORD_SUFFIX =
+            Pattern.compile("(?:에서는|에서|으로|이란|란|인가요|이야|은|는|이|가|을|를|의|도)$");
+
     public NewsAnswerContent {
         points = List.copyOf(points);
     }
@@ -105,19 +115,13 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     public static List<String> questionKeywords(String question) {
-        var stop =
-                Set.of(
-                        "기사", "뉴스", "기사에", "기사에서", "이기사", "이뉴스", "나온", "관련", "내용", "수치", "숫자",
-                        "알려줘", "알려주세요", "정리해줘", "설명해줘", "무엇", "어떤", "왜", "뭐야", "얼마", "얼마야", "몇",
-                        "알려주기", "간단히", "쉽게", "이유", "핵심", "뜻", "의미", "좀", "자세히", "정확히", "얼마인가요",
-                        "뭔데", "무슨", "그런거야", "이게", "말이야");
-        return Pattern.compile("[가-힣A-Za-z][가-힣A-Za-z0-9]*")
+        return WORD_PATTERN
                 .matcher(question)
                 .results()
                 .map(m -> m.group().toLowerCase(Locale.ROOT))
-                .filter(word -> !stop.contains(word))
-                .map(word -> word.replaceFirst("(?:에서는|에서|으로|이란|란|인가요|이야|은|는|이|가|을|를|의|도)$", ""))
-                .filter(word -> word.length() >= 2 && !stop.contains(word))
+                .filter(word -> !KEYWORD_STOP_WORDS.contains(word))
+                .map(word -> KEYWORD_SUFFIX.matcher(word).replaceFirst(""))
+                .filter(word -> word.length() >= 2 && !KEYWORD_STOP_WORDS.contains(word))
                 .distinct()
                 .toList();
     }

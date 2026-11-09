@@ -66,6 +66,9 @@ public final class NewsQuestionPolicy {
                             + "|매수|매도|손절|익절|목표가|적정가|매매시점|진입시점|청산시점|투자전문가|투자상담|투자조언|종목추천|투자추천"
                             + "|shouldibuy|shouldisell|shouldbuystock|shouldsellstock");
 
+    private static final Pattern BYPASS_PATTERN =
+            Pattern.compile("무시|지침|프롬프트|시스템명령|역할로|명령을|ignore|systemprompt|instructions|https?|www");
+
     private NewsQuestionPolicy() {}
 
     public static Optional<String> canonicalQuestion(String question) {
@@ -78,16 +81,17 @@ public final class NewsQuestionPolicy {
         return Optional.empty();
     }
 
+    public static boolean isGeneralNumberQuestion(String canonicalQuestion) {
+        return NUMBERS.equals(canonicalQuestion);
+    }
+
     public static boolean blocked(String question) {
         String normalized = normalize(question);
         return question == null
                 || question.isBlank()
                 || question.length() > 500
                 || ADVICE_REQUEST.matcher(normalized).find()
-                || Pattern.compile(
-                                "무시|지침|프롬프트|시스템명령|역할로|명령을|ignore|systemprompt|instructions|https?|www")
-                        .matcher(normalized)
-                        .find();
+                || BYPASS_PATTERN.matcher(normalized).find();
     }
 
     public static Optional<String> articleQuestion(String question, NewsArticle article) {

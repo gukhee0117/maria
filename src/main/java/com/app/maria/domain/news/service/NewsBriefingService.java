@@ -172,7 +172,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                     a,
                     prepared.numbers(
                             a,
-                            NewsQuestionPolicy.canonicalQuestion(request.question()).isPresent()
+                            NewsQuestionPolicy.isGeneralNumberQuestion(canonical.get())
                                     ? ""
                                     : request.question()),
                     Origin.PREPARED,

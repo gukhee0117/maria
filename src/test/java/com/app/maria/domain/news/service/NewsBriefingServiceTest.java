@@ -89,7 +89,8 @@ class NewsBriefingServiceTest {
                         5,
                         false);
         when(provider.articles()).thenReturn(List.of(article));
-        var result = service.question(1L, "a", new QuestionRequest("v1", "수치 알려줘", List.of()));
+        var result =
+                service.question(1L, "a", new QuestionRequest("v1", "기사에 나온 숫자만 정리해줘", List.of()));
         assertThat(result.preparedReason()).isEqualTo(PreparedReason.ARTICLE_EVIDENCE);
         assertThat(result.points())
                 .anyMatch(point -> point.contains("250MW") && point.contains("계획"))
