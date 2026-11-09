@@ -151,21 +151,30 @@ public class NewsBriefingService implements NewsBriefingOperations {
     }
 
     public Answer question(Long customerId, String id, QuestionRequest request) {
-        var canonical = NewsQuestionPolicy.canonicalQuestion(request.question());
-        if (canonical.isEmpty())
+        if (NewsQuestionPolicy.blocked(request.question()))
             return policyRefusal(
                     id,
                     request.articleVersion(),
                     NewsQuestionPolicy.refusalFor(request.question()));
         var c = contexts.load(customerId);
         var a = allowed(c, id, request.articleVersion());
-        // Client history can be forged. Reviewed article intents are self-contained.
+        var canonical = NewsQuestionPolicy.articleQuestion(request.question(), a);
+        if (canonical.isEmpty())
+            return policyRefusal(
+                    id,
+                    request.articleVersion(),
+                    NewsQuestionPolicy.refusalFor(request.question()));
+        // Client history can be forged. Answer only the current question against this article.
         var safeRequest = new QuestionRequest(request.articleVersion(), canonical.get(), List.of());
         // Figure questions always use article evidence, including when live LLM mode is enabled.
         if (NewsAnswerContent.asksForNumbers(safeRequest.question())) {
             return answer(
                     a,
-                    prepared.numbers(a),
+                    prepared.numbers(
+                            a,
+                            NewsQuestionPolicy.canonicalQuestion(request.question()).isPresent()
+                                    ? ""
+                                    : request.question()),
                     Origin.PREPARED,
                     PreparedReason.ARTICLE_EVIDENCE,
                     null,
@@ -184,7 +193,15 @@ public class NewsBriefingService implements NewsBriefingOperations {
                                             asksForStocks(safeRequest.question())
                                                     ? related(a, c)
                                                     : List.of()))
-                    .orElseThrow(() -> new AppException(ErrorType.NEWS_AI_UNAVAILABLE));
+                    .orElseGet(
+                            () ->
+                                    answer(
+                                            a,
+                                            prepared.articleAnswer(a, safeRequest.question()),
+                                            Origin.PREPARED,
+                                            PreparedReason.ARTICLE_EVIDENCE,
+                                            null,
+                                            List.of()));
         }
         try {
             String questionKey = questionKey(a, c, safeRequest);
@@ -230,7 +247,15 @@ public class NewsBriefingService implements NewsBriefingOperations {
                                             asksForStocks(safeRequest.question())
                                                     ? related(a, c)
                                                     : List.of()))
-                    .orElseThrow(() -> new AppException(ErrorType.NEWS_AI_UNAVAILABLE));
+                    .orElseGet(
+                            () ->
+                                    answer(
+                                            a,
+                                            prepared.articleAnswer(a, safeRequest.question()),
+                                            Origin.PREPARED,
+                                            PreparedReason.ARTICLE_EVIDENCE,
+                                            null,
+                                            List.of()));
         }
     }
 

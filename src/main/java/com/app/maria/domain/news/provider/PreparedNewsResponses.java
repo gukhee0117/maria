@@ -36,11 +36,30 @@ public class PreparedNewsResponses {
         };
     }
 
+    public String articleAnswer(NewsArticle article, String question) {
+        var points = NewsAnswerContent.articleEvidence(article, question);
+        return MAPPER.valueToTree(
+                        new NewsAnswerContent(
+                                points.isEmpty()
+                                        ? "기사 원문에는 질문하신 내용이 명시되어 있지 않아요."
+                                        : String.join(" ", points),
+                                points,
+                                null))
+                .toString();
+    }
+
     // Called by NewsBriefingService in the service package; this API crosses package boundaries.
     public String numbers(NewsArticle article) {
-        var points = NewsAnswerContent.numericEvidence(article).stream().limit(5).toList();
+        return numbers(article, "");
+    }
+
+    public String numbers(NewsArticle article, String question) {
+        var points =
+                NewsAnswerContent.numericEvidence(article, question).stream().limit(5).toList();
         var explanation =
-                points.isEmpty() ? "이 기사에는 정리할 수 있는 수치 정보가 없어요." : String.join(" ", points);
+                points.isEmpty()
+                        ? "기사 원문에서 질문하신 항목의 수치 정보가 없어요. 기사에 없는 값은 추정하지 않아요."
+                        : String.join(" ", points);
         var quote =
                 points.stream()
                         .filter(s -> s.length() <= 200 && article.body().contains(s))

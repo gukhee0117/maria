@@ -51,10 +51,14 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     public static boolean asksForNumbers(String question) {
-        return question.contains("숫자") || question.contains("수치");
+        return question.matches("(?s).*(?:숫자|수치|얼마|몇|규모|금액|용량|비율|증가율|감소율|퍼센트).*");
     }
 
     public static List<String> numericEvidence(NewsArticle article) {
+        return numericEvidence(article, "");
+    }
+
+    public static List<String> numericEvidence(NewsArticle article, String question) {
         Set<String> evidence = new LinkedHashSet<>();
         for (String sentence :
                 (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\n+")) {
@@ -72,11 +76,82 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
                             (start > 0 ? "…" : "")
                                     + sentence.substring(start, end).strip()
                                     + (end < sentence.length() ? "…" : ""));
-                } while (matches.find() && evidence.size() < 12);
+                } while (matches.find());
             }
-            if (evidence.size() >= 12) break;
         }
-        return evidence.stream().limit(12).toList();
+        var keywords = questionKeywords(question);
+        var ranked =
+                evidence.stream()
+                        .sorted(
+                                Comparator.comparingInt((String text) -> relevance(text, keywords))
+                                        .thenComparingInt(NewsAnswerContent::numericWeight)
+                                        .reversed())
+                        .toList();
+        if (!keywords.isEmpty() && ranked.stream().anyMatch(text -> relevance(text, keywords) > 0))
+            ranked = ranked.stream().filter(text -> relevance(text, keywords) > 0).toList();
+        else if (!keywords.isEmpty()) return List.of();
+        return ranked.stream().limit(12).toList();
+    }
+
+    private static int numericWeight(String text) {
+        var matcher = NUMBER.matcher(text);
+        int score = 0;
+        while (matcher.find()) {
+            String unit = matcher.group(2).strip();
+            // Dates and identifiers are useful context but should not hide money/capacity/rates.
+            if (!unit.isEmpty() && !unit.matches("(?:년|월|일|분기|시|분|초)")) score += 2;
+        }
+        return score;
+    }
+
+    public static List<String> questionKeywords(String question) {
+        var stop =
+                Set.of(
+                        "기사", "뉴스", "기사에", "기사에서", "이기사", "이뉴스", "나온", "관련", "내용", "수치", "숫자",
+                        "알려줘", "알려주세요", "정리해줘", "설명해줘", "무엇", "어떤", "왜", "뭐야", "얼마", "얼마야", "몇",
+                        "알려주기", "간단히", "쉽게", "이유", "핵심", "뜻", "의미", "좀", "자세히", "정확히", "얼마인가요",
+                        "뭔데", "무슨", "그런거야", "이게", "말이야");
+        return Pattern.compile("[가-힣A-Za-z][가-힣A-Za-z0-9]*")
+                .matcher(question)
+                .results()
+                .map(m -> m.group().toLowerCase(Locale.ROOT))
+                .filter(word -> !stop.contains(word))
+                .map(word -> word.replaceFirst("(?:에서는|에서|으로|이란|란|인가요|이야|은|는|이|가|을|를|의|도)$", ""))
+                .filter(word -> word.length() >= 2 && !stop.contains(word))
+                .distinct()
+                .toList();
+    }
+
+    private static int relevance(String text, List<String> keywords) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return (int) keywords.stream().filter(lower::contains).count();
+    }
+
+    public static List<String> articleEvidence(NewsArticle article, String question) {
+        var keywords = questionKeywords(question);
+        return Arrays.stream(article.body().split("(?<=[.!?。])\\s+|\n+"))
+                .map(String::strip)
+                .filter(text -> !text.isEmpty())
+                .filter(text -> keywords.isEmpty() || relevance(text, keywords) > 0)
+                .sorted(
+                        Comparator.comparingInt((String text) -> relevance(text, keywords))
+                                .thenComparingInt(NewsAnswerContent::numericWeight)
+                                .reversed())
+                .map(
+                        text ->
+                                text.length() <= 320
+                                        ? text
+                                        : text.substring(
+                                                        0,
+                                                        text.offsetByCodePoints(
+                                                                0,
+                                                                Math.min(
+                                                                        240,
+                                                                        text.codePointCount(
+                                                                                0, text.length()))))
+                                                + "…")
+                .limit(3)
+                .toList();
     }
 
     public boolean numbersComeFrom(NewsArticle article) {

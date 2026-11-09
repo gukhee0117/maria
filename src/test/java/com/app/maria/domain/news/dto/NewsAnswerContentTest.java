@@ -24,6 +24,41 @@ class NewsAnswerContentTest {
                     5);
 
     @Test
+    void targetedNumbersSearchTheWholeArticleAndKeepContextInsteadOfReturningEarlierDates() {
+        String body =
+                java.util.stream.IntStream.range(1, 16)
+                                .mapToObj(i -> "일정은 " + i + "일이다.")
+                                .collect(java.util.stream.Collectors.joining(" "))
+                        + " 투자금은 1,000억원으로 검토 중이며 아직 확정되지 않았다. 설비 용량은 250MW다.";
+        var source =
+                new NewsArticle(
+                        "a",
+                        "v1",
+                        "투자 계획",
+                        body,
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source, "투자금은 얼마야?"))
+                .hasSize(1)
+                .first()
+                .asString()
+                .contains("1,000억원", "확정되지");
+        assertThat(NewsAnswerContent.numericEvidence(source, "매출은 얼마야?")).isEmpty();
+        assertThat(NewsAnswerContent.numericEvidence(source))
+                .first()
+                .asString()
+                .contains("1,000억원");
+        assertThat(NewsAnswerContent.asksForNumbers("설비 용량은 얼마야?")).isTrue();
+    }
+
+    @Test
     void percentagePointsRemainDistinctFromPercent() {
         var source =
                 new NewsArticle(
