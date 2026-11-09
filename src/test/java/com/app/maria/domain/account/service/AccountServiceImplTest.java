@@ -54,6 +54,7 @@ class AccountServiceImplTest {
     @Mock private BusinessClockService businessClockService;
     @Mock private AccountTransactionalService accountTransactionalService;
     @Mock private AuditActorProvider auditActorProvider;
+    @Mock private MydataConsentService mydataConsentService;
 
     @InjectMocks private AccountServiceImpl accountService;
 
@@ -86,7 +87,7 @@ class AccountServiceImplTest {
                         eq(AuditActor.customer(CUSTOMER_ID)), any(), eq(NOW), eq(true)))
                 .thenReturn(opened);
 
-        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT).getStatus())
+        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, true).getStatus())
                 .isEqualTo(Status.OPENED);
 
         ArgumentCaptor<AccountDTO> request = ArgumentCaptor.forClass(AccountDTO.class);
@@ -107,7 +108,7 @@ class AccountServiceImplTest {
             String externalLimit, ErrorType expected) {
         when(mydataClient.getExternalConfiguredLimit("ci-hash"))
                 .thenReturn(new BigDecimal(externalLimit));
-        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT))
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, true))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         error -> assertThat(error.getErrorType()).isEqualTo(expected));
@@ -117,7 +118,7 @@ class AccountServiceImplTest {
     @Test
     void customerApplicationOutsidePeriodIsRejectedBeforeSaving() {
         when(businessClockService.now()).thenReturn(LocalDateTime.of(2027, 1, 1, 0, 0));
-        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT))
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, true))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         error ->
@@ -127,8 +128,56 @@ class AccountServiceImplTest {
     }
 
     @Test
+    void customerApplicationWithoutMydataConsentIsRejectedBeforeAnyLookup() {
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, false))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        error ->
+                                assertThat(error.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_MYDATA_CONSENT_REQUIRED));
+        verifyNoInteractions(accountTransactionalService, auditActorProvider, mydataClient);
+        verify(mydataConsentService, never()).record(anyLong(), anyBoolean());
+    }
+
+    @Test
+    void customerApplicationRecordsConsentBeforeLookingUpMydata() {
+        when(accountTransactionalService.applyAs(any(), any(), eq(NOW), eq(true)))
+                .thenReturn(account(Status.OPENED, LIMIT));
+
+        accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, true);
+
+        var order = inOrder(mydataConsentService, mydataClient);
+        order.verify(mydataConsentService).record(CUSTOMER_ID, true);
+        order.verify(mydataClient).getExternalConfiguredLimit("ci-hash");
+    }
+
+    @Test
+    void customerAvailableLimitRequiresMydataConsent() {
+        doThrow(new AppException(ErrorType.ACCOUNT_MYDATA_CONSENT_REQUIRED, CUSTOMER_ID))
+                .when(mydataConsentService)
+                .requireAgreed(CUSTOMER_ID);
+
+        assertThatThrownBy(() -> accountService.getCustomerAvailableLimit(CUSTOMER_ID))
+                .isInstanceOf(AppException.class);
+        verifyNoInteractions(mydataClient);
+    }
+
+    @Test
+    void customerAvailableLimitSubtractsOtherBrokersAfterConsent() {
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .thenReturn(new BigDecimal("20000000"));
+
+        assertThat(accountService.getCustomerAvailableLimit(CUSTOMER_ID))
+                .isEqualByComparingTo("30000000");
+        verify(mydataConsentService).requireAgreed(CUSTOMER_ID);
+    }
+
+    @Test
     void customerApplicationRejectsInvalidAmountBeforeSaving() {
-        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, BigDecimal.ZERO))
+        assertThatThrownBy(
+                        () ->
+                                accountService.applyCustomerAccount(
+                                        CUSTOMER_ID, BigDecimal.ZERO, true))
                 .isInstanceOf(AppException.class);
         verifyNoInteractions(accountTransactionalService, auditActorProvider);
     }

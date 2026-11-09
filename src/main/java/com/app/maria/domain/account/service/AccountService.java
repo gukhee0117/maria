@@ -26,7 +26,11 @@ public interface AccountService {
     AccountResponseDTO applyAccount(AccountRequestDTO requestDTO);
 
     // 고객 본인 신청: 인증된 세션의 customerId만 전달한다.
-    AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount);
+    AccountResponseDTO applyCustomerAccount(
+            Long customerId, BigDecimal limitAmount, boolean mydataConsent);
+
+    /** 고객 본인의 한도 조회. 마이데이터 조회 동의가 있어야 한다(관리자 조회는 {@link #getAvailableLimit}). */
+    BigDecimal getCustomerAvailableLimit(Long customerId);
 
     // 관리자 기능
     AccountResponseDTO approveAccount(Long accountId);

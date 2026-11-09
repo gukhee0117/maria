@@ -11,4 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CustomerAccountApplyRequestDTO {
     @AccountLimit private BigDecimal limitAmount;
+
+    /** 타사 RIA 한도를 마이데이터로 조회하는 데 동의했는지. 동의하지 않으면 개설할 수 없다. */
+    private boolean mydataConsent;
 }

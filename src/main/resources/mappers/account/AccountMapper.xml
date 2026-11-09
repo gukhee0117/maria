@@ -186,6 +186,21 @@
         WHERE customer_id = #{customerId}
     </select>
 
+    <select id="selectLatestConsent" resultType="Boolean">
+        SELECT agreed
+        FROM customer_consent
+        WHERE customer_id = #{customerId}
+          AND consent_type = #{consentType}
+        <!-- changed_at은 옮길 수 있는 업무시계라 순서 기준으로 쓰지 않는다. 가장 늦게 쌓인 행이 현재 값이다 -->
+        ORDER BY customer_consent_id DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insertConsent">
+        INSERT INTO customer_consent (customer_id, consent_type, agreed, changed_at)
+        VALUES (#{customerId}, #{consentType}, #{agreed}, #{changedAt})
+    </insert>
+
     <update id="updateProvisionalAmount" parameterType="AccountDTO">
         UPDATE account
         SET amount = amount + #{amount}
