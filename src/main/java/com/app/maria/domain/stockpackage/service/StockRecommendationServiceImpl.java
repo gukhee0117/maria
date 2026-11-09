@@ -182,7 +182,11 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 .build();
     }
 
-    /** 추천을 줄 수 없을 때 공통으로 채우는 빈 결과. 호출하는 쪽이 profileAvailable·안내 문구를 더해 build한다. */
+    /**
+     * 추천을 줄 수 없을 때 공통으로 채우는 빈 결과(items·basisFacts는 빈 목록, basisAvailable=false). 호출하는 쪽이
+     * profileAvailable과 subtitle을 더하고, 필요하면 tradeBuyCount·minBuyCount를 더하거나 basisFacts를 다시 지정해(나중
+     * 호출이 덮어쓴다) build한다.
+     */
     private static StockRecommendationVO.StockRecommendationVOBuilder empty(
             String filter, String basis, LocalDateTime now) {
         return StockRecommendationVO.builder()
@@ -397,6 +401,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             if (picked.size() >= size) {
                 break;
             }
+            // pool의 항목은 같은 reference라서, 첫 번째 루프에서 이미 담긴 항목은 Set이 무시하고 그 결과가 그대로 보존된다
             picked.add(i);
         }
         return picked.stream()
