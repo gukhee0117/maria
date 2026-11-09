@@ -2,6 +2,7 @@ package com.app.maria.domain.stockpackage.service;
 
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.type.Type;
+import com.app.maria.domain.stockpackage.ai.AiBusyException;
 import com.app.maria.domain.stockpackage.ai.StockRecommendationAnswerer;
 import com.app.maria.domain.stockpackage.dto.request.StockCandidateRequestDTO;
 import com.app.maria.domain.stockpackage.dto.request.StockRecommendationAskRequestDTO;
@@ -47,6 +48,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             "교육용 프로젝트의 자체 분석 결과예요. 수익을 보장하지 않으며, 실제 금융상품 판매·권유 절차를 대체하지 않아요. 투자 판단과 책임은 본인에게 있어요.";
     static final String FALLBACK_ANSWER =
             "지금은 그 질문에 답할 수 있는 정보가 없어요. 추천 종목의 추천 이유, 위험등급, 변동성, 비교에 대해 물어봐 주세요.";
+    // AI 호출이 모두 쓰이는 중일 때의 안내. "정보 없음"(FALLBACK_ANSWER)과 달리 잠시 뒤에 다시 물으면 된다는 뜻이다
+    static final String BUSY_ANSWER = "지금 질문이 몰려서 답을 만들지 못했어요. 잠시 뒤에 다시 물어봐 주세요.";
     static final String TRADING_NEEDS_PROFILE = "투자성향 진단 후 거래 경향 추천을 볼 수 있어요.";
     static final String TRADING_NEEDS_PROFILE_ANSWER =
             "투자성향 진단이 없거나 만료돼서 거래 경향 추천을 볼 수 없어요. 내 정보에서 투자성향을 진단해 주세요.";
@@ -61,6 +64,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     private static final Pattern DIFF_Q = Pattern.compile("ETF|etf|펀드|주식\\s*차이|차이");
     private static final Pattern COMPARE_Q = Pattern.compile("비교");
     private static final Pattern WHY_Q = Pattern.compile("왜|이유|고른|골랐");
+    // 종목을 가리키지 않고 "왜 추천했어?"처럼 추천 자체의 이유를 묻는 말
+    private static final Pattern PICK_Q = Pattern.compile("추천|고른|골랐|뽑");
 
     /** "이 종목", "이거"처럼 지금 펼쳐 본 종목을 가리키는 말. */
     private static final Pattern THIS_Q = Pattern.compile("이\\s*(종목|상품|주식|ETF|etf|펀드)|이거|이건|이게");
@@ -119,7 +124,12 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             return new StockRecommendationAskResponseDTO(
                     rule.get(), focus == null ? null : focus.ticker(), false, DISCLAIMER);
         }
-        Optional<String> ai = answerer.answer(question, facts(rec, items));
+        Optional<String> ai;
+        try {
+            ai = answerer.answer(question, facts(rec, items));
+        } catch (AiBusyException e) {
+            return new StockRecommendationAskResponseDTO(BUSY_ANSWER, null, false, DISCLAIMER);
+        }
         if (ai.isPresent()) {
             return new StockRecommendationAskResponseDTO(
                     ai.get(), focus == null ? null : focus.ticker(), true, DISCLAIMER);
@@ -563,7 +573,44 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         if (hit != null) {
             return Optional.of(String.join(" ", hit.reasons()));
         }
+        // 종목을 펼치거나 말하지 않고 "왜 추천했어?"처럼 물으면 AI에 넘기지 않고 추천 기준과 종목별 근거로 답한다
+        if (WHY_Q.matcher(q).find() && PICK_Q.matcher(q).find()) {
+            return Optional.of(whyAnswer(rec, items));
+        }
         return Optional.empty();
+    }
+
+    /** 추천 기준 한 문장과 종목별 위험등급·거래 경향 일치 여부로 "왜 이 종목들을 추천했는지"를 알려 준다. 이유는 모두 서버가 가진 사실이다. */
+    private static String whyAnswer(StockRecommendationVO rec, List<Item> items) {
+        String lines =
+                items.stream()
+                        .map(
+                                i ->
+                                        "- "
+                                                + i.name()
+                                                + " "
+                                                + i.riskGrade()
+                                                + "등급("
+                                                + gradeName(i.riskGrade())
+                                                + ")"
+                                                + matchPhrase(i))
+                        .collect(Collectors.joining("\n"));
+        return rangeSentence(rec)
+                + " 그 안에서 RIA 계좌로 살 수 있고 위험등급이 계산됐으며 지금 보유하지 않은 상품을 골랐어요.\n"
+                + lines
+                + "\n종목을 눌러 펼치면 종목별 이유를 볼 수 있어요.";
+    }
+
+    /** 거래에서 많이 산 업종·테마와 일치하면 그 사실을 덧붙인다. 일치하지 않으면 빈 문자열이다. */
+    private static String matchPhrase(Item i) {
+        List<String> parts = new ArrayList<>();
+        if (i.sectorMatched()) {
+            parts.add("많이 산 업종(" + i.sectorName() + ")과 같아요");
+        }
+        if (i.themeMatched()) {
+            parts.add("많이 산 테마(" + i.matchedTheme() + ")에 속해요");
+        }
+        return parts.isEmpty() ? "" : ", " + String.join(", ", parts);
     }
 
     private static String facts(StockRecommendationVO rec, List<Item> items) {

@@ -26,7 +26,8 @@ class OpenAiStockConditionParserTest {
     private final ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
 
     private OpenAiStockConditionParser parser(long timeoutMillis) {
-        return new OpenAiStockConditionParser(chatClient, PROMPT, timeoutMillis);
+        return new OpenAiStockConditionParser(
+                chatClient, PROMPT, timeoutMillis, new AiCallExecutor());
     }
 
     @Test
