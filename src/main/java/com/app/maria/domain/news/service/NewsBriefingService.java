@@ -158,7 +158,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                     NewsQuestionPolicy.refusalFor(request.question()));
         var c = contexts.load(customerId);
         var a = allowed(c, id, request.articleVersion());
-        var canonical = NewsQuestionPolicy.articleQuestion(request.question(), a);
+        var canonical = NewsQuestionPolicy.articleQuestionAfterValidation(request.question(), a);
         if (canonical.isEmpty())
             return policyRefusal(
                     id,

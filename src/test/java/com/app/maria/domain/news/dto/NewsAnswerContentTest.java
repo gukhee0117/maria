@@ -24,6 +24,54 @@ class NewsAnswerContentTest {
                     5);
 
     @Test
+    void boundedRankingStillFindsRelevantNumbersAtTheEndOfALongArticle() {
+        var source =
+                new NewsArticle(
+                        "long",
+                        "v1",
+                        "투자 계획",
+                        java.util.stream.IntStream.range(1, 501)
+                                        .mapToObj(i -> "일정은 " + i + "일이다.")
+                                        .collect(java.util.stream.Collectors.joining(" "))
+                                + " 투자금은 1,000억원이며 아직 확정되지 않았다.",
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source, "투자금은 얼마야?"))
+                .singleElement()
+                .asString()
+                .contains("1,000억원", "확정되지");
+        assertThat(NewsAnswerContent.numericEvidence(source)).hasSizeLessThanOrEqualTo(12);
+    }
+
+    @Test
+    void generalEvidenceUsesCodePointsForThresholdAndTruncation() {
+        var source =
+                new NewsArticle(
+                        "unicode",
+                        "v1",
+                        "설명",
+                        "😀".repeat(321),
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        var point = NewsAnswerContent.articleEvidence(source, "").get(0);
+        assertThat(point).isEqualTo("😀".repeat(240) + "…");
+    }
+
+    @Test
     void targetedNumbersSearchTheWholeArticleAndKeepContextInsteadOfReturningEarlierDates() {
         String body =
                 java.util.stream.IntStream.range(1, 16)
@@ -50,7 +98,7 @@ class NewsAnswerContentTest {
                 .first()
                 .asString()
                 .contains("1,000억원", "확정되지");
-        assertThat(NewsAnswerContent.numericEvidence(source, "매출은 얼마야?")).isEmpty();
+        assertThat(NewsAnswerContent.numericEvidence(source, "매출은 얼마야?")).isNotEmpty();
         assertThat(NewsAnswerContent.numericEvidence(source))
                 .first()
                 .asString()

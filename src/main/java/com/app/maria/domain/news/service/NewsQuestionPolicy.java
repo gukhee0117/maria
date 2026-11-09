@@ -67,7 +67,10 @@ public final class NewsQuestionPolicy {
                             + "|shouldibuy|shouldisell|shouldbuystock|shouldsellstock");
 
     private static final Pattern BYPASS_PATTERN =
-            Pattern.compile("무시|지침|프롬프트|시스템명령|역할로|명령을|ignore|systemprompt|instructions|https?|www");
+            Pattern.compile("무시|지침|프롬프트|시스템명령|역할로|명령을|ignore|systemprompt|instructions");
+
+    private static final Pattern URL_PATTERN =
+            Pattern.compile("https?://|www\\.", Pattern.CASE_INSENSITIVE);
 
     private NewsQuestionPolicy() {}
 
@@ -86,16 +89,20 @@ public final class NewsQuestionPolicy {
     }
 
     public static boolean blocked(String question) {
+        if (question == null || question.isBlank() || question.length() > 500) return true;
         String normalized = normalize(question);
-        return question == null
-                || question.isBlank()
-                || question.length() > 500
-                || ADVICE_REQUEST.matcher(normalized).find()
-                || BYPASS_PATTERN.matcher(normalized).find();
+        return ADVICE_REQUEST.matcher(normalized).find()
+                || BYPASS_PATTERN.matcher(normalized).find()
+                || URL_PATTERN.matcher(question).find();
     }
 
     public static Optional<String> articleQuestion(String question, NewsArticle article) {
         if (blocked(question)) return Optional.empty();
+        return articleQuestionAfterValidation(question, article);
+    }
+
+    // Only for callers in this package that already rejected blocked input before loading articles.
+    static Optional<String> articleQuestionAfterValidation(String question, NewsArticle article) {
         var canonical = canonicalQuestion(question);
         if (canonical.isPresent()) return canonical;
         String normalized = normalize(question);

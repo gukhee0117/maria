@@ -7,6 +7,9 @@ import java.util.regex.Pattern;
 
 /** Structured presentation plus source-bound quotations; never executes model-supplied markup. */
 public record NewsAnswerContent(String explanation, List<String> points, String quote) {
+    private static final int MAX_EVIDENCE_CANDIDATES = 50;
+    private static final int SHORT_SENTENCE_CODE_POINTS = 320;
+    private static final int EXCERPT_CODE_POINTS = 240;
     private static final ObjectMapper MAPPER = new ObjectMapper();
     // Match percentage points (%p) before percent (%) to preserve the complete source unit.
     private static final Pattern NUMBER =
@@ -70,37 +73,62 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
 
     public static List<String> numericEvidence(NewsArticle article, String question) {
         Set<String> evidence = new LinkedHashSet<>();
+        var keywords = questionKeywords(question);
+        Comparator<String> rank =
+                Comparator.comparingInt((String text) -> relevance(text, keywords))
+                        .thenComparingInt(NewsAnswerContent::numericWeight);
         for (String sentence :
                 (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\n+")) {
             sentence = sentence.strip();
             var matches = NUMBER.matcher(sentence);
             if (!matches.find()) continue;
-            if (sentence.length() <= 320) evidence.add(sentence);
+            int length = sentence.codePointCount(0, sentence.length());
+            if (length <= SHORT_SENTENCE_CODE_POINTS) retainEvidence(evidence, sentence, rank);
             else {
                 do {
-                    int start = Math.max(0, matches.start() - 80);
-                    int end = Math.min(sentence.length(), Math.max(start + 240, matches.end()));
-                    if (start > 0 && Character.isLowSurrogate(sentence.charAt(start))) start++;
-                    if (end > start && Character.isHighSurrogate(sentence.charAt(end - 1))) end--;
-                    evidence.add(
+                    int start = Math.max(0, sentence.codePointCount(0, matches.start()) - 80);
+                    int end =
+                            Math.min(
+                                    length,
+                                    Math.max(
+                                            start + EXCERPT_CODE_POINTS,
+                                            sentence.codePointCount(0, matches.end())));
+                    String excerpt =
                             (start > 0 ? "…" : "")
-                                    + sentence.substring(start, end).strip()
-                                    + (end < sentence.length() ? "…" : ""));
+                                    + sentence.substring(
+                                                    sentence.offsetByCodePoints(0, start),
+                                                    sentence.offsetByCodePoints(0, end))
+                                            .strip()
+                                    + (end < length ? "…" : "");
+                    retainEvidence(evidence, excerpt, rank);
                 } while (matches.find());
             }
         }
-        var keywords = questionKeywords(question);
-        var ranked =
-                evidence.stream()
-                        .sorted(
-                                Comparator.comparingInt((String text) -> relevance(text, keywords))
-                                        .thenComparingInt(NewsAnswerContent::numericWeight)
-                                        .reversed())
-                        .toList();
+        var ranked = evidence.stream().sorted(rank.reversed()).toList();
         if (!keywords.isEmpty() && ranked.stream().anyMatch(text -> relevance(text, keywords) > 0))
             ranked = ranked.stream().filter(text -> relevance(text, keywords) > 0).toList();
-        else if (!keywords.isEmpty()) return List.of();
         return ranked.stream().limit(12).toList();
+    }
+
+    private static void retainEvidence(
+            Set<String> evidence, String candidate, Comparator<String> rank) {
+        if (evidence.contains(candidate)) return;
+        if (evidence.size() < MAX_EVIDENCE_CANDIDATES) {
+            evidence.add(candidate);
+            return;
+        }
+        String worst = evidence.stream().min(rank).orElseThrow();
+        // Continue scanning the whole article so a relevant late figure can replace an early date.
+        if (rank.compare(candidate, worst) > 0) {
+            evidence.remove(worst);
+            evidence.add(candidate);
+        }
+    }
+
+    public static boolean matchesNumericQuestion(List<String> evidence, String question) {
+        var keywords = questionKeywords(question);
+        return keywords.isEmpty()
+                || evidence.stream().anyMatch(text -> relevance(text, keywords) > 0);
     }
 
     private static int numericWeight(String text) {
@@ -143,14 +171,14 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
                                 .reversed())
                 .map(
                         text ->
-                                text.length() <= 320
+                                text.codePointCount(0, text.length()) <= SHORT_SENTENCE_CODE_POINTS
                                         ? text
                                         : text.substring(
                                                         0,
                                                         text.offsetByCodePoints(
                                                                 0,
                                                                 Math.min(
-                                                                        240,
+                                                                        EXCERPT_CODE_POINTS,
                                                                         text.codePointCount(
                                                                                 0, text.length()))))
                                                 + "…")

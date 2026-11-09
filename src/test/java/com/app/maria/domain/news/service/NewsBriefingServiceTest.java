@@ -61,6 +61,10 @@ class NewsBriefingServiceTest {
         var targeted = service.question(1L, "a", new QuestionRequest("v1", "투자금은 얼마야?", List.of()));
         assertThat(targeted.points())
                 .anyMatch(text -> text.contains("1,000억원") && text.contains("확정되지"));
+        var missing =
+                service.question(1L, "a", new QuestionRequest("v1", "이 기사 매출은 얼마야?", List.of()));
+        assertThat(missing.points()).first().asString().contains("다른 수치");
+        assertThat(missing.points()).anyMatch(text -> text.contains("투자금은 1,000억원"));
         properties.setLiveQuestions(false);
         var fallback = service.question(1L, "a", new QuestionRequest("v1", "ESS가 뭐야?", List.of()));
         assertThat(fallback.points()).contains("ESS는 전기를 저장하는 장치다.");

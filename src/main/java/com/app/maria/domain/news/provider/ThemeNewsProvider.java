@@ -75,29 +75,34 @@ public class ThemeNewsProvider implements NewsProvider {
         return source.cachedArticles(q).map(rows -> project(rows, c));
     }
 
-    private boolean isThemeStockMarketArticle(
-            NewsArticle article, Map<String, Set<String>> mapping) {
+    private boolean isThemeStockMarketArticle(NewsArticle article, Map<String, String> allThemes) {
         // Do not let publisher footers or investment disclaimers turn a general story into stock
         // news.
         String body = ARTICLE_FOOTER.split(article.body(), 2)[0];
         String text = article.title() + " " + body;
         if (!STOCK_MARKET.matcher(text).find()) return false;
         String normalized = text.replaceAll("[^\\p{L}\\p{N}]", "").toLowerCase(Locale.ROOT);
-        return mapping.values().stream()
-                .flatMap(Set::stream)
-                .distinct()
+        return allThemes.entrySet().stream()
                 .anyMatch(
                         theme ->
-                                article.tickers().contains("theme:" + theme)
-                                        && normalized.contains(
-                                                theme.replaceAll("[^\\p{L}\\p{N}]", "")
-                                                        .toLowerCase(Locale.ROOT)));
+                                article.tickers().contains("theme:" + theme.getKey())
+                                        && normalized.contains(theme.getValue()));
     }
 
     private List<NewsArticle> project(List<NewsArticle> rows, Context c) {
         var mapping = themes.themes(c.tickers());
+        Map<String, String> allThemes = new HashMap<>();
+        mapping.values()
+                .forEach(
+                        values ->
+                                values.forEach(
+                                        theme ->
+                                                allThemes.putIfAbsent(
+                                                        theme,
+                                                        theme.replaceAll("[^\\p{L}\\p{N}]", "")
+                                                                .toLowerCase(Locale.ROOT))));
         return rows.stream()
-                .filter(a -> isThemeStockMarketArticle(a, mapping))
+                .filter(a -> isThemeStockMarketArticle(a, allThemes))
                 .map(
                         a -> {
                             var owned =
