@@ -31,18 +31,14 @@ public class PreparedNewsResponses {
         return switch (question.trim()) {
             case "이 기사를 쉽게 설명해 줘" -> Optional.of(summary(article, type));
             case "주의할 위험은 뭐야?" -> Optional.of(String.join(" ", article.risks()));
-            case "기사에 나온 숫자만 정리해줘" -> Optional.of(numbers(article));
-            case "관련 종목이 뭐야?" -> Optional.of("기사와 관련된 보유 종목은 아래에서 확인할 수 있어요.");
+            case "관련 종목이 뭐야?" -> Optional.of("기사에서 확인된 관련 종목은 아래에서 확인할 수 있어요.");
             default -> Optional.empty();
         };
     }
 
-    private String numbers(NewsArticle article) {
-        var points =
-                NewsAnswerContent.numericEvidence(article).stream()
-                        .filter(s -> s.length() <= 350)
-                        .limit(5)
-                        .toList();
+    // Called by NewsBriefingService in the service package; this API crosses package boundaries.
+    public String numbers(NewsArticle article) {
+        var points = NewsAnswerContent.numericEvidence(article).stream().limit(5).toList();
         var explanation =
                 points.isEmpty() ? "이 기사에는 정리할 수 있는 수치 정보가 없어요." : String.join(" ", points);
         var quote =
@@ -50,6 +46,9 @@ public class PreparedNewsResponses {
                         .filter(s -> s.length() <= 200 && article.body().contains(s))
                         .findFirst()
                         .orElse(null);
-        return MAPPER.valueToTree(new NewsAnswerContent(explanation, points, quote)).toString();
+        return MAPPER.valueToTree(
+                        new NewsAnswerContent(explanation, points, quote)
+                                .withNumericSourceQuote(article))
+                .toString();
     }
 }

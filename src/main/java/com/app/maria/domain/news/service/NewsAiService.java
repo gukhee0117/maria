@@ -24,7 +24,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 @Service
 public class NewsAiService {
     public static final String PROMPT_VERSION = "news-v4-shared-validated-summary";
-    public static final String SUMMARY_VALIDATION_VERSION = "numbers-advice-v1";
+    public static final String SUMMARY_VALIDATION_VERSION = "numbers-advice-v2-source-units";
     private final ChatClient client;
     private final ObjectMapper mapper;
     private final String summaryPrompt;

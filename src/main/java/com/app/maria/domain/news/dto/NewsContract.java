@@ -21,7 +21,8 @@ public final class NewsContract {
     public enum PreparedReason {
         DEMO_DEFAULT,
         LLM_UNAVAILABLE,
-        POLICY_REFUSAL
+        POLICY_REFUSAL,
+        ARTICLE_EVIDENCE
     }
 
     public enum PersonalizationStatus {
