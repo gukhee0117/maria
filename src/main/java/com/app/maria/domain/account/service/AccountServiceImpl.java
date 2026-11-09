@@ -111,6 +111,7 @@ public class AccountServiceImpl implements AccountService {
         }
         validateLimitInput(limitAmount);
         LocalDateTime appliedAt = getApplicationTime();
+        // 동의는 고객이 실제로 한 일이라, 뒤의 한도 검사에서 거절돼도 이력으로 남긴다(별도 트랜잭션)
         mydataConsentService.record(customerId, true);
         validateLimitAvailability(limitAmount, calculateAvailableLimit(customerId));
         AccountDTO account =

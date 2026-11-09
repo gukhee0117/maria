@@ -1,5 +1,6 @@
 package com.app.maria.domain.account.mapper;
 
+import static com.app.maria.domain.account.type.CustomerConsentType.MYDATA_PROVISION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -579,26 +580,26 @@ class AccountMapperTest {
     @Test
     @DisplayName("마이데이터 동의는 가장 최근 이력의 값이고, 이력이 없으면 비어 있다")
     void mydataConsent_가장_최근_이력이_현재_값() {
-        assertThat(accountMapper.selectLatestMydataConsent(1L)).isEmpty();
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).isEmpty();
 
-        accountMapper.insertMydataConsent(1L, true, CREATED_AT);
-        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(true);
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT);
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(true);
 
-        accountMapper.insertMydataConsent(1L, false, CREATED_AT.plusMinutes(1));
-        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(false);
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, false, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(false);
 
-        accountMapper.insertMydataConsent(1L, true, CREATED_AT.plusMinutes(1));
-        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(true);
-        assertThat(accountMapper.selectLatestMydataConsent(2L)).isEmpty();
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(true);
+        assertThat(accountMapper.selectLatestConsent(2L, MYDATA_PROVISION)).isEmpty();
     }
 
     @Test
     @DisplayName("업무시계를 되돌려 철회해도 나중에 쌓인 이력이 현재 값이다")
     void mydataConsent_시계를_되돌려도_쌓인_순서가_기준() {
-        accountMapper.insertMydataConsent(1L, true, CREATED_AT);
-        accountMapper.insertMydataConsent(1L, false, CREATED_AT.minusDays(30));
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT);
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, false, CREATED_AT.minusDays(30));
 
-        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(false);
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(false);
     }
 
     private void resetSchema() throws SQLException {

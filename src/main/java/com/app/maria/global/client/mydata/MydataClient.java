@@ -62,6 +62,7 @@ public class MydataClient {
         } catch (HttpClientErrorException.NotFound e) {
             // myData가 모르는 고객은 타사 RIA 계좌가 없는 것이다. 본문으로 이 경우만 가려
             // 주소 오설정 같은 다른 404는 계속 연결 오류로 둔다(한도를 잘못 넓게 주지 않는다).
+            // ponytail: 본문 문자열 일치. myData가 errorCode 필드를 주면 그걸로 바꾼다.
             if (e.getResponseBodyAsString().contains("CiHash")) {
                 return List.of();
             }

@@ -51,17 +51,18 @@ public class CustomerAccountApi {
     }
 
     @GetMapping("/mydata-consent")
-    public ApiResponseDTO<Boolean> getMydataConsent(
+    public ResponseEntity<ApiResponseDTO<Boolean>> getMydataConsent(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
-        return ApiResponseDTO.of(
-                "마이데이터 조회 동의 여부", mydataConsentService.isAgreed(principal.customerId()));
+        return ResponseEntity.ok(
+                ApiResponseDTO.of(
+                        "마이데이터 조회 동의 여부", mydataConsentService.isAgreed(principal.customerId())));
     }
 
     @PutMapping("/mydata-consent")
-    public ApiResponseDTO<Boolean> putMydataConsent(
+    public ResponseEntity<ApiResponseDTO<Boolean>> putMydataConsent(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             @Valid @RequestBody MydataConsentRequestDTO request) {
         mydataConsentService.record(principal.customerId(), request.agreed());
-        return ApiResponseDTO.of("마이데이터 조회 동의 저장", request.agreed());
+        return ResponseEntity.ok(ApiResponseDTO.of("마이데이터 조회 동의 저장", request.agreed()));
     }
 }
