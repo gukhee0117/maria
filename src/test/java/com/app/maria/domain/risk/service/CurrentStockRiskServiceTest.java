@@ -76,6 +76,24 @@ class CurrentStockRiskServiceTest {
     }
 
     @Test
+    void configuredTtlAndCapacityAreApplied() {
+        var client = mock(PythonStockClassificationClient.class);
+        var clock = mock(RiskMarketClock.class);
+        var now = ZonedDateTime.parse("2026-11-05T12:00:00+09:00");
+        when(clock.now()).thenReturn(now, now.plusSeconds(3599), now.plusSeconds(3600));
+        when(client.fetch("005930"))
+                .thenReturn(
+                        new PythonStockClassificationClient.Classification(
+                                "005930", 2, now.toOffsetDateTime(), "STOCK_RULE_CURRENT_STATUS"))
+                .thenThrow(new AppException(ErrorType.RISK_UPSTREAM_UNAVAILABLE));
+        var service = new CurrentStockRiskService(client, clock, 500, 3600);
+        assertThat(service.findCurrent("005930").riskGrade()).isEqualTo(2);
+        assertThat(service.findCurrent("005930").riskGrade()).isEqualTo(2);
+        assertThatThrownBy(() -> service.findCurrent("005930")).isInstanceOf(AppException.class);
+        verify(client, times(2)).fetch("005930");
+    }
+
+    @Test
     void staleRemoteClassificationIsRejected() {
         var client = mock(PythonStockClassificationClient.class);
         var clock = mock(RiskMarketClock.class);
