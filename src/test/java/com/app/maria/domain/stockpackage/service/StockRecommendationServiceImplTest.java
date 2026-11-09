@@ -148,7 +148,7 @@ class StockRecommendationServiceImplTest {
     void noProfile() {
         candidates(false, null, row(1, "A", "000001", Type.STOCK, "전기", 2, true));
 
-        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 3);
+        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY");
 
         assertThat(res.isProfileAvailable()).isFalse();
         assertThat(res.getItems()).isEmpty();
@@ -165,7 +165,7 @@ class StockRecommendationServiceImplTest {
                 row(3, "C화학", "000003", Type.STOCK, "화학", 2, true),
                 row(4, "D신규", "000004", Type.STOCK, "금융", 0, false));
 
-        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 2);
+        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 2, "SURVEY");
 
         assertThat(res.getItems()).hasSize(2);
         assertThat(res.getItems())
@@ -186,7 +186,7 @@ class StockRecommendationServiceImplTest {
                 row(1, "A", "000001", Type.STOCK, "가", 5, true),
                 row(2, "B", "000002", Type.STOCK, "나", 2, true));
 
-        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 1);
+        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 1, "SURVEY");
 
         assertThat(res.getItems().get(0).getTicker()).isEqualTo("000002");
     }
@@ -312,7 +312,7 @@ class StockRecommendationServiceImplTest {
                 row(5, "E", "000005", Type.STOCK, "마", 4, true));
         trading(8, new BigDecimal("5"), null, null);
 
-        StockRecommendationResponseDTO survey = service.recommend(CUSTOMER_ID, "ALL", 4);
+        StockRecommendationResponseDTO survey = service.recommend(CUSTOMER_ID, "ALL", 4, "SURVEY");
         StockRecommendationResponseDTO trading =
                 service.recommend(CUSTOMER_ID, "ALL", 4, "TRADING");
 
@@ -361,7 +361,8 @@ class StockRecommendationServiceImplTest {
         trading(8, new BigDecimal("3"), null, null);
         holding(1L, 2L);
 
-        assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 6))).containsExactly("000003");
+        assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 6, "SURVEY")))
+                .containsExactly("000003");
         assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 6, "TRADING")))
                 .containsExactly("000003");
     }
@@ -378,7 +379,7 @@ class StockRecommendationServiceImplTest {
         trading(8, new BigDecimal("3"), "가", null);
         holding(); // 잔량 있는 보유 없음
 
-        StockRecommendationResponseDTO survey = service.recommend(CUSTOMER_ID, "ALL", 6);
+        StockRecommendationResponseDTO survey = service.recommend(CUSTOMER_ID, "ALL", 6, "SURVEY");
         StockRecommendationResponseDTO trading =
                 service.recommend(CUSTOMER_ID, "ALL", 6, "TRADING");
 
@@ -400,7 +401,8 @@ class StockRecommendationServiceImplTest {
         trading(8, new BigDecimal("2"), "다", "반도체");
 
         // 업종·테마 모두 같음 0, 업종만 1, 테마만 2, 둘 다 아님 3 → 다(1), 나(2), 가(3)
-        StockRecommendationResponseDTO withTaste = service.recommend(CUSTOMER_ID, "ALL", 3);
+        StockRecommendationResponseDTO withTaste =
+                service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY");
         assertThat(tickers(withTaste)).containsExactly("000003", "000002", "000001");
         // 일치한 테마 이름은 테마가 같은 종목(2번)에만 담기고, 나머지는 null이다
         assertThat(withTaste.getItems())
@@ -413,7 +415,7 @@ class StockRecommendationServiceImplTest {
                         org.assertj.core.api.Assertions.tuple("000001", null));
 
         trading(0, null, null, null); // 거래 데이터 없음 → 우선 규칙 없이 동작
-        StockRecommendationResponseDTO noTaste = service.recommend(CUSTOMER_ID, "ALL", 3);
+        StockRecommendationResponseDTO noTaste = service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY");
         assertThat(noTaste.getItems()).hasSize(3);
         assertThat(noTaste.getItems())
                 .noneMatch(StockRecommendationResponseDTO.ItemResponse::isSectorMatched);
@@ -429,7 +431,8 @@ class StockRecommendationServiceImplTest {
         candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 2, true));
         trading(8, new BigDecimal("2"), null, null);
 
-        assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 3))).containsExactly("000001");
+        assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY")))
+                .containsExactly("000001");
         assertThat(tickers(service.recommend(CUSTOMER_ID, "ALL", 3, "TRADING")))
                 .containsExactly("000001");
         verify(stockOrderMapper, never()).selectHeldBalancesByAccount(any());
@@ -442,7 +445,7 @@ class StockRecommendationServiceImplTest {
         trading(8, new BigDecimal("2"), "가", "반도체");
 
         StockRecommendationResponseDTO.ItemResponse item =
-                service.recommend(CUSTOMER_ID, "ALL", 3).getItems().get(0);
+                service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY").getItems().get(0);
 
         assertThat(item.isSectorMatched()).isTrue();
         assertThat(item.isThemeMatched()).isTrue();
@@ -477,7 +480,7 @@ class StockRecommendationServiceImplTest {
         StockRecommendationAskResponseDTO res =
                 service.ask(
                         CUSTOMER_ID,
-                        new StockRecommendationAskRequestDTO("뭐 있어?", null, "TRADING"));
+                        new StockRecommendationAskRequestDTO("뭐 있어?", null, "TRADING", null));
 
         assertThat(res.getAnswer())
                 .isEqualTo(StockRecommendationServiceImpl.TRADING_NEEDS_PROFILE_ANSWER);
@@ -547,7 +550,7 @@ class StockRecommendationServiceImplTest {
         StockRecommendationAskResponseDTO res =
                 service.ask(
                         CUSTOMER_ID,
-                        new StockRecommendationAskRequestDTO("뭐 있어?", null, "TRADING"));
+                        new StockRecommendationAskRequestDTO("뭐 있어?", null, "TRADING", null));
 
         assertThat(res.getAnswer()).contains("5건").contains("2건");
         verify(answerer, never()).answer(anyString(), anyString());
@@ -558,8 +561,9 @@ class StockRecommendationServiceImplTest {
     void limitClamped() {
         candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 2, true));
 
-        assertThat(service.recommend(CUSTOMER_ID, "ALL", 0).getItems()).hasSize(1);
-        assertThat(service.recommend(CUSTOMER_ID, "모름", 100).getFilter()).isEqualTo("ALL");
+        assertThat(service.recommend(CUSTOMER_ID, "ALL", 0, "SURVEY").getItems()).hasSize(1);
+        assertThat(service.recommend(CUSTOMER_ID, "모름", 100, "SURVEY").getFilter())
+                .isEqualTo("ALL");
     }
 
     @Test
@@ -568,7 +572,9 @@ class StockRecommendationServiceImplTest {
         candidates(true, 2, row(1, "A전자", "000001", Type.STOCK, "전기", 2, true));
 
         StockRecommendationAskResponseDTO res =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("A전자는 왜 골랐어?", null));
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("A전자는 왜 골랐어?", null, null, null));
 
         assertThat(res.isAiGenerated()).isFalse();
         assertThat(res.getTicker()).isEqualTo("000001");
@@ -588,7 +594,8 @@ class StockRecommendationServiceImplTest {
         StockRecommendationAskResponseDTO res =
                 service.ask(
                         CUSTOMER_ID,
-                        new StockRecommendationAskRequestDTO("이 종목 변동성이 어느 정도야?", "000002"));
+                        new StockRecommendationAskRequestDTO(
+                                "이 종목 변동성이 어느 정도야?", "000002", null, null));
 
         assertThat(res.getTicker()).isEqualTo("000002");
         assertThat(res.getAnswer()).contains("B소재").contains("21.5%").doesNotContain("A전자");
@@ -607,7 +614,8 @@ class StockRecommendationServiceImplTest {
         assertThat(
                         service.ask(
                                         CUSTOMER_ID,
-                                        new StockRecommendationAskRequestDTO("이 종목 변동성 알려줘", null))
+                                        new StockRecommendationAskRequestDTO(
+                                                "이 종목 변동성 알려줘", null, null, null))
                                 .getAnswer())
                 .contains("A전자")
                 .contains("B소재");
@@ -615,7 +623,7 @@ class StockRecommendationServiceImplTest {
                         service.ask(
                                         CUSTOMER_ID,
                                         new StockRecommendationAskRequestDTO(
-                                                "이 종목이랑 변동성 비교해줘", "000001"))
+                                                "이 종목이랑 변동성 비교해줘", "000001", null, null))
                                 .getAnswer())
                 .contains("A전자")
                 .contains("B소재");
@@ -629,7 +637,8 @@ class StockRecommendationServiceImplTest {
 
         StockRecommendationAskResponseDTO ai =
                 service.ask(
-                        CUSTOMER_ID, new StockRecommendationAskRequestDTO("이 종목 어때?", "000001"));
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("이 종목 어때?", "000001", null, null));
 
         assertThat(ai.isAiGenerated()).isTrue();
         assertThat(ai.getAnswer()).isEqualTo("AI 답");
@@ -639,7 +648,9 @@ class StockRecommendationServiceImplTest {
 
         when(answerer.answer(anyString(), anyString())).thenReturn(Optional.empty());
         StockRecommendationAskResponseDTO fallback =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("이 종목 어때?", null));
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("이 종목 어때?", null, null, null));
         assertThat(fallback.isAiGenerated()).isFalse();
         assertThat(fallback.getAnswer()).isEqualTo(StockRecommendationServiceImpl.FALLBACK_ANSWER);
     }
@@ -650,7 +661,9 @@ class StockRecommendationServiceImplTest {
         candidates(false, null);
 
         StockRecommendationAskResponseDTO res =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("뭐 있어?", null));
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("뭐 있어?", null, null, null));
 
         assertThat(res.getAnswer()).contains("진단");
         verify(answerer, never()).answer(anyString(), anyString());
@@ -679,7 +692,9 @@ class StockRecommendationServiceImplTest {
                                 new StockRecommendationAskRequestDTO("변동성 알려줘", null, "SURVEY", 3))
                         .getAnswer();
         String withoutLimit =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("변동성 알려줘", null))
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("변동성 알려줘", null, null, null))
                         .getAnswer();
 
         List<String> all = List.of("A전자", "B전자", "C화학", "D소재", "E소재");
@@ -695,10 +710,15 @@ class StockRecommendationServiceImplTest {
         candidates(true, 2, row(1, "A전자", "000001", Type.STOCK, "전기", 2, true));
 
         String vol =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("변동성 위험 알려줘", null))
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO(
+                                        "변동성 위험 알려줘", null, null, null))
                         .getAnswer();
         String grade =
-                service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("위험등급 알려줘", null))
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("위험등급 알려줘", null, null, null))
                         .getAnswer();
 
         assertThat(vol).contains("연 변동성은").contains("21.5%");

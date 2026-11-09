@@ -13,13 +13,4 @@ public record StockRecommendationAskRequestDTO(
         @NotBlank @Size(max = 100) String question,
         @Size(max = 12) String focusTicker,
         @Size(max = 10) String basis,
-        @Min(1) @Max(12) Integer limit) {
-
-    public StockRecommendationAskRequestDTO(String question, String focusTicker, String basis) {
-        this(question, focusTicker, basis, null);
-    }
-
-    public StockRecommendationAskRequestDTO(String question, String focusTicker) {
-        this(question, focusTicker, null, null);
-    }
-}
+        @Min(1) @Max(12) Integer limit) {}

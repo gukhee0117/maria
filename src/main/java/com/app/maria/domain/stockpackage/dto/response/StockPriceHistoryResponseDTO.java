@@ -3,6 +3,7 @@ package com.app.maria.domain.stockpackage.dto.response;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
@@ -10,16 +11,11 @@ import lombok.Getter;
  * 현재가와 조금 다를 수 있다. 이력을 받지 못한 종목은 available=false이고 points는 비어 있다.
  */
 @Getter
+@AllArgsConstructor
 public class StockPriceHistoryResponseDTO {
     private final String ticker;
     private final boolean available;
     private final List<Point> points;
-
-    public StockPriceHistoryResponseDTO(String ticker, boolean available, List<Point> points) {
-        this.ticker = ticker;
-        this.available = available;
-        this.points = points;
-    }
 
     public static StockPriceHistoryResponseDTO unavailable(String ticker) {
         return new StockPriceHistoryResponseDTO(ticker, false, List.of());

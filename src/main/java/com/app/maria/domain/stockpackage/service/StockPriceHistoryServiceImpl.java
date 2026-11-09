@@ -4,12 +4,10 @@ import com.app.maria.domain.stockpackage.dto.response.StockPriceHistoryResponseD
 import com.app.maria.global.client.securities.SecuritiesMarketClient;
 import com.app.maria.global.client.securities.SecuritiesMarketClient.ClosePoint;
 import com.app.maria.global.exception.AppException;
-import com.app.maria.global.exception.ErrorType;
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,26 +20,12 @@ public class StockPriceHistoryServiceImpl implements StockPriceHistoryService {
 
     static final int MIN_DAYS = 1;
     static final int MAX_DAYS = 60;
-    // 국내 상장 코드: 숫자 6자리 또는 대문자·숫자 6자리(신규 ETF 코드). 종목 수 상한은 현재가 조회와 같다
-    private static final Pattern TICKER = Pattern.compile("[0-9A-Z]{6}");
 
     private final SecuritiesMarketClient securities;
 
     @Override
     public List<StockPriceHistoryResponseDTO> getHistory(List<String> tickers, int days) {
-        if (tickers == null
-                || tickers.isEmpty()
-                || tickers.size() > StockQuoteServiceImpl.MAX_TICKERS) {
-            throw new AppException(ErrorType.STOCK_PACKAGE_QUOTE_INVALID);
-        }
-        LinkedHashSet<String> unique = new LinkedHashSet<>();
-        for (String raw : tickers) {
-            String ticker = raw == null ? "" : raw.trim();
-            if (!TICKER.matcher(ticker).matches()) {
-                throw new AppException(ErrorType.STOCK_PACKAGE_QUOTE_INVALID);
-            }
-            unique.add(ticker);
-        }
+        LinkedHashSet<String> unique = TickerValidator.validate(tickers);
         int n = Math.max(MIN_DAYS, Math.min(MAX_DAYS, days));
         Map<String, List<ClosePoint>> history = fetchHistory(unique, n);
         return unique.stream().map(t -> toDto(t, history.get(t))).toList();

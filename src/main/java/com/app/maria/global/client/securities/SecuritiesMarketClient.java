@@ -110,7 +110,7 @@ public class SecuritiesMarketClient {
                             "tickers",
                             batch,
                             asOf,
-                            Map.of("days", days),
+                            days,
                             new ParameterizedTypeReference<ApiResponseDTO<List<HistoryRow>>>() {},
                             ErrorType.KIS_PRICE_NOT_FOUND,
                             String.join(",", batch))) {
@@ -196,7 +196,7 @@ public class SecuritiesMarketClient {
             ParameterizedTypeReference<ApiResponseDTO<List<T>>> type,
             ErrorType failure,
             String errorData) {
-        return fetch(path, param, keys, asOf, Map.of(), type, failure, errorData);
+        return fetch(path, param, keys, asOf, null, type, failure, errorData);
     }
 
     private <T> List<T> fetch(
@@ -204,7 +204,7 @@ public class SecuritiesMarketClient {
             String param,
             List<String> keys,
             LocalDate asOf,
-            Map<String, ?> extraParams,
+            Integer days,
             ParameterizedTypeReference<ApiResponseDTO<List<T>>> type,
             ErrorType failure,
             String errorData) {
@@ -216,7 +216,9 @@ public class SecuritiesMarketClient {
                                         builder.path(path)
                                                 .queryParam(param, String.join(",", keys))
                                                 .queryParam("asOf", asOf);
-                                        extraParams.forEach(builder::queryParam);
+                                        if (days != null) {
+                                            builder.queryParam("days", days);
+                                        }
                                         return builder.build();
                                     })
                             .accept(MediaType.APPLICATION_JSON)
