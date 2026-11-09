@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.service.AccountService;
+import com.app.maria.domain.account.service.MydataConsentService;
 import com.app.maria.domain.account.type.Status;
 import com.app.maria.global.config.CustomerSecurityConfig;
 import com.app.maria.global.exception.AppException;
@@ -34,6 +35,7 @@ class CustomerAccountApiTest {
     private static final String URL = "/api/customer/account/applications";
     @Autowired private MockMvc mvc;
     @MockitoBean private AccountService accountService;
+    @MockitoBean private MydataConsentService mydataConsentService;
 
     private RequestPostProcessor customer() {
         return authentication(
@@ -45,7 +47,7 @@ class CustomerAccountApiTest {
 
     @Test
     void appliesForSessionCustomerEvenIfBodyContainsAnotherCustomerId() throws Exception {
-        when(accountService.applyCustomerAccount(1L, new BigDecimal("30000000")))
+        when(accountService.applyCustomerAccount(1L, new BigDecimal("30000000"), true))
                 .thenReturn(
                         AccountResponseDTO.builder().customerId(1L).status(Status.OPENED).build());
         mvc.perform(
@@ -53,11 +55,12 @@ class CustomerAccountApiTest {
                                 .with(customer())
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"customerId\":999,\"limitAmount\":30000000}"))
+                                .content(
+                                        "{\"customerId\":999,\"limitAmount\":30000000,\"mydataConsent\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.customerId").value(1))
                 .andExpect(jsonPath("$.data.status").value("OPENED"));
-        verify(accountService).applyCustomerAccount(1L, new BigDecimal("30000000"));
+        verify(accountService).applyCustomerAccount(1L, new BigDecimal("30000000"), true);
         verifyNoMoreInteractions(accountService);
     }
 
@@ -69,9 +72,9 @@ class CustomerAccountApiTest {
                                 .with(customer())
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"limitAmount\":" + amount + "}"))
+                                .content("{\"limitAmount\":" + amount + ",\"mydataConsent\":true}"))
                 .andExpect(status().isCreated());
-        verify(accountService).applyCustomerAccount(1L, new BigDecimal(amount));
+        verify(accountService).applyCustomerAccount(1L, new BigDecimal(amount), true);
     }
 
     @ParameterizedTest
@@ -115,23 +118,73 @@ class CustomerAccountApiTest {
 
     @Test
     void availableLimitUsesSessionCustomer() throws Exception {
-        when(accountService.getAvailableLimit(1L)).thenReturn(new BigDecimal("40000000"));
+        when(accountService.getCustomerAvailableLimit(1L)).thenReturn(new BigDecimal("40000000"));
         mvc.perform(get("/api/customer/account/available-limit?customerId=999").with(customer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value(40000000));
-        verify(accountService).getAvailableLimit(1L);
+        verify(accountService).getCustomerAvailableLimit(1L);
     }
 
     @Test
-    void duplicateApplicationUsesExistingErrorResponse() throws Exception {
-        when(accountService.applyCustomerAccount(1L, BigDecimal.ONE))
-                .thenThrow(new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, 1L));
+    void applicationWithoutConsentFieldPassesFalseToService() throws Exception {
+        when(accountService.applyCustomerAccount(1L, BigDecimal.ONE, false))
+                .thenThrow(new AppException(ErrorType.ACCOUNT_MYDATA_CONSENT_REQUIRED, 1L));
         mvc.perform(
                         post(URL)
                                 .with(customer())
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"limitAmount\":1}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_MYDATA_CONSENT_REQUIRED"));
+    }
+
+    @Test
+    void mydataConsentIsReadAndSavedForSessionCustomer() throws Exception {
+        when(mydataConsentService.isAgreed(1L)).thenReturn(true);
+        mvc.perform(get("/api/customer/account/mydata-consent?customerId=999").with(customer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(true));
+
+        mvc.perform(
+                        put("/api/customer/account/mydata-consent")
+                                .with(customer())
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"agreed\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(false));
+        verify(mydataConsentService).record(1L, false);
+    }
+
+    @Test
+    void mydataConsentRequiresAgreedFieldAndCsrf() throws Exception {
+        mvc.perform(
+                        put("/api/customer/account/mydata-consent")
+                                .with(customer())
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(
+                        put("/api/customer/account/mydata-consent")
+                                .with(customer())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"agreed\":true}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(mydataConsentService);
+    }
+
+    @Test
+    void duplicateApplicationUsesExistingErrorResponse() throws Exception {
+        when(accountService.applyCustomerAccount(1L, BigDecimal.ONE, true))
+                .thenThrow(new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, 1L));
+        mvc.perform(
+                        post(URL)
+                                .with(customer())
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"limitAmount\":1,\"mydataConsent\":true}"))
                 .andExpect(status().isConflict());
     }
 }

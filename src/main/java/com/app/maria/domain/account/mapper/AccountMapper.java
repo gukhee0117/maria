@@ -6,8 +6,10 @@ import com.app.maria.domain.account.dto.AccountLimitUsageDTO;
 import com.app.maria.domain.account.dto.AccountSearchDTO;
 import com.app.maria.domain.account.dto.response.AccountManagementDetailResponseDTO;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.domain.account.type.CustomerConsentType;
 import com.app.maria.domain.account.type.Status;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
@@ -81,6 +83,17 @@ public interface AccountMapper {
 
     // customerId를 통해 ci_hash 값 가져오기
     Optional<String> selectCiHashByCustomerId(Long customerId);
+
+    // 동의 이력: 가장 최근 행의 동의 여부(이력이 없으면 empty)
+    Optional<Boolean> selectLatestConsent(
+            @Param("customerId") Long customerId,
+            @Param("consentType") CustomerConsentType consentType);
+
+    void insertConsent(
+            @Param("customerId") Long customerId,
+            @Param("consentType") CustomerConsentType consentType,
+            @Param("agreed") boolean agreed,
+            @Param("changedAt") LocalDateTime changedAt);
 
     // 계좌 잔액 변경
 
