@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  * Only reviewed article-question intents reach the model; raw user instructions/history never do.
  */
 public final class NewsQuestionPolicy {
-    public static final String VERSION = "reviewed-news-question-policy-v2";
+    public static final String VERSION = "reviewed-news-question-policy-v3";
     public static final String REFUSAL = "매수·매도 추천, 매매 시점·가격 등 투자 판단에 관한 조언은 제공하지 않습니다.";
     public static final String OFF_TOPIC =
             "저는 금융뉴스를 쉽고 똑똑하게 알려드리는 끼루예요!\n\n"
@@ -21,12 +21,31 @@ public final class NewsQuestionPolicy {
     private static final String RISKS = "주의할 위험은 뭐야?";
     private static final Map<String, String> ALLOWED =
             Map.ofEntries(
-                    Map.entry("이기사를쉽게설명해줘", EASY), Map.entry("쉽게다시설명해줘", EASY),
-                    Map.entry("쉽게설명해줘", EASY), Map.entry("설명", EASY),
-                    Map.entry("이기사요약해줘", EASY), Map.entry("기사요약해줘", EASY),
-                    Map.entry("기사에나온숫자만정리해줘", NUMBERS), Map.entry("기사의수치를정리해줘", NUMBERS),
-                    Map.entry("관련종목이뭐야", STOCKS), Map.entry("관련종목은뭐야", STOCKS),
-                    Map.entry("주의할위험은뭐야", RISKS), Map.entry("이기사의위험요인은뭐야", RISKS));
+                    Map.entry("이기사를쉽게설명해줘", EASY),
+                    Map.entry("쉽게다시설명해줘", EASY),
+                    Map.entry("쉽게설명해줘", EASY),
+                    Map.entry("설명", EASY),
+                    Map.entry("이기사요약해줘", EASY),
+                    Map.entry("기사요약해줘", EASY),
+                    Map.entry("기사에나온숫자만정리해줘", NUMBERS),
+                    Map.entry("기사의수치를정리해줘", NUMBERS),
+                    Map.entry("기사수치알려줘", NUMBERS),
+                    Map.entry("수치알려줘", NUMBERS),
+                    Map.entry("수치알려주기", NUMBERS),
+                    Map.entry("숫자알려줘", NUMBERS),
+                    Map.entry("기사에나온수치알려줘", NUMBERS),
+                    Map.entry("기사숫자정리해줘", NUMBERS),
+                    Map.entry("기사수치정리해줘", NUMBERS),
+                    Map.entry("숫자정리해줘", NUMBERS),
+                    Map.entry("뉴스관련종목알려줘", STOCKS),
+                    Map.entry("관련종목알려줘", STOCKS),
+                    Map.entry("이기사관련종목뭐야", STOCKS),
+                    Map.entry("관련기업뭐야", STOCKS),
+                    Map.entry("관련회사알려줘", STOCKS),
+                    Map.entry("관련종목이뭐야", STOCKS),
+                    Map.entry("관련종목은뭐야", STOCKS),
+                    Map.entry("주의할위험은뭐야", RISKS),
+                    Map.entry("이기사의위험요인은뭐야", RISKS));
     private static final Pattern ADVICE =
             Pattern.compile(
                     "매수(?:를)?(?:추천|권장|권유)|매수하(?:세요|셔야|해야|는것을(?:추천|권장|권유)|는게좋|는것이좋|는편이유리)|매수하시(?:는것을(?:추천|권장|권유)|는게좋|는것이좋|는편이유리)"

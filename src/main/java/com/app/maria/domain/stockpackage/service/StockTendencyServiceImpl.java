@@ -2,7 +2,6 @@ package com.app.maria.domain.stockpackage.service;
 
 import com.app.maria.domain.investorassessment.dto.response.InvestorAssessmentStatusResponseDTO;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
-import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.service.RiskGradeService;
 import com.app.maria.domain.stockpackage.dto.response.StockTendencyResponseDTO;
 import com.app.maria.domain.stockpackage.mapper.StockPackageMapper;
@@ -60,7 +59,11 @@ public class StockTendencyServiceImpl implements StockTendencyService {
         List<TradeProductSummaryVO> summaries =
                 tendencyMapper.selectTradeSummariesByCustomerId(customerId);
         TradePeriodVO period = tendencyMapper.selectTradePeriodByCustomerId(customerId);
-        Map<Long, Integer> grades = gradeByProduct();
+        Map<Long, Integer> grades =
+                gradeByProduct(
+                        summaries.stream()
+                                .map(TradeProductSummaryVO::getDomesticProductId)
+                                .toList());
 
         Trading trading = trading(summaries, period, grades, now);
         Comparison comparison = comparison(survey, trading, range, summaries, grades);
@@ -242,12 +245,7 @@ public class StockTendencyServiceImpl implements StockTendencyService {
         return part.multiply(HUNDRED).divide(whole, 1, RoundingMode.HALF_UP);
     }
 
-    private Map<Long, Integer> gradeByProduct() {
-        return riskGradeService.findUsable().stream()
-                .collect(
-                        Collectors.toMap(
-                                UsableRiskGradeDTO::domesticProductId,
-                                UsableRiskGradeDTO::riskGrade,
-                                (a, b) -> a));
+    private Map<Long, Integer> gradeByProduct(java.util.Collection<Long> productIds) {
+        return riskGradeService.findUsableGrades(productIds);
     }
 }

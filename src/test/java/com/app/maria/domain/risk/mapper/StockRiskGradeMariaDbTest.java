@@ -141,6 +141,22 @@ class StockRiskGradeMariaDbTest {
     }
 
     @Test
+    void productMetadataQueriesWorkWithoutPublishedRiskRows() {
+        jdbc.update(
+                "UPDATE domestic_product SET name='Stock',type='STOCK' WHERE domestic_product_id=1");
+        jdbc.update(
+                "UPDATE domestic_product SET name='ETF',type='FUND' WHERE domestic_product_id=2");
+        assertThat(realMapper.findProducts()).hasSize(2);
+        var stock = realMapper.findProductByTicker("005930");
+        assertThat(stock.domesticProductId()).isEqualTo(1L);
+        assertThat(stock.type()).isEqualTo(com.app.maria.domain.domestic.type.Type.STOCK);
+        assertThat(realMapper.findProductByTicker("000660").type())
+                .isEqualTo(com.app.maria.domain.domestic.type.Type.FUND);
+        assertThat(realMapper.findProductByTicker("999999")).isNull();
+        assertThat(count()).isZero();
+    }
+
+    @Test
     void currentSchemaInitializesRiskVersionAndSyncState() throws Exception {
         jdbc.update(
                 "INSERT INTO stock_risk_grade (domestic_product_id,var_975,risk_grade,volatility,price_from,price_to,calculated_at,synced_at) VALUES (1,.1125,4,.2000,'2023-10-30','2026-10-28','2026-10-28 17:00:00','2026-10-28 17:01:00')");
@@ -467,7 +483,11 @@ class StockRiskGradeMariaDbTest {
 
     @Test
     void currentSchemaIncludesRiskAnalysisVersion() {
-        assertThat(version()).isZero();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='stock_risk_grade' AND COLUMN_NAME='analysis_version'",
+                                String.class))
+                .isEqualTo("0");
     }
 
     private void runConcurrent(Callable<?> first, Callable<?> second) throws Exception {
