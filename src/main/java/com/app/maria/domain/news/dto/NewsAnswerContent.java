@@ -10,7 +10,7 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Pattern NUMBER =
             Pattern.compile(
-                    "(?<![\\p{L}\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위)?)");
+                    "(?<![A-Za-z\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|GWh|MWh|kWh|GW|MW|kW|kV|㎿|㎾|km|㎞|㎡|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위|시|분|초)?)");
 
     public NewsAnswerContent {
         points = List.copyOf(points);
@@ -54,13 +54,28 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     public static List<String> numericEvidence(NewsArticle article) {
-        return Arrays.stream(
-                        (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\\n+"))
-                .map(String::strip)
-                .filter(s -> NUMBER.matcher(s).find() && s.length() <= 500)
-                .distinct()
-                .limit(12)
-                .toList();
+        Set<String> evidence = new LinkedHashSet<>();
+        for (String sentence :
+                (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\n+")) {
+            sentence = sentence.strip();
+            var matches = NUMBER.matcher(sentence);
+            if (!matches.find()) continue;
+            if (sentence.length() <= 320) evidence.add(sentence);
+            else {
+                do {
+                    int start = Math.max(0, matches.start() - 80);
+                    int end = Math.min(sentence.length(), Math.max(start + 240, matches.end()));
+                    if (start > 0 && Character.isLowSurrogate(sentence.charAt(start))) start++;
+                    if (end > start && Character.isHighSurrogate(sentence.charAt(end - 1))) end--;
+                    evidence.add(
+                            (start > 0 ? "…" : "")
+                                    + sentence.substring(start, end).strip()
+                                    + (end < sentence.length() ? "…" : ""));
+                } while (matches.find() && evidence.size() < 12);
+            }
+            if (evidence.size() >= 12) break;
+        }
+        return evidence.stream().limit(12).toList();
     }
 
     public boolean numbersComeFrom(NewsArticle article) {

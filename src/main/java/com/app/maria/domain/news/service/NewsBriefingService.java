@@ -60,7 +60,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                                                     Origin.CACHED_LLM,
                                                     null,
                                                     v.generatedAt(),
-                                                    related(a, c)))
+                                                    List.of()))
                             .orElse(null);
         }
         return new Briefing(
@@ -121,7 +121,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                     Origin.PREPARED,
                     PreparedReason.DEMO_DEFAULT,
                     null,
-                    related(a, c));
+                    List.of());
         try {
             var result = cache.get(summaryKey(c, a), () -> ai.summarize(a, c));
             return answer(
@@ -130,7 +130,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                     result.cached() ? Origin.CACHED_LLM : Origin.LIVE_LLM,
                     null,
                     result.value().generatedAt(),
-                    related(a, c));
+                    List.of());
         } catch (RuntimeException e) {
             log.warn(
                     "News summary generation failed (type={}, reason={})",
@@ -146,7 +146,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                     Origin.PREPARED,
                     PreparedReason.LLM_UNAVAILABLE,
                     null,
-                    related(a, c));
+                    List.of());
         }
     }
 
@@ -161,6 +161,15 @@ public class NewsBriefingService implements NewsBriefingOperations {
         var a = allowed(c, id, request.articleVersion());
         // Client history can be forged. Reviewed article intents are self-contained.
         var safeRequest = new QuestionRequest(request.articleVersion(), canonical.get(), List.of());
+        if (NewsAnswerContent.asksForNumbers(safeRequest.question())) {
+            return answer(
+                    a,
+                    prepared.numbers(a),
+                    Origin.PREPARED,
+                    PreparedReason.ARTICLE_EVIDENCE,
+                    null,
+                    List.of());
+        }
         if (!properties.isLiveQuestions()) {
             return prepared.answer(a, c.investorType(), safeRequest.question())
                     .map(

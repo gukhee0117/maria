@@ -24,6 +24,33 @@ class NewsAnswerContentTest {
                     5);
 
     @Test
+    void energyUnitsAndLongSentencesAreRetainedWithoutInventingMeasurements() {
+        String body = "설비 설명이 이어진다 ".repeat(45) + "설비 용량은250MW로 확대할 계획이며 전력 저장량은 40MWh이다.";
+        var energy =
+                new NewsArticle(
+                        "energy",
+                        "v1",
+                        "설비 계획",
+                        body,
+                        "테스트",
+                        null,
+                        java.time.LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(energy))
+                .isNotEmpty()
+                .anyMatch(point -> point.contains("250MW"));
+        assertThat(new NewsAnswerContent("용량 250MW", List.of(), null).numbersComeFrom(energy))
+                .isTrue();
+        assertThat(new NewsAnswerContent("용량 250GW", List.of(), null).numbersComeFrom(energy))
+                .isFalse();
+    }
+
+    @Test
     void structuredPointsDeriveHistoryTextAndKeepOnlyExactSourceQuotes() {
         var result =
                 NewsAnswerContent.decode(

@@ -19,7 +19,7 @@ import reactor.core.publisher.Flux;
 
 class NewsSharedSummaryTest {
     @Test
-    void differentCustomersShareTextAndReceiveStocksMentionedInTheArticle() {
+    void differentCustomersShareSummaryTextWithoutAutomaticallyReceivingStockCards() {
         var contexts = mock(NewsCustomerContextService.class);
         var provider = mock(NewsProvider.class);
         var ai = mock(NewsAiService.class);
@@ -78,12 +78,8 @@ class NewsSharedSummaryTest {
         var second = service.summary(2L, "a", "v1");
         assertThat(second.origin()).isEqualTo(Origin.CACHED_LLM);
         assertThat(second.generatedAt()).isEqualTo(first.generatedAt());
-        assertThat(first.relatedStocks())
-                .extracting(RelatedStock::ticker)
-                .containsExactly("005930", "000660");
-        assertThat(second.relatedStocks())
-                .extracting(RelatedStock::ticker)
-                .containsExactly("005930", "000660");
+        assertThat(first.relatedStocks()).isEmpty();
+        assertThat(second.relatedStocks()).isEmpty();
         verify(ai, times(1)).summarize(any(), any());
     }
 

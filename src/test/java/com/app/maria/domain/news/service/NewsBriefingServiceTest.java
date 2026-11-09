@@ -36,6 +36,45 @@ class NewsBriefingServiceTest {
     }
 
     @Test
+    void figureQuestionsUseOnlySourceNumbersWithoutCallingOrDependingOnAi() {
+        var original = NewsSelectionServiceTest.article("a", 5, 5);
+        var article =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        "a",
+                        "v1",
+                        "발전 계획",
+                        "설비 용량은250MW로 2028년까지 확대할 계획이다. 투자금은 1,000억원이며 아직 확정되지 않았다.",
+                        "테스트",
+                        "https://example.com/news",
+                        original.publishedAt(),
+                        original.tickers(),
+                        List.of("발전 설비 확장 계획"),
+                        List.of(),
+                        5,
+                        5,
+                        5,
+                        false);
+        when(provider.articles()).thenReturn(List.of(article));
+        var result = service.question(1L, "a", new QuestionRequest("v1", "수치 알려줘", List.of()));
+        assertThat(result.preparedReason()).isEqualTo(PreparedReason.ARTICLE_EVIDENCE);
+        assertThat(result.points())
+                .anyMatch(point -> point.contains("250MW") && point.contains("계획"))
+                .anyMatch(point -> point.contains("1,000억원") && point.contains("확정되지"));
+        assertThat(result.relatedStocks()).isEmpty();
+        assertThat(result.quote()).isNotNull();
+        assertThat(article.body()).contains(result.quote());
+        verifyNoInteractions(ai);
+    }
+
+    @Test
+    void figureQuestionsClearlyReportWhenTheArticleHasNoNumbers() {
+        var result = service.question(1L, "a", new QuestionRequest("v1", "기사 수치 알려줘", List.of()));
+        assertThat(result.points()).isEmpty();
+        assertThat(result.explanation()).contains("수치 정보가 없어요");
+        verifyNoInteractions(ai);
+    }
+
+    @Test
     void readyFirstSummaryIsReturnedWithoutAnotherGenerationAndPortfolioChangesInvalidateIt() {
         properties.setLiveSummaries(true);
         when(ai.summarize(any(), any())).thenReturn("LLM");
@@ -107,7 +146,7 @@ class NewsBriefingServiceTest {
     }
 
     @Test
-    void summaryShowsStocksMentionedInNewsInsteadOfCustomerHoldings() {
+    void onlyStockQuestionsShowStocksMentionedInNewsInsteadOfCustomerHoldings() {
         when(contexts.load(1L))
                 .thenReturn(
                         new Context(
@@ -140,7 +179,15 @@ class NewsBriefingServiceTest {
         when(provider.articles()).thenReturn(List.of(article));
         when(ai.summarize(any(), any())).thenReturn("요약");
         var answer = service.summary(1L, "a", "v1");
-        assertThat(answer.relatedStocks())
+        assertThat(answer.relatedStocks()).isEmpty();
+        assertThat(service.briefing(1L).firstSummary().relatedStocks()).isEmpty();
+        when(ai.question(any(), any(), any())).thenReturn("기사에서 확인된 종목이에요.");
+        assertThat(
+                        service.question(
+                                        1L,
+                                        "a",
+                                        new QuestionRequest("v1", "뉴스 관련 종목 알려줘", List.of()))
+                                .relatedStocks())
                 .containsExactly(new RelatedStock("000660", "SK하이닉스", "전기·전자"));
     }
 
