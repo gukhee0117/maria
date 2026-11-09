@@ -181,6 +181,8 @@ public class CustomerAuthApi {
         synchronized (session) {
             verification.requireVerified(
                     (Pending) session.getAttribute(PENDING_SIGNUP), body.getEmail());
+            // Keep proof consumption and account creation under the same session lock
+            // so concurrent signup requests cannot reuse the same verified proof.
             CustomerPrincipal principal = signupRetryingOnConflict(body);
             session.removeAttribute(PENDING_SIGNUP);
             establishSession(principal, request, response);

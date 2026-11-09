@@ -24,6 +24,9 @@ public class RedisSignupCodeStore implements SignupCodeStore {
     private static final DefaultRedisScript<Long> RESERVE =
             new DefaultRedisScript<>(
                     """
+            -- KEYS[1..2]: browser/address cooldown; KEYS[3..6]: address day, IP hour/day, global day
+            -- ARGV[1]: cooldown seconds; ARGV[2..5]: limits for KEYS[3..6]
+            -- ARGV[6..7]: hour/day TTL seconds
             if redis.call('EXISTS', KEYS[1]) == 1 or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
             for i = 3, 6 do
                 if tonumber(redis.call('GET', KEYS[i]) or '0') >= tonumber(ARGV[i - 1]) then return 0 end

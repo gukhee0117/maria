@@ -81,9 +81,10 @@ public class CustomerSignupVerificationService {
     }
 
     public Pending verify(Pending pending, String code) {
+        Instant now = clock.instant();
         if (pending == null
                 || pending.verified()
-                || !clock.instant().isBefore(pending.expiresAt())
+                || !now.isBefore(pending.expiresAt())
                 || !codes.consume(
                         pending.identity(),
                         pending.token(),
@@ -93,7 +94,7 @@ public class CustomerSignupVerificationService {
                 pending.email(),
                 pending.identity(),
                 pending.token(),
-                clock.instant().plusSeconds(SignupVerificationPolicy.VERIFIED_TTL_SECONDS),
+                now.plusSeconds(SignupVerificationPolicy.VERIFIED_TTL_SECONDS),
                 pending.resendAvailableAt(),
                 true);
     }
@@ -115,6 +116,7 @@ public class CustomerSignupVerificationService {
     }
 
     // Canonicalization is used only for rate limiting, never for delivery or ownership checks.
+    // Requires an email already validated by @Valid on CustomerSignupEmailRequestDTO.
     static String canonicalRecipient(String email) {
         String lower = email.toLowerCase(Locale.ROOT);
         int at = lower.lastIndexOf('@');

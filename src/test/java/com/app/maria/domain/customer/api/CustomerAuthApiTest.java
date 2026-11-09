@@ -122,8 +122,8 @@ class CustomerAuthApiTest {
                         "hong@example.com",
                         "identity",
                         "token",
-                        java.time.Instant.now().plusSeconds(600),
-                        java.time.Instant.now(),
+                        CustomerAuthTestBeans.NOW.plusSeconds(600),
+                        CustomerAuthTestBeans.NOW,
                         true));
         return session;
     }
