@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -17,17 +18,22 @@ import org.springframework.web.client.RestClient;
 class SecuritiesAssetPriceProviderTest {
     private MockRestServiceServer server;
     private SecuritiesAssetPriceProvider provider;
+    private final BusinessClockService clock = org.mockito.Mockito.mock(BusinessClockService.class);
 
     @BeforeEach
     void setup() {
+        org.mockito.Mockito.when(clock.now()).thenReturn(LocalDateTime.of(2026, 4, 10, 9, 0));
         var builder = RestClient.builder().baseUrl("http://securities.test");
         server = MockRestServiceServer.bindTo(builder).build();
-        provider = new SecuritiesAssetPriceProvider(builder.build());
+        provider = new SecuritiesAssetPriceProvider(builder.build(), clock);
     }
 
     @Test
     void mapsRealContractAndKeepsUnavailableTickersAbsent() {
-        server.expect(requestTo(containsString("/api/domestic-prices?tickers=000660,005930")))
+        server.expect(
+                        requestTo(
+                                containsString(
+                                        "/api/domestic-prices?tickers=000660,005930&asOf=2026-04-10")))
                 .andRespond(
                         withSuccess(
                                 """

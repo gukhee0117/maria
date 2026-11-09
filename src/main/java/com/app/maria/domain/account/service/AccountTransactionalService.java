@@ -3,10 +3,14 @@ package com.app.maria.domain.account.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.dto.request.AccountReapplyRequestDTO;
 import com.app.maria.domain.account.type.BenefitType;
+import com.app.maria.global.audit.dto.AuditActor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public interface AccountTransactionalService {
+    AccountDTO applyAs(
+            AuditActor actor, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove);
+
     AccountDTO updateLimit(
             Long adminId,
             Long customerId,

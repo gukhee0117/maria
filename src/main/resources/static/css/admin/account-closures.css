@@ -1,0 +1,56 @@
+/* 계좌 해지 관리 (1403) 화면 전용 규칙.
+   원본 디자인에는 없는 화면이라, 인출 관리와 같은 구성(조회 영역 → 표 → 오른쪽 상세 패널)으로 맞췄다.
+   공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다. */
+
+.content.adm-main:has(.account-closures) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.account-closures {
+    --adm-cols: 40px minmax(126px, 1fr) minmax(86px, 1fr) minmax(126px, 1fr) minmax(86px, 1fr);
+    --adm-cols-min: 480px;
+}
+
+.account-closures .closure-policy {
+    margin: 0 0 6px;
+}
+
+.account-closures .closure-table th.closure-col-name,
+.account-closures .closure-table td.closure-col-name {
+    box-shadow: inset -1px 0 0 0 var(--adm-bd2);
+}
+
+/* 패널 안 경고·안내 글 */
+.account-closures .adm-notice strong {
+    display: block;
+    font-weight: 700;
+}
+
+.account-closures .adm-notice p {
+    margin: 4px 0 0;
+}
+
+/* 처리(승인·반려) */
+.account-closures .closure-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.account-closures .closure-actions .adm-qfield {
+    align-items: start;
+}
+
+.account-closures .closure-reason {
+    height: auto;
+    min-height: 72px;
+    padding: 6px 8px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.account-closures .closure-action-buttons {
+    display: flex;
+    gap: 6px;
+}

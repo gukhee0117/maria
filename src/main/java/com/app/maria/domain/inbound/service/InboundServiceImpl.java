@@ -20,6 +20,7 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.response.PageResponseDTO;
+import com.app.maria.global.sort.OrderBySpec;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -34,6 +35,17 @@ import org.springframework.web.client.RestClient;
 @Service
 @Transactional(rollbackFor = Exception.class)
 public class InboundServiceImpl implements InboundService {
+
+    /** 계좌별 입고 내역의 정렬 키(화면 머리글) → 정렬 열. 여기 없는 키는 무시한다. */
+    private static final Map<String, String> ACCOUNT_INBOUND_SORT_COLUMNS =
+            Map.of(
+                    "productName", "fp.name",
+                    "requestedQty", "i.requested_qty",
+                    "snapshotQty", "im.snapshot_qty",
+                    "currentHoldingAtRequest", "i.current_holding_at_request",
+                    "approvedQty", "i.approved_qty",
+                    "sourceBroker", "id.source_broker",
+                    "processedAt", "i.processed_at");
 
     private final InboundMapper inboundMapper;
     private final ForeignProductMapper foreignProductMapper;
@@ -303,10 +315,14 @@ public class InboundServiceImpl implements InboundService {
 
     @Override
     @Transactional(readOnly = true)
-    public InboundPageDTO getInboundsByAccount(Long accountId, int page, int size) {
+    public InboundPageDTO getInboundsByAccount(
+            Long accountId, String sort, String direction, int page, int size) {
         int offset = page * size;
+        String orderBy =
+                OrderBySpec.resolve(
+                        ACCOUNT_INBOUND_SORT_COLUMNS, sort, direction, "i.processed_at DESC");
         List<InboundListDTO> content =
-                inboundMapper.selectInboundsByAccountId(accountId, offset, size);
+                inboundMapper.selectInboundsByAccountIdOrdered(accountId, orderBy, offset, size);
         attachLots(content);
 
         long totalElements = inboundMapper.countInboundsByAccountId(accountId);

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.domain.settlement.dto.response.SettlementNotificationResponseDTO;
 import com.app.maria.domain.settlement.event.SettlementItemCompletedEvent;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
@@ -29,6 +30,7 @@ class SettlementNotificationServiceTest {
     @Mock private AccountMapper accountMapper;
     @Mock private SettlementSseService settlementSseService;
     @Mock private SettlementItemMapper settlementItemMapper;
+    @Mock private CustomerNotificationService customerNotificationService;
     @InjectMocks private SettlementNotificationServiceImpl service;
 
     @Test
@@ -81,5 +83,30 @@ class SettlementNotificationServiceTest {
                 .sendAccountBatchCompleted(
                         org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.any(SettlementNotificationResponseDTO.class));
+    }
+
+    @Test
+    void disabledOrDuplicateNotificationStillRefreshesTheOpenAccountScreen() {
+        LocalDateTime at = LocalDateTime.of(2026, 11, 8, 10, 0);
+        when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(true);
+        when(customerNotificationService.recordSettlementFinalized(7L, 1L)).thenReturn(false);
+        service.notifyAccountIfCompleted(new SettlementItemCompletedEvent(1L, 7L, at));
+        verify(settlementSseService)
+                .sendAccountBatchCompleted(7L, new SettlementNotificationResponseDTO(1L, at));
+    }
+
+    @Test
+    void notificationStorageFailureIsNotHiddenAndStillRefreshesScreen() {
+        LocalDateTime at = LocalDateTime.of(2026, 11, 8, 10, 0);
+        when(settlementItemMapper.isAccountSettlementCompleted(1L, 7L)).thenReturn(true);
+        when(customerNotificationService.recordSettlementFinalized(7L, 1L))
+                .thenThrow(new IllegalStateException("storage"));
+        assertThatThrownBy(
+                        () ->
+                                service.notifyAccountIfCompleted(
+                                        new SettlementItemCompletedEvent(1L, 7L, at)))
+                .isInstanceOf(IllegalStateException.class);
+        verify(settlementSseService)
+                .sendAccountBatchCompleted(7L, new SettlementNotificationResponseDTO(1L, at));
     }
 }

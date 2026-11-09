@@ -95,11 +95,13 @@ public class SellOrderApi {
                             LocalDate startDate,
                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                             LocalDate endDate,
+                    @RequestParam(required = false) String sort,
+                    @RequestParam(required = false) String direction,
                     @RequestParam(defaultValue = "0") @PositiveOrZero int page,
                     @RequestParam(defaultValue = "20") @Positive int size) {
         PageResponseDTO<SellOrderHistoryDTO> result =
                 sellOrderService.getSellOrderHistory(
-                        keyword, status, startDate, endDate, page, size);
+                        keyword, status, startDate, endDate, sort, direction, page, size);
         List<SellOrderHistoryResponseDTO> content =
                 result.getContent().stream().map(SellOrderHistoryResponseDTO::new).toList();
         PageResponseDTO<SellOrderHistoryResponseDTO> response =

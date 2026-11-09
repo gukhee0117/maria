@@ -1,0 +1,389 @@
+/* 세액 계산 (1302): 원본 계산서·요약·조회조건을 관리자 공통 부품으로 구성한다. */
+.content.adm-main:has(.tax-calculation) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.tax-calculation {
+    --adm-cols: 42px minmax(136px, 1.15fr) minmax(68px, .7fr) minmax(76px, .78fr)
+        minmax(100px, 1fr) minmax(100px, 1fr) minmax(66px, .65fr)
+        minmax(100px, 1fr) minmax(92px, .9fr) minmax(118px, 1.15fr)
+        minmax(78px, .75fr) minmax(122px, 1.2fr);
+    --adm-cols-min: 1160px;
+}
+
+.tax-page-state {
+    padding: 20px;
+    color: var(--adm-sub);
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd);
+    font-size: 12.5px;
+}
+
+.tax-page-error {
+    color: var(--adm-warn-fg);
+    border-color: var(--adm-warn-bd);
+    background: var(--adm-warn-bg);
+}
+
+.tax-page-error[hidden] {
+    display: none;
+}
+
+#taxBody {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-height: 0;
+}
+
+#taxBody[hidden] {
+    display: none;
+}
+
+.tax-history {
+    flex: 0 0 176px;
+    min-height: 0;
+}
+
+.tax-history-table {
+    --adm-cols: minmax(148px, 1.4fr) minmax(126px, 1fr) minmax(126px, 1fr)
+        minmax(72px, .6fr) minmax(88px, .7fr) minmax(78px, .6fr);
+    --adm-cols-min: 640px;
+}
+
+.tax-filter-note {
+    grid-column: 2;
+    color: var(--adm-sub);
+    font-size: 10px;
+}
+
+.tax-list {
+    flex: 1 1 0;
+    min-height: 220px;
+}
+
+.tax-snapshot-table tbody tr[data-account-id] {
+    cursor: pointer;
+}
+
+.tax-snapshot-table tbody tr.is-selected {
+    background: var(--adm-sel);
+    box-shadow: inset 3px 0 0 var(--adm-side-accent);
+}
+
+.tax-account-no {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+    color: var(--adm-navy-fg);
+}
+
+.tax-mono {
+    font-family: "D2Coding", ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.tax-signed-amount.is-positive {
+    color: var(--adm-ok-fg);
+}
+
+.tax-signed-amount.is-negative {
+    color: var(--adm-fail-fg);
+}
+
+.tax-account-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tax-snapshot-table td.is-strong {
+    font-weight: 400;
+}
+
+.tax-benefit-chip,
+.tax-calculation-chip,
+.tax-action-chip {
+    flex: none;
+}
+
+.tax-action-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+}
+
+.tax-state-inferred {
+    cursor: help;
+}
+
+.tax-history-table .tax-history-loading td,
+.tax-snapshot-table .tax-loading-row td {
+    padding: 12px;
+    color: var(--adm-sub);
+    font-size: 12px;
+}
+
+.tax-history-table .tax-history-retry td,
+.tax-snapshot-table .tax-retry-row td {
+    padding: 12px;
+    color: var(--adm-warn-fg);
+}
+
+.tax-history-retry button,
+.tax-retry-row button {
+    margin-left: 8px;
+}
+
+.tax-detail-panel .tax-detail-body {
+    gap: 14px;
+}
+
+.tax-detail-flags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.tax-detail-flags [hidden] {
+    display: none;
+}
+
+.tax-sheet {
+    border: 1px solid var(--adm-bd);
+}
+
+.tax-sheet-head,
+.tax-sheet-step {
+    display: grid;
+    grid-template-columns: minmax(92px, 22%) minmax(0, 1fr) minmax(96px, 20%);
+}
+
+.tax-sheet-head {
+    min-height: 28px;
+    background: var(--adm-grid-head);
+    border-bottom: 1px solid var(--adm-bd);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.tax-sheet-head > span,
+.tax-sheet-step-name,
+.tax-sheet-content,
+.tax-sheet-amount {
+    min-width: 0;
+    padding: 5px 8px;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid var(--adm-line);
+}
+
+.tax-sheet-head > span:last-child,
+.tax-sheet-amount {
+    border-right: 0;
+}
+
+.tax-sheet-head > span:last-child {
+    justify-content: flex-end;
+}
+
+.tax-sheet-step {
+    min-height: 30px;
+    border-bottom: 1px solid var(--adm-line);
+    font-size: 12px;
+}
+
+.tax-sheet-step:last-child {
+    border-bottom: 0;
+}
+
+.tax-sheet-step-name {
+    gap: 6px;
+    align-items: flex-start;
+    font-weight: 600;
+}
+
+.tax-sheet-step-name b {
+    flex: none;
+    color: var(--adm-navy-fg);
+}
+
+.tax-sheet-content {
+    display: block;
+    color: var(--adm-sub);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.tax-sheet-amount {
+    justify-content: flex-end;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    overflow-wrap: anywhere;
+    padding-right: 4px;
+    padding-left: 4px;
+}
+
+.tax-sheet-formula {
+    line-height: 1.5;
+}
+
+.tax-sheet-subtitle {
+    margin: 0 0 4px;
+    color: var(--adm-sub);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tax-sheet-subtitle:not(:first-child) {
+    margin-top: 8px;
+}
+
+.tax-sheet .adm-mini {
+    border-bottom: 1px solid var(--adm-bd);
+    font-size: 10px;
+}
+
+.tax-sheet .adm-mini-row {
+    grid-template-columns: var(--adm-mini-cols);
+}
+
+.tax-sheet .adm-mini-row > span {
+    padding: 4px 6px;
+    border-right: 1px solid var(--adm-line);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tax-sheet .adm-mini-row > span:last-child {
+    border-right: 0;
+}
+
+.tax-sheet .adm-mini-row > span.is-r {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.tax-sheet .adm-mini-row.is-head > span {
+    border-right-color: var(--adm-bd);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.tax-sheet-value-pair {
+    display: grid;
+    gap: 4px 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    color: var(--adm-sub);
+}
+
+.tax-sheet-value-pair b {
+    margin-left: 4px;
+    color: var(--adm-text);
+    font-weight: 700;
+}
+
+.tax-sheet-step.is-final {
+    background: var(--adm-head);
+}
+
+.tax-final-values {
+    grid-template-columns: 1fr;
+}
+
+.tax-final-amount {
+    color: var(--adm-navy-fg);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.tax-confirm-result {
+    flex: 1;
+    color: var(--adm-sub);
+    font-size: 12px;
+}
+
+.tax-relief-result {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.tax-relief-result[hidden] {
+    display: none;
+}
+
+.tax-relief-result > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 8px;
+    border: 1px solid var(--adm-bd);
+    font-size: 11.5px;
+}
+
+.tax-relief-result > div > span {
+    color: var(--adm-sub);
+}
+
+.tax-legacy-elements,
+.tax-legacy-history {
+    display: none !important;
+}
+
+.tax-history .adm-grid-body {
+    overflow: hidden;
+}
+
+.tax-history .adm-grid-scroll {
+    overflow: auto;
+}
+
+.tax-history .adm-grid-foot {
+    flex: none;
+    display: flex;
+    justify-content: center;
+}
+
+.tax-history .adm-grid-foot:empty {
+    display: none;
+}
+
+.tax-history .adm-grid-foot .adm-pager {
+    margin: 3px 0;
+}
+
+.tax-calculation.is-narrow {
+    height: auto;
+    min-height: 100%;
+}
+
+.content.adm-main:has(.tax-calculation.is-narrow) {
+    overflow: auto;
+}
+
+.tax-calculation.is-narrow .tax-history {
+    flex: 0 0 190px;
+}
+
+.tax-calculation.is-narrow .tax-list {
+    flex: 0 0 360px;
+}
+
+@media (max-width: 720px) {
+    .tax-sheet-head,
+    .tax-sheet-step {
+        grid-template-columns: minmax(80px, 22%) minmax(0, 1fr) minmax(88px, 22%);
+    }
+
+    .tax-sheet .adm-mini-row {
+        grid-template-columns: minmax(82px, 1.1fr) minmax(60px, .55fr) repeat(3, minmax(78px, .9fr));
+    }
+
+    .tax-relief-result {
+        grid-template-columns: 1fr;
+    }
+}

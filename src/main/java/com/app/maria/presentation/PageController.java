@@ -17,12 +17,6 @@ public class PageController {
         return "login";
     }
 
-    @GetMapping("/admin/statistics")
-    public String statistics(Model model) {
-        model.addAttribute("activePath", "/admin/statistics");
-        return "statistics";
-    }
-
     @GetMapping("/admin/target-products")
     public String targetProducts(Model model) {
         model.addAttribute("activePath", "/admin/target-products");
@@ -87,5 +81,11 @@ public class PageController {
     public String tax(Model model) {
         model.addAttribute("activePath", "/admin/tax");
         return "tax-calculation";
+    }
+
+    @GetMapping("/admin/fund-flow")
+    public String fundFlow(Model model) {
+        model.addAttribute("activePath", "/admin/fund-flow");
+        return "fund-flow";
     }
 }

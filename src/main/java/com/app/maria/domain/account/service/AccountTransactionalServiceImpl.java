@@ -6,6 +6,7 @@ import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.AuditLogReasonCode;
 import com.app.maria.domain.account.type.BenefitType;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.service.AuditLogService;
 import com.app.maria.global.exception.AppException;
@@ -81,6 +82,13 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
     @Transactional(rollbackFor = Exception.class)
     public AccountDTO apply(
             Long adminId, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
+        return applyAs(AuditActor.admin(adminId), account, appliedAt, autoApprove);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AccountDTO applyAs(
+            AuditActor actor, AccountDTO account, LocalDateTime appliedAt, boolean autoApprove) {
         if (accountMapper.existsByCustomerId(account.getCustomerId())) {
             throw new AppException(ErrorType.ACCOUNT_ALREADY_EXISTS, account.getCustomerId());
         }
@@ -96,7 +104,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
         AccountDTO appliedAccount = findByCustomer(account.getCustomerId());
         accountLogService.recordStatusChange(appliedAccount, null, appliedAt, "최초 개설 신청");
         logAudit(
-                adminId,
+                actor,
                 appliedAccount.getAccountId(),
                 null,
                 appliedAccount.getStatus().name(),
@@ -111,7 +119,7 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
         assertBenefit(openedAccount, BenefitType.POSSIBLE);
         accountLogService.recordBenefitChange(openedAccount, null, appliedAt, "계좌 개설에 따른 세제혜택 가능");
         logAudit(
-                adminId,
+                actor,
                 openedAccount.getAccountId(),
                 Status.APPLIED.name(),
                 openedAccount.getStatus().name(),
@@ -289,9 +297,20 @@ public class AccountTransactionalServiceImpl implements AccountTransactionalServ
             String beforeValue,
             String afterValue,
             AuditLogReasonCode reasonCode) {
+        logAudit(AuditActor.admin(adminId), accountId, beforeValue, afterValue, reasonCode);
+    }
+
+    private void logAudit(
+            AuditActor actor,
+            Long accountId,
+            String beforeValue,
+            String afterValue,
+            AuditLogReasonCode reasonCode) {
         auditLogService.log(
                 AuditLogDTO.builder()
-                        .adminId(adminId)
+                        .adminId(actor.type() == AuditActor.Type.ADMIN ? actor.id() : null)
+                        .actorType(actor.type())
+                        .actorId(actor.id())
                         .targetTable("ACCOUNT")
                         .targetPk(String.valueOf(accountId))
                         .beforeValue(beforeValue)

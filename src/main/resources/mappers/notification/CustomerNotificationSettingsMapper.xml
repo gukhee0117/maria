@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper">
+    <select id="selectEmail" resultType="String">
+        SELECT email FROM customer WHERE customer_id = #{customerId}
+    </select>
+
+    <select id="hasRegisteredEmail" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM customer WHERE customer_id = #{customerId}
+            AND email IS NOT NULL AND TRIM(email) &lt;&gt; '')
+    </select>
+
+    <select id="lockCustomer" resultType="Long">
+        SELECT customer_id FROM customer WHERE customer_id = #{customerId} FOR UPDATE
+    </select>
+
+    <select id="selectLatestByCustomerId" resultType="CustomerNotificationConsentDTO">
+        SELECT consent.consent_type, consent.agreed
+        FROM customer_consent consent
+        WHERE consent.customer_id = #{customerId}
+              AND consent.consent_type IN (
+                  'NOTIFY_PUSH', 'NOTIFY_SMS', 'NOTIFY_EMAIL', 'NOTIFY_SETTLEMENT',
+                  'NOTIFY_BAND', 'NOTIFY_COMMENT', 'NOTIFY_KIRU'
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM customer_consent newer
+                  WHERE newer.customer_id = consent.customer_id
+                    AND newer.consent_type = consent.consent_type
+                    AND (newer.changed_at &gt; consent.changed_at
+                      OR (newer.changed_at = consent.changed_at
+                          AND newer.customer_consent_id &gt; consent.customer_consent_id))
+              )
+    </select>
+
+    <insert id="insertConsent">
+        INSERT INTO customer_consent (customer_id, consent_type, agreed, changed_at)
+        VALUES (#{customerId}, #{consentType}, #{agreed}, #{changedAt})
+    </insert>
+</mapper>

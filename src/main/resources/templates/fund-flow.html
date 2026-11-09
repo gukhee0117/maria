@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/main}">
+<head>
+    <th:block layout:fragment="pageStyles">
+        <link rel="stylesheet" th:href="@{/css/admin/fund-flow.css}">
+    </th:block>
+</head>
+<body>
+<div layout:fragment="breadcrumb">자금 환류 대시보드</div>
+
+<div layout:fragment="content" class="adm-page fund-flow">
+    <section class="adm-screen">
+        <div class="adm-screen-head">
+            <h1 class="adm-screen-title"><span class="adm-screen-no">[1405]</span> 자금 환류 대시보드</h1>
+            <span class="adm-screen-path">자산 · 인출 &gt; 자금 환류 대시보드</span>
+        </div>
+
+        <!-- ① 요약 6칸: 값은 모두 API 응답에서만 채운다 (개설 계좌 수·복귀 금액·재투자율 = overview, 감면 2칸 = relief, 혜택 상태 = leakage) -->
+        <div class="adm-summary" id="ffSummary">
+            <div class="adm-summary-item" id="ffSumOpened">
+                <span class="adm-summary-label">누적 개설 계좌</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">계좌 · 해지 포함</span>
+            </div>
+            <div class="adm-summary-item" id="ffSumInflow">
+                <span class="adm-summary-label">복귀 금액(확정 원화)</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">원</span>
+            </div>
+            <div class="adm-summary-item" id="ffSumReinvest">
+                <span class="adm-summary-label">국내 재투자율</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">%</span>
+            </div>
+            <div class="adm-summary-item" id="ffSumRelief">
+                <span class="adm-summary-label">예상 감면액(조세지출)</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">원</span>
+                <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
+            </div>
+            <div class="adm-summary-item" id="ffSumPerRelief">
+                <span class="adm-summary-label">감면 1원당 국내 운용액</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">원</span>
+                <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
+            </div>
+            <div class="adm-summary-item ff-sum-benefit" id="ffSumBenefit">
+                <span class="ff-sum-labelcol">
+                    <span class="adm-summary-label">혜택 상태</span>
+                    <span class="adm-summary-unit">매도한 계좌 기준</span>
+                </span>
+                <span class="adm-summary-value ff-sum-stack" data-ff-value>-</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 조회조건 줄: 기간(이번 달 · 분기 · 출시 이후)은 흐름형 API 에 period 로 전달. 스냅샷형 패널은 기간과 무관 -->
+    <section class="ff-bar">
+        <div class="ff-bar-item">기간
+            <div class="adm-seg" id="ffPeriod" role="group" aria-label="조회 기간">
+                <button type="button" data-period="MONTH">이번 달</button>
+                <button type="button" data-period="QUARTER">분기</button>
+                <button type="button" data-period="ALL" class="is-on">출시 이후</button>
+            </div>
+        </div>
+        <span class="ff-bar-item" id="ffPeriodRange">출시 이후 누적</span>
+        <span class="ff-bar-item" id="ffAsOf">집계 기준일 -</span>
+        <div class="ff-bar-spacer"></div>
+        <button type="button" class="adm-btn adm-btn-primary adm-btn-md" id="ffPdfBtn" title="표지와 ①~⑫를 A4 세로로 인쇄해요(개인 식별 정보 없음)">PDF로 저장</button>
+    </section>
+
+    <div class="ff-scroll">
+        <div class="ff-grid" id="ffGrid">
+            <!-- ② 자금 흐름 경로 (Sankey) -->
+            <section class="adm-card ff-card ff-wide" id="ffPanelSankey" data-state="loading" data-api="monthly">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">② 자금 흐름 경로 <span class="adm-card-sub">해외 매도 → 확정 원화 → 국내 매수 · 예수금 · 인출</span></span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-chart" id="ffSankey"></div>
+                    <ul class="ff-notes" id="ffSankeyNotes"></ul>
+                </div>
+            </section>
+            <!-- ③ 월별 유입·국내 매수와 재투자율 -->
+            <section class="adm-card ff-card" id="ffPanelMonthly" data-state="loading" data-api="monthly">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">③ 월별 유입 · 국내 매수와 재투자율</span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-chart ff-chart-canvas"><canvas id="ffMonthlyChart" aria-label="월별 확정 원화 유입, 국내 매수, 재투자율"></canvas></div>
+                    <ul class="ff-notes" id="ffMonthlyNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelFunnel" data-state="loading" data-api="funnel">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">④ 가입 → 첫 국내 매수 퍼널 <span class="adm-card-sub">고객 수 기준</span></span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-funnel" id="ffFunnel"></div>
+                    <ul class="ff-notes" id="ffFunnelNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelLeakage" data-state="loading" data-api="leakage">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑤ 혜택 누수 <span class="adm-card-sub">5분류 · 전체 계좌 기준</span></span>
+                    <span class="ff-badge-row"><span class="ff-badge ff-badge-info" title="세액 스냅샷의 기준일 값이라 위의 기간 선택을 따르지 않아요">기간 무관</span><span class="ff-badge ff-badge-info" data-ff-asof hidden></span></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-stack" id="ffLeakBar" role="img" aria-label="혜택 누수 5분류 비중"></div>
+                    <div class="ff-leak" id="ffLeakRows"></div>
+                    <div class="ff-sub-title">조정비율 구간별 계좌 수 <span class="adm-card-sub">매도한 계좌 기준</span></div>
+                    <div class="ff-hist" id="ffRatioHist"></div>
+                    <ul class="ff-notes" id="ffLeakNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelRelief" data-state="loading" data-api="relief">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑥ 감면 성과</span>
+                    <span class="ff-badge-row"><span class="ff-badge ff-badge-warn">잠정</span><span class="ff-badge ff-badge-info" title="세액 스냅샷의 기준일 값이라 위의 기간 선택을 따르지 않아요">기간 무관</span><span class="ff-badge ff-badge-info" data-ff-asof hidden></span></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-relief">
+                        <div class="ff-chart ff-relief-chart" id="ffRelief"></div>
+                        <div class="ff-big" id="ffReliefBig"></div>
+                    </div>
+                    <div class="ff-kv" id="ffReliefKv"></div>
+                    <ul class="ff-notes" id="ffReliefNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelConc" data-state="loading" data-api="concentration">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑦ 혜택 집중도 <span class="adm-card-sub">감면액 로렌츠 곡선</span></span>
+                    <span class="ff-badge-row"><span class="ff-badge ff-badge-warn">잠정</span><span class="ff-badge ff-badge-info" title="세액 스냅샷의 기준일 값이라 위의 기간 선택을 따르지 않아요">기간 무관</span><span class="ff-badge ff-badge-info" data-ff-asof hidden></span></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-relief">
+                        <div class="ff-chart ff-svg-fluid ff-lorenz" id="ffLorenz"></div>
+                        <div class="ff-big" id="ffConcBig"></div>
+                    </div>
+                    <div class="ff-kv" id="ffConcKv"></div>
+                    <ul class="ff-notes" id="ffConcNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelRetention" data-state="loading" data-api="retention">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑧ 원금 유지 <span class="adm-card-sub">확정 후 경과일 · 95% 구간</span></span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-chart ff-svg-fluid" id="ffRetention"></div>
+                    <div class="ff-leak" id="ffRetTable"></div>
+                    <ul class="ff-notes" id="ffRetNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card" id="ffPanelAllocation" data-state="loading" data-api="allocation">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑨ 국내 운용처 <span class="adm-card-sub">매입금액 기준</span></span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-stack" id="ffAllocBar" role="img" aria-label="국내 운용처 구성"></div>
+                    <div class="ff-legend" id="ffAllocLegend"></div>
+                    <div class="ff-hhi" id="ffHhi"></div>
+                    <div class="ff-sub-title">순매수 상위 10종목 <span class="adm-card-sub">순매수 체결금액</span></div>
+                    <div class="ff-topbuy" id="ffTopBuy"></div>
+                    <ul class="ff-notes" id="ffAllocNotes"></ul>
+                </div>
+            </section>
+            <!-- ⑩ 예수금 브리지 -->
+            <section class="adm-card ff-card" id="ffPanelBridge" data-state="loading" data-api="monthly">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑩ 예수금 브리지</span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-bridge-pick">
+                        <label for="ffBridgeMonth">월</label>
+                        <span class="adm-select-wrap">
+                            <select class="adm-input adm-select" id="ffBridgeMonth"></select>
+                        </span>
+                    </div>
+                    <div class="ff-chart" id="ffBridge"></div>
+                    <ul class="ff-notes" id="ffBridgeNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card ff-wide" id="ffPanelSegments" data-state="loading" data-api="segments">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑪ 연령대 × 투자성향</span>
+                    <span class="ff-badge ff-badge-info" data-ff-asof hidden></span>
+                </div>
+                <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:130px"></div></div>
+                <div class="ff-state ff-state-error"></div>
+                <div class="ff-state ff-state-empty"></div>
+                <div class="ff-body">
+                    <div class="ff-seg-pick">
+                        <span>지표</span>
+                        <div class="adm-seg" id="ffSegMetric" role="group" aria-label="히트맵 지표">
+                            <button type="button" data-metric="reinvestRatio" class="is-on">재투자율</button>
+                            <button type="button" data-metric="netInvestRatio">순투자율</button>
+                        </div>
+                        <span class="ff-heat-legend" id="ffHeatLegend"></span>
+                    </div>
+                    <div class="ff-heat" id="ffHeat"></div>
+                    <div class="ff-sub-title">연령대별 중앙값 <span class="adm-card-sub">유입이 있는 계좌 기준 · 합계 비율과 비교</span></div>
+                    <div class="ff-leak" id="ffMedian"></div>
+                    <ul class="ff-notes" id="ffSegNotes"></ul>
+                </div>
+            </section>
+            <section class="adm-card ff-card ff-wide" id="ffPanelDefs" data-state="ready">
+                <div class="adm-card-head">
+                    <span class="adm-card-title">⑫ 지표 정의 · 데이터 품질</span>
+                </div>
+                <div class="ff-body">
+                    <div class="ff-defs" id="ffDefs" role="table"></div>
+                    <ul class="ff-notes ff-limits" id="ffLimits"></ul>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- 데이터 없음 그림 (패널이 비었을 때 복제해서 쓴다) -->
+    <template id="ffEmptyTpl">
+        <div class="adm-card-empty"><img th:src="@{/images/admin/char-front.png}" alt=""><span>데이터가 없습니다.</span></div>
+    </template>
+    <div class="ff-tip" id="ffTip" role="tooltip" hidden></div>
+</div>
+
+<th:block layout:fragment="pageScripts">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+            integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+            crossorigin="anonymous"></script>
+    <script th:src="@{/js/admin/status-labels.js}"></script>
+    <script th:src="@{/js/fund-flow.js}"></script>
+</th:block>
+</body>
+</html>

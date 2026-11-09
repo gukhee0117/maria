@@ -12,6 +12,7 @@ import com.app.maria.domain.account.dto.response.AccountManagementDetailResponse
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -38,7 +39,6 @@ public class AccountServiceImpl implements AccountService {
     private final AccountLogService accountLogService;
     private final BusinessClockService businessClockService;
     private final AccountTransactionalService accountTransactionalService;
-    private final AccountMydataSyncService accountMydataSyncService;
     private final AuditActorProvider auditActorProvider;
 
     @Override
@@ -72,9 +72,6 @@ public class AccountServiceImpl implements AccountService {
                         requestDTO.getExpectedCurrentLimit(),
                         newLimitAmount,
                         businessClockService.now());
-        if (updatedAccount.getStatus() == Status.OPENED) {
-            accountMydataSyncService.updateLimit(updatedAccount);
-        }
         return new AccountResponseDTO(updatedAccount);
     }
 
@@ -94,10 +91,20 @@ public class AccountServiceImpl implements AccountService {
         AccountDTO appliedAccount =
                 accountTransactionalService.apply(
                         auditActorProvider.getCurrentAdminId(), account, appliedAt, autoApprove);
-        if (appliedAccount.getStatus() == Status.OPENED) {
-            accountMydataSyncService.create(appliedAccount);
-        }
         return new AccountResponseDTO(appliedAccount);
+    }
+
+    @Override
+    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
+        validateCustomerExists(customerId);
+        validateLimitInput(limitAmount);
+        LocalDateTime appliedAt = getApplicationTime();
+        validateLimitAvailability(limitAmount, calculateAvailableLimit(customerId));
+        AccountDTO account =
+                AccountDTO.builder().customerId(customerId).limitAmount(limitAmount).build();
+        return new AccountResponseDTO(
+                accountTransactionalService.applyAs(
+                        AuditActor.customer(customerId), account, appliedAt, true));
     }
 
     @Override
@@ -116,7 +123,6 @@ public class AccountServiceImpl implements AccountService {
                         accountId,
                         account.getLimitAmount(),
                         openedAt);
-        accountMydataSyncService.create(openedAccount);
         return new AccountResponseDTO(openedAccount);
     }
 
@@ -202,7 +208,6 @@ public class AccountServiceImpl implements AccountService {
                         accountId,
                         normalizedReason,
                         openedAt);
-        accountMydataSyncService.create(openedAccount);
         return new AccountResponseDTO(openedAccount);
     }
 

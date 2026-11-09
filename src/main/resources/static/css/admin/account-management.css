@@ -1,0 +1,376 @@
+/* 계좌 관리 (1101) 화면 전용 규칙 (A-13a 목록 · A-13b 상세·처리)
+   원본: admin.dc.html 의 계좌 관리 화면. 공통 부품은 components.css, 색은 tokens.css 의 --adm- 변수만 쓴다.
+   (옛 static/css/account-management.css 는 더 이상 불러오지 않는다 — 마지막 정리 단계에서 지운다.) */
+
+/* 본문 여백은 원본(6px 8px 8px). layout.css 의 .content 규칙보다 선택자를 높여 이긴다. */
+.content.adm-main:has(.account-management) {
+    padding: 6px 8px 8px;
+    overflow: hidden;
+}
+
+.account-management {
+    /* 칸 너비: 원본 칸 너비(No 40 · 140 · 80 · 96 · 110 · 110 · 124 · 130 · 130)에서 14px 뺀 값을 최소로 하고 남는 폭을 나눈다 */
+    --adm-cols: 40px minmax(126px, 1fr) minmax(66px, 1fr) minmax(82px, 1fr) minmax(96px, 1fr)
+        minmax(96px, 1fr) minmax(110px, 1fr) minmax(116px, 1fr) minmax(116px, 1fr);
+    --adm-cols-min: 848px;
+}
+
+.account-management .account-legacy-summary[hidden] {
+    display: none;
+}
+
+/* 고객 칸 오른쪽에 1px 안쪽 구분선 (원본: 고정 칸 묶음의 끝 표시) */
+.account-management .account-list-table th.account-col-name,
+.account-management .account-list-table td.account-col-name {
+    box-shadow: inset -1px 0 0 0 var(--adm-bd2);
+}
+
+/* 머리 칸의 정렬 버튼 (원본 표 머리의 ▲▼ 정렬) */
+.account-list-table th .account-sort {
+    max-width: 100%;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* 정렬 표시는 다른 표와 같은 삼각형 둘(▲▼) — 누른 방향만 파랗게 */
+.account-list-table th .account-sort::after {
+    content: "▲▼";
+    margin-left: 3px;
+    font-size: 9px;
+    line-height: 1;
+    color: transparent;
+    background: var(--adm-bd2);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.account-list-table th .account-sort.is-sorted[data-direction="asc"]::after {
+    background: linear-gradient(to right, var(--adm-navy-fg) 50%, var(--adm-bd2) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.account-list-table th .account-sort.is-sorted[data-direction="desc"]::after {
+    background: linear-gradient(to right, var(--adm-bd2) 50%, var(--adm-navy-fg) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.account-list-table .adm-chip {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.account-loading-row > td {
+    padding: 20px 10px;
+    color: var(--adm-sub);
+    text-align: center;
+}
+
+/* 원본에 없는 기존 기능(계좌 개설 신청) 버튼: 목록 머리 오른쪽 끝 */
+.account-create-trigger {
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* ---------- 상세 패널 ---------- */
+.account-detail-foot[hidden] {
+    display: none;
+}
+
+/* 지금 상태에서 못 쓰는 처리 버튼: 꺼 두고 이유는 title 툴팁으로 (primary 의 wait 커서 대신 금지 커서) */
+.account-review-controls .adm-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* 원본 패널 아래 처리 버튼: 높이 30 · 굵기 600 */
+.account-detail-foot .adm-btn {
+    height: 30px;
+    padding: 0 14px;
+    font-weight: 600;
+}
+
+.account-review-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    width: 100%;
+}
+
+.account-review-controls[hidden],
+.closure-review-actions[hidden],
+.account-action-modal-field[hidden] {
+    display: none;
+}
+
+/* 한도 사용 게이지 (원본: 머리 줄 13 · 제목·값 12.5 굵게 + 보조 글 500 · 막대 높이 16 · 아래 글 11) */
+.account-gauge-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--adm-text);
+}
+
+.account-gauge-title,
+.account-gauge-value {
+    font-size: 12.5px;
+    font-weight: 700;
+}
+
+.account-gauge-sub {
+    font-weight: 500;
+    color: var(--adm-sub);
+}
+
+.account-gauge-track {
+    box-sizing: content-box;
+    height: 14px;
+    margin-top: 5px;
+    border: 1px solid var(--adm-bd);
+    background: var(--adm-line);
+    overflow: hidden;
+}
+
+.account-gauge-track > span {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--adm-chart-4);
+    transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.account-gauge-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--adm-sub);
+}
+
+/* 탭 내용: 표 · 항목 표 · 빈 안내 (원본: 안쪽 18px · 글자 12 · 보조 색) */
+.account-tab-panel[hidden] {
+    display: none;
+}
+
+.account-tab-panel.adm-grid-scroll {
+    max-height: 260px;
+    border: 1px solid var(--adm-bd);
+    border-top: 0;
+}
+
+.account-holdings-table {
+    --adm-cols: 40px minmax(120px, 1.6fr) minmax(90px, 1fr) minmax(70px, 1fr);
+    --adm-cols-min: 320px;
+}
+
+.account-inbounds-table {
+    --adm-cols: 40px minmax(100px, 1.3fr) minmax(110px, 1.4fr) minmax(60px, 1fr) minmax(60px, 1fr) minmax(100px, 1.2fr);
+    --adm-cols-min: 480px;
+}
+
+.account-withdrawals-table {
+    --adm-cols: 40px minmax(90px, 1fr) minmax(70px, 1fr) minmax(100px, 1.2fr) minmax(100px, 1.3fr);
+    --adm-cols-min: 400px;
+}
+
+.account-sales-table {
+    --adm-cols: 40px minmax(70px, 1fr) minmax(70px, 1fr) minmax(70px, 1fr) minmax(80px, 1fr) minmax(100px, 1.2fr);
+    --adm-cols-min: 440px;
+}
+
+.account-history-table {
+    --adm-cols: 40px minmax(100px, 1.2fr) minmax(130px, 1.4fr) minmax(90px, 1.2fr);
+    --adm-cols-min: 360px;
+}
+
+.account-tab-table td.account-related-empty {
+    padding: 18px;
+    color: var(--adm-sub);
+    font-size: 12px;
+    text-align: center;
+}
+
+#accountTabClosure {
+    padding-top: 8px;
+}
+
+.account-tab-heading {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+    font-size: 11.5px;
+}
+
+.account-closure-link {
+    color: var(--adm-navy-fg);
+    text-decoration: none;
+}
+
+.account-closure-link:hover {
+    text-decoration: underline;
+}
+
+#accountTabClosure .account-related-empty {
+    padding: 18px;
+    border: 1px solid var(--adm-bd);
+    color: var(--adm-sub);
+    font-size: 12px;
+    text-align: center;
+}
+
+.closure-review-actions {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.account-closure-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.account-detail-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--adm-bd);
+}
+
+/* ---------- 모달 ---------- */
+.adm-modal-v.has-unit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.adm-modal-unit {
+    flex: 0 0 auto;
+    color: var(--adm-sub);
+    font-size: 11px;
+}
+
+/* 한도 입력칸 (원본: 높이 30 · 글자 13 · 굵기 600 · 오른쪽 정렬) */
+.account-management .adm-modal-v input.account-currency-input {
+    height: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+}
+
+/* 원본 모달은 항목이 "변경할 한도" 한 줄뿐이지만, 이 화면은 현재 한도 등 읽기 전용 줄이 더 있어 이름 칸을 넓힌다 */
+.account-management .adm-modal-form {
+    grid-template-columns: 140px minmax(0, 1fr);
+}
+
+/* 항목 칸에 글자만 있는 줄(읽기 전용 값) */
+.account-management .adm-modal-v:not(:has(input)) {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.account-management .adm-modal-form > label.adm-modal-k {
+    cursor: pointer;
+}
+
+.account-action-modal-field {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+}
+
+.account-action-modal-field label {
+    color: var(--adm-sub);
+    font-size: 11.5px;
+}
+
+/* 고객 검색 목록 (계좌 개설 신청 모달) */
+.customer-search-field {
+    position: relative;
+}
+
+.customer-search-results {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: calc(100% - 2px);
+    z-index: 5;
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--adm-bd2);
+    background: var(--adm-panel);
+    color: var(--adm-text);
+    box-shadow: var(--adm-shadow-modal);
+}
+
+.customer-search-results[hidden] {
+    display: none;
+}
+
+.customer-search-option {
+    display: grid;
+    width: 100%;
+    gap: 2px;
+    padding: 6px 8px;
+    border: 0;
+    border-bottom: 1px solid var(--adm-line);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.customer-search-option:hover,
+.customer-search-option:focus-visible {
+    background: var(--adm-hover);
+}
+
+.customer-search-option span {
+    color: var(--adm-sub);
+    font-size: 11px;
+}
+
+.customer-search-message {
+    padding: 8px;
+    color: var(--adm-sub);
+    font-size: 12px;
+}
+
+.selected-customer,
+.available-limit {
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .account-management .adm-qbox {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .account-management .adm-qbtns {
+        align-self: flex-end;
+    }
+}
+
+.account-doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.account-documents-table .adm-btn { height: 24px; padding: 0 10px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; }
+.account-documents-table { --adm-cols: 32px minmax(104px, 1fr) 72px 52px 140px 60px; --adm-cols-min: 460px; }

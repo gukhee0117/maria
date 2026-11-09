@@ -114,13 +114,13 @@
                     <thead>
                     <tr>
                         <th class="adm-col-no">No</th>
-                        <th>배치 ID</th>
-                        <th class="settlement-col-at">실행 일시</th>
-                        <th class="is-c">상태</th>
-                        <th class="is-r">전체 건수</th>
-                        <th class="is-r">성공 건수</th>
-                        <th class="is-r">실패 건수</th>
-                        <th class="is-r">처리 건수</th>
+                        <th data-sort-key="batchId">배치 ID</th>
+                        <th class="settlement-col-at" data-sort-key="executedAt">실행 일시</th>
+                        <th class="is-c" data-sort-key="status">상태</th>
+                        <th class="is-r" data-sort-key="totalCount">전체 건수</th>
+                        <th class="is-r" data-sort-key="successCount">성공 건수</th>
+                        <th class="is-r" data-sort-key="failedCount">실패 건수</th>
+                        <th class="is-r" data-sort-key="processedCount">처리 건수</th>
                     </tr>
                     </thead>
                     <tbody id="settlement-list">
@@ -136,8 +136,14 @@
     <!-- 선택한 배치의 실패 항목: GET /batches/detail/fail/{batchId} -->
     <section class="adm-grid settlement-fail">
         <div class="adm-grid-head">
-            <span class="adm-grid-title"><span class="adm-fail-batch" id="settlement-fail-batch"></span> 실패 항목 <span id="settlement-fail-count">-</span>건</span>
+            <span class="adm-grid-title"><span class="adm-fail-batch" id="settlement-fail-batch"></span> <span id="settlement-scope-title">실패</span> 항목 <span id="settlement-fail-count">-</span>건</span>
+            <div class="adm-seg" id="settlement-scope" role="group" aria-label="항목 범위">
+                <button type="button" data-scope="fail" class="is-on">실패</button>
+                <button type="button" data-scope="all">전체</button>
+                <button type="button" data-scope="pending">처리대기</button>
+            </div>
             <div class="adm-grid-spacer"></div>
+            <button type="button" class="adm-btn adm-btn-sm" id="settlement-pending-more" hidden>더 보기</button>
             <!-- ADMIN·SETTLEMENT 에게만 보인다. 실패 상태(FAILED) 배치만 눌러진다 -->
             <button type="button" class="adm-btn adm-btn-sm" id="settlement-retry-batch" hidden>실패 배치 재처리</button>
         </div>
@@ -165,16 +171,6 @@
                 </table>
             </div>
         </div>
-    </section>
-
-    <!-- 원본에 없는 기존 요소: 최근 14일 정산 항목 처리 추이(Chart.js). 지우지 않고 숨겨 둔다 — 배치는 사용자 선택 대기 -->
-    <section class="adm-card settlement-trend" id="settlement-trend" hidden>
-        <div class="adm-card-head">
-            <span class="adm-card-title">최근 14일 정산 항목 처리 추이</span>
-            <span class="adm-card-sub" id="settlement-trend-total">-</span>
-        </div>
-        <div class="settlement-trend-detail" id="settlement-trend-detail"></div>
-        <div class="settlement-trend-chart"><canvas id="settlement-trend-canvas" aria-label="최근 14일 정산 항목 처리 추이"></canvas></div>
     </section>
 
     <!-- 정산 항목 상세 패널 (520px). 순서 중요: layout.js 의 Esc 처리는 마지막 .is-open 요소의 닫기 버튼을 누른다 -->
@@ -271,9 +267,6 @@
 </div>
 
 <th:block layout:fragment="pageScripts">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
-            integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
-            crossorigin="anonymous"></script>
     <script th:src="@{/js/admin/status-labels.js}"></script>
     <script th:src="@{/js/admin/ui-helpers.js}"></script>
     <script th:src="@{/js/settlement.js}"></script>

@@ -29,6 +29,7 @@ public interface SellOrderMapper {
             @Param("status") String status,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
+            @Param("orderBy") String orderBy,
             @Param("offset") int offset,
             @Param("size") int size);
 

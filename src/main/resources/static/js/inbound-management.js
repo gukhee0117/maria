@@ -17,6 +17,7 @@ $(function () {
     var selectedAccountId = null;
     var inbounds = [];
     var inboundPage = 0;
+    var inboundSort = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
     var selectedInboundId = null;
     var accountRequestSeq = 0;   // 계좌를 빠르게 바꿀 때 늦게 온 옛 응답을 버리기 위한 번호
     var inboundRequestSeq = 0;
@@ -88,12 +89,12 @@ $(function () {
     }
 
     // 표 머리 쪽 이동 (이전/숫자/다음, 10쪽 묶음)
-    function renderPager($pager, current, totalPages, onGo) {
+    function renderPager($pager, current, totalPages, onGo, blockSize) {
         $pager.empty();
         if (!totalPages || totalPages <= 1) {
             return;
         }
-        var BLOCK_SIZE = 10;
+        var BLOCK_SIZE = blockSize || 10;
         var blockStart = Math.floor(current / BLOCK_SIZE) * BLOCK_SIZE;
         var blockEnd = Math.min(totalPages - 1, blockStart + BLOCK_SIZE - 1);
 
@@ -205,7 +206,7 @@ $(function () {
                 // 옛 화면과 같이 목록을 받으면 첫 계좌를 고르고 그 입고 내역을 불러온다.
                 selectedAccountId = accounts.length ? accounts[0].accountId : null;
                 renderAccountList();
-                renderPager($("#inbound-account-pagination"), accountPage, totalPages, loadAccounts);
+                renderPager($("#inbound-account-pagination"), accountPage, totalPages, loadAccounts, 5);
 
                 if (selectedAccountId != null) {
                     loadAccountInbounds(0);
@@ -303,9 +304,79 @@ $(function () {
         });
     }
 
+    // ---------- 보유 종목 보기: GET /api/admin/inbounds/holdings?accountId= ----------
+    var inboundView = "inbounds";
+    var holdingsSeq = 0;
+
+    function holdingsState(text) {
+        $("#inbound-holdings-list").html('<tr class="is-state"><td colspan="6">' + escapeHtml(text) + "</td></tr>");
+    }
+    function loadHoldings() {
+        if (selectedAccountId == null) {
+            holdingsState("계좌를 선택하세요.");
+            return;
+        }
+        var seq = ++holdingsSeq;
+        holdingsState("불러오는 중...");
+        MARIA.auth.ajax({ url: "/api/admin/inbounds/holdings", method: "GET", data: { accountId: selectedAccountId } })
+            .done(function (res) {
+                if (seq !== holdingsSeq) {
+                    return;
+                }
+                var rows = res.data || [];
+                $("#inbound-count").text(rows.length);
+                if (!rows.length) {
+                    holdingsState("보유 종목이 없습니다.");
+                    return;
+                }
+                $("#inbound-holdings-list").html(rows.map(function (r, i) {
+                    return '<tr><td class="adm-col-no">' + (i + 1) + "</td>" +
+                        "<td>" + escapeHtml(r.name || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.ticker || "-") + "</td>" +
+                        "<td>" + escapeHtml((r.market || "-") + " · " + (r.currency || "-")) + "</td>" +
+                        '<td class="is-c">' + escapeHtml(r.type ? STATUS.stockTypeLabel(r.type) : "-") + "</td>" +
+                        '<td class="is-r">' + escapeHtml(formatQty(r.currentQty)) + "</td></tr>";
+                }).join(""));
+            })
+            .fail(function (xhr) {
+                if (seq !== holdingsSeq || xhr.status === 401) {
+                    return;
+                }
+                holdingsState("보유 종목을 불러오지 못했습니다.");
+            });
+    }
+    function setInboundView(view) {
+        inboundView = view;
+        $("#inbound-view button").removeClass("is-on").filter(function () { return $(this).attr("data-view") === view; }).addClass("is-on");
+        var holdings = view === "holdings";
+        $("#inbound-holdings-body").prop("hidden", !holdings);
+        $("#inbound-history-body").prop("hidden", holdings);
+        $("#inbound-pagination").prop("hidden", holdings);
+        $("#inbound-page-size").closest(".adm-per").prop("hidden", holdings);
+        if (holdings) {
+            loadHoldings();
+        } else {
+            loadAccountInbounds(inboundPage || 0);
+        }
+    }
+    MARIA.tableSort.bind(".inbound-table", function (key, dir) {
+        inboundSort = { key: key, dir: dir };
+        loadAccountInbounds(0);
+    });
+
+    $("#inbound-view").on("click", "button", function () {
+        var view = $(this).attr("data-view");
+        if (view !== inboundView) {
+            setInboundView(view);
+        }
+    });
+
     function loadAccountInbounds(page) {
         if (selectedAccountId == null) {
             return;
+        }
+        if (inboundView === "holdings") {
+            loadHoldings();
         }
         var targetPage = page || 0;
         var seq = ++inboundRequestSeq;
@@ -315,7 +386,7 @@ $(function () {
         MARIA.auth.ajax({
             url: "/api/admin/inbounds/by-account/" + selectedAccountId,
             method: "GET",
-            data: { page: targetPage, size: inboundPageSize }
+            data: $.extend({ page: targetPage, size: inboundPageSize }, inboundSort ? { sort: inboundSort.key, direction: inboundSort.dir } : {})
         })
             .done(function (res) {
                 if (seq !== inboundRequestSeq) {

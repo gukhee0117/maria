@@ -2,6 +2,7 @@ package com.app.maria.domain.fundflow.dto.response;
 
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRatioBinDTO;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class FundFlowLeakageResponseDTO {
     private LocalDateTime snapshotCalculatedAt;
     private Long total;
     private List<Category> categories;
+    private List<RatioBin> ratioBins;
     private String basis;
 
     public FundFlowLeakageResponseDTO(FundFlowLeakageDTO vo) {
@@ -32,7 +34,27 @@ public class FundFlowLeakageResponseDTO {
         this.snapshotCalculatedAt = vo.getSnapshotCalculatedAt();
         this.total = vo.getTotal();
         this.categories = vo.getCategories().stream().map(Category::new).toList();
+        this.ratioBins = vo.getRatioBins().stream().map(RatioBin::new).toList();
         this.basis = BASIS;
+    }
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Getter
+    @Setter
+    @ToString
+    public static class RatioBin {
+        private String code;
+        private String label;
+        private Long accounts;
+        private BigDecimal share;
+
+        public RatioBin(FundFlowRatioBinDTO vo) {
+            this.code = vo.getCode();
+            this.label = vo.getLabel();
+            this.accounts = vo.getAccounts();
+            this.share = vo.getShare();
+        }
     }
 
     @AllArgsConstructor

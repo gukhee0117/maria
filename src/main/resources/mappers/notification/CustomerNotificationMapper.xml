@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationMapper">
+    <update id="markVisibleAsRead">
+        UPDATE notification SET read_at = #{readAt}
+        WHERE customer_id = #{customerId} AND read_at IS NULL
+        AND notification_id IN
+        <foreach collection="notificationIds" item="id" open="(" close=")" separator=",">#{id}</foreach>
+    </update>
+
+    <select id="selectSettlementEmailDetails" resultType="SettlementEmailDetails">
+        SELECT SUM(ke.final_amount) AS settled_amount, MAX(latest.processed_at) AS completed_at
+        FROM settlement_item latest
+        INNER JOIN krw_exchange ke ON ke.exchange_id = latest.exchange_id
+        WHERE latest.batch_id = #{batchId}
+          AND ke.account_id = #{accountId}
+          AND latest.result = 'SUCCESS'
+          AND ke.settlement_status = 'FINALIZED'
+          AND NOT EXISTS (
+              SELECT 1 FROM settlement_item newer
+              WHERE newer.batch_id = latest.batch_id AND newer.exchange_id = latest.exchange_id
+                AND newer.item_id &gt; latest.item_id
+          )
+    </select>
+
+    <select id="selectDeliveryTarget" resultType="NotificationDeliveryDTO">
+        <bind name="pushDefault" value="@com.app.maria.domain.notification.type.NotificationConsentType@NOTIFY_PUSH.defaultValue()"/>
+        <bind name="emailDefault" value="@com.app.maria.domain.notification.type.NotificationConsentType@NOTIFY_EMAIL.defaultValue()"/>
+        <bind name="kindDefault" value="consentType.defaultValue()"/>
+        SELECT c.email,
+            COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
+                AND consent_type = 'NOTIFY_PUSH' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{pushDefault}) AS push_enabled,
+            COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
+                AND consent_type = 'NOTIFY_EMAIL' ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{emailDefault}) AS email_enabled,
+            COALESCE((SELECT agreed FROM customer_consent WHERE customer_id = c.customer_id
+                AND consent_type = #{consentType} ORDER BY changed_at DESC, customer_consent_id DESC LIMIT 1), #{kindDefault}) AS kind_enabled
+        FROM customer c WHERE c.customer_id = #{customerId}
+    </select>
+
+    <insert id="insertEvent">
+        INSERT INTO notification (
+            customer_id, notification_type, title, content, related_type, related_id, created_at
+        ) VALUES (#{customerId}, #{type}, #{title}, #{content}, #{relatedType}, #{relatedId}, #{createdAt})
+    </insert>
+
+    <select id="selectRecentByCustomerId" resultType="CustomerNotificationVO">
+        SELECT notification_id, notification_type, title, content, read_at, created_at
+        FROM notification
+        WHERE customer_id = #{customerId}
+          AND notification_type NOT IN ('COMMUNITY_COMMENT', 'KIRU_REPLY')
+        ORDER BY notification_id DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markAllUnreadAsRead">
+        UPDATE notification
+        SET read_at = #{readAt}
+        WHERE customer_id = #{customerId}
+          AND read_at IS NULL
+    </update>
+
+    <select id="existsSettlementFinalized" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM notification WHERE customer_id = #{customerId}
+            AND notification_type = 'SETTLEMENT_FINALIZED' AND related_type = 'SETTLEMENT_BATCH'
+            AND related_id = #{batchId})
+    </select>
+</mapper>

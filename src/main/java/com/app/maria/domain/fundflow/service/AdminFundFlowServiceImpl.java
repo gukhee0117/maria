@@ -3,30 +3,43 @@ package com.app.maria.domain.fundflow.service;
 import static com.app.maria.domain.fundflow.service.FundFlowRatios.RATIO_SCALE;
 import static com.app.maria.domain.fundflow.service.FundFlowRatios.ratio;
 
+import com.app.maria.domain.fundflow.dto.FundFlowAccountFlowRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowAgeMedianDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowAllocationDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowBucketDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowConcentrationDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowLorenzPointDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthlyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowOverviewDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowProductCostDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRatioBinDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowReliefDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRetentionDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRetentionLotRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowRetentionPointDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentCellDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentRowDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowMonthlyRequestDTO;
+import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowReliefRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowOverviewResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowReliefResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowRetentionResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowSegmentResponseDTO;
 import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
+import com.app.maria.domain.fundflow.type.AdjustRatioBin;
+import com.app.maria.domain.fundflow.type.FundFlowPeriod;
 import com.app.maria.domain.fundflow.type.LeakageCategory;
 import com.app.maria.domain.fundflow.type.ReliefScope;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -58,13 +71,16 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
     private static final String OTHER_SECTOR = "기타";
     private static final int INVEST_PER_RELIEF_SCALE = 1;
     private static final int INTERNAL_SCALE = 10;
+    private static final int LORENZ_STEP_PERCENT = 5;
+    private static final BigDecimal TOP_SHARE = new BigDecimal("0.10");
+    private static final int RETENTION_STEP_DAYS = 10;
 
     private final FundFlowMapper fundFlowMapper;
     private final BusinessClockService businessClockService;
 
     @Override
-    public FundFlowFunnelResponseDTO getFunnel() {
-        FundFlowFilterDTO filter = buildFilter();
+    public FundFlowFunnelResponseDTO getFunnel(FundFlowPeriodRequestDTO request) {
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
         return new FundFlowFunnelResponseDTO(
                 FundFlowFunnelDTO.builder()
                         .asOfDate(filter.getAsOfDate())
@@ -73,8 +89,8 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
     }
 
     @Override
-    public FundFlowOverviewResponseDTO getOverview() {
-        FundFlowFilterDTO filter = buildFilter();
+    public FundFlowOverviewResponseDTO getOverview(FundFlowPeriodRequestDTO request) {
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
         FundFlowOverviewDTO overview = fundFlowMapper.selectOverview(filter);
         overview.setAsOfDate(filter.getAsOfDate());
         overview.setReinvestRatio(ratio(overview.getDomesticBuyTotal(), overview.getInflowTotal()));
@@ -87,7 +103,7 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
 
     @Override
     public FundFlowLeakageResponseDTO getLeakage() {
-        FundFlowFilterDTO filter = buildFilter();
+        FundFlowFilterDTO filter = buildFilter(FundFlowPeriod.ALL);
         Map<String, FundFlowLeakageCategoryDTO> byCode =
                 fundFlowMapper.selectLeakage().stream()
                         .collect(Collectors.toMap(FundFlowLeakageCategoryDTO::getCode, c -> c));
@@ -113,14 +129,17 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                         .snapshotCalculatedAt(fundFlowMapper.selectSnapshotCalculatedAt())
                         .total(total)
                         .categories(categories)
+                        .ratioBins(buildRatioBins())
                         .build());
     }
 
     @Override
     public FundFlowMonthlyResponseDTO getMonthly(FundFlowMonthlyRequestDTO request) {
-        FundFlowFilterDTO filter = buildFilter();
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
         if (request.getFromMonth() != null) {
             filter.setFromMonth(request.getFromMonth().atDay(1));
+        } else if (filter.getPeriodFrom() != null) {
+            filter.setFromMonth(filter.getPeriodFrom());
         }
         if (request.getToMonth() != null) {
             filter.setToMonth(request.getToMonth().atDay(1));
@@ -138,8 +157,8 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
     }
 
     @Override
-    public FundFlowSegmentResponseDTO getSegments() {
-        FundFlowFilterDTO filter = buildFilter();
+    public FundFlowSegmentResponseDTO getSegments(FundFlowPeriodRequestDTO request) {
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
         List<FundFlowSegmentRowDTO> rows = fundFlowMapper.selectSegments(filter);
 
         List<FundFlowSegmentCellDTO> cells = new ArrayList<>();
@@ -157,13 +176,17 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
         }
         cells.add(toCell(sum(null, null, rows)));
         return new FundFlowSegmentResponseDTO(
-                FundFlowSegmentDTO.builder().asOfDate(filter.getAsOfDate()).cells(cells).build());
+                FundFlowSegmentDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .cells(cells)
+                        .ageMedians(toAgeMedians(fundFlowMapper.selectAccountFlows(filter)))
+                        .build());
     }
 
     @Override
     public FundFlowReliefResponseDTO getRelief(FundFlowReliefRequestDTO request) {
         ReliefScope scope = request.getScope() == null ? ReliefScope.ALL : request.getScope();
-        FundFlowFilterDTO filter = buildFilter();
+        FundFlowFilterDTO filter = buildFilter(FundFlowPeriod.ALL);
         filter.setScope(scope.name());
 
         FundFlowReliefDTO relief = fundFlowMapper.selectRelief(filter);
@@ -181,8 +204,8 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
     }
 
     @Override
-    public FundFlowAllocationResponseDTO getAllocation() {
-        FundFlowFilterDTO filter = buildFilter();
+    public FundFlowAllocationResponseDTO getAllocation(FundFlowPeriodRequestDTO request) {
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
         List<FundFlowProductCostDTO> products = fundFlowMapper.selectProductCosts();
         BigDecimal total =
                 products.stream()
@@ -221,8 +244,155 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                         .build());
     }
 
-    private FundFlowFilterDTO buildFilter() {
-        return FundFlowFilterDTO.from(businessClockService.now());
+    @Override
+    public FundFlowConcentrationResponseDTO getConcentration() {
+        FundFlowFilterDTO filter = buildFilter(FundFlowPeriod.ALL);
+        List<BigDecimal> reliefs = fundFlowMapper.selectReliefAmounts(filter);
+        List<FundFlowLorenzPointDTO> lorenz =
+                FundFlowStatistics.lorenz(reliefs, LORENZ_STEP_PERCENT).stream()
+                        .map(
+                                p ->
+                                        FundFlowLorenzPointDTO.builder()
+                                                .populationShare(p[0])
+                                                .valueShare(p[1])
+                                                .build())
+                        .toList();
+        return new FundFlowConcentrationResponseDTO(
+                FundFlowConcentrationDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .accounts((long) reliefs.size())
+                        .reliefTotal(FundFlowStatistics.sum(reliefs))
+                        .top10Share(FundFlowStatistics.topShare(reliefs, TOP_SHARE))
+                        .gini(FundFlowStatistics.gini(reliefs))
+                        .lorenz(lorenz)
+                        .build());
+    }
+
+    @Override
+    public FundFlowRetentionResponseDTO getRetention(FundFlowPeriodRequestDTO request) {
+        FundFlowFilterDTO filter = buildFilter(request.getPeriod());
+        List<FundFlowRetentionLotRowDTO> lots = fundFlowMapper.selectRetentionLots(filter);
+
+        int n = lots.size();
+        int[] accountIdx = new int[n];
+        int[] days = new int[n];
+        boolean[] events = new boolean[n];
+        double[] weights = new double[n];
+        long eventCount = 0;
+        int accountCount = 0;
+        Long prevAccount = null;
+        for (int i = 0; i < n; i++) {
+            FundFlowRetentionLotRowDTO lot = lots.get(i);
+            if (!lot.getAccountId().equals(prevAccount)) {
+                accountCount++;
+                prevAccount = lot.getAccountId();
+            }
+            accountIdx[i] = accountCount;
+            days[i] = Math.max(0, lot.getDays());
+            events[i] = Boolean.TRUE.equals(lot.getEvent());
+            weights[i] = lot.getFinalAmount().doubleValue();
+            if (events[i]) {
+                eventCount++;
+            }
+        }
+
+        FundFlowKaplanMeier.Result result =
+                FundFlowKaplanMeier.compute(
+                        new FundFlowKaplanMeier.Input(accountIdx, days, events, weights),
+                        RETENTION_STEP_DAYS);
+        List<FundFlowRetentionPointDTO> points = new ArrayList<>();
+        for (int g = 0; g < result.grid().length; g++) {
+            points.add(
+                    FundFlowRetentionPointDTO.builder()
+                            .day(result.grid()[g])
+                            .survival(toRatio(result.survival()[g]))
+                            .lower(toRatio(result.lower()[g]))
+                            .upper(toRatio(result.upper()[g]))
+                            .weightedSurvival(toRatio(result.weightedSurvival()[g]))
+                            .atRisk((long) result.atRisk()[g])
+                            .build());
+        }
+        return new FundFlowRetentionResponseDTO(
+                FundFlowRetentionDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .lots((long) n)
+                        .accounts((long) accountCount)
+                        .events(eventCount)
+                        .maxObservedDays(result.grid()[result.grid().length - 1])
+                        .bootstrapReplicates(n == 0 ? 0 : FundFlowKaplanMeier.REPLICATES)
+                        .points(points)
+                        .build());
+    }
+
+    private BigDecimal toRatio(double value) {
+        return BigDecimal.valueOf(value).setScale(RATIO_SCALE, RoundingMode.HALF_UP);
+    }
+
+    /** 매도한 계좌의 조정비율 구간 분포. 구간이 비어 있어도 모든 구간을 순서대로 낸다. */
+    private List<FundFlowRatioBinDTO> buildRatioBins() {
+        Map<String, Long> byCode =
+                fundFlowMapper.selectRatioBins().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        FundFlowRatioBinDTO::getCode,
+                                        FundFlowRatioBinDTO::getAccounts));
+        long sold = byCode.values().stream().mapToLong(Long::longValue).sum();
+        List<FundFlowRatioBinDTO> bins = new ArrayList<>();
+        for (AdjustRatioBin bin : AdjustRatioBin.values()) {
+            long accounts = byCode.getOrDefault(bin.name(), 0L);
+            bins.add(
+                    FundFlowRatioBinDTO.builder()
+                            .code(bin.name())
+                            .label(bin.getLabel())
+                            .accounts(accounts)
+                            .share(ratio(BigDecimal.valueOf(accounts), BigDecimal.valueOf(sold)))
+                            .build());
+        }
+        return bins;
+    }
+
+    /** 연령대별 + 전체 중앙값. 유입이 있는 계좌가 5개 미만이면 값을 가린다. */
+    private List<FundFlowAgeMedianDTO> toAgeMedians(List<FundFlowAccountFlowRowDTO> rows) {
+        List<FundFlowAgeMedianDTO> medians = new ArrayList<>();
+        for (String ageBand : AGE_BANDS) {
+            List<FundFlowAccountFlowRowDTO> band =
+                    rows.stream().filter(r -> ageBand.equals(r.getAgeBand())).toList();
+            if (!band.isEmpty()) {
+                medians.add(toAgeMedian(ageBand, band));
+            }
+        }
+        medians.add(toAgeMedian(null, rows));
+        return medians;
+    }
+
+    private FundFlowAgeMedianDTO toAgeMedian(String ageBand, List<FundFlowAccountFlowRowDTO> rows) {
+        List<FundFlowAccountFlowRowDTO> withInflow =
+                rows.stream().filter(r -> r.getInflow().signum() > 0).toList();
+        FundFlowAgeMedianDTO.FundFlowAgeMedianDTOBuilder median =
+                FundFlowAgeMedianDTO.builder()
+                        .ageBand(ageBand)
+                        .accounts((long) rows.size())
+                        .accountsWithInflow((long) withInflow.size());
+        if (withInflow.size() >= MIN_CELL_ACCOUNTS) {
+            median.inflowMedian(
+                            FundFlowStatistics.median(
+                                    withInflow.stream()
+                                            .map(FundFlowAccountFlowRowDTO::getInflow)
+                                            .toList()))
+                    .reinvestMedian(
+                            FundFlowStatistics.median(
+                                    withInflow.stream()
+                                            .map(r -> ratio(r.getBuyExec(), r.getInflow()))
+                                            .toList()));
+        }
+        return median.build();
+    }
+
+    private FundFlowFilterDTO buildFilter(FundFlowPeriod period) {
+        FundFlowFilterDTO filter = FundFlowFilterDTO.from(businessClockService.now());
+        FundFlowPeriod applied = period == null ? FundFlowPeriod.ALL : period;
+        filter.setPeriodFrom(applied.startOf(filter.getAsOfDate()));
+        return filter;
     }
 
     /** 업무시계가 속한 달이 조회 범위 안이고, 그 달에 집계할 하루 이상이 지났을 때만 진행 중인 달을 낸다. */

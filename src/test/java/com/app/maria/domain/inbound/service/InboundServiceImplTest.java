@@ -757,24 +757,29 @@ class InboundServiceImplTest {
     @Test
     void getInboundsByAccountDelegatesToMapperWithAccountIdAndAttachesLots() {
         InboundListDTO item = InboundListDTO.builder().inboundId(1L).accountId(ACCOUNT_ID).build();
-        when(inboundMapper.selectInboundsByAccountId(ACCOUNT_ID, 0, 20)).thenReturn(List.of(item));
+        when(inboundMapper.selectInboundsByAccountIdOrdered(
+                        ACCOUNT_ID, "i.processed_at DESC", 0, 20))
+                .thenReturn(List.of(item));
         when(inboundMapper.countInboundsByAccountId(ACCOUNT_ID)).thenReturn(1);
         when(inboundMapper.selectLotsByInboundIds(List.of(1L))).thenReturn(List.of());
 
-        InboundPageDTO result = inboundService.getInboundsByAccount(ACCOUNT_ID, 0, 20);
+        InboundPageDTO result = inboundService.getInboundsByAccount(ACCOUNT_ID, null, null, 0, 20);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLots()).isEmpty();
         assertThat(result.getTotalElements()).isEqualTo(1);
-        verify(inboundMapper).selectInboundsByAccountId(ACCOUNT_ID, 0, 20);
+        verify(inboundMapper)
+                .selectInboundsByAccountIdOrdered(ACCOUNT_ID, "i.processed_at DESC", 0, 20);
     }
 
     @Test
     void getInboundsByAccountReturnsEmptyContentWhenAccountHasNoInbounds() {
-        when(inboundMapper.selectInboundsByAccountId(ACCOUNT_ID, 0, 20)).thenReturn(List.of());
+        when(inboundMapper.selectInboundsByAccountIdOrdered(
+                        ACCOUNT_ID, "i.processed_at DESC", 0, 20))
+                .thenReturn(List.of());
         when(inboundMapper.countInboundsByAccountId(ACCOUNT_ID)).thenReturn(0);
 
-        InboundPageDTO result = inboundService.getInboundsByAccount(ACCOUNT_ID, 0, 20);
+        InboundPageDTO result = inboundService.getInboundsByAccount(ACCOUNT_ID, null, null, 0, 20);
 
         assertThat(result.getContent()).isEmpty();
         verify(sellOrderMapper, never()).selectSellOrdersByInboundDetailIds(any());

@@ -81,7 +81,7 @@
                 AND j.judged_at &lt; #{judgedAtTo}
             </if>
         </where>
-        ORDER BY j.judged_at DESC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -128,7 +128,7 @@
         WHERE judged_at &gt;= #{today} AND judged_at &lt; #{tomorrow}
     </select>
 
-    <select id="selectPermanentFailures" resultType="TargetProductJudgementFailureListDTO">
+    <select id="selectPermanentFailuresOrdered" resultType="TargetProductJudgementFailureListDTO">
         SELECT
         f.failure_id      AS failureId,
         c.name             AS customerName,
@@ -140,7 +140,7 @@
         FROM target_product_judgement_failure f
         JOIN customer c ON c.ci_hash = f.ci_hash
         WHERE f.first_failed_at &lt;= #{cutoff}
-        ORDER BY f.first_failed_at ASC
+        ORDER BY ${orderBy}
         LIMIT #{size} OFFSET #{offset}
     </select>
 

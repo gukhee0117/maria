@@ -93,6 +93,7 @@
                 </div>건
             </div>
             <div class="adm-grid-spacer"></div>
+            <button type="button" id="tpFailOpen" class="adm-btn adm-btn-sm">판정 실패 목록</button>
             <!-- 배치 수동 실행: 정산담당(API 권한 SETTLEMENT)에게만 보인다 -->
             <span id="tpBatchTriggerGroup" class="tp-batch-group" hidden>
                 <span id="tpBatchTriggerResult" class="tp-batch-result"></span>
@@ -105,14 +106,14 @@
                     <thead>
                     <tr>
                         <th class="adm-col-no">No</th>
-                        <th>판정일시</th>
-                        <th>고객명</th>
-                        <th>종목구분</th>
-                        <th>종목/펀드</th>
-                        <th class="is-c">거래유형</th>
-                        <th class="is-r">거래금액</th>
-                        <th class="is-r">순매수금액</th>
-                        <th class="is-c">대상상품 여부</th>
+                        <th data-sort-key="judgedAt">판정일시</th>
+                        <th data-sort-key="customerName">고객명</th>
+                        <th data-sort-key="stockType">종목구분</th>
+                        <th data-sort-key="fundName">종목/펀드</th>
+                        <th class="is-c" data-sort-key="tradeType">거래유형</th>
+                        <th class="is-r" data-sort-key="amount">거래금액</th>
+                        <th class="is-r" data-sort-key="netBuyAmount">순매수금액</th>
+                        <th class="is-c" data-sort-key="isTarget">대상상품 여부</th>
                     </tr>
                     </thead>
                     <tbody id="tpTableBody">
@@ -139,6 +140,29 @@
             </div>
         </section>
     </div>
+    <!-- 판정 실패(영구 실패) 목록 패널: GET /api/admin/target-products/failures -->
+    <div class="adm-scrim" id="tpFailScrim"></div>
+    <aside class="adm-panel" id="tpFailPanel" aria-label="판정 실패 목록" aria-hidden="true">
+        <div class="adm-panel-head">
+            <div class="adm-panel-title">
+                <span class="adm-panel-no">[1301]</span>
+                <span class="adm-panel-name">판정 실패 목록</span>
+                <span class="adm-panel-sub" id="tpFailTotal"></span>
+            </div>
+            <button type="button" class="adm-panel-close" id="tpFailClose" title="닫기" aria-label="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="adm-panel-body">
+            <div class="adm-grid-scroll">
+                <table class="adm-gtable tp-fail-table">
+                    <thead><tr><th class="adm-col-no">No</th><th data-sort-key="customerName">고객명</th><th class="is-c" data-sort-key="tradeDate">거래일</th><th class="is-r" data-sort-key="failureCount">실패 횟수</th><th data-sort-key="lastError">마지막 오류</th><th data-sort-key="firstFailedAt">최초 실패</th><th data-sort-key="lastFailedAt">마지막 실패</th></tr></thead>
+                    <tbody id="tpFailBody"></tbody>
+                </table>
+            </div>
+            <div class="tp-fail-pager" id="tpFailPager"></div>
+        </div>
+    </aside>
 </div>
 
 <th:block layout:fragment="pageScripts">

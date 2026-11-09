@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +70,7 @@ class StockOrderServiceImplTest {
     @Mock DomesticPurchaseEligibilityService eligibility;
     @Mock BusinessClockService clock;
     @Mock PlatformTransactionManager txManager;
+    @Mock SecuritiesOrderRecorder recorder;
 
     StockOrderServiceImpl service;
 
@@ -85,6 +87,7 @@ class StockOrderServiceImplTest {
                         eligibility,
                         clock,
                         txManager,
+                        recorder,
                         false);
     }
 
@@ -122,6 +125,9 @@ class StockOrderServiceImplTest {
                         List.of(StockPackageItemVO.builder().domesticProductId(SAMSUNG).build()));
         when(accountMapper.selectByCustomerId(CUSTOMER)).thenReturn(Optional.of(account));
         when(clock.now()).thenReturn(NOW);
+        lenient()
+                .when(accountMapper.selectCiHashByCustomerId(CUSTOMER))
+                .thenReturn(Optional.of("a".repeat(64)));
         when(productMapper.selectById(SAMSUNG)).thenReturn(Optional.of(samsung()));
         when(quoteService.findQuotes(List.of("005930"))).thenReturn(List.of(quote));
         when(accountMapper.selectByAccountIdForUpdate(ACCOUNT)).thenReturn(Optional.of(account));
@@ -375,5 +381,139 @@ class StockOrderServiceImplTest {
 
         assertThat(fees.commissionRatePercent()).isEqualByComparingTo("0.0040");
         assertThat(fees.securitiesTaxRatePercent()).isEqualByComparingTo("0.2000");
+    }
+
+    /** 생성기 주문이 실제로 쓰는 것만: 계좌 락, 시계, 수수료 규칙, 가정산, 키 조회. */
+    private void prepareGenerator(AccountDTO account) {
+        when(clock.now()).thenReturn(NOW);
+        when(accountMapper.selectByAccountIdForUpdate(ACCOUNT)).thenReturn(Optional.of(account));
+        when(taxMapper.selectTaxRules())
+                .thenReturn(
+                        List.of(
+                                rule(TaxRuleType.COMMISSION_RIA, "0.0040"),
+                                rule(TaxRuleType.COMMISSION_BASE, "0.0150"),
+                                rule(TaxRuleType.COMMISSION_RIA_YEARS, "1.0000"),
+                                rule(TaxRuleType.SEC_TX_TAX_STOCK, "0.2000")));
+        when(orderMapper.sumProvisionalAmount(ACCOUNT)).thenReturn(BigDecimal.ZERO);
+    }
+
+    @Test
+    void 생성기_주문은_GENERATOR_채널로_패키지_없이_체결되고_수수료까지_주문가능금액_안() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-1");
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        ArgumentCaptor<StockOrderVO> saved = ArgumentCaptor.forClass(StockOrderVO.class);
+        verify(orderMapper).insertOrder(saved.capture());
+        assertThat(saved.getValue().getChannel()).isEqualTo("GENERATOR");
+        assertThat(saved.getValue().getStockPackageId()).isNull();
+        assertThat(saved.getValue().getIdempotencyKey()).isEqualTo("GEN-1:1");
+        assertThat(o.amount().negate()).isLessThanOrEqualTo(new BigDecimal("10000000"));
+    }
+
+    @Test
+    void 생성기_주문_같은_키는_다시_체결하지_않고_처음_결과를_준다() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        StockOrderVO prior =
+                StockOrderVO.builder()
+                        .domesticOrderId(99L)
+                        .accountId(ACCOUNT)
+                        .domesticProductId(SAMSUNG)
+                        .side(DomesticOrderSide.BUY)
+                        .qty(BigDecimal.TEN)
+                        .channel("GENERATOR")
+                        .status(DomesticOrderStatus.EXECUTED)
+                        .build();
+        when(orderMapper.selectByIdempotencyKey(ACCOUNT, "GEN-1:1")).thenReturn(Optional.of(prior));
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-1");
+
+        assertThat(o.orderId()).isEqualTo(99L);
+        verify(orderMapper, never()).insertOrder(any());
+        verify(orderMapper, never()).applyOrderAmount(anyLong(), any());
+    }
+
+    @Test
+    void 생성기_주문이_이미_있는지_키로_찾는다() {
+        StockOrderVO prior = StockOrderVO.builder().domesticOrderId(5L).build();
+        when(orderMapper.selectByIdempotencyKey(ACCOUNT, "GEN-9:1")).thenReturn(Optional.of(prior));
+        assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-9").orElseThrow().orderId())
+                .isEqualTo(5L);
+        assertThat(service.findGeneratorOrder(ACCOUNT, "GEN-0")).isEmpty();
+    }
+
+    private static final String CI_HASH = "a".repeat(64);
+
+    private void customerBuyReady() {
+        prepare(account(Status.OPENED, "10000000"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+        when(accountMapper.selectCiHashByCustomerId(CUSTOMER)).thenReturn(Optional.of(CI_HASH));
+    }
+
+    @Test
+    void 고객_주문이_체결되면_증권사에_거래를_기록한다() {
+        customerBuyReady();
+        org.mockito.Mockito.doAnswer(
+                        inv -> {
+                            StockOrderVO saved = inv.getArgument(0);
+                            saved.setDomesticOrderId(555L);
+                            return 1;
+                        })
+                .when(orderMapper)
+                .insertOrder(any());
+
+        service.place(CUSTOMER, PACKAGE, request("k-rec", DomesticOrderSide.BUY, "10"));
+
+        ArgumentCaptor<StockOrderVO> sent = ArgumentCaptor.forClass(StockOrderVO.class);
+        verify(recorder).record(eq(CI_HASH), sent.capture());
+        assertThat(sent.getValue().getDomesticOrderId()).isEqualTo(555L);
+        assertThat(sent.getValue().getTicker()).isEqualTo("005930");
+    }
+
+    @Test
+    void 증권사_전송_실패는_주문을_롤백하지_않고_재시도_대상으로_남긴다() {
+        customerBuyReady();
+        when(recorder.record(any(), any())).thenReturn(false);
+
+        StockOrderResponseDTO response =
+                service.place(CUSTOMER, PACKAGE, request("k-fail", DomesticOrderSide.BUY, "10"));
+
+        assertThat(response.orders()).hasSize(1);
+        verify(orderMapper).insertOrder(any());
+    }
+
+    @Test
+    void 거부된_주문은_증권사에_기록하지_않는다() {
+        prepare(account(Status.OPENED, "1000010"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        service.place(CUSTOMER, PACKAGE, request("k-rej", DomesticOrderSide.BUY, "10"));
+
+        verify(recorder, never()).record(any(), any());
+    }
+
+    @Test
+    void 생성기_주문은_증권사에_다시_기록하지_않는다() {
+        prepareGenerator(account(Status.OPENED, "10000000"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+
+        service.placeGeneratorOrder(
+                ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.BUY, 10, "GEN-9");
+
+        verify(recorder, never()).record(any(), any());
     }
 }

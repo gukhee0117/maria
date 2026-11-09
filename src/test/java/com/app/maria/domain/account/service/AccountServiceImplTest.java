@@ -17,6 +17,7 @@ import com.app.maria.domain.account.dto.response.AccountLimitUsageResponseDTO;
 import com.app.maria.domain.account.dto.response.AccountResponseDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.Status;
+import com.app.maria.global.audit.dto.AuditActor;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.client.mydata.MydataClient;
 import com.app.maria.global.clock.service.BusinessClockService;
@@ -52,7 +53,6 @@ class AccountServiceImplTest {
     @Mock private AccountLogService accountLogService;
     @Mock private BusinessClockService businessClockService;
     @Mock private AccountTransactionalService accountTransactionalService;
-    @Mock private AccountMydataSyncService accountMydataSyncService;
     @Mock private AuditActorProvider auditActorProvider;
 
     @InjectMocks private AccountServiceImpl accountService;
@@ -77,7 +77,60 @@ class AccountServiceImplTest {
                 accountService.updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT));
 
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
-        verify(accountMydataSyncService, never()).updateLimit(any());
+    }
+
+    @Test
+    void customerApplicationReusesApprovalWithoutAdminActor() {
+        AccountDTO opened = account(Status.OPENED, LIMIT);
+        when(accountTransactionalService.applyAs(
+                        eq(AuditActor.customer(CUSTOMER_ID)), any(), eq(NOW), eq(true)))
+                .thenReturn(opened);
+
+        assertThat(accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT).getStatus())
+                .isEqualTo(Status.OPENED);
+
+        ArgumentCaptor<AccountDTO> request = ArgumentCaptor.forClass(AccountDTO.class);
+        verify(accountTransactionalService)
+                .applyAs(
+                        eq(AuditActor.customer(CUSTOMER_ID)), request.capture(), eq(NOW), eq(true));
+        assertThat(request.getValue().getCustomerId()).isEqualTo(CUSTOMER_ID);
+        assertThat(request.getValue().getLimitAmount()).isEqualByComparingTo(LIMIT);
+        verifyNoInteractions(auditActorProvider);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "40000000,ACCOUNT_LIMIT_EXCEEDS_AVAILABLE",
+        "50000000,ACCOUNT_NO_LIMIT_AVAILABLE"
+    })
+    void customerApplicationRejectsUnavailableLimitBeforeSaving(
+            String externalLimit, ErrorType expected) {
+        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+                .thenReturn(new BigDecimal(externalLimit));
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        error -> assertThat(error.getErrorType()).isEqualTo(expected));
+        verifyNoInteractions(accountTransactionalService, auditActorProvider);
+    }
+
+    @Test
+    void customerApplicationOutsidePeriodIsRejectedBeforeSaving() {
+        when(businessClockService.now()).thenReturn(LocalDateTime.of(2027, 1, 1, 0, 0));
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        error ->
+                                assertThat(error.getErrorType())
+                                        .isEqualTo(ErrorType.ACCOUNT_APPLICATION_PERIOD_CLOSED));
+        verifyNoInteractions(accountTransactionalService, auditActorProvider);
+    }
+
+    @Test
+    void customerApplicationRejectsInvalidAmountBeforeSaving() {
+        assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, BigDecimal.ZERO))
+                .isInstanceOf(AppException.class);
+        verifyNoInteractions(accountTransactionalService, auditActorProvider);
     }
 
     @Test
@@ -87,10 +140,11 @@ class AccountServiceImplTest {
                         ADMIN_ID, CUSTOMER_ID, LIMIT, CHANGED_LIMIT, NOW))
                 .thenReturn(updated);
 
-        accountService.updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT));
-
-        verify(accountMydataSyncService).updateLimit(updated);
-        verify(accountMydataSyncService, never()).create(any());
+        assertThat(
+                        accountService
+                                .updateAccountLimit(limitUpdateRequest(LIMIT, CHANGED_LIMIT))
+                                .getStatus())
+                .isEqualTo(Status.OPENED);
     }
 
     @Test
@@ -233,7 +287,6 @@ class AccountServiceImplTest {
         accountService.applyAccount(request(LIMIT));
 
         verify(businessClockService).now();
-        verify(accountMydataSyncService).create(opened);
     }
 
     @Test
@@ -250,7 +303,6 @@ class AccountServiceImplTest {
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
         verify(accountTransactionalService)
                 .apply(eq(ADMIN_ID), any(AccountDTO.class), eq(NOW), eq(false));
-        verify(accountMydataSyncService, never()).create(any());
     }
 
     @Test
@@ -265,7 +317,6 @@ class AccountServiceImplTest {
         AccountResponseDTO result = accountService.applyAccount(request(LIMIT));
 
         assertThat(result.getStatus()).isEqualTo(Status.APPLIED);
-        verify(accountMydataSyncService, never()).create(any());
     }
 
     @Test
@@ -279,7 +330,6 @@ class AccountServiceImplTest {
         accountService.approveAccount(ACCOUNT_ID);
 
         verify(accountTransactionalService).approve(ADMIN_ID, ACCOUNT_ID, LIMIT, NOW);
-        verify(accountMydataSyncService).create(opened);
     }
 
     @Test

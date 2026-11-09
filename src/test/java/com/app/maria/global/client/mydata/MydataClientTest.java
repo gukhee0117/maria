@@ -3,7 +3,6 @@ package com.app.maria.global.client.mydata;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -14,7 +13,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.app.maria.global.config.properties.MydataApiProperties;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
-import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -157,32 +155,6 @@ class MydataClientTest {
         mockServer.reset();
         mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withResourceNotFound());
         assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash"))
-                .isInstanceOf(AppException.class)
-                .extracting("errorType")
-                .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);
-    }
-
-    @Test
-    void syncRiaAccount_우리증권사명과_한도만_보내고_누적매도는_안보낸다() {
-        mockServer
-                .expect(requestTo(RIA_ACCOUNTS_URL + "/save"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(content().string(containsString("\"ciHash\":\"ci-hash\"")))
-                .andExpect(content().string(containsString("\"brokerName\":\"리턴증권\"")))
-                .andExpect(content().string(containsString("\"riaLimit\":\"40000000\"")))
-                .andExpect(content().string(not(containsString("riaCumulativeSell"))))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        mydataClient.syncRiaAccount("ci-hash", new BigDecimal("40000000"));
-        mockServer.verify();
-    }
-
-    @Test
-    void syncRiaAccount_실패하면_UNAVAILABLE로_던진다() {
-        mockServer.expect(requestTo(RIA_ACCOUNTS_URL + "/save")).andRespond(withServerError());
-
-        assertThatThrownBy(() -> mydataClient.syncRiaAccount("ci-hash", BigDecimal.TEN))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);

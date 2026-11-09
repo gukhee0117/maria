@@ -1,6 +1,7 @@
 package com.app.maria.global.audit.dto.request;
 
 import com.app.maria.global.audit.dto.AuditLogSearchDTO;
+import com.app.maria.global.sort.OrderBySpec;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -48,6 +49,19 @@ public class AuditLogSearchRequestDTO {
     private LocalDateTime startDate;
     private LocalDateTime endDate;
 
+    private String sort;
+    private String direction;
+
+    /** 감사 로그 목록의 정렬 키(화면 머리글) → 정렬 열. 여기 없는 키는 무시한다. */
+    private static final Map<String, String> SORT_COLUMNS =
+            Map.of(
+                    "processedAt", "al.processed_at",
+                    "recordedAt", "al.recorded_at",
+                    "adminName", "au.name",
+                    "reasonCode", "al.reason_code",
+                    "targetTable", "al.target_table",
+                    "afterValue", "al.after_value");
+
     @AssertTrue(message = "시작일은 종료일보다 늦을 수 없습니다.")
     public boolean isDateRangeValid() {
         return startDate == null || endDate == null || !startDate.isAfter(endDate);
@@ -84,6 +98,12 @@ public class AuditLogSearchRequestDTO {
                 .knownReasonCodes(List.copyOf(REASON_CODE_LABELS.keySet()))
                 .startDate(startDate)
                 .endDate(endDate)
+                .orderBy(
+                        OrderBySpec.resolve(
+                                SORT_COLUMNS,
+                                sort,
+                                direction,
+                                "al.processed_at DESC, al.audit_id DESC"))
                 .size(size)
                 .offset(page * size)
                 .build();

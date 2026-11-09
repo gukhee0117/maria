@@ -13,22 +13,23 @@ import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class RiskGradeServiceImpl implements RiskGradeService {
     private final StockRiskGradeMapper mapper;
     private final KrxTradingCalendar calendar;
     private final RiskMarketClock clock;
     private final CurrentStockRiskService stockClassifications;
-    private static final Logger log = LoggerFactory.getLogger(RiskGradeServiceImpl.class);
 
     public RiskGradeServiceImpl(
             StockRiskGradeMapper mapper, KrxTradingCalendar calendar, RiskMarketClock clock) {
@@ -55,6 +56,24 @@ public class RiskGradeServiceImpl implements RiskGradeService {
                 .map(row -> toUsable(row, context))
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, UsableRiskGradeDTO> findUsableByTickers(Set<String> tickers) {
+        var context = context();
+        Map<String, UsableRiskGradeDTO> usable = new LinkedHashMap<>();
+        for (String ticker : tickers) {
+            try {
+                Optional.ofNullable(mapper.findByTicker(ticker))
+                        .flatMap(row -> toUsable(row, context))
+                        .ifPresent(grade -> usable.put(ticker, grade));
+            } catch (AppException e) {
+                // 이 종목의 자료만 깨진 경우(달력에 없는 priceTo 등): 나머지 종목은 계속 쓴다.
+                log.warn("위험등급 자료 이상으로 제외: {} ({})", ticker, e.getErrorType());
+            }
+        }
+        return usable;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.app.maria.domain.fundflow.dto.response;
 
+import com.app.maria.domain.fundflow.dto.FundFlowAgeMedianDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentCellDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentDTO;
 import java.math.BigDecimal;
@@ -22,12 +23,35 @@ public class FundFlowSegmentResponseDTO {
 
     private LocalDate asOfDate;
     private List<Cell> cells;
+    private List<AgeMedian> ageMedians;
     private String basis;
 
     public FundFlowSegmentResponseDTO(FundFlowSegmentDTO vo) {
         this.asOfDate = vo.getAsOfDate();
         this.cells = vo.getCells().stream().map(Cell::new).toList();
+        this.ageMedians = vo.getAgeMedians().stream().map(AgeMedian::new).toList();
         this.basis = BASIS;
+    }
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Getter
+    @Setter
+    @ToString
+    public static class AgeMedian {
+        private String ageBand;
+        private Long accounts;
+        private Long accountsWithInflow;
+        private BigDecimal inflowMedian;
+        private BigDecimal reinvestMedian;
+
+        public AgeMedian(FundFlowAgeMedianDTO vo) {
+            this.ageBand = vo.getAgeBand();
+            this.accounts = vo.getAccounts();
+            this.accountsWithInflow = vo.getAccountsWithInflow();
+            this.inflowMedian = vo.getInflowMedian();
+            this.reinvestMedian = vo.getReinvestMedian();
+        }
     }
 
     @AllArgsConstructor

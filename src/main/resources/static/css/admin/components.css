@@ -1091,16 +1091,78 @@ input[type="datetime-local"].adm-input {
     display: block;
 }
 
-/* 표 칸 오른쪽 정렬 (원본 AdminTable 의 숫자 칸) */
+/* 표 칸 정렬 (원본 AdminTable 규칙): 숫자·금액은 오른쪽(.is-r), 상태 배지·날짜·시각은 가운데(.is-c), 글자는 왼쪽, No 는 가운데 */
 .adm-gtable th.is-r,
 .adm-gtable td.is-r {
     justify-content: flex-end;
+    text-align: right;
 }
 
-/* 표 칸 가운데 정렬 (원본 AdminTable 의 배지 칸) — A-6 */
 .adm-gtable th.is-c,
 .adm-gtable td.is-c {
     justify-content: center;
+    text-align: center;
+}
+
+/* 좌우로 스크롤될 때 왼쪽 칸(No · 계좌번호 · 고객명 등)을 고정 — table-freeze.js 가 left 를 계산해 넣는다 */
+.adm-gtable .adm-frz {
+    position: sticky;
+    z-index: 1;
+    background: inherit;
+}
+
+/* 머리글을 눌러 정렬하는 표 (table-sort.js) */
+.adm-gtable th.adm-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 정렬 표시: 삼각형 둘(▲▼)을 늘 보여 주고, 누른 방향 쪽만 파랗게 (원본 AdminTable: 9px, 안 눌렸을 땐 --bd2) */
+.adm-gtable th.adm-sortable::after {
+    content: "▲▼";
+    margin-left: 2px;
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0;
+    color: transparent;
+    background: linear-gradient(to right, var(--adm-bd2) 50%, var(--adm-bd2) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.adm-gtable th.adm-sortable[data-sort-dir="asc"]::after {
+    background: linear-gradient(to right, var(--adm-navy-fg) 50%, var(--adm-bd2) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.adm-gtable th.adm-sortable[data-sort-dir="desc"]::after {
+    background: linear-gradient(to right, var(--adm-bd2) 50%, var(--adm-navy-fg) 50%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* 아이디·번호 칸은 고정폭 글꼴 (원본 AdminTable 의 MONO 목록) */
+.adm-gtable td.adm-mono,
+.adm-gtable td.adm-mono > span {
+    font-family: "D2Coding", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* 금액 칸 머리글의 단위 표기 (table-polish.js 가 넣는다) */
+.adm-gtable th .adm-unit {
+    margin-left: 0;
+    font-size: 10.5px;
+    font-weight: 400;
+    color: var(--adm-sub);
+}
+
+/* 머리글 칸: 부모가 thead 가 아니라 tr(투명)이라 inherit 로는 바탕이 비므로 머리글 색을 직접 준다 */
+.adm-gtable thead .adm-frz {
+    background: var(--adm-grid-head);
+}
+
+.adm-gtable .adm-frz-last {
+    box-shadow: inset -1px 0 0 0 var(--adm-bd2);
 }
 
 /* 화면 안내 줄 (원본: 요약 아래 info 색 한 줄) — A-6 */
@@ -1172,9 +1234,9 @@ input[type="datetime-local"].adm-input {
     font-weight: 700;
 }
 
-/* 굵은 숫자 칸 (원본 AdminTable strong) — A-6 후속 */
+/* 숫자 칸은 굵게 하지 않는다 — 화면마다 굵기가 달라 보여서 모두 기본 굵기로 통일 (원본 AdminTable strong 은 쓰지 않음) */
 .adm-gtable td.is-strong {
-    font-weight: 700;
+    font-weight: 400;
 }
 
 /* 상세 패널의 처리 단계 (원본: 칸마다 단계 · 상태 / 이름 / 시각) — A-7 */
@@ -1613,8 +1675,20 @@ input[type="datetime-local"].adm-input {
 
 .adm-master-foot .adm-pager {
     margin-left: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 1px;
     justify-content: center;
+    max-width: 100%;
+}
+
+.adm-master-foot .adm-page-btn {
+    min-width: 20px;
+    padding: 0 3px;
+    white-space: nowrap;
+}
+
+.adm-master-foot .adm-page-btn.is-nav {
+    padding: 0 5px;
 }
 
 .adm-master-state {

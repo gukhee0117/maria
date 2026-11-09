@@ -26,12 +26,14 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.app.maria.global.response.PageResponseDTO;
+import com.app.maria.global.sort.OrderBySpec;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -41,6 +43,19 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(rollbackFor = Exception.class)
 public class SellOrderServiceImpl implements SellOrderService {
+
+    /** 매도 · 환전 내역의 정렬 키(화면 머리글) → 정렬 열. 여기 없는 키는 무시한다. */
+    private static final Map<String, String> HISTORY_SORT_COLUMNS =
+            Map.of(
+                    "accountNo", "acc.account_no",
+                    "customerName", "c.name",
+                    "name", "fp.name",
+                    "sellQty", "s.sell_qty",
+                    "basePrice", "s.base_price",
+                    "processedAt", "s.processed_at",
+                    "provisionalAmount", "krw.provisional_amount",
+                    "finalAmount", "krw.final_amount",
+                    "status", "s.status");
 
     private final AccountMapper accountMapper;
     private final SellOrderMapper sellOrderMapper;
@@ -228,6 +243,10 @@ public class SellOrderServiceImpl implements SellOrderService {
 
     private void logSellOrder(
             Long adminId, SellOrderDTO order, SellOrderAuditLogReasonCode reasonCode) {
+        // 고객 신청은 관리자 행위자가 없다(adminId null). 고객 감사 actor가 정해질 때까지 감사 로그를 남기지 않는다.
+        if (adminId == null) {
+            return;
+        }
         auditLogService.log(
                 AuditLogDTO.builder()
                         .adminId(adminId)
@@ -255,16 +274,24 @@ public class SellOrderServiceImpl implements SellOrderService {
             SellOrderStatus status,
             LocalDate startDate,
             LocalDate endDate,
+            String sort,
+            String direction,
             int page,
             int size) {
         int offset = page * size;
+        String orderBy =
+                OrderBySpec.resolve(
+                        HISTORY_SORT_COLUMNS,
+                        sort,
+                        direction,
+                        "s.processed_at DESC, s.order_id DESC");
         String statusName = status == null ? null : status.name();
         LocalDateTime startDateTime = startDate == null ? null : startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate == null ? null : endDate.atTime(23, 59, 59);
 
         List<SellOrderHistoryDTO> content =
                 sellOrderMapper.selectSellOrderHistory(
-                        keyword, statusName, startDateTime, endDateTime, offset, size);
+                        keyword, statusName, startDateTime, endDateTime, orderBy, offset, size);
         int totalCount =
                 sellOrderMapper.countSellOrderHistory(
                         keyword, statusName, startDateTime, endDateTime);

@@ -377,7 +377,8 @@ class SellOrderApiTest {
                         .status("EXECUTED")
                         .build();
         PageResponseDTO<SellOrderHistoryDTO> page = PageResponseDTO.of(List.of(history), 1, 0, 20);
-        when(sellOrderService.getSellOrderHistory(null, null, null, null, 0, 20)).thenReturn(page);
+        when(sellOrderService.getSellOrderHistory(null, null, null, null, null, null, 0, 20))
+                .thenReturn(page);
 
         mockMvc.perform(get("/api/admin/sell-orders/history"))
                 .andExpect(status().isOk())
@@ -396,6 +397,8 @@ class SellOrderApiTest {
                         SellOrderStatus.EXECUTED,
                         LocalDate.of(2026, 8, 1),
                         LocalDate.of(2026, 8, 10),
+                        null,
+                        null,
                         2,
                         10))
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 2, 10));
@@ -416,6 +419,8 @@ class SellOrderApiTest {
                         SellOrderStatus.EXECUTED,
                         LocalDate.of(2026, 8, 1),
                         LocalDate.of(2026, 8, 10),
+                        null,
+                        null,
                         2,
                         10);
     }
@@ -424,7 +429,7 @@ class SellOrderApiTest {
     @DisplayName("매도·환전 내역이 없으면 빈 목록을 반환한다")
     @WithMockUser(roles = "VIEWER")
     void getSellOrderHistoryReturns200WithEmptyContentWhenNoOrdersExist() throws Exception {
-        when(sellOrderService.getSellOrderHistory(null, null, null, null, 0, 20))
+        when(sellOrderService.getSellOrderHistory(null, null, null, null, null, null, 0, 20))
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 0, 20));
 
         mockMvc.perform(get("/api/admin/sell-orders/history"))
@@ -441,7 +446,7 @@ class SellOrderApiTest {
                 .andExpect(status().isBadRequest());
 
         verify(sellOrderService, never())
-                .getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt());
+                .getSellOrderHistory(any(), any(), any(), any(), any(), any(), anyInt(), anyInt());
     }
 
     @Test
@@ -452,7 +457,7 @@ class SellOrderApiTest {
                 .andExpect(status().isBadRequest());
 
         verify(sellOrderService, never())
-                .getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt());
+                .getSellOrderHistory(any(), any(), any(), any(), any(), any(), anyInt(), anyInt());
     }
 
     @Test
@@ -461,7 +466,7 @@ class SellOrderApiTest {
         mockMvc.perform(get("/api/admin/sell-orders/history")).andExpect(status().isUnauthorized());
 
         verify(sellOrderService, never())
-                .getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt());
+                .getSellOrderHistory(any(), any(), any(), any(), any(), any(), anyInt(), anyInt());
     }
 
     @Test
@@ -534,7 +539,8 @@ class SellOrderApiTest {
     @DisplayName("VIEWER가 매도 이력을 조회하면 성공한다")
     @WithMockUser(roles = "VIEWER")
     void getSellOrderHistoryReturns200WhenCallerIsViewer() throws Exception {
-        when(sellOrderService.getSellOrderHistory(any(), any(), any(), any(), anyInt(), anyInt()))
+        when(sellOrderService.getSellOrderHistory(
+                        any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(PageResponseDTO.of(List.of(), 0, 0, 20));
 
         mockMvc.perform(get("/api/admin/sell-orders/history")).andExpect(status().isOk());

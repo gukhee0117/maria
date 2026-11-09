@@ -2,6 +2,7 @@ package com.app.maria.domain.settlement.service;
 
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
+import com.app.maria.domain.notification.service.CustomerNotificationService;
 import com.app.maria.domain.settlement.dto.response.SettlementNotificationResponseDTO;
 import com.app.maria.domain.settlement.event.SettlementItemCompletedEvent;
 import com.app.maria.domain.settlement.mapper.SettlementItemMapper;
@@ -19,6 +20,7 @@ public class SettlementNotificationServiceImpl implements SettlementNotification
     private final AccountMapper accountMapper;
     private final SettlementSseService settlementSseService;
     private final SettlementItemMapper settlementItemMapper;
+    private final CustomerNotificationService customerNotificationService;
 
     @Override
     public SseEmitter subscribeCustomer(Long customerId) {
@@ -36,8 +38,14 @@ public class SettlementNotificationServiceImpl implements SettlementNotification
                 event.batchId(), event.accountId())) {
             return;
         }
-        settlementSseService.sendAccountBatchCompleted(
-                event.accountId(),
-                new SettlementNotificationResponseDTO(event.batchId(), event.completedAt()));
+        try {
+            customerNotificationService.recordSettlementFinalized(
+                    event.accountId(), event.batchId());
+        } finally {
+            // 화면 데이터 갱신은 푸시 수신 설정·알림 중복·저장 실패와 독립된 채널이다.
+            settlementSseService.sendAccountBatchCompleted(
+                    event.accountId(),
+                    new SettlementNotificationResponseDTO(event.batchId(), event.completedAt()));
+        }
     }
 }

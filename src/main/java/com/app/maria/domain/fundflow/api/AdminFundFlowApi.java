@@ -1,13 +1,16 @@
 package com.app.maria.domain.fundflow.api;
 
 import com.app.maria.domain.fundflow.dto.request.FundFlowMonthlyRequestDTO;
+import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowReliefRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowOverviewResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowReliefResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowRetentionResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowSegmentResponseDTO;
 import com.app.maria.domain.fundflow.service.AdminFundFlowService;
 import com.app.maria.global.response.ApiResponseDTO;
@@ -27,15 +30,17 @@ public class AdminFundFlowApi {
     private final AdminFundFlowService adminFundFlowService;
 
     @GetMapping("/funnel")
-    public ResponseEntity<ApiResponseDTO<FundFlowFunnelResponseDTO>> getFunnel() {
+    public ResponseEntity<ApiResponseDTO<FundFlowFunnelResponseDTO>> getFunnel(
+            FundFlowPeriodRequestDTO request) {
         return ResponseEntity.ok(
-                ApiResponseDTO.of("가입→첫 매수 퍼널 조회 성공", adminFundFlowService.getFunnel()));
+                ApiResponseDTO.of("가입→첫 매수 퍼널 조회 성공", adminFundFlowService.getFunnel(request)));
     }
 
     @GetMapping("/overview")
-    public ResponseEntity<ApiResponseDTO<FundFlowOverviewResponseDTO>> getOverview() {
+    public ResponseEntity<ApiResponseDTO<FundFlowOverviewResponseDTO>> getOverview(
+            FundFlowPeriodRequestDTO request) {
         return ResponseEntity.ok(
-                ApiResponseDTO.of("자금 환류 개요 조회 성공", adminFundFlowService.getOverview()));
+                ApiResponseDTO.of("자금 환류 개요 조회 성공", adminFundFlowService.getOverview(request)));
     }
 
     @GetMapping("/leakage")
@@ -52,9 +57,10 @@ public class AdminFundFlowApi {
     }
 
     @GetMapping("/segments")
-    public ResponseEntity<ApiResponseDTO<FundFlowSegmentResponseDTO>> getSegments() {
+    public ResponseEntity<ApiResponseDTO<FundFlowSegmentResponseDTO>> getSegments(
+            FundFlowPeriodRequestDTO request) {
         return ResponseEntity.ok(
-                ApiResponseDTO.of("세그먼트별 재투자율 조회 성공", adminFundFlowService.getSegments()));
+                ApiResponseDTO.of("세그먼트별 재투자율 조회 성공", adminFundFlowService.getSegments(request)));
     }
 
     @GetMapping("/relief")
@@ -65,8 +71,22 @@ public class AdminFundFlowApi {
     }
 
     @GetMapping("/allocation")
-    public ResponseEntity<ApiResponseDTO<FundFlowAllocationResponseDTO>> getAllocation() {
+    public ResponseEntity<ApiResponseDTO<FundFlowAllocationResponseDTO>> getAllocation(
+            FundFlowPeriodRequestDTO request) {
         return ResponseEntity.ok(
-                ApiResponseDTO.of("국내 운용처 조회 성공", adminFundFlowService.getAllocation()));
+                ApiResponseDTO.of("국내 운용처 조회 성공", adminFundFlowService.getAllocation(request)));
+    }
+
+    @GetMapping("/concentration")
+    public ResponseEntity<ApiResponseDTO<FundFlowConcentrationResponseDTO>> getConcentration() {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("혜택 집중도 조회 성공", adminFundFlowService.getConcentration()));
+    }
+
+    @GetMapping("/retention")
+    public ResponseEntity<ApiResponseDTO<FundFlowRetentionResponseDTO>> getRetention(
+            FundFlowPeriodRequestDTO request) {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("원금 유지 조회 성공", adminFundFlowService.getRetention(request)));
     }
 }

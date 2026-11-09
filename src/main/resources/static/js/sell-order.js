@@ -6,6 +6,7 @@ $(function () {
 
     var PAGE_SIZE = 20;
     var currentPage = 0;
+    var sortSpec = null; // 머리글로 고른 정렬(서버가 전체 데이터에서 정렬)
     var totalCount = 0;
     var selectedOrderId = null;
     var SKELETON_ROWS = 8;
@@ -140,6 +141,10 @@ $(function () {
         }
         if (endDate) {
             params.endDate = endDate;
+        }
+        if (sortSpec) {
+            params.sort = sortSpec.key;
+            params.direction = sortSpec.dir;
         }
         return params;
     }
@@ -449,6 +454,67 @@ $(function () {
         $("#sellOrderFilterKeyword").val(deepLinkAccountNo);
         currentPage = 0;
     }
+
+    // ---------- 계좌 한도 조회 패널 ----------
+    function sellAcctState(text) {
+        $("#sellAcctBody").html('<tr class="is-state"><td colspan="7"><div class="sellacct-empty">' + escapeHtml(text) + "</div></td></tr>");
+    }
+    function searchAccountLimits() {
+        var keyword = $("#sellAcctKeyword").val().trim();
+        if (!keyword) {
+            sellAcctState("계좌번호 또는 고객명을 입력해 조회하세요.");
+            return;
+        }
+        // 숫자·하이픈만이면 계좌번호, 아니면 고객명으로 찾는다 (서버는 둘 중 하나 이상을 요구)
+        var params = /^[0-9-]+$/.test(keyword) ? { accountNo: keyword.replace(/-/g, "") } : { customerName: keyword };
+        sellAcctState("불러오는 중...");
+        MARIA.auth.ajax({ url: "/api/admin/account/search", method: "GET", data: params })
+            .done(function (res) {
+                var rows = res.data || [];
+                if (!rows.length) {
+                    sellAcctState("검색 결과가 없습니다.");
+                    return;
+                }
+                $("#sellAcctBody").html(rows.map(function (r, i) {
+                    var limit = Number(r.limitAmount || 0), used = Number(r.usedAmount || 0);
+                    return '<tr><td class="adm-col-no">' + (i + 1) + "</td>" +
+                        "<td>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(r.accountNo)) + "</td>" +
+                        "<td>" + escapeHtml(r.customerName || "-") + "</td>" +
+                        '<td class="is-c"><span class="adm-chip adm-chip-' + STATUS.accountStatusTone(r.status) + '">' + escapeHtml(STATUS.accountStatusLabel(r.status)) + "</span></td>" +
+                        '<td class="is-r">' + formatAmount(limit) + '</td><td class="is-r">' + formatAmount(used) +
+                        '</td><td class="is-r">' + formatAmount(Math.max(0, limit - used)) + "</td></tr>";
+                }).join(""));
+            })
+            .fail(function (xhr) {
+                if (xhr.status !== 401) {
+                    sellAcctState((xhr.responseJSON && xhr.responseJSON.message) || "계좌를 조회하지 못했습니다.");
+                }
+            });
+    }
+    function openSellAcct() {
+        $("#sellAcctScrim, #sellAcctPanel").addClass("is-open");
+        $("#sellAcctPanel").attr("aria-hidden", "false");
+        $("#sellAcctKeyword").trigger("focus");
+    }
+    function closeSellAcct() {
+        $("#sellAcctScrim, #sellAcctPanel").removeClass("is-open");
+        $("#sellAcctPanel").attr("aria-hidden", "true");
+        $("#sellAcctOpen").trigger("focus");
+    }
+    $("#sellAcctOpen").on("click", openSellAcct);
+    $("#sellAcctClose, #sellAcctScrim").on("click", closeSellAcct);
+    $("#sellAcctSubmit").on("click", searchAccountLimits);
+    $("#sellAcctKeyword").on("keydown", function (event) {
+        if (event.key === "Enter") {
+            searchAccountLimits();
+        }
+    });
+
+    MARIA.tableSort.bind(".sellorder-table", function (key, dir) {
+        sortSpec = { key: key, dir: dir };
+        currentPage = 0;
+        loadSellOrders();
+    });
 
     loadSellOrderSummary();
     loadSellOrders();

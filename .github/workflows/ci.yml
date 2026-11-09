@@ -22,6 +22,9 @@ jobs:
           chmod +x gradlew
           ./gradlew spotlessCheck --no-daemon
 
+      - name: Start notification test Redis
+        run: docker run --detach --name notification-test-redis --publish 127.0.0.1:6379:6379 redis:7-alpine redis-server --requirepass ci
+
       - name: Test
         run: |
           chmod +x gradlew
@@ -39,3 +42,7 @@ jobs:
           RETURNS_SECURITY_URL: http://localhost:1
           MYDATA_URL: http://localhost:1
           CI_PEPPER: ci
+          SIGNUP_REDIS_TEST_HOST: localhost
+          SIGNUP_REDIS_TEST_PASSWORD: ci
+          NOTIFICATION_REDIS_TEST_HOST: localhost
+          NOTIFICATION_REDIS_TEST_PASSWORD: ci

@@ -72,7 +72,6 @@ class PythonRiskHttpIntegrationTest {
         configureDataSource(new DriverManagerDataSource(URL, "root", "risk-test-only"));
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("risk_test");
         execute(new ClassPathResource("risk/legacy-schema.sql"));
-        execute(new FileSystemResource("db/migrations/001_stock_risk_grade_version.sql"));
         int port;
         try (var socket = new ServerSocket()) {
             socket.bind(new InetSocketAddress("127.0.0.1", 0));

@@ -34,3 +34,6 @@
     font-size: 12px;
     text-align: center;
 }
+
+/* 이 계좌의 인출 내역 */
+.withdrawal-account-table { --adm-cols: 40px minmax(90px, 1fr) minmax(60px, 0.8fr) minmax(110px, 1.2fr); --adm-cols-min: 320px; height: auto; }

@@ -86,6 +86,28 @@ class AssetBriefingTransactionTest {
             context.registerBean(AssetBriefingMapper.class, () -> mapper);
             context.registerBean(BusinessClockService.class, () -> clock);
             context.registerBean(AssetPriceProvider.class, () -> provider);
+            context.registerBean(
+                    com.app.maria.domain.tax.mapper.TaxMapper.class,
+                    () -> mock(com.app.maria.domain.tax.mapper.TaxMapper.class));
+            context.registerBean(
+                    com.app.maria.global.client.kis.KisDomesticPriceClient.class,
+                    () -> {
+                        var kis =
+                                mock(com.app.maria.global.client.kis.KisDomesticPriceClient.class);
+                        when(kis.getQuote(any()))
+                                .thenThrow(
+                                        new com.app.maria.global.exception.AppException(
+                                                com.app.maria.global.exception.ErrorType
+                                                        .KIS_PRICE_NOT_FOUND,
+                                                "x"));
+                        return kis;
+                    });
+            context.registerBean(
+                    com.app.maria.global.client.kis.KisPriceClient.class,
+                    () -> mock(com.app.maria.global.client.kis.KisPriceClient.class));
+            context.registerBean(
+                    com.app.maria.global.client.exchange.ExchangeRateClient.class,
+                    () -> mock(com.app.maria.global.client.exchange.ExchangeRateClient.class));
             context.register(
                     Transactions.class,
                     AssetBriefingSnapshotReader.class,

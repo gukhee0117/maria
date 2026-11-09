@@ -26,6 +26,23 @@ import org.springframework.http.HttpStatus;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorType {
+    NEWS_SOURCE_NOT_CONFIGURED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 API 키 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_SOURCE_AUTH_FAILED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 API 인증에 실패했습니다. 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_SOURCE_RATE_LIMITED(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 조회 요청이 몰렸습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_AI_AUTH_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 인증 설정을 확인해 주세요.", LogLevel.WARN),
+    NEWS_QUESTION_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS, "뉴스 질문 가능 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_UPSTREAM_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "실제 뉴스를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_ARTICLE_UNAVAILABLE(HttpStatus.NOT_FOUND, "보유 종목에 해당하는 기사를 찾을 수 없습니다.", LogLevel.WARN),
+    NEWS_VERSION_CHANGED(HttpStatus.CONFLICT, "기사가 변경되었습니다. 다시 선택해 주세요.", LogLevel.WARN),
+    NEWS_AI_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    NEWS_SEARCH_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 검색을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     RISK_TIMEZONE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "위험등급 DB 연결 시간대를 확인할 수 없습니다.", LogLevel.WARN),
     RISK_CALENDAR_UNAVAILABLE(
@@ -36,10 +53,28 @@ public enum ErrorType {
     RISK_SYNC_CONFLICT(HttpStatus.CONFLICT, "위험등급 동기화 상태를 확인할 수 없습니다.", LogLevel.WARN),
     // 고객 로그인 (아이디 존재 여부와 비밀번호 오류를 구분해 노출하지 않는다.)
     CUSTOMER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
+    CUSTOMER_SIGNUP_EMAIL_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    CUSTOMER_SIGNUP_CODE_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS, "인증 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
+    CUSTOMER_SIGNUP_CODE_INVALID(
+            HttpStatus.BAD_REQUEST, "인증번호가 올바르지 않거나 만료되었습니다. 5회 틀리면 새 번호를 받아 주세요.", LogLevel.WARN),
     // 회원가입 (이미 가입됨과 정보 불일치를 구분해 노출하지 않는다.)
     CUSTOMER_SIGNUP_FAILED(HttpStatus.BAD_REQUEST, "가입 정보를 확인해 주세요.", LogLevel.WARN),
     CUSTOMER_LOGIN_ID_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다.", LogLevel.WARN),
     CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "고객 정보를 찾을 수 없습니다.", LogLevel.WARN),
+    CUSTOMER_NOTIFICATION_EMAIL_REQUIRED(
+            HttpStatus.BAD_REQUEST, "등록된 이메일이 없습니다. 기본 정보에서 이메일을 등록해 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_REQUIRED(
+            HttpStatus.BAD_REQUEST, "이메일로 받은 인증번호를 확인한 뒤 알림을 켜 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_INVALID(
+            HttpStatus.BAD_REQUEST, "인증번호가 올바르지 않거나 만료되었습니다. 5회 틀리면 새 번호를 받아 주세요.", LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_RATE_LIMITED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "인증 메일 요청 한도에 도달했습니다. 60초 간격, 고객당 시간당 10회·주소당 하루 10회까지 받을 수 있습니다.",
+            LogLevel.WARN),
+    NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     // 비밀번호 변경. 401이 아닌 400이다: 화면이 401을 세션 만료로 처리하기 때문.
     CUSTOMER_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다.", LogLevel.WARN),
     CUSTOMER_PASSWORD_NOT_SET(
@@ -124,6 +159,10 @@ public enum ErrorType {
             HttpStatus.BAD_GATEWAY, "일반계좌 확인 응답을 처리할 수 없습니다.", LogLevel.ERROR),
     GENERAL_ACCOUNT_API_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "일반계좌 확인 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
+    DOMESTIC_TRADE_API_INVALID_RESPONSE(
+            HttpStatus.BAD_GATEWAY, "국내 매매 내역 응답을 처리할 수 없습니다.", LogLevel.ERROR),
+    DOMESTIC_TRADE_API_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "국내 매매 내역을 증권사에서 가져올 수 없습니다.", LogLevel.ERROR),
     MYDATA_API_INVALID_RESPONSE(HttpStatus.BAD_GATEWAY, "myData 응답을 처리할 수 없습니다.", LogLevel.ERROR),
     MYDATA_API_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "myData 서비스에 일시적으로 연결할 수 없습니다.", LogLevel.ERROR),
@@ -243,6 +282,8 @@ public enum ErrorType {
     STOCK_ORDER_ITEM_NOT_IN_PACKAGE(
             HttpStatus.BAD_REQUEST, "패키지에 담지 않은 종목은 주문할 수 없습니다.", LogLevel.WARN),
     STOCK_ORDER_ACCOUNT_NOT_OPEN(HttpStatus.CONFLICT, "개설된 RIA 계좌가 있어야 주문할 수 있습니다.", LogLevel.WARN),
+    STOCK_ORDER_SECURITIES_RECORD_FAILED(
+            HttpStatus.BAD_GATEWAY, "주문을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     STOCK_ORDER_MARKET_CLOSED(HttpStatus.CONFLICT, "지금은 주문할 수 있는 시간이 아닙니다.", LogLevel.WARN),
 
     // 커뮤니티

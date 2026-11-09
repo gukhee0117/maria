@@ -18,7 +18,8 @@ public interface InboundService {
     PageResponseDTO<InboundAccountSummaryResponseDTO> getAccountsWithInbounds(
             int page, int size, String keyword);
 
-    InboundPageDTO getInboundsByAccount(Long accountId, int page, int size);
+    InboundPageDTO getInboundsByAccount(
+            Long accountId, String sort, String direction, int page, int size);
 
     List<InboundPriorApprovalResponseDTO> getPriorApprovals(Long inboundId);
 }

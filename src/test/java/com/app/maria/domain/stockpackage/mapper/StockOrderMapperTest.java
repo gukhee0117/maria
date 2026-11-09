@@ -62,8 +62,10 @@ class StockOrderMapperTest {
         }
         // account는 REGEXP 제약이 있어 H2에서 그대로 만들지 않고, 이 매퍼가 쓰는 컬럼만 둔다
         sql(
-                "CREATE TABLE account (account_id BIGINT AUTO_INCREMENT PRIMARY KEY, amount DECIMAL(15,0) NOT NULL DEFAULT 0)");
-        sql("INSERT INTO account (account_id, amount) VALUES (70, 10000000)");
+                "CREATE TABLE account (account_id BIGINT AUTO_INCREMENT PRIMARY KEY, customer_id BIGINT NOT NULL DEFAULT 7, amount DECIMAL(15,0) NOT NULL DEFAULT 0)");
+        sql("INSERT INTO account (account_id, customer_id, amount) VALUES (70, 7, 10000000)");
+        sql("CREATE TABLE customer (customer_id BIGINT PRIMARY KEY, ci_hash VARCHAR(64) NOT NULL)");
+        sql("INSERT INTO customer (customer_id, ci_hash) VALUES (7, 'ci-7')");
         sql(
                 "INSERT INTO domestic_product (domestic_product_id,ticker,name,type) VALUES (1,'005930','삼성전자','STOCK')");
         sql("INSERT INTO stock_package (stock_package_id,customer_id,name) VALUES (5,7,'내 패키지')");
@@ -105,6 +107,27 @@ class StockOrderMapperTest {
                 .status(DomesticOrderStatus.EXECUTED)
                 .processedAt(NOW)
                 .build();
+    }
+
+    @Test
+    @DisplayName("증권사에 못 보낸 고객 체결 주문만 골라 ciHash와 함께 주고, 표시를 남기면 빠진다")
+    void unrecordedOrdersLeaveTheListOnceMarked() {
+        StockOrderVO pending = executed("o1:1");
+        mapper.insertOrder(pending);
+        StockOrderVO generator = executed("o2:1");
+        generator.setChannel("GENERATOR");
+        mapper.insertOrder(generator);
+
+        var list = mapper.selectUnrecordedCustomerOrders(10);
+
+        assertThat(list).hasSize(1);
+        assertThat(list.get(0).getDomesticOrderId()).isEqualTo(pending.getDomesticOrderId());
+        assertThat(list.get(0).getCiHash()).isEqualTo("ci-7");
+        assertThat(list.get(0).getTicker()).isEqualTo("005930");
+
+        assertThat(mapper.markSecuritiesRecorded(pending.getDomesticOrderId())).isEqualTo(1);
+        assertThat(mapper.markSecuritiesRecorded(pending.getDomesticOrderId())).isZero();
+        assertThat(mapper.selectUnrecordedCustomerOrders(10)).isEmpty();
     }
 
     @Test
@@ -305,5 +328,61 @@ class StockOrderMapperTest {
         assertThat(mapper.selectExecutedByCustomerAsc(7L))
                 .extracting(StockOrderVO::getIdempotencyKey)
                 .containsExactly("m:1", "m:2");
+    }
+
+    @Test
+    @DisplayName("마지막 매수일은 더 늦은 날짜일 때만 바뀐다")
+    void lastPurchaseDateOnlyMovesForward() {
+        mapper.insertBalance(
+                StockBalanceVO.builder()
+                        .accountId(ACCOUNT)
+                        .domesticProductId(PRODUCT)
+                        .qty(new BigDecimal("10"))
+                        .status(DomesticStockStatus.HOLDING)
+                        .lastPurchaseDate(LocalDateTime.of(2026, 11, 10, 9, 0))
+                        .avgPurchasePrice(new BigDecimal("100000"))
+                        .build());
+        StockBalanceVO balance = mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT).orElseThrow();
+
+        balance.setLastPurchaseDate(LocalDateTime.of(2026, 6, 10, 9, 0));
+        mapper.updateBalance(balance);
+        assertThat(
+                        mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT)
+                                .orElseThrow()
+                                .getLastPurchaseDate())
+                .isEqualTo(LocalDateTime.of(2026, 11, 10, 9, 0));
+
+        balance.setLastPurchaseDate(LocalDateTime.of(2026, 11, 20, 9, 0));
+        mapper.updateBalance(balance);
+        assertThat(
+                        mapper.selectBalanceForUpdate(ACCOUNT, PRODUCT)
+                                .orElseThrow()
+                                .getLastPurchaseDate())
+                .isEqualTo(LocalDateTime.of(2026, 11, 20, 9, 0));
+    }
+
+    @Test
+    @DisplayName("보유 종목 조회는 잔량이 있는 것만 준다")
+    void heldProducts() throws Exception {
+        sql(
+                "INSERT INTO domestic_product (domestic_product_id,ticker,name,type) VALUES (2,'000660','SK하이닉스','STOCK')");
+        mapper.insertBalance(balance(PRODUCT, "10", DomesticStockStatus.HOLDING));
+        mapper.insertBalance(balance(2L, "0", DomesticStockStatus.SOLD_OUT));
+        assertThat(mapper.selectHeldProductIds()).containsExactly(PRODUCT);
+        assertThat(mapper.selectHeldBalancesByAccount(ACCOUNT))
+                .extracting(StockBalanceVO::getDomesticProductId)
+                .containsExactly(PRODUCT);
+        assertThat(mapper.selectHeldBalancesByAccount(999L)).isEmpty();
+    }
+
+    private static StockBalanceVO balance(long productId, String qty, DomesticStockStatus status) {
+        return StockBalanceVO.builder()
+                .accountId(ACCOUNT)
+                .domesticProductId(productId)
+                .qty(new BigDecimal(qty))
+                .status(status)
+                .lastPurchaseDate(NOW)
+                .avgPurchasePrice(new BigDecimal("100000"))
+                .build();
     }
 }

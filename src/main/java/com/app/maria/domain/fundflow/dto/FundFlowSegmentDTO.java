@@ -18,4 +18,5 @@ import lombok.ToString;
 public class FundFlowSegmentDTO {
     private LocalDate asOfDate;
     private List<FundFlowSegmentCellDTO> cells;
+    private List<FundFlowAgeMedianDTO> ageMedians;
 }

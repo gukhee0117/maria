@@ -77,6 +77,8 @@ body {
 .adm-side :focus-visible,
 .adm-side-fly :focus-visible,
 .adm-top :focus-visible,
+.adm-stabs :focus-visible,
+.adm-stabs-ctx :focus-visible,
 .adm-modal-backdrop :focus-visible {
     outline: 2px solid var(--adm-focus-ring);
     outline-offset: 1px;
@@ -365,6 +367,12 @@ body {
     opacity: 1;
 }
 
+/* 처음 그릴 때(layout.js 가 .is-init 을 잠깐 붙임)는 열림 애니메이션 없이 바로 최종 모양 */
+.adm-side.is-init .adm-side-groupbody,
+.adm-side.is-init .adm-side-groupinner {
+    transition: none;
+}
+
 .adm-side-item {
     position: relative;
     display: flex;
@@ -480,6 +488,10 @@ body {
     padding-top: 2px;
 }
 
+.is-collapsed .adm-side-group:first-child {
+    padding-top: 4px; /* 원본: 첫 그룹만 위 여백 4px (접혀도 같음) */
+}
+
 /* 접기/펼치기 버튼 */
 .adm-side-toggle {
     flex: 0 0 auto;
@@ -532,6 +544,7 @@ body {
 
 /* 접힌 사이드바의 그룹 메뉴 (마우스를 올리면) */
 .adm-side-fly {
+    box-sizing: content-box; /* 원본: 최소 폭 210px + 테두리 */
     position: fixed;
     left: 64px;
     z-index: 46;
@@ -544,6 +557,7 @@ body {
 }
 
 .adm-side-fly-head {
+    box-sizing: content-box; /* 원본: 높이 30px + 아래 선 */
     height: 30px;
     display: flex;
     align-items: center;
@@ -796,6 +810,362 @@ body {
 .adm-top-logout:hover {
     color: var(--adm-navy-fg);
     text-decoration: underline;
+}
+
+/* 탭 줄은 원본에서 본문 글꼴 설정(자간 없음)을 그대로 받으므로 위 공통 글꼴 묶음에 넣지 않고 따로 둔다 */
+.adm-stabs,
+.adm-stabs-ctx {
+    color: var(--adm-text);
+    font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+    line-height: 1.45;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-stabs button,
+.adm-stabs-ctx button {
+    font-family: inherit;
+    font-variant-numeric: inherit; /* 버튼의 기본 font 값이 숫자 모양을 되돌리므로 (원본은 font:inherit) */
+}
+
+/* ---------- 탭 줄 (A-15) ----------
+   원본 admin.dc.html 의 탭 줄 치수 그대로: 높이 32px + 아래 선 1px, 탭 31px(110~180px 폭), 화살표 22px, "열린 화면" 버튼. */
+.adm-stabs {
+    box-sizing: content-box;
+    height: 32px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    background: var(--adm-tabbar);
+    border-bottom: 1px solid var(--adm-bd);
+}
+
+.adm-stabs-strip {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.adm-stabs-strip::-webkit-scrollbar {
+    display: none;
+}
+
+.adm-stab {
+    flex: 1 1 180px;
+    min-width: 110px;
+    max-width: 180px;
+    height: 31px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px 0 0;
+    background: var(--adm-tab-off);
+    border-right: 1px solid var(--adm-bd);
+    cursor: pointer;
+    user-select: none;
+}
+
+.adm-stab.is-on {
+    background: var(--adm-panel);
+    box-shadow: inset 0 2px 0 var(--adm-tab-accent);
+    margin-bottom: -1px;
+}
+
+.adm-stab.is-drag {
+    opacity: 0.5;
+}
+
+.adm-stab-label {
+    flex: 1;
+    min-width: 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--adm-sub);
+    text-decoration: none;
+}
+
+.adm-stab-label > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.adm-stab-label:hover {
+    text-decoration: none;
+}
+
+.adm-stab.is-on .adm-stab-label {
+    color: var(--adm-text);
+    font-weight: 700;
+}
+
+.adm-stab-x,
+.adm-stabs-list-x {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--adm-sub);
+    font-size: 13px;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.adm-stab-x:hover,
+.adm-stabs-list-x:hover {
+    background: var(--adm-grid-head);
+}
+
+.adm-stabs.is-single .adm-stab-x {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.adm-stabs-arrow {
+    flex: 0 0 auto;
+    width: 22px;
+    padding: 0;
+    border: 0;
+    background: var(--adm-tabbar);
+    color: var(--adm-text);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.adm-stabs-arrow.is-prev {
+    border-right: 1px solid var(--adm-bd);
+}
+
+.adm-stabs-arrow.is-next {
+    border-left: 1px solid var(--adm-bd);
+}
+
+.adm-stabs-arrow:hover,
+.adm-stabs-morebtn:hover {
+    background: var(--adm-grid-head);
+}
+
+.adm-stabs-more {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+}
+
+.adm-stabs-morebtn {
+    padding: 0 10px;
+    border: 0;
+    border-left: 1px solid var(--adm-bd);
+    background: var(--adm-tabbar);
+    color: var(--adm-text);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.adm-stabs-morebtn[aria-expanded="true"] {
+    background: var(--adm-grid-head);
+}
+
+.adm-stabs-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.adm-stabs-backdrop.is-ctx {
+    z-index: 44;
+}
+
+.adm-stabs-list {
+    box-sizing: content-box; /* 원본은 폭 260px + 테두리 */
+    position: absolute;
+    right: 0;
+    top: 32px;
+    z-index: 41;
+    width: 260px;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd2);
+    box-shadow: var(--adm-shadow-menu);
+}
+
+.adm-stabs-list-head {
+    box-sizing: content-box;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    background: var(--adm-head);
+    border-bottom: 1px solid var(--adm-bd);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.adm-stabs-list-body {
+    max-height: 330px;
+    overflow-y: auto;
+}
+
+.adm-stabs-list-row {
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    border-bottom: 1px solid var(--adm-line);
+    background: var(--adm-panel);
+}
+
+.adm-stabs-list-row.is-on {
+    background: var(--adm-sel);
+}
+
+.adm-stabs-list-link {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    color: var(--adm-text);
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+}
+
+.adm-stabs-list-row.is-on .adm-stabs-list-link {
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 var(--adm-focus-ring);
+}
+
+.adm-stabs-list-link:hover {
+    background: var(--adm-hover);
+    text-decoration: none;
+}
+
+.adm-stabs-list-x {
+    width: 28px;
+    height: 100%;
+    border-radius: 0;
+    font-size: 14px;
+}
+
+.adm-stabs.is-single .adm-stabs-list-x {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.adm-stabs-list-clear {
+    display: block;
+    width: 100%;
+    height: 30px;
+    border: 0;
+    background: var(--adm-head);
+    color: var(--adm-warn-fg);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.adm-stabs-list-clear:hover {
+    background: var(--adm-grid-head);
+}
+
+.adm-stabs-ctx {
+    box-sizing: content-box;
+    position: fixed;
+    z-index: 45;
+    width: 170px;
+    padding: 2px 0;
+    background: var(--adm-panel);
+    border: 1px solid var(--adm-bd2);
+    box-shadow: var(--adm-shadow-menu);
+}
+
+.adm-stabs-ctx button {
+    display: block;
+    width: 100%;
+    height: 28px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--adm-text);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.adm-stabs-ctx button:hover {
+    background: var(--adm-hover);
+}
+
+.adm-stabs-ctx button[aria-disabled="true"] {
+    opacity: 0.45;
+}
+
+/* ---------- 즐겨찾기 (A-15) ---------- */
+.adm-side-item.is-drag {
+    opacity: 0.5;
+}
+
+.adm-side-favempty {
+    padding: 4px 14px 8px 30px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--adm-side-muted);
+}
+
+.adm-side-fly-empty {
+    padding: 8px 12px;
+    font-size: 11.5px;
+    color: var(--adm-side-muted);
+}
+
+/* 화면 제목 줄 오른쪽 끝의 ★ (layout.js 가 .adm-screen-head 에 붙인다) */
+.adm-screen-fav {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--adm-placeholder);
+}
+
+.adm-screen-fav svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.adm-screen-fav.is-on {
+    color: var(--adm-navy-fg);
+}
+
+.adm-screen-fav.is-on svg {
+    fill: currentColor;
 }
 
 /* ---------- 본문 영역 ----------

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.app.maria.domain.settlement.provider.ExchangeRateProviderImpl;
 import com.app.maria.global.client.exchange.ExchangeRateClient;
+import com.app.maria.global.client.securities.SecuritiesMarketClient;
 import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.config.RestTemplateConfig;
 import com.app.maria.global.config.properties.ExchangeApiProperties;
@@ -30,6 +31,8 @@ import org.springframework.web.client.RestTemplate;
 class ExchangeRestTemplateConfigTest {
 
     @MockitoBean private BusinessClockService businessClockService;
+
+    @MockitoBean private SecuritiesMarketClient securitiesMarketClient;
 
     @Autowired private RestTemplate defaultRestTemplate;
 

@@ -32,6 +32,9 @@ public class FundFlowFilterDTO {
     /** 월별 조회 상한(월 1일, 포함). null이면 제한 없음. */
     private LocalDate toMonth;
 
+    /** 조회 기간의 첫날(포함). null이면 하한 없음(출시 이후 누적). 상한은 항상 {@code < clockDate}. */
+    private LocalDate periodFrom;
+
     /** 감면액 분모 범위(ALL/POSITIVE). */
     private String scope;
 

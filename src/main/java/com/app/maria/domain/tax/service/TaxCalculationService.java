@@ -1,5 +1,6 @@
 package com.app.maria.domain.tax.service;
 
+import com.app.maria.domain.tax.dto.response.CustomerTaxBasisResponseDTO;
 import com.app.maria.domain.tax.dto.response.CustomerTaxBriefingResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxActionSummaryResponseDTO;
 import com.app.maria.domain.tax.dto.response.TaxBatchHistoryResponseDTO;
@@ -26,6 +27,9 @@ public interface TaxCalculationService {
     TaxActionSummaryResponseDTO getActionSummary();
 
     CustomerTaxBriefingResponseDTO getCustomerTaxBriefing(Long customerId);
+
+    /** 세액 계산 근거(구간별 값·5단계 중간값). 스냅샷이 아니라 지금 입력으로 다시 계산한다. */
+    CustomerTaxBasisResponseDTO getCustomerTaxBasis(Long customerId);
 
     CustomerTaxBriefingResponseDTO.ExpectedTaxScenario getCustomerExpectedTaxBriefing(
             Long customerId);
