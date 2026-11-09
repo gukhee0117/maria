@@ -576,6 +576,31 @@ class AccountMapperTest {
         assertThat(result.getBenefit()).isEqualTo(BenefitType.IMPOSSIBLE);
     }
 
+    @Test
+    @DisplayName("마이데이터 동의는 가장 최근 이력의 값이고, 이력이 없으면 비어 있다")
+    void mydataConsent_가장_최근_이력이_현재_값() {
+        assertThat(accountMapper.selectLatestMydataConsent(1L)).isEmpty();
+
+        accountMapper.insertMydataConsent(1L, true, CREATED_AT);
+        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(true);
+
+        accountMapper.insertMydataConsent(1L, false, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(false);
+
+        accountMapper.insertMydataConsent(1L, true, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(true);
+        assertThat(accountMapper.selectLatestMydataConsent(2L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업무시계를 되돌려 철회해도 나중에 쌓인 이력이 현재 값이다")
+    void mydataConsent_시계를_되돌려도_쌓인_순서가_기준() {
+        accountMapper.insertMydataConsent(1L, true, CREATED_AT);
+        accountMapper.insertMydataConsent(1L, false, CREATED_AT.minusDays(30));
+
+        assertThat(accountMapper.selectLatestMydataConsent(1L)).contains(false);
+    }
+
     private void resetSchema() throws SQLException {
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
@@ -590,6 +615,16 @@ class AccountMapperTest {
               investor_type VARCHAR(20) NOT NULL,
               ci_hash VARCHAR(64) NOT NULL,
               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+          """);
+            statement.execute(
+                    """
+          CREATE TABLE customer_consent (
+              customer_consent_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+              customer_id BIGINT NOT NULL,
+              consent_type VARCHAR(30) NOT NULL,
+              agreed BOOLEAN NOT NULL,
+              changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
           """);
             statement.execute(

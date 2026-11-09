@@ -11,6 +11,7 @@ import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -58,6 +59,13 @@ public class MydataClient {
                             .body(
                                     new ParameterizedTypeReference<
                                             ApiResponseDTO<List<MydataRiaAccountDTO>>>() {});
+        } catch (HttpClientErrorException.NotFound e) {
+            // myData가 모르는 고객은 타사 RIA 계좌가 없는 것이다. 본문으로 이 경우만 가려
+            // 주소 오설정 같은 다른 404는 계속 연결 오류로 둔다(한도를 잘못 넓게 주지 않는다).
+            if (e.getResponseBodyAsString().contains("CiHash")) {
+                return List.of();
+            }
+            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
         } catch (RestClientException e) {
             throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
         }

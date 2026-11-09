@@ -94,6 +94,8 @@ public enum ErrorType {
             HttpStatus.BAD_REQUEST, "계좌 한도는 50000000원 이하여야 합니다.", LogLevel.WARN),
     ACCOUNT_LIMIT_NOT_WHOLE_WON(HttpStatus.BAD_REQUEST, "계좌 한도는 원 단위로 입력해야 합니다.", LogLevel.WARN),
     ACCOUNT_NO_LIMIT_AVAILABLE(HttpStatus.BAD_REQUEST, "설정 가능한 RIA 계좌 한도가 없습니다.", LogLevel.WARN),
+    ACCOUNT_MYDATA_CONSENT_REQUIRED(
+            HttpStatus.BAD_REQUEST, "마이데이터 조회에 동의해야 계좌를 개설할 수 있습니다.", LogLevel.WARN),
     ACCOUNT_LIMIT_EXCEEDS_AVAILABLE(HttpStatus.BAD_REQUEST, "신청 가능한 계좌 한도를 초과했습니다.", LogLevel.WARN),
     ACCOUNT_LIMIT_BELOW_USED_AMOUNT(
             HttpStatus.BAD_REQUEST, "계좌 한도를 이미 사용한 금액보다 낮출 수 없습니다.", LogLevel.WARN),

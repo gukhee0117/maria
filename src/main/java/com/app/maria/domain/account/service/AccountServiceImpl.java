@@ -40,6 +40,7 @@ public class AccountServiceImpl implements AccountService {
     private final BusinessClockService businessClockService;
     private final AccountTransactionalService accountTransactionalService;
     private final AuditActorProvider auditActorProvider;
+    private final MydataConsentService mydataConsentService;
 
     @Override
     public List<AccountJoinResponseDTO> findAll() {
@@ -95,10 +96,22 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
-    public AccountResponseDTO applyCustomerAccount(Long customerId, BigDecimal limitAmount) {
+    public BigDecimal getCustomerAvailableLimit(Long customerId) {
         validateCustomerExists(customerId);
+        mydataConsentService.requireAgreed(customerId);
+        return calculateAvailableLimit(customerId);
+    }
+
+    @Override
+    public AccountResponseDTO applyCustomerAccount(
+            Long customerId, BigDecimal limitAmount, boolean mydataConsent) {
+        validateCustomerExists(customerId);
+        if (!mydataConsent) {
+            throw new AppException(ErrorType.ACCOUNT_MYDATA_CONSENT_REQUIRED, customerId);
+        }
         validateLimitInput(limitAmount);
         LocalDateTime appliedAt = getApplicationTime();
+        mydataConsentService.record(customerId, true);
         validateLimitAvailability(limitAmount, calculateAvailableLimit(customerId));
         AccountDTO account =
                 AccountDTO.builder().customerId(customerId).limitAmount(limitAmount).build();
