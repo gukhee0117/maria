@@ -2,6 +2,7 @@ package com.app.maria.domain.risk.service;
 
 import com.app.maria.domain.risk.dto.RiskGradeClassificationDTO;
 import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,7 +13,7 @@ public interface RiskGradeService {
     List<UsableRiskGradeDTO> findUsable();
 
     /** Grade-only view. Implementations may use independent current stock classifications. */
-    default Map<Long, Integer> findUsableGrades(java.util.Collection<Long> productIds) {
+    default Map<Long, Integer> findUsableGrades(Collection<Long> productIds) {
         if (productIds == null || productIds.isEmpty()) return Map.of();
         return findUsableGrades().entrySet().stream()
                 .filter(e -> productIds.contains(e.getKey()))

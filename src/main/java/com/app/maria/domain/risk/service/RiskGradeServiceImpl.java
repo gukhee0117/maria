@@ -12,6 +12,7 @@ import com.app.maria.domain.risk.type.RiskDataStatus;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,6 +32,10 @@ public class RiskGradeServiceImpl implements RiskGradeService {
     private final RiskMarketClock clock;
     private final CurrentStockRiskService stockClassifications;
 
+    /**
+     * Test-only constructor for historical metric reads; current classification requires the
+     * injected constructor.
+     */
     public RiskGradeServiceImpl(
             StockRiskGradeMapper mapper, KrxTradingCalendar calendar, RiskMarketClock clock) {
         this(mapper, calendar, clock, null);
@@ -90,12 +95,12 @@ public class RiskGradeServiceImpl implements RiskGradeService {
     }
 
     @Override
-    public Map<Long, Integer> findUsableGrades(java.util.Collection<Long> productIds) {
+    public Map<Long, Integer> findUsableGrades(Collection<Long> productIds) {
         if (productIds == null || productIds.isEmpty()) return Map.of();
-        return resolveGrades(java.util.Set.copyOf(productIds));
+        return resolveGrades(Set.copyOf(productIds));
     }
 
-    private Map<Long, Integer> resolveGrades(java.util.Set<Long> requested) {
+    private Map<Long, Integer> resolveGrades(Set<Long> requested) {
         var products =
                 mapper.findProducts().stream()
                         .filter(p -> requested == null || requested.contains(p.domesticProductId()))
@@ -139,7 +144,9 @@ public class RiskGradeServiceImpl implements RiskGradeService {
     }
 
     private Optional<RiskGradeClassificationDTO> currentStock(RiskProductDTO product) {
-        if (stockClassifications == null) throw new AppException(ErrorType.RISK_INVALID_RESPONSE);
+        if (stockClassifications == null)
+            throw new IllegalStateException(
+                    "Current classification is unavailable with the test-only constructor");
         try {
             var current = stockClassifications.findCurrent(product.ticker());
             return Optional.of(

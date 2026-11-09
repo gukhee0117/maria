@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 /** Current stock status cache, independent of historical-price expiry. */
 @Service
 public class CurrentStockRiskService {
+    // Defensive memory bound for this cache, independent of the number of listed stocks.
+    private static final int MAX_CACHED_TICKERS = 77;
+    private static final long CACHE_TTL_SECONDS = 60;
     private final PythonStockClassificationClient client;
     private final RiskMarketClock clock;
     private final Map<String, Entry> cache = new HashMap<>();
@@ -27,13 +30,17 @@ public class CurrentStockRiskService {
 
     public record CurrentStockGrade(String ticker, int riskGrade, OffsetDateTime asOf) {}
 
-    public synchronized CurrentStockGrade findCurrent(String ticker) {
+    public CurrentStockGrade findCurrent(String ticker) {
         Instant now = clock.now().toInstant();
-        Entry entry = cache.get(ticker);
-        if (entry != null
-                && !now.isBefore(entry.receivedAt())
-                && now.isBefore(entry.receivedAt().plusSeconds(60))) return entry.grade();
-        cache.remove(ticker);
+        synchronized (cache) {
+            Entry entry = cache.get(ticker);
+            if (entry != null
+                    && !now.isBefore(entry.receivedAt())
+                    && now.isBefore(entry.receivedAt().plusSeconds(CACHE_TTL_SECONDS)))
+                return entry.grade();
+            cache.remove(ticker);
+        }
+        // Network I/O must not block cache hits or requests for other tickers.
         var classification = client.fetch(ticker);
         if (Duration.between(classification.asOf().toInstant(), now)
                         .abs()
@@ -42,8 +49,13 @@ public class CurrentStockRiskService {
         var result =
                 new CurrentStockGrade(
                         classification.ticker(), classification.riskGrade(), classification.asOf());
-        if (cache.size() >= 77) cache.clear();
-        cache.put(ticker, new Entry(result, now));
+        synchronized (cache) {
+            Entry current = cache.get(ticker);
+            // An older in-flight request must not overwrite a newer successful response.
+            if (current != null && current.receivedAt().isAfter(now)) return current.grade();
+            if (cache.size() >= MAX_CACHED_TICKERS && !cache.containsKey(ticker)) cache.clear();
+            cache.put(ticker, new Entry(result, now));
+        }
         return result;
     }
 }

@@ -50,6 +50,8 @@ public class PythonStockClassificationClient {
         } catch (RestClientException e) {
             throw new AppException(ErrorType.RISK_UPSTREAM_UNAVAILABLE);
         }
+        // Current stock classification contract returns only grades 1 or 2; fund grades use a
+        // separate API.
         if (body == null
                 || !ticker.equals(body.ticker())
                 || body.riskGrade() < 1

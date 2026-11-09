@@ -12,6 +12,52 @@ import org.junit.jupiter.api.Test;
 
 class CurrentStockRiskServiceTest {
     @Test
+    void slowHttpForOneTickerDoesNotBlockCachedOrUncachedOtherTickers() throws Exception {
+        var client = mock(PythonStockClassificationClient.class);
+        var clock = mock(RiskMarketClock.class);
+        var now = ZonedDateTime.parse("2026-11-05T12:00:00+09:00");
+        when(clock.now()).thenReturn(now);
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        when(client.fetch(anyString()))
+                .thenAnswer(
+                        invocation -> {
+                            String ticker = invocation.getArgument(0);
+                            if (ticker.equals("000660")) {
+                                entered.countDown();
+                                if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                                    throw new AssertionError("HTTP test timed out");
+                            }
+                            return new PythonStockClassificationClient.Classification(
+                                    ticker, 2, now.toOffsetDateTime(), "STOCK_RULE_CURRENT_STATUS");
+                        });
+        var service = new CurrentStockRiskService(client, clock);
+        service.findCurrent("005930");
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var slow = executor.submit(() -> service.findCurrent("000660"));
+            assertThat(entered.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(
+                            executor.submit(() -> service.findCurrent("005930"))
+                                    .get(2, java.util.concurrent.TimeUnit.SECONDS)
+                                    .ticker())
+                    .isEqualTo("005930");
+            assertThat(
+                            executor.submit(() -> service.findCurrent("035420"))
+                                    .get(2, java.util.concurrent.TimeUnit.SECONDS)
+                                    .ticker())
+                    .isEqualTo("035420");
+            release.countDown();
+            assertThat(slow.get(2, java.util.concurrent.TimeUnit.SECONDS).ticker())
+                    .isEqualTo("000660");
+            verify(client, times(1)).fetch("005930");
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void cacheExpiresAndNeverFallsBackOnRefreshFailure() {
         var client = mock(PythonStockClassificationClient.class);
         var clock = mock(RiskMarketClock.class);
