@@ -6,6 +6,7 @@ import com.app.maria.domain.customer.dto.request.CustomerSignupRequestDTO;
 import com.app.maria.domain.customer.dto.request.CustomerSignupVerifyRequestDTO;
 import com.app.maria.domain.customer.dto.response.CustomerMeResponseDTO;
 import com.app.maria.domain.customer.dto.response.CustomerSignupChallengeDTO;
+import com.app.maria.domain.customer.dto.response.CustomerSignupVerifiedDTO;
 import com.app.maria.domain.customer.service.CustomerAuthService;
 import com.app.maria.domain.customer.service.CustomerSignupVerificationService;
 import com.app.maria.domain.customer.service.CustomerSignupVerificationService.Pending;
@@ -101,12 +102,21 @@ public class CustomerAuthApi {
     @Operation(summary = "회원가입 이메일 인증번호 발송·재발송")
     public ApiResponseDTO<CustomerSignupChallengeDTO> sendSignupEmail(
             @Valid @RequestBody CustomerSignupEmailRequestDTO body, HttpServletRequest request) {
+        boolean newSession = request.getSession(false) == null;
         HttpSession session = request.getSession();
         Prepared prepared;
-        synchronized (session) {
-            prepared = verification.prepare(session.getId(), body.email());
-            session.setAttribute(SENDING_SIGNUP, prepared.pending().token());
-            session.removeAttribute(PENDING_SIGNUP);
+        try {
+            synchronized (session) {
+                prepared =
+                        verification.prepare(
+                                session.getId(), body.email(), request.getRemoteAddr());
+                session.setAttribute(SENDING_SIGNUP, prepared.pending().token());
+                session.removeAttribute(PENDING_SIGNUP);
+            }
+        } catch (RuntimeException failure) {
+            if (newSession)
+                session.invalidate(); // Rejected anonymous requests must not accumulate sessions.
+            throw failure;
         }
         try {
             verification.deliver(prepared); // SMTP runs without holding the session monitor.
@@ -147,14 +157,16 @@ public class CustomerAuthApi {
 
     @PostMapping("/auth/signup/email/verify")
     @Operation(summary = "회원가입 이메일 인증번호 확인 (로그인 세션은 생성하지 않음)")
-    public ApiResponseDTO<Void> verifySignupEmail(
+    public ApiResponseDTO<CustomerSignupVerifiedDTO> verifySignupEmail(
             @Valid @RequestBody CustomerSignupVerifyRequestDTO body, HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null) throw new AppException(ErrorType.CUSTOMER_SIGNUP_CODE_INVALID);
         synchronized (session) {
             Pending pending = (Pending) session.getAttribute(PENDING_SIGNUP);
-            session.setAttribute(PENDING_SIGNUP, verification.verify(pending, body.code()));
-            return ApiResponseDTO.of("이메일 인증이 완료되었습니다.");
+            Pending verified = verification.verify(pending, body.code());
+            session.setAttribute(PENDING_SIGNUP, verified);
+            return ApiResponseDTO.of(
+                    "이메일 인증이 완료되었습니다.", new CustomerSignupVerifiedDTO(verified.expiresAt()));
         }
     }
 

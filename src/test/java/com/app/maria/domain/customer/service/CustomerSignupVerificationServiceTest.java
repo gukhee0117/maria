@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.app.maria.global.config.properties.CiProperties;
 import com.app.maria.global.exception.AppException;
 import java.time.*;
 import org.junit.jupiter.api.*;
@@ -14,18 +15,37 @@ class CustomerSignupVerificationServiceTest {
     CustomerSignupEmailSender sender = mock(CustomerSignupEmailSender.class);
     Instant now = Instant.parse("2026-11-08T06:00:00Z");
     CustomerSignupVerificationService service =
-            new CustomerSignupVerificationService(codes, sender, Clock.fixed(now, ZoneOffset.UTC));
+            new CustomerSignupVerificationService(
+                    codes, sender, Clock.fixed(now, ZoneOffset.UTC), properties());
+
+    private static CiProperties properties() {
+        var properties = new CiProperties();
+        properties.setPepper("test-signup-pepper");
+        return properties;
+    }
+
+    @Test
+    void recipientAliasesShareLimitsWhileEachBrowserKeepsItsOwnChallenge() {
+        when(codes.reserveSend(anyString(), anyString(), anyString())).thenReturn(true);
+        var first = service.prepare("browser-a", "User.Name+first@gmail.com", "ip");
+        var second = service.prepare("browser-b", "username+second@googlemail.com", "ip");
+        var recipients = ArgumentCaptor.forClass(String.class);
+        verify(codes, times(2)).reserveSend(anyString(), recipients.capture(), anyString());
+        assertThat(recipients.getAllValues().get(0)).isEqualTo(recipients.getAllValues().get(1));
+        assertThat(first.pending().identity()).isNotEqualTo(second.pending().identity());
+        assertThat(first.pending().email()).isEqualTo("User.Name+first@gmail.com");
+    }
 
     private CustomerSignupVerificationService.Pending send(String email) {
-        var prepared = service.prepare("browser", email);
+        var prepared = service.prepare("browser", email, "127.0.0.1");
         service.deliver(prepared);
         return prepared.pending();
     }
 
     @Test
     void preparationDoesNotStartSmtp() {
-        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
-        var prepared = service.prepare("browser", "user@example.com");
+        when(codes.reserveSend(anyString(), anyString(), anyString())).thenReturn(true);
+        var prepared = service.prepare("browser", "user@example.com", "127.0.0.1");
         verifyNoInteractions(sender);
         assertThat(prepared.pending().resendAvailableAt()).isEqualTo(now.plusSeconds(60));
         verify(codes)
@@ -37,21 +57,19 @@ class CustomerSignupVerificationServiceTest {
 
     @Test
     void hashesCodeAndVerifiesOneTimeBeforeAcceptingExactAddress() {
-        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
+        when(codes.reserveSend(anyString(), anyString(), anyString())).thenReturn(true);
         var pending = send("user@example.com");
         var code = ArgumentCaptor.forClass(String.class);
         verify(sender).send(eq("user@example.com"), code.capture());
         assertThat(code.getValue()).matches("[0-9]{6}");
-        verify(codes)
-                .save(
-                        pending.identity(),
-                        pending.token(),
-                        CustomerSignupVerificationService.digest(pending.token(), code.getValue()));
+        var stored = ArgumentCaptor.forClass(String.class);
+        verify(codes).save(eq(pending.identity()), eq(pending.token()), stored.capture());
+        assertThat(stored.getValue()).hasSize(64).doesNotContain(code.getValue());
         assertThat(pending.expiresAt()).isEqualTo(now.plusSeconds(300));
         assertThat(service.describe(pending).maskedEmail()).isEqualTo("u***@example.com");
         assertThatThrownBy(() -> service.requireVerified(pending, pending.email()))
                 .isInstanceOf(AppException.class);
-        when(codes.consume(eq(pending.identity()), eq(pending.token()), anyString()))
+        when(codes.consume(eq(pending.identity()), eq(pending.token()), eq(stored.getValue())))
                 .thenReturn(true, false);
         var verified = service.verify(pending, code.getValue());
         service.requireVerified(verified, "user@example.com");
@@ -71,20 +89,17 @@ class CustomerSignupVerificationServiceTest {
 
     @Test
     void addressCooldownSpansBrowsersAndCaseVariants() {
-        assertThatThrownBy(() -> service.prepare("different-browser", "USER@example.com"))
+        assertThatThrownBy(
+                        () -> service.prepare("different-browser", "USER@example.com", "127.0.0.1"))
                 .isInstanceOf(AppException.class);
         verify(codes)
-                .reserveSend(
-                        startsWith("browser:"),
-                        eq(
-                                CustomerSignupVerificationService.digest(
-                                        "address", "user@example.com")));
+                .reserveSend(startsWith("browser:"), startsWith("address:"), startsWith("ip:"));
         verifyNoInteractions(sender);
     }
 
     @Test
     void failedMailCancelsChallenge() {
-        when(codes.reserveSend(anyString(), anyString())).thenReturn(true);
+        when(codes.reserveSend(anyString(), anyString(), anyString())).thenReturn(true);
         doThrow(new IllegalStateException("smtp failed")).when(sender).send(any(), any());
         assertThatThrownBy(() -> send("user@example.com"))
                 .isInstanceOf(IllegalStateException.class);

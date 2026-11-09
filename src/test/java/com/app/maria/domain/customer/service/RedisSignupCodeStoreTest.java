@@ -18,6 +18,7 @@ class RedisSignupCodeStoreTest {
     StringRedisTemplate redis;
     RedisSignupCodeStore store;
     String key;
+    String prefix;
 
     @BeforeEach
     void setup() {
@@ -28,38 +29,85 @@ class RedisSignupCodeStoreTest {
         factory = new LettuceConnectionFactory(config);
         factory.afterPropertiesSet();
         redis = new StringRedisTemplate(factory);
-        store = new RedisSignupCodeStore(redis);
-        key = "test:" + UUID.randomUUID();
+        prefix = "test:signup-code:" + UUID.randomUUID() + ":";
+        store = new RedisSignupCodeStore(redis, prefix);
+        key = "key";
     }
 
     @AfterEach
     void cleanup() {
         var keys = new java.util.ArrayList<String>();
-        keys.add("customer:signup-code:" + key);
-        for (String suffix :
-                List.of(
-                        ":browser",
-                        ":address",
-                        ":browser-a",
-                        ":browser-b",
-                        ":browser-c",
-                        ":address-a",
-                        ":address-b",
-                        ":address-c")) {
-            keys.add("customer:signup-code:" + key + suffix + ":cooldown");
+        try (var cursor =
+                redis.scan(
+                        org.springframework.data.redis.core.ScanOptions.scanOptions()
+                                .match(prefix + "*")
+                                .count(100)
+                                .build())) {
+            cursor.forEachRemaining(keys::add);
         }
-        redis.delete(keys);
+        if (!keys.isEmpty()) redis.delete(keys);
         factory.destroy();
+    }
+
+    private boolean reserveSend(String browser, String address) {
+        return store.reserveSend(browser, address, key + ":ip");
+    }
+
+    @Test
+    void everyQuotaRejectsBeforeConsumingCooldownsAndOtherCounters() {
+        var limits =
+                java.util.Map.of(
+                        prefix + "address:day", SignupVerificationPolicy.RECIPIENT_DAILY_LIMIT,
+                        prefix + key + ":ip:hour", SignupVerificationPolicy.IP_HOURLY_LIMIT,
+                        prefix + key + ":ip:day", SignupVerificationPolicy.IP_DAILY_LIMIT,
+                        prefix + "global:day", SignupVerificationPolicy.GLOBAL_DAILY_LIMIT);
+        for (var limit : limits.entrySet()) {
+            redis.opsForValue().set(limit.getKey(), Integer.toString(limit.getValue()));
+            String before = redis.opsForValue().get(prefix + "global:day");
+            assertThat(reserveSend("browser", "address")).isFalse();
+            assertThat(redis.hasKey(prefix + "browser:cooldown")).isFalse();
+            assertThat(redis.hasKey(prefix + "address:cooldown")).isFalse();
+            assertThat(redis.opsForValue().get(prefix + "global:day")).isEqualTo(before);
+            redis.delete(limit.getKey());
+        }
+        assertThat(reserveSend("browser", "address")).isTrue();
+        assertThat(redis.opsForValue().get(prefix + "global:day")).isEqualTo("1");
+        assertThat(redis.getExpire(prefix + "address:day")).isBetween(86390L, 86400L);
+        assertThat(redis.getExpire(prefix + key + ":ip:hour")).isBetween(3590L, 3600L);
+    }
+
+    @Test
+    void anotherBrowserCannotReplaceTheFirstBrowsersCode() {
+        var observedStore = org.mockito.Mockito.spy(store);
+        var mail = org.mockito.Mockito.mock(CustomerSignupEmailSender.class);
+        var properties = new com.app.maria.global.config.properties.CiProperties();
+        properties.setPepper("test-pepper");
+        var service =
+                new CustomerSignupVerificationService(
+                        observedStore, mail, java.time.Clock.systemUTC(), properties);
+        var first = service.prepare("browser-a", "user@example.com", "127.0.0.1");
+        var recipient = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(observedStore)
+                .reserveSend(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        recipient.capture(),
+                        org.mockito.ArgumentMatchers.anyString());
+        redis.delete(prefix + recipient.getValue() + ":cooldown");
+        var second = service.prepare("browser-b", "user@example.com", "127.0.0.1");
+        assertThat(first.pending().identity()).isNotEqualTo(second.pending().identity());
+        assertThat(service.verify(first.pending(), first.code()).verified()).isTrue();
+        assertThat(service.verify(second.pending(), second.code()).verified()).isTrue();
+        org.mockito.Mockito.verifyNoInteractions(mail);
     }
 
     @Test
     void rejectedAddressOrBrowserDoesNotConsumeTheOtherCooldown() {
-        assertThat(store.reserveSend(key + ":browser-a", key + ":address-a")).isTrue();
-        assertThat(store.reserveSend(key + ":browser-b", key + ":address-a")).isFalse();
-        assertThat(store.reserveSend(key + ":browser-b", key + ":address-b")).isTrue();
-        assertThat(store.reserveSend(key + ":browser-a", key + ":address-c")).isFalse();
-        assertThat(store.reserveSend(key + ":browser-c", key + ":address-c")).isTrue();
-        assertThat(redis.getExpire("customer:signup-code:" + key + ":browser-c:cooldown"))
+        assertThat(reserveSend(key + ":browser-a", key + ":address-a")).isTrue();
+        assertThat(reserveSend(key + ":browser-b", key + ":address-a")).isFalse();
+        assertThat(reserveSend(key + ":browser-b", key + ":address-b")).isTrue();
+        assertThat(reserveSend(key + ":browser-a", key + ":address-c")).isFalse();
+        assertThat(reserveSend(key + ":browser-c", key + ":address-c")).isTrue();
+        assertThat(redis.getExpire(prefix + key + ":browser-c:cooldown"))
                 .isBetween(50L, SignupVerificationPolicy.RESEND_COOLDOWN_SECONDS);
     }
 
@@ -72,20 +120,18 @@ class RedisSignupCodeStoreTest {
                     executor.submit(
                             () -> {
                                 start.await();
-                                return store.reserveSend(key + ":browser-a", key + ":address-a");
+                                return reserveSend(key + ":browser-a", key + ":address-a");
                             });
             var second =
                     executor.submit(
                             () -> {
                                 start.await();
-                                return store.reserveSend(key + ":browser-b", key + ":address-a");
+                                return reserveSend(key + ":browser-b", key + ":address-a");
                             });
             start.countDown();
             boolean a = first.get(5, TimeUnit.SECONDS), b = second.get(5, TimeUnit.SECONDS);
             assertThat(List.of(a, b)).containsExactlyInAnyOrder(true, false);
-            assertThat(
-                            store.reserveSend(
-                                    key + (a ? ":browser-b" : ":browser-a"), key + ":address-b"))
+            assertThat(reserveSend(key + (a ? ":browser-b" : ":browser-a"), key + ":address-b"))
                     .isTrue();
         } finally {
             executor.shutdownNow();
@@ -94,10 +140,10 @@ class RedisSignupCodeStoreTest {
 
     @Test
     void cooldownExpiryAndFifthWrongAttemptAreEnforced() {
-        assertThat(store.reserveSend(key + ":browser", key + ":address")).isTrue();
-        assertThat(store.reserveSend(key + ":browser", key + ":address")).isFalse();
+        assertThat(reserveSend(key + ":browser", key + ":address")).isTrue();
+        assertThat(reserveSend(key + ":browser", key + ":address")).isFalse();
         store.save(key, "token", "correct");
-        assertThat(redis.getExpire("customer:signup-code:" + key)).isBetween(290L, 300L);
+        assertThat(redis.getExpire(prefix + key)).isBetween(290L, 300L);
         for (int i = 0; i < 5; i++) assertThat(store.consume(key, "token", "wrong")).isFalse();
         assertThat(store.consume(key, "token", "correct")).isFalse();
     }
@@ -136,7 +182,7 @@ class RedisSignupCodeStoreTest {
     @Test
     void expiredKeyCannotBeConsumed() {
         store.save(key, "token", "digest");
-        redis.expire("customer:signup-code:" + key, java.time.Duration.ZERO);
+        redis.expire(prefix + key, java.time.Duration.ZERO);
         assertThat(store.consume(key, "token", "digest")).isFalse();
     }
 }

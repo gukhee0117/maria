@@ -56,7 +56,7 @@ public enum ErrorType {
     CUSTOMER_SIGNUP_EMAIL_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     CUSTOMER_SIGNUP_CODE_RATE_LIMITED(
-            HttpStatus.TOO_MANY_REQUESTS, "인증번호는 60초마다 다시 받을 수 있습니다.", LogLevel.WARN),
+            HttpStatus.TOO_MANY_REQUESTS, "인증 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     CUSTOMER_SIGNUP_CODE_INVALID(
             HttpStatus.BAD_REQUEST, "인증번호가 올바르지 않거나 만료되었습니다. 5회 틀리면 새 번호를 받아 주세요.", LogLevel.WARN),
     // 회원가입 (이미 가입됨과 정보 불일치를 구분해 노출하지 않는다.)

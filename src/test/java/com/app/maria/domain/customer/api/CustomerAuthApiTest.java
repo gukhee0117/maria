@@ -175,9 +175,23 @@ class CustomerAuthApiTest {
     }
 
     @Test
+    void rejectedAnonymousSendDoesNotLeaveAnUnusedSession() throws Exception {
+        var result =
+                mockMvc.perform(
+                                post("/api/customer/auth/signup/email")
+                                        .with(csrf())
+                                        .contentType(APPLICATION_JSON)
+                                        .content("{\"email\":\"hong@example.com\"}"))
+                        .andExpect(status().isTooManyRequests())
+                        .andReturn();
+        assertThat(result.getRequest().getSession(false)).isNull();
+        org.mockito.Mockito.verifyNoInteractions(emailSender);
+    }
+
+    @Test
     void smtpRunsOutsideSessionLockAndRegistersOnlyAfterSending() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        when(codes.reserveSend(any(), any())).thenReturn(true);
+        when(codes.reserveSend(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.doAnswer(
                         invocation -> {
                             assertThat(Thread.holdsLock(session)).isFalse();
@@ -203,7 +217,7 @@ class CustomerAuthApiTest {
     @Test
     void sessionInvalidatedDuringSmtpCannotRegisterCodeAndCancelsOnlyThatCode() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        when(codes.reserveSend(any(), any())).thenReturn(true);
+        when(codes.reserveSend(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.doAnswer(
                         invocation -> {
                             session.invalidate();
@@ -225,7 +239,7 @@ class CustomerAuthApiTest {
     @Test
     void supersededSmtpCompletionCannotOverwriteNewerRequest() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        when(codes.reserveSend(any(), any())).thenReturn(true);
+        when(codes.reserveSend(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.doAnswer(
                         invocation -> {
                             session.setAttribute(
@@ -250,7 +264,7 @@ class CustomerAuthApiTest {
     @Test
     void smtpFailureClearsOnlyOwnSendingStateAndDoesNotRegisterCode() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        when(codes.reserveSend(any(), any())).thenReturn(true);
+        when(codes.reserveSend(any(), any(), any())).thenReturn(true);
         org.mockito.Mockito.doThrow(new AppException(ErrorType.CUSTOMER_SIGNUP_EMAIL_UNAVAILABLE))
                 .when(emailSender)
                 .send(any(), any());
@@ -281,7 +295,7 @@ class CustomerAuthApiTest {
 
     @Test
     void emailCodeMustBeConfirmedInSameBrowserBeforeSignup() throws Exception {
-        when(codes.reserveSend(any(), any())).thenReturn(true);
+        when(codes.reserveSend(any(), any(), any())).thenReturn(true);
         var result =
                 mockMvc.perform(
                                 post("/api/customer/auth/signup/email")
@@ -313,7 +327,8 @@ class CustomerAuthApiTest {
                                 .with(csrf())
                                 .contentType(APPLICATION_JSON)
                                 .content("{\"code\":\"123456\"}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verifiedUntil").value("2026-10-25T03:10:00Z"));
         when(customerAuthService.signup(any()))
                 .thenReturn(new CustomerPrincipal(7L, "hong1234", "홍길동"));
         mockMvc.perform(
