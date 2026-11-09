@@ -21,6 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RiskToolTest {
+    @org.junit.jupiter.api.BeforeEach
+    void classificationCompatibility() {
+        org.mockito.Mockito.lenient()
+                .doCallRealMethod()
+                .when(riskGradeService)
+                .findClassificationByTicker(org.mockito.ArgumentMatchers.any());
+    }
+
     @Mock private RiskGradeService riskGradeService;
     @InjectMocks private RiskTool tool;
 
@@ -43,6 +51,20 @@ class RiskToolTest {
     }
 
     @Test
+    void currentStockGradeIsExplainedWithoutExpiredMetrics() {
+        org.mockito.Mockito.doReturn(
+                        Optional.of(
+                                new com.app.maria.domain.risk.dto.RiskGradeClassificationDTO(
+                                        1L, "000660", "SK하이닉스", 2, "STOCK_RULE_CURRENT_STATUS")))
+                .when(riskGradeService)
+                .findClassificationByTicker("000660");
+        when(riskGradeService.findUsableByTicker("000660")).thenReturn(Optional.empty());
+        assertThat(tool.collect(question("위험등급")).get(0).text())
+                .contains("2등급", "유효한 가격 지표가 없어", "별도로 산정")
+                .doesNotContain("VaR은");
+    }
+
+    @Test
     @DisplayName("근거 한 문장: 등급 방향·VaR·변동성·기준 기간·자체 산정이 코드가 만든 글자로 들어간다")
     void sentence() {
         when(riskGradeService.findUsableByTicker("000660"))
@@ -55,7 +77,7 @@ class RiskToolTest {
         assertThat(evidence.get(0).text())
                 .isEqualTo(
                         "SK하이닉스의 위험등급은 2등급입니다(1등급 매우 높은 위험, 6등급 매우 낮은 위험). "
-                                + "3년 일간수익률 기준 97.5% VaR은 40.1%, 연 변동성은 22.2%이며 "
+                                + "관측 기간의 일간수익률 기준 97.5% VaR은 40.1%, 연 변동성은 22.2%이며 "
                                 + "기준 기간은 2023년 10월 27일부터 2026년 10월 27일까지입니다(자체 산정).");
         assertThat(evidence.get(0).url()).isNull();
     }

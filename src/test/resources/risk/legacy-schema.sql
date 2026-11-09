@@ -3,7 +3,9 @@ DROP TABLE IF EXISTS stock_risk_grade;
 DROP TABLE IF EXISTS domestic_product;
 CREATE TABLE domestic_product (
     domestic_product_id BIGINT NOT NULL PRIMARY KEY,
-    ticker VARCHAR(20) NOT NULL
+    ticker VARCHAR(20) NOT NULL,
+    name VARCHAR(100) NOT NULL DEFAULT '',
+    type VARCHAR(10) NOT NULL DEFAULT 'STOCK'
 ) ENGINE=InnoDB;
 CREATE TABLE stock_risk_grade (
     domestic_product_id BIGINT NOT NULL PRIMARY KEY,
@@ -32,4 +34,4 @@ CREATE TABLE risk_grade_sync_state (
     CONSTRAINT chk_test_rgss_retry CHECK(retry_count >= 0)
 ) ENGINE=InnoDB;
 INSERT INTO risk_grade_sync_state(state_id) VALUES (1);
-INSERT INTO domestic_product VALUES (1,'005930'),(2,'000660');
+INSERT INTO domestic_product (domestic_product_id,ticker) VALUES (1,'005930'),(2,'000660');

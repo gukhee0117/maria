@@ -3,7 +3,6 @@ package com.app.maria.domain.stockpackage.service;
 import com.app.maria.domain.domestic.service.DomesticPurchaseEligibilityService;
 import com.app.maria.domain.investorassessment.dto.response.InvestorAssessmentStatusResponseDTO;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
-import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.service.RiskGradeService;
 import com.app.maria.domain.stockpackage.dto.request.StockPackageSaveRequestDTO;
 import com.app.maria.domain.stockpackage.dto.request.StockPackageSaveRequestDTO.ItemRequest;
@@ -196,7 +195,7 @@ public class StockPackageServiceImpl implements StockPackageService {
         Map<Long, StockProductVO> products =
                 stockPackageMapper.selectProductsByIds(productIds).stream()
                         .collect(Collectors.toMap(StockProductVO::getDomesticProductId, p -> p));
-        Map<Long, Integer> grades = gradeByProduct();
+        Map<Long, Integer> grades = gradeByProduct(productIds);
 
         return requested.stream()
                 .map(item -> toItem(item, products, grades, range, confirmedBefore, keptIds, now))
@@ -251,7 +250,9 @@ public class StockPackageServiceImpl implements StockPackageService {
                                                 ErrorType.STOCK_PACKAGE_NOT_FOUND, stockPackageId));
         List<StockPackageItemVO> items = stockPackageMapper.selectItemsByPackageId(stockPackageId);
         if (!items.isEmpty()) {
-            Map<Long, Integer> grades = gradeByProduct();
+            Map<Long, Integer> grades =
+                    gradeByProduct(
+                            items.stream().map(StockPackageItemVO::getDomesticProductId).toList());
             for (StockPackageItemVO item : items) {
                 Integer grade = grades.get(item.getDomesticProductId());
                 item.setRiskGrade(grade);
@@ -274,12 +275,7 @@ public class StockPackageServiceImpl implements StockPackageService {
         return InvestorRiskRange.of(status.getInvestorType());
     }
 
-    private Map<Long, Integer> gradeByProduct() {
-        return riskGradeService.findUsable().stream()
-                .collect(
-                        Collectors.toMap(
-                                UsableRiskGradeDTO::domesticProductId,
-                                UsableRiskGradeDTO::riskGrade,
-                                (a, b) -> a));
+    private Map<Long, Integer> gradeByProduct(java.util.Collection<Long> productIds) {
+        return riskGradeService.findUsableGrades(productIds);
     }
 }

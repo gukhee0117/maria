@@ -1,21 +1,21 @@
 package com.app.maria.domain.community.kkiru;
 
+import com.app.maria.domain.risk.dto.RiskGradeClassificationDTO;
 import com.app.maria.domain.risk.dto.UsableRiskGradeDTO;
 import com.app.maria.domain.risk.service.RiskGradeService;
 import com.app.maria.domain.risk.type.RiskDataStatus;
+import com.app.maria.global.exception.AppException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-/**
- * 위험등급 도구(설계 4.4 ①). 팀의 Python risk가 계산해 둔 {@code stock_risk_grade}를 읽는다. 등급은 1이 매우 높은 위험, 6이 매우 낮은
- * 위험이다(숫자가 클수록 위험하다고 쓰면 틀린다). 자료가 없거나(해외·이력 3년 미만) 만료됐으면 빈 결과다.
- */
+/** 위험등급과 가격 기반 지표를 분리해 설명한다. 주식 등급은 현재 종목 상태로 확인하며, VaR·변동성은 유효한 가격 이력이 있을 때만 제공한다. */
 @Component
 @Order(60)
 @RequiredArgsConstructor
@@ -37,23 +37,36 @@ public class RiskTool implements EvidenceTool {
 
     @Override
     public List<Evidence> collect(KkiruQuestion question) {
-        return riskGradeService
-                .findUsableByTicker(question.ticker())
-                .map(
-                        grade ->
-                                List.of(
-                                        new Evidence(
-                                                "risk:" + grade.ticker(), sentence(grade), null)))
-                .orElse(List.of());
+        var classification = riskGradeService.findClassificationByTicker(question.ticker());
+        if (classification.isEmpty()) return List.of();
+        var current = classification.get();
+        Optional<UsableRiskGradeDTO> metrics;
+        try {
+            metrics = riskGradeService.findUsableByTicker(question.ticker());
+        } catch (AppException e) {
+            if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+            metrics = Optional.empty();
+        }
+        String text =
+                metrics.map(g -> sentence(g, current))
+                        .orElse(
+                                current.name()
+                                        + "의 위험등급은 "
+                                        + current.riskGrade()
+                                        + "등급입니다(1등급 매우 높은 위험, 6등급 매우 낮은 위험). 유효한 가격 지표가 없어 VaR와 변동성은 제공하지 않습니다.");
+        if ("STOCK_RULE_CURRENT_STATUS".equals(current.basis()))
+            text += " 주식 등급은 상품 분류와 현재 종목 상태 기준이며 VaR·변동성과 별도로 산정됩니다.";
+        return List.of(new Evidence("risk:" + current.ticker(), text, null));
     }
 
-    private static String sentence(UsableRiskGradeDTO grade) {
+    private static String sentence(
+            UsableRiskGradeDTO grade, RiskGradeClassificationDTO classification) {
         StringBuilder text =
                 new StringBuilder()
-                        .append(grade.name())
+                        .append(classification.name())
                         .append("의 위험등급은 ")
-                        .append(grade.riskGrade())
-                        .append("등급입니다(1등급 매우 높은 위험, 6등급 매우 낮은 위험). 3년 일간수익률 기준 97.5% VaR은 ")
+                        .append(classification.riskGrade())
+                        .append("등급입니다(1등급 매우 높은 위험, 6등급 매우 낮은 위험). 관측 기간의 일간수익률 기준 97.5% VaR은 ")
                         .append(percent(grade.var975()))
                         .append(", 연 변동성은 ")
                         .append(percent(grade.volatility()))

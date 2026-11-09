@@ -55,6 +55,11 @@ class StockPackageCheckServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .doCallRealMethod()
+                .when(riskGradeService)
+                .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
+        org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
         when(clock.now()).thenReturn(NOW);
         // 중립형(4등급까지). 1번 종목 5등급, 2번 종목 2등급(성향 밖)
         when(assessmentService.getMine(CUSTOMER_ID))
