@@ -12,6 +12,7 @@ CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_
 USE ria_admin;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS community_watchlist;
 DROP TABLE IF EXISTS community_report;
 DROP TABLE IF EXISTS community_comment_like;
 DROP TABLE IF EXISTS community_post_reaction;
@@ -700,6 +701,16 @@ CREATE TABLE news_source_monthly_usage (
     CONSTRAINT chk_nsmu_month CHECK (usage_month REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='뉴스 공급자 월간 API 요청 한도 추적';
 
+-- [NO-SEED] 고객이 관심종목을 추가할 때 생성.
+CREATE TABLE community_watchlist (
+    customer_id BIGINT NOT NULL,
+    ticker VARCHAR(20) NOT NULL COMMENT '국내·해외 종목 마스터 코드',
+    created_at DATETIME NOT NULL COMMENT 'SYSTEM_CLOCK 기준 등록시각',
+    PRIMARY KEY (customer_id, ticker),
+    KEY ix_cw_customer_created (customer_id, created_at, ticker),
+    CONSTRAINT fk_cw_customer FOREIGN KEY (customer_id) REFERENCES customer (customer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='고객별 커뮤니티 관심종목';
+
 CREATE TABLE community_post (
     community_post_id BIGINT       NOT NULL AUTO_INCREMENT,
     ticker            VARCHAR(20)  NULL     COMMENT '종목 토론이면 종목코드, 일반 글이면 NULL',
@@ -844,7 +855,7 @@ CREATE TABLE document_issue (
     document_issue_id BIGINT       NOT NULL AUTO_INCREMENT,
     account_id        BIGINT       NOT NULL,
     calc_id           BIGINT       NOT NULL COMMENT '근거 세액(tax_calculation)',
-    doc_type          VARCHAR(30)  NOT NULL COMMENT 'TAX_RELIEF_CERT',
+    doc_type          VARCHAR(30)  NOT NULL COMMENT 'TAX_RELIEF_CERT/NET_PURCHASE_STATEMENT',
     issue_no          VARCHAR(30)  NOT NULL COMMENT '발급번호',
     status            VARCHAR(10)  NOT NULL COMMENT 'ISSUED/REVOKED',
     file_content      MEDIUMBLOB   NOT NULL COMMENT '발급한 PDF 파일',
@@ -856,7 +867,7 @@ CREATE TABLE document_issue (
     recorded_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실제 시각',
     PRIMARY KEY (document_issue_id),
     UNIQUE KEY uk_document_issue_no (issue_no),
-    CONSTRAINT chk_di_type   CHECK (doc_type IN ('TAX_RELIEF_CERT')),
+    CONSTRAINT chk_di_type   CHECK (doc_type IN ('TAX_RELIEF_CERT','NET_PURCHASE_STATEMENT')),
     CONSTRAINT chk_di_by     CHECK (issued_by_type IN ('CUSTOMER','ADMIN')),
     CONSTRAINT chk_di_status CHECK ((status = 'ISSUED' AND revoked_at IS NULL) OR (status = 'REVOKED' AND revoked_at IS NOT NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='증빙서류 발급 기록';

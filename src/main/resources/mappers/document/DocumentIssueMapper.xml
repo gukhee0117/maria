@@ -26,10 +26,10 @@
         order by issued_at desc, document_issue_id desc
     </select>
 
-    <select id="selectIssuedByAccountId" resultType="DocumentIssueDTO">
+    <select id="selectIssuedByAccountIdAndType" resultType="DocumentIssueDTO">
         select <include refid="summaryColumns"/>
         from document_issue
-        where account_id = #{accountId} and status = 'ISSUED'
+        where account_id = #{accountId} and doc_type = #{docType} and status = 'ISSUED'
         order by document_issue_id desc
         limit 1
     </select>
