@@ -22,5 +22,6 @@
 
     <mappers>
         <mapper resource="mappers/community/CommunityTickerMapper.xml"/>
+        <mapper resource="mappers/community/CommunityWatchlistMapper.xml"/>
     </mappers>
 </configuration>
