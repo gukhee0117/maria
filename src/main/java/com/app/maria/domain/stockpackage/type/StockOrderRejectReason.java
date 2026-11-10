@@ -12,7 +12,8 @@ public enum StockOrderRejectReason {
     INSUFFICIENT_CASH("주문할 수 있는 예수금이 부족해요."),
     INSUFFICIENT_QTY("팔 수 있는 보유 수량이 부족해요."),
     PRICE_UNAVAILABLE("현재가를 받지 못했어요."),
-    TRADE_RESTRICTED("거래가 제한되거나 정지된 종목이에요.");
+    TRADE_RESTRICTED("거래가 제한되거나 정지된 종목이에요."),
+    WEIGHT_LIMIT_EXCEEDED("패키지에서 정한 목표 비중을 넘는 주문이에요.");
 
     private final String message;
 
