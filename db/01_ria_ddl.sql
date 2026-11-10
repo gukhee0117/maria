@@ -12,6 +12,7 @@ CREATE DATABASE IF NOT EXISTS ria_admin DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_
 USE ria_admin;
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS community_watchlist;
 DROP TABLE IF EXISTS community_report;
 DROP TABLE IF EXISTS community_comment_like;
 DROP TABLE IF EXISTS community_post_reaction;
@@ -699,6 +700,16 @@ CREATE TABLE news_source_monthly_usage (
     PRIMARY KEY (usage_month),
     CONSTRAINT chk_nsmu_month CHECK (usage_month REGEXP '^[0-9]{4}-(0[1-9]|1[0-2])$')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='뉴스 공급자 월간 API 요청 한도 추적';
+
+-- [NO-SEED] 고객이 관심종목을 추가할 때 생성.
+CREATE TABLE community_watchlist (
+    customer_id BIGINT NOT NULL,
+    ticker VARCHAR(20) NOT NULL COMMENT '국내·해외 종목 마스터 코드',
+    created_at DATETIME NOT NULL COMMENT 'SYSTEM_CLOCK 기준 등록시각',
+    PRIMARY KEY (customer_id, ticker),
+    KEY ix_cw_customer_created (customer_id, created_at, ticker),
+    CONSTRAINT fk_cw_customer FOREIGN KEY (customer_id) REFERENCES customer (customer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='고객별 커뮤니티 관심종목';
 
 CREATE TABLE community_post (
     community_post_id BIGINT       NOT NULL AUTO_INCREMENT,
