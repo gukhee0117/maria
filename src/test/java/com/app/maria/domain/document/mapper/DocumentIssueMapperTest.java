@@ -89,11 +89,16 @@ class DocumentIssueMapperTest {
     }
 
     private DocumentIssueDTO issue(Long accountId, String issueNo, LocalDateTime issuedAt) {
+        return issue(accountId, DocumentType.TAX_RELIEF_CERT, issueNo, issuedAt);
+    }
+
+    private DocumentIssueDTO issue(
+            Long accountId, DocumentType docType, String issueNo, LocalDateTime issuedAt) {
         DocumentIssueDTO dto =
                 DocumentIssueDTO.builder()
                         .accountId(accountId)
                         .calcId(100L)
-                        .docType(DocumentType.TAX_RELIEF_CERT)
+                        .docType(docType)
                         .issueNo(issueNo)
                         .status(DocumentStatus.ISSUED)
                         .fileContent(PDF)
@@ -126,7 +131,11 @@ class DocumentIssueMapperTest {
         issue(ACCOUNT_ID, "RIA-2027-AAAAAAAA", NOW);
 
         assertThat(mapper.selectByAccountId(ACCOUNT_ID)).allMatch(d -> d.getFileContent() == null);
-        assertThat(mapper.selectIssuedByAccountId(ACCOUNT_ID).orElseThrow().getFileContent())
+        assertThat(
+                        mapper.selectIssuedByAccountIdAndType(
+                                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT)
+                                .orElseThrow()
+                                .getFileContent())
                 .isNull();
     }
 
@@ -157,8 +166,12 @@ class DocumentIssueMapperTest {
         DocumentIssueDTO revoked = mapper.selectByAccountId(ACCOUNT_ID).get(0);
         assertThat(revoked.getStatus()).isEqualTo(DocumentStatus.REVOKED);
         assertThat(revoked.getRevokedAt()).isEqualTo(revokedAt);
-        assertThat(mapper.selectIssuedByAccountId(ACCOUNT_ID)).isEmpty();
-        assertThat(mapper.selectIssuedByAccountId(OTHER_ACCOUNT_ID)).isPresent();
+        assertThat(mapper.selectIssuedByAccountIdAndType(ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .isEmpty();
+        assertThat(
+                        mapper.selectIssuedByAccountIdAndType(
+                                OTHER_ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .isPresent();
         assertThat(mapper.revokeIssuedByAccountId(ACCOUNT_ID, revokedAt)).isZero();
     }
 
@@ -185,5 +198,25 @@ class DocumentIssueMapperTest {
     void selectHolderName() {
         assertThat(mapper.selectHolderName(ACCOUNT_ID)).contains("홍길동");
         assertThat(mapper.selectHolderName(999L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("발급본 조회는 종류별로 따로 찾고, 취소는 두 종류를 모두 바꾼다")
+    void selectIssuedByAccountIdAndType_separatesTypes() {
+        issue(ACCOUNT_ID, "RIA-2027-AAAAAAAA", NOW);
+        assertThat(
+                        mapper.selectIssuedByAccountIdAndType(
+                                ACCOUNT_ID, DocumentType.NET_PURCHASE_STATEMENT))
+                .isEmpty();
+
+        issue(ACCOUNT_ID, DocumentType.NET_PURCHASE_STATEMENT, "RIA-2027-BBBBBBBB", NOW);
+        assertThat(
+                        mapper.selectIssuedByAccountIdAndType(
+                                        ACCOUNT_ID, DocumentType.NET_PURCHASE_STATEMENT)
+                                .orElseThrow()
+                                .getIssueNo())
+                .isEqualTo("RIA-2027-BBBBBBBB");
+
+        assertThat(mapper.revokeIssuedByAccountId(ACCOUNT_ID, NOW.plusDays(1))).isEqualTo(2);
     }
 }
