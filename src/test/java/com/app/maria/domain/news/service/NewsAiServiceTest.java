@@ -89,6 +89,35 @@ class NewsAiServiceTest {
     }
 
     @Test
+    void generalArticleQuestionsAlsoRejectInventedNumbers() throws Exception {
+        ChatModel model = mock(ChatModel.class);
+        when(model.call(any(Prompt.class)))
+                .thenAnswer(
+                        invocation ->
+                                model.stream((Prompt) invocation.getArgument(0)).blockFirst());
+        when(model.stream(any(Prompt.class)))
+                .thenReturn(
+                        Flux.just(
+                                new ChatResponse(
+                                        List.of(
+                                                new Generation(
+                                                        new AssistantMessage(
+                                                                "{\"explanation\":\"\",\"points\":[\"매출이 999억원이에요.\"],\"quote\":null}"))))));
+        var service =
+                new NewsAiService(
+                        new NewsAiConfig().newsChatClient(model, new NewsProperties()),
+                        new ObjectMapper().findAndRegisterModules());
+        assertThatThrownBy(
+                        () ->
+                                service.question(
+                                        NewsSelectionServiceTest.article("a", 5, 5),
+                                        NewsSelectionServiceTest.context(InvestorType.STABLE),
+                                        new QuestionRequest("v1", "이 기사 내용이 뭐야?", List.of())))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("numbers absent");
+    }
+
+    @Test
     void numericQuestionsRejectValuesNotPresentInTheArticle() throws Exception {
         ChatModel model = mock(ChatModel.class);
         when(model.call(any(Prompt.class)))

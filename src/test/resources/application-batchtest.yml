@@ -25,3 +25,5 @@ spring:
 kkiru:
   docs:
     enabled: false
+custom.risk.current-stock-cache-ttl-seconds: 60
+custom.risk.current-stock-cache-max-tickers: 77

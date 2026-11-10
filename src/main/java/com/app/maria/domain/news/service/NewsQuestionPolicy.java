@@ -1,5 +1,7 @@
 package com.app.maria.domain.news.service;
 
+import com.app.maria.domain.news.dto.NewsAnswerContent;
+import com.app.maria.domain.news.dto.NewsArticle;
 import java.text.Normalizer;
 import java.util.Map;
 import java.util.Optional;
@@ -9,7 +11,7 @@ import java.util.regex.Pattern;
  * Only reviewed article-question intents reach the model; raw user instructions/history never do.
  */
 public final class NewsQuestionPolicy {
-    public static final String VERSION = "reviewed-news-question-policy-v3";
+    public static final String VERSION = "article-grounded-question-policy-v4";
     public static final String REFUSAL = "매수·매도 추천, 매매 시점·가격 등 투자 판단에 관한 조언은 제공하지 않습니다.";
     public static final String OFF_TOPIC =
             "저는 금융뉴스를 쉽고 똑똑하게 알려드리는 끼루예요!\n\n"
@@ -64,10 +66,56 @@ public final class NewsQuestionPolicy {
                             + "|매수|매도|손절|익절|목표가|적정가|매매시점|진입시점|청산시점|투자전문가|투자상담|투자조언|종목추천|투자추천"
                             + "|shouldibuy|shouldisell|shouldbuystock|shouldsellstock");
 
+    private static final Pattern BYPASS_PATTERN =
+            Pattern.compile("무시|지침|프롬프트|시스템명령|역할로|명령을|ignore|systemprompt|instructions");
+
+    private static final Pattern URL_PATTERN =
+            Pattern.compile("https?://|www\\.", Pattern.CASE_INSENSITIVE);
+
     private NewsQuestionPolicy() {}
 
     public static Optional<String> canonicalQuestion(String question) {
-        return Optional.ofNullable(ALLOWED.get(normalize(question)));
+        String normalized = normalize(question);
+        String reviewed = ALLOWED.get(normalized);
+        if (reviewed != null) return Optional.of(reviewed);
+        if (normalized.matches(
+                "(?:(?:이|해당)?(?:기사|뉴스)(?:에나온|의)?)?(?:숫자|수치)(?:를|좀|만|자세히|정확히)*(?:알려줘|알려줘요|알려주세요|알려줄래|알려달라|정리해줘|설명해줘|뭐야)"))
+            return Optional.of(NUMBERS);
+        return Optional.empty();
+    }
+
+    public static boolean isGeneralNumberQuestion(String canonicalQuestion) {
+        return NUMBERS.equals(canonicalQuestion);
+    }
+
+    public static boolean blocked(String question) {
+        if (question == null || question.isBlank() || question.length() > 500) return true;
+        String normalized = normalize(question);
+        return ADVICE_REQUEST.matcher(normalized).find()
+                || BYPASS_PATTERN.matcher(normalized).find()
+                || URL_PATTERN.matcher(question).find();
+    }
+
+    public static Optional<String> articleQuestion(String question, NewsArticle article) {
+        if (blocked(question)) return Optional.empty();
+        return articleQuestionAfterValidation(question, article);
+    }
+
+    // Only for callers in this package that already rejected blocked input before loading articles.
+    static Optional<String> articleQuestionAfterValidation(String question, NewsArticle article) {
+        var canonical = canonicalQuestion(question);
+        if (canonical.isPresent()) return canonical;
+        String normalized = normalize(question);
+        String source = normalize(article.title() + " " + article.body());
+        boolean topic =
+                NewsAnswerContent.questionKeywords(question).stream()
+                        .anyMatch(word -> source.contains(normalize(word)));
+        boolean reference =
+                normalized.matches(
+                                "(?:이|해당)?(?:기사|뉴스)(?:의|에서|에나온|내용|는|가|를|에대해)?.*(?:왜|뭐|무엇|어떤|어떻게|알려|설명|정리|요약|의미|이유|핵심|얼마).*")
+                        || normalized.matches(
+                                "(?:무슨내용이야|어떤내용이야|핵심이뭐야|왜그런거야|무슨뜻이야|이게뭐야|이게무슨말이야|무슨말이야)");
+        return topic || reference ? Optional.of(question.strip()) : Optional.empty();
     }
 
     public static boolean containsAdvice(String answer) {

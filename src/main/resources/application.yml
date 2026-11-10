@@ -106,6 +106,10 @@ custom:
     # 0 = until midnight KST; e.g. PT1H stops one hour after the actual close.
     cutoff-after-close: ${RISK_CUTOFF_AFTER_CLOSE:PT0S}
     tick-millis: ${RISK_TICK_MILLIS:30000}
+    # 현재 주식 위험등급 캐시. 시연 환경은 RISK_CURRENT_CACHE_TTL_SECONDS=21600,
+    # RISK_CURRENT_CACHE_MAX_TICKERS=500 권장(첫 호출 이후 응답이 0.5초대).
+    current-stock-cache-ttl-seconds: ${RISK_CURRENT_CACHE_TTL_SECONDS:60}
+    current-stock-cache-max-tickers: ${RISK_CURRENT_CACHE_MAX_TICKERS:77}
   opendart:
     url: https://opendart.fss.or.kr/api
     # 비어 있으면 OpenDART 도구가 꺼진다(오류가 아님). 키는 환경변수로만 받는다.

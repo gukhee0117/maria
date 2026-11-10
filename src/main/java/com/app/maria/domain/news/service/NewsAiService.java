@@ -132,8 +132,7 @@ public class NewsAiService {
             var content = NewsAnswerContent.decode(text, article);
             if (request == null && content.points().size() != 3)
                 throw new IllegalStateException("Summary must have three points");
-            if ((request == null || NewsAnswerContent.asksForNumbers(request.question()))
-                    && !content.numbersComeFrom(article))
+            if (!content.numbersComeFrom(article))
                 throw new IllegalStateException("Answer contains numbers absent from article");
             if (request == null
                     && NewsQuestionPolicy.containsAdvice(
