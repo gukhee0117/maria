@@ -19,6 +19,9 @@ public class NetPurchaseStatementView {
     private final String totalNetBuy;
     private final String totalWeightedNetBuy;
 
+    /** 가중 순매수 합이 음수(순매도)면 공제 조정에는 0으로 반영된다는 안내를 넣는다. */
+    private final boolean clampedToZero;
+
     private final List<Trade> trades;
 
     @Getter

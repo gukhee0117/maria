@@ -208,6 +208,31 @@ class DocumentPdfRendererTest {
     }
 
     @Test
+    @DisplayName("순매수 내역서: 가중 순매수가 음수면 0원으로 반영된다는 안내가 찍힌다")
+    void renderNetPurchaseStatement_negativeIsClampedNotice() throws Exception {
+        NetPurchaseStatementView v =
+                new NetPurchaseStatementViewAssembler()
+                        .assemble(
+                                2026,
+                                "RIA-2027-ABCD2345",
+                                LocalDateTime.of(2027, 4, 1, 10, 0),
+                                "홍길동",
+                                AccountDTO.builder().accountNo("1234567890").build(),
+                                TaxCalculationDTO.builder()
+                                        .weightedExternalAmount(BigDecimal.ZERO)
+                                        .build(),
+                                TaxBreakdownDTO.of(
+                                        List.of(externalPeriod(8, 12, "0.5000", "-10000000")),
+                                        List.of(),
+                                        List.of()));
+
+        assertThat(v.isClampedToZero()).isTrue();
+        try (PDDocument document = PDDocument.load(renderer.render(v))) {
+            assertThat(new PDFTextStripper().getText(document)).contains("0원으로 반영됩니다");
+        }
+    }
+
+    @Test
     @DisplayName("순매수 내역서: 거래가 없으면 없다는 문구가 찍힌다")
     void renderNetPurchaseStatement_noTrades() throws Exception {
         NetPurchaseStatementView v =

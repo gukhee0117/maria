@@ -25,6 +25,7 @@ public class NetPurchaseStatementViewAssembler {
             TaxBreakdownDTO breakdown) {
         List<NetPurchaseStatementView.Period> periods = new ArrayList<>();
         BigDecimal totalNetBuy = BigDecimal.ZERO;
+        BigDecimal weightedNetBuy = BigDecimal.ZERO;
         for (TaxPeriodBreakdownDTO p : breakdown.getPeriodBreakdown()) {
             periods.add(
                     new NetPurchaseStatementView.Period(
@@ -34,6 +35,8 @@ public class NetPurchaseStatementViewAssembler {
                             DocumentFormats.won(
                                     p.getExternalNetBuyAmount().multiply(p.getWeight()))));
             totalNetBuy = totalNetBuy.add(p.getExternalNetBuyAmount());
+            weightedNetBuy =
+                    weightedNetBuy.add(p.getExternalNetBuyAmount().multiply(p.getWeight()));
         }
 
         List<NetPurchaseStatementView.Trade> trades = new ArrayList<>();
@@ -54,6 +57,7 @@ public class NetPurchaseStatementViewAssembler {
                 .periods(periods)
                 .totalNetBuy(DocumentFormats.won(totalNetBuy))
                 .totalWeightedNetBuy(DocumentFormats.won(calc.getWeightedExternalAmount()))
+                .clampedToZero(weightedNetBuy.signum() < 0)
                 .trades(trades)
                 .build();
     }

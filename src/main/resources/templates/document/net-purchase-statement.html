@@ -65,6 +65,8 @@
   </table>
   <p class="note">단위: 원. 가중 순매수금액 합계가 공제 조정에 쓰인 RIA 외 계좌 순매수금액입니다.</p>
 
+  <p class="note" th:if="${v.clampedToZero}">가중 순매수금액이 음수(순매도)이므로 공제 조정에는 0원으로 반영됩니다.</p>
+
   <h2>3. 건별 내역</h2>
   <table class="grid">
     <tr><th>거래일</th><th>상품</th><th class="n">순매수금액</th></tr>

@@ -742,7 +742,7 @@ $(function () {
 
     function loadDocuments(accountId) {
         var canDownload = canIssueDocument();
-        $("#issueDocument").prop("hidden", !canDownload);
+        $(".issue-document").prop("hidden", !canDownload);
         $("#detailDocuments").html(relatedMessageHtml("#detailDocuments", "불러오는 중..."));
         MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "GET" })
             .done(function (res) {
@@ -753,6 +753,7 @@ $(function () {
                         ? '<a class="adm-btn" href="/api/admin/documents/' + encodeURIComponent(item.documentIssueId) + '/download" target="_blank" rel="noopener">PDF</a>'
                         : "-";
                     return "<tr>" + noCell(index) +
+                        "<td>" + (item.docType === "NET_PURCHASE_STATEMENT" ? "순매수 내역서" : "과세특례 증빙서") + "</td>" +
                         "<td>" + escapeHtml(item.issueNo) + "</td>" +
                         '<td class="is-c">' + chipHtml(revoked ? "off" : "ok", revoked ? "취소됨" : "발급됨") + "</td>" +
                         "<td>" + (item.issuedByType === "ADMIN" ? "관리자" : "고객") + "</td>" +
@@ -771,11 +772,14 @@ $(function () {
     function issueDocument() {
         var accountId = selectedAccountId;
         if (!accountId || !canIssueDocument()) return;
-        $("#issueDocument").prop("disabled", true);
-        MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "POST" })
+        $(".issue-document").prop("disabled", true);
+        MARIA.auth.ajax({
+            url: "/api/admin/documents/accounts/" + accountId + "?docType=" + encodeURIComponent($(this).data("docType")),
+            method: "POST"
+        })
             .done(function () { loadDocuments(accountId); })
             .fail(function (xhr) { handleRequestFailure(xhr, "확인서를 발급하지 못했습니다."); })
-            .always(function () { $("#issueDocument").prop("disabled", false); });
+            .always(function () { $(".issue-document").prop("disabled", false); });
     }
 
     function selectAccount(accountId) {
@@ -965,7 +969,7 @@ $(function () {
         currentPage = 1;
         renderAccounts();
     });
-    $(document).on("click", "#issueDocument", issueDocument);
+    $(document).on("click", ".issue-document", issueDocument);
     $(document).on("click", "#accountListRetry", function () { loadAccounts(); });
     $(document).on("click", ".account-reset-empty", function () { $("#accountFilterReset").trigger("click"); });
     $(document).on("click", "#accountPageSize button", function () {
