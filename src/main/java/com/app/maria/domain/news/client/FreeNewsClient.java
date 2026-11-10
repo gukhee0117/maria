@@ -2,10 +2,11 @@ package com.app.maria.domain.news.client;
 
 import com.app.maria.domain.news.config.NewsProperties;
 import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.Duration;
+import java.time.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,8 @@ public class FreeNewsClient {
     private final RestClient client;
     private final NewsProperties properties;
     private final NewsSourceUsageMapper usageMapper;
+    private BusinessClockService businessClock;
+    private Clock clock = Clock.systemUTC();
     private long nextRequestNanos;
     private java.time.YearMonth requestMonth;
     private int requestsThisMonth;
@@ -27,8 +30,42 @@ public class FreeNewsClient {
     }
 
     @Autowired
-    public FreeNewsClient(NewsProperties properties, NewsSourceUsageMapper usageMapper) {
+    public FreeNewsClient(
+            NewsProperties properties,
+            NewsSourceUsageMapper usageMapper,
+            BusinessClockService businessClock,
+            Clock clock) {
         this(properties, createClient(), usageMapper);
+        this.businessClock = businessClock;
+        this.clock = clock;
+    }
+
+    public record SearchWindow(Instant from, Instant to, String cacheKey) {}
+
+    public static SearchWindow window(LocalDate businessDate, Instant now) {
+        ZoneId zone = ZoneId.of("Asia/Seoul");
+        LocalDate today = now.atZone(zone).toLocalDate();
+        LocalDate effective = businessDate.isBefore(today) ? businessDate : today;
+        Instant end =
+                effective.isBefore(today)
+                        ? effective.plusDays(1).atStartOfDay(zone).toInstant()
+                        : now;
+        Instant start = effective.minusDays(6).atStartOfDay(zone).toInstant();
+        return new SearchWindow(
+                start, end, effective + (effective.isBefore(today) ? ":closed" : ":live"));
+    }
+
+    private SearchWindow searchWindow() {
+        Instant now = clock.instant();
+        LocalDate day =
+                businessClock == null
+                        ? now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate()
+                        : businessClock.now().toLocalDate();
+        return window(day, now);
+    }
+
+    public String cacheVersion() {
+        return searchWindow().cacheKey();
     }
 
     FreeNewsClient(NewsProperties properties, RestClient client) {
@@ -56,6 +93,7 @@ public class FreeNewsClient {
         if (properties.getFreeNewsApiKey().isBlank()
                 || properties.getFreeNewsApiKey().chars().anyMatch(ch -> ch <= 32 || ch >= 127))
             throw new AppException(ErrorType.NEWS_SOURCE_NOT_CONFIGURED);
+        SearchWindow window = searchWindow();
         try {
             pace();
             JsonNode response =
@@ -66,7 +104,8 @@ public class FreeNewsClient {
                                                     .queryParam("q", "{query}")
                                                     .queryParam("lang", "ko")
                                                     .queryParam("country", "KR")
-                                                    .queryParam("date", "7d")
+                                                    .queryParam("from", window.from().toString())
+                                                    .queryParam("to", window.to().toString())
                                                     .queryParam("size", 10)
                                                     .queryParam("sort", "relevance")
                                                     .queryParam("full_text", "true")

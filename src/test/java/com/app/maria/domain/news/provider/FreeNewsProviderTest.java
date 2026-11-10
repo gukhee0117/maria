@@ -42,6 +42,25 @@ class FreeNewsProviderTest {
     }
 
     @Test
+    void businessDateChangeDoesNotReuseCachedNews() {
+        when(client.cacheVersion()).thenReturn("2026-11-05:closed");
+        when(client.search(any())).thenReturn(mapper.createArrayNode());
+        var provider = new FreeNewsProvider(client);
+        try {
+            provider.articles(context);
+            assertThat(provider.cachedArticles(context)).isPresent();
+            String before = provider.contextVersion(context);
+            when(client.cacheVersion()).thenReturn("2026-11-06:closed");
+            assertThat(provider.cachedArticles(context)).isEmpty();
+            assertThat(provider.contextVersion(context)).isNotEqualTo(before);
+            provider.articles(context);
+            verify(client, times(2)).search("삼성전자");
+        } finally {
+            provider.close();
+        }
+    }
+
+    @Test
     void titleAndSourceChangesInvalidateVersionWithoutChangingBodyDeduplication() {
         var original = article("삼성전자 사업 확대", "https://example.com/news", body);
         var firstClient = mock(FreeNewsClient.class);

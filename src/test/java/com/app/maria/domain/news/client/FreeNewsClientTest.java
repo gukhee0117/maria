@@ -14,6 +14,25 @@ import org.springframework.web.client.RestClient;
 
 class FreeNewsClientTest {
     @Test
+    void windowUsesPastBusinessDayAndCapsTodayOrFutureAtRealTime() {
+        var now = java.time.Instant.parse("2026-11-10T03:00:00Z");
+        var past = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 5), now);
+        assertThat(past.from()).isEqualTo(java.time.Instant.parse("2026-10-29T15:00:00Z"));
+        assertThat(past.to()).isEqualTo(java.time.Instant.parse("2026-11-05T15:00:00Z"));
+        var today = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 10), now);
+        var future = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 18), now);
+        assertThat(today).isEqualTo(future);
+        assertThat(future.to()).isEqualTo(now);
+        assertThat(today.cacheKey()).isNotEqualTo(past.cacheKey());
+        var midnight =
+                FreeNewsClient.window(
+                        java.time.LocalDate.of(2026, 11, 18),
+                        java.time.Instant.parse("2026-11-10T15:00:00Z"));
+        assertThat(midnight.cacheKey()).startsWith("2026-11-11");
+        assertThat(midnight.cacheKey()).isNotEqualTo(today.cacheKey());
+    }
+
+    @Test
     void asksForKoreanBodiesAndDiscardsNonArticleMetadata() {
         var p = new NewsProperties();
         p.setFreeNewsApiKey("test-key");
@@ -21,6 +40,8 @@ class FreeNewsClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(org.hamcrest.Matchers.containsString("/v1/search?")))
                 .andExpect(queryParam("q", "%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90"))
+                .andExpect(queryParam("from", org.hamcrest.Matchers.endsWith("Z")))
+                .andExpect(queryParam("to", org.hamcrest.Matchers.endsWith("Z")))
                 .andExpect(queryParam("lang", "ko"))
                 .andExpect(queryParam("country", "KR"))
                 .andExpect(queryParam("full_text", "true"))

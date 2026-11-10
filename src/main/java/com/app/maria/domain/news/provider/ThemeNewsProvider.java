@@ -60,7 +60,8 @@ public class ThemeNewsProvider implements NewsProvider {
     }
 
     public String contextVersion(Context c) {
-        return NewsCacheIdentity.hash(themes.themes(c.tickers()).toString());
+        return NewsCacheIdentity.hash(
+                themes.themes(c.tickers()).toString() + ":" + source.contextVersion(c));
     }
 
     public List<NewsArticle> articles(Context c) {

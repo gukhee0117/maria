@@ -87,7 +87,7 @@ public class FreeNewsProvider implements NewsProvider {
                         .map(
                                 t ->
                                         Map.entry(
-                                                t + ":" + context.stockNames().get(t),
+                                                sourceKey(t, context.stockNames().get(t)),
                                                 prepare(t, context.stockNames().get(t))))
                         .toList();
         var lists = new ArrayList<List<NewsArticle>>();
@@ -144,12 +144,21 @@ public class FreeNewsProvider implements NewsProvider {
         for (var ticker : context.tickers().stream().sorted().toList()) {
             var name = context.stockNames().get(ticker);
             if (name == null || name.isBlank()) continue;
-            var entry = getCached(ticker + ":" + name);
+            var entry = getCached(sourceKey(ticker, name));
             if (entry == null || !entry.expiresAt().isAfter(clock.instant()))
                 return Optional.empty();
             lists.add(entry.articles());
         }
         return Optional.of(merge(lists));
+    }
+
+    private String sourceKey(String ticker, String name) {
+        return ticker + ":" + name + ":" + client.cacheVersion();
+    }
+
+    @Override
+    public String contextVersion(Context context) {
+        return String.valueOf(client.cacheVersion());
     }
 
     public void inventorySize(int size) {
@@ -196,7 +205,7 @@ public class FreeNewsProvider implements NewsProvider {
     }
 
     private List<NewsArticle> load(String ticker, String name) {
-        String key = ticker + ":" + name;
+        String key = sourceKey(ticker, name);
         var stored = getCached(key);
         if (stored != null && stored.expiresAt().isAfter(clock.instant())) return stored.articles();
         var result = fetch(ticker, name);
@@ -219,7 +228,7 @@ public class FreeNewsProvider implements NewsProvider {
     }
 
     private CompletableFuture<List<NewsArticle>> prepare(String ticker, String name) {
-        String key = ticker + ":" + name;
+        String key = sourceKey(ticker, name);
         var ready = getCached(key);
         if (ready != null && ready.expiresAt().isAfter(clock.instant()))
             return CompletableFuture.completedFuture(ready.articles());
