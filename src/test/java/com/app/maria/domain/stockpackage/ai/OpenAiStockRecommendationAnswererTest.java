@@ -21,7 +21,7 @@ class OpenAiStockRecommendationAnswererTest {
 
     private final ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
 
-    private final AiCallExecutor executor = new AiCallExecutor();
+    private final AiCallExecutor executor = new AiCallExecutor(10);
 
     @AfterEach
     void tearDown() {

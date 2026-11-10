@@ -10,6 +10,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,17 +19,12 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AiCallExecutor {
-    static final int MAX_THREADS = 10;
-
     private final AtomicInteger threadSeq = new AtomicInteger();
     private final ExecutorService executor;
 
+    /** 동시 호출 상한은 설정(app.stockpackage.ai-call-max-threads)으로 조정하고, 없으면 10이다. */
     @Autowired
-    public AiCallExecutor() {
-        this(MAX_THREADS);
-    }
-
-    AiCallExecutor(int maxThreads) {
+    public AiCallExecutor(@Value("${app.stockpackage.ai-call-max-threads:10}") int maxThreads) {
         this.executor =
                 new ThreadPoolExecutor(
                         0,

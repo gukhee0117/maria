@@ -111,6 +111,8 @@ public class OpenAiStockRecommendationAnswerer implements StockRecommendationAns
     private static int lastSentenceEnd(String text, int limit, boolean byPunctuation) {
         for (int i = limit - 1; i >= 0; i--) {
             char c = text.charAt(i);
+            // 한계: "맞다 보니"처럼 절을 잇는 "다" 뒤 공백도 문장 끝으로 판정한다.
+            // 600자 안에 마침표 등이 전혀 없을 때만 쓰는 차선책이라 허용한다.
             boolean ender =
                     byPunctuation
                             ? c == '.' || c == '!' || c == '?' || c == '\n'
