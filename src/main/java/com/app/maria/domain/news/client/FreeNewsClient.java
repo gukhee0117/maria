@@ -1,17 +1,12 @@
 package com.app.maria.domain.news.client;
 
 import com.app.maria.domain.news.config.NewsProperties;
+import com.app.maria.domain.news.dto.NewsSearchWindow;
 import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
-import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -21,64 +16,23 @@ import org.springframework.web.client.RestClientResponseException;
 /** Only the fixed provider host is contacted. Article URLs are never fetched or crawled. */
 @Component
 public class FreeNewsClient {
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final RestClient client;
     private final NewsProperties properties;
     private final NewsSourceUsageMapper usageMapper;
-    private final BusinessClockService businessClock;
-    private final Clock clock;
     private long nextRequestNanos;
     private java.time.YearMonth requestMonth;
     private int requestsThisMonth;
 
     @Autowired
-    public FreeNewsClient(
-            NewsProperties properties,
-            NewsSourceUsageMapper usageMapper,
-            BusinessClockService businessClock,
-            Clock clock) {
-        this(properties, createClient(), usageMapper, businessClock, clock);
-    }
-
-    public record SearchWindow(Instant from, Instant to, String cacheKey) {}
-
-    public static SearchWindow window(LocalDate businessDate, Instant now) {
-        LocalDate today = now.atZone(SEOUL).toLocalDate();
-        LocalDate effective = businessDate.isBefore(today) ? businessDate : today;
-        Instant end =
-                effective.isBefore(today)
-                        ? effective.plusDays(1).atStartOfDay(SEOUL).toInstant()
-                        : now;
-        Instant start = effective.minusDays(6).atStartOfDay(SEOUL).toInstant();
-        return new SearchWindow(
-                start, end, effective + (effective.isBefore(today) ? ":closed" : ":live"));
-    }
-
-    /**
-     * Capture once per collection/read. The live suffix partitions dates, not freshness: current
-     * and historical dates both retain the provider TTL and API request budget.
-     */
-    public SearchWindow searchWindow() {
-        Instant now = clock.instant();
-        LocalDate day = businessClock.now().toLocalDate();
-        return window(day, now);
-    }
-
-    public String cacheVersion() {
-        return searchWindow().cacheKey();
+    public FreeNewsClient(NewsProperties properties, NewsSourceUsageMapper usageMapper) {
+        this(properties, createClient(), usageMapper);
     }
 
     FreeNewsClient(
-            NewsProperties properties,
-            RestClient client,
-            NewsSourceUsageMapper usageMapper,
-            BusinessClockService businessClock,
-            Clock clock) {
+            NewsProperties properties, RestClient client, NewsSourceUsageMapper usageMapper) {
         this.properties = properties;
         this.client = client;
         this.usageMapper = usageMapper;
-        this.businessClock = Objects.requireNonNull(businessClock);
-        this.clock = Objects.requireNonNull(clock);
     }
 
     private static RestClient createClient() {
@@ -91,11 +45,7 @@ public class FreeNewsClient {
                 .build();
     }
 
-    public JsonNode search(String stockName) {
-        return search(stockName, searchWindow());
-    }
-
-    public JsonNode search(String stockName, SearchWindow window) {
+    public JsonNode search(String stockName, NewsSearchWindow window) {
         if (properties.getFreeNewsApiKey().isBlank()
                 || properties.getFreeNewsApiKey().chars().anyMatch(ch -> ch <= 32 || ch >= 127))
             throw new AppException(ErrorType.NEWS_SOURCE_NOT_CONFIGURED);

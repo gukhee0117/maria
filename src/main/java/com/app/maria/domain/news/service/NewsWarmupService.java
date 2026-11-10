@@ -123,7 +123,8 @@ public class NewsWarmupService {
             var key = "source:" + ticker;
             if (retryAfter.getOrDefault(key, Instant.MIN).isAfter(Instant.now())) continue;
             try {
-                if (provider.cachedArticles(c).isEmpty()) provider.articles(c);
+                var query = provider.snapshot(c);
+                if (query.cachedArticles().get().isEmpty()) query.articles().get();
                 retryAfter.remove(key);
             } catch (RuntimeException e) {
                 failures++;

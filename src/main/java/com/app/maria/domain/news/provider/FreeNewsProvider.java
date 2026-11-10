@@ -1,9 +1,10 @@
 package com.app.maria.domain.news.provider;
 
 import com.app.maria.domain.news.client.FreeNewsClient;
-import com.app.maria.domain.news.client.FreeNewsClient.SearchWindow;
 import com.app.maria.domain.news.dto.NewsArticle;
 import com.app.maria.domain.news.dto.NewsContract.Context;
+import com.app.maria.domain.news.dto.NewsSearchWindow;
+import com.app.maria.global.clock.service.BusinessClockService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.annotation.PreDestroy;
 import java.net.URI;
@@ -31,6 +32,7 @@ public class FreeNewsProvider implements NewsProvider {
 
     private final FreeNewsClient client;
     private final Clock clock;
+    private final NewsSearchWindowResolver windows;
     private final com.app.maria.domain.news.config.NewsProperties properties;
     private volatile int inventorySize = 1;
     private final Map<String, Cached> cache = new LinkedHashMap<>(16, 0.75f, true);
@@ -45,27 +47,35 @@ public class FreeNewsProvider implements NewsProvider {
                         return thread;
                     });
 
-    public FreeNewsProvider(FreeNewsClient client) {
-        this(client, new com.app.maria.domain.news.config.NewsProperties());
-    }
-
     @Autowired
     public FreeNewsProvider(
-            FreeNewsClient client, com.app.maria.domain.news.config.NewsProperties properties) {
-        this(client, Clock.systemUTC(), properties);
-    }
-
-    FreeNewsProvider(FreeNewsClient client, Clock clock) {
-        this(client, clock, new com.app.maria.domain.news.config.NewsProperties());
+            FreeNewsClient client,
+            com.app.maria.domain.news.config.NewsProperties properties,
+            BusinessClockService businessClock,
+            Clock clock) {
+        this(client, clock, properties, new NewsSearchWindowResolver(businessClock, clock));
     }
 
     FreeNewsProvider(
             FreeNewsClient client,
             Clock clock,
-            com.app.maria.domain.news.config.NewsProperties properties) {
+            com.app.maria.domain.news.config.NewsProperties properties,
+            NewsSearchWindowResolver windows) {
         this.client = client;
         this.clock = clock;
         this.properties = properties;
+        this.windows = windows;
+    }
+
+    @Override
+    public Snapshot snapshot(Context context) {
+        if (context.tickers().isEmpty())
+            return new Snapshot(id(), List::of, () -> Optional.of(List.of()));
+        var window = windows.capture();
+        return new Snapshot(
+                window.cacheKey(),
+                () -> articles(context, window),
+                () -> cachedArticles(context, window));
     }
 
     public String id() {
@@ -79,7 +89,10 @@ public class FreeNewsProvider implements NewsProvider {
     @Override
     public List<NewsArticle> articles(Context context) {
         if (context.tickers().isEmpty()) return List.of();
-        SearchWindow window = client.searchWindow();
+        return snapshot(context).articles().get();
+    }
+
+    private List<NewsArticle> articles(Context context, NewsSearchWindow window) {
         var pending =
                 context.tickers().stream()
                         .sorted()
@@ -144,7 +157,10 @@ public class FreeNewsProvider implements NewsProvider {
     @Override
     public Optional<List<NewsArticle>> cachedArticles(Context context) {
         if (context.tickers().isEmpty()) return Optional.of(List.of());
-        SearchWindow window = client.searchWindow();
+        return snapshot(context).cachedArticles().get();
+    }
+
+    private Optional<List<NewsArticle>> cachedArticles(Context context, NewsSearchWindow window) {
         var lists = new ArrayList<List<NewsArticle>>();
         for (var ticker : context.tickers().stream().sorted().toList()) {
             var name = context.stockNames().get(ticker);
@@ -157,13 +173,8 @@ public class FreeNewsProvider implements NewsProvider {
         return Optional.of(merge(lists));
     }
 
-    private String sourceKey(String ticker, String name, SearchWindow window) {
+    private String sourceKey(String ticker, String name, NewsSearchWindow window) {
         return ticker + ":" + name + ":" + window.cacheKey();
-    }
-
-    @Override
-    public String contextVersion(Context context) {
-        return client.cacheVersion();
     }
 
     public void inventorySize(int size) {
@@ -209,7 +220,7 @@ public class FreeNewsProvider implements NewsProvider {
         return List.copyOf(unique.values());
     }
 
-    private List<NewsArticle> load(String ticker, String name, SearchWindow window) {
+    private List<NewsArticle> load(String ticker, String name, NewsSearchWindow window) {
         String key = sourceKey(ticker, name, window);
         var stored = getCached(key);
         if (stored != null && stored.expiresAt().isAfter(clock.instant())) return stored.articles();
@@ -233,7 +244,7 @@ public class FreeNewsProvider implements NewsProvider {
     }
 
     private CompletableFuture<List<NewsArticle>> prepare(
-            String ticker, String name, SearchWindow window) {
+            String ticker, String name, NewsSearchWindow window) {
         String key = sourceKey(ticker, name, window);
         var ready = getCached(key);
         if (ready != null && ready.expiresAt().isAfter(clock.instant()))
@@ -248,7 +259,7 @@ public class FreeNewsProvider implements NewsProvider {
         return task;
     }
 
-    private Cached fetch(String ticker, String name, SearchWindow window) {
+    private Cached fetch(String ticker, String name, NewsSearchWindow window) {
         List<NewsArticle> result = new ArrayList<>();
         Set<String> urls = new HashSet<>();
         Set<String> bodies = new HashSet<>();

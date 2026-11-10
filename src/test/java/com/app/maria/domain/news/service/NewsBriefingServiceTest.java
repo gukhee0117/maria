@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class NewsBriefingServiceTest {
     NewsCustomerContextService contexts = mock(NewsCustomerContextService.class);
-    NewsProvider provider = mock(NewsProvider.class);
+    NewsProvider provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
     NewsAiService ai = mock(NewsAiService.class);
     NewsProperties properties = new NewsProperties();
     NewsBriefingService service =
@@ -29,7 +29,7 @@ class NewsBriefingServiceTest {
                     () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
 
     NewsBriefingServiceTest() {
-        when(provider.articles(any(Context.class))).thenAnswer(invocation -> provider.articles());
+        doAnswer(invocation -> provider.articles()).when(provider).articles(any(Context.class));
         when(contexts.load(1L)).thenReturn(NewsSelectionServiceTest.context(InvestorType.STABLE));
         when(provider.id()).thenReturn("demo");
         when(provider.articles()).thenReturn(List.of(NewsSelectionServiceTest.article("a", 5, 5)));

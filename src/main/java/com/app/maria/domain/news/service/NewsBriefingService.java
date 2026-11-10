@@ -46,7 +46,8 @@ public class NewsBriefingService implements NewsBriefingOperations {
 
     public Briefing briefing(Long customerId) {
         var c = contexts.load(customerId);
-        var selected = selected(c);
+        var snapshot = provider.snapshot(c);
+        var selected = selected(c, snapshot);
         Answer first = null;
         if (!selected.isEmpty()) {
             var a = selected.get(0).article();
@@ -69,8 +70,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
                 c.personalizationStatus(),
                 NewsSelectionService.RULE_VERSION,
                 selected,
-                NewsCacheIdentity.hash(
-                        NewsCacheIdentity.context(c) + ":" + provider.contextVersion(c)),
+                NewsCacheIdentity.hash(NewsCacheIdentity.context(c) + ":" + snapshot.version()),
                 NewsCacheIdentity.summaryVersion(
                         provider.id() + ":" + ai.summaryPromptVersion(), properties.getModel()),
                 first,
@@ -337,12 +337,16 @@ public class NewsBriefingService implements NewsBriefingOperations {
     }
 
     private List<Selected> selected(Context context) {
+        return selected(context, provider.snapshot(context));
+    }
+
+    private List<Selected> selected(Context context, NewsProvider.Snapshot snapshot) {
         String key =
                 context.customerId()
                         + ":"
                         + NewsCacheIdentity.context(context)
                         + ":"
-                        + provider.contextVersion(context)
+                        + snapshot.version()
                         + ":"
                         + NewsSelectionService.RULE_VERSION;
         long now = System.nanoTime();
@@ -352,7 +356,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
             if (cached != null) articleSessions.remove(key);
         }
 
-        var result = selection.select(context, provider.articles(context));
+        var result = selection.select(context, snapshot.articles().get());
         synchronized (articleSessions) {
             long insertedAt = System.nanoTime();
             articleSessions.put(

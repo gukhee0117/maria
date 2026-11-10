@@ -13,37 +13,11 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class FreeNewsClientTest {
-    @Test
-    void missingBusinessClockFailsAtConstruction() {
-        assertThatNullPointerException()
-                .isThrownBy(
-                        () ->
-                                new FreeNewsClient(
-                                        new NewsProperties(),
-                                        RestClient.create(),
-                                        null,
-                                        null,
-                                        java.time.Clock.systemUTC()));
-    }
-
-    @Test
-    void windowUsesPastBusinessDayAndCapsTodayOrFutureAtRealTime() {
-        var now = java.time.Instant.parse("2026-11-10T03:00:00Z");
-        var past = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 5), now);
-        assertThat(past.from()).isEqualTo(java.time.Instant.parse("2026-10-29T15:00:00Z"));
-        assertThat(past.to()).isEqualTo(java.time.Instant.parse("2026-11-05T15:00:00Z"));
-        var today = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 10), now);
-        var future = FreeNewsClient.window(java.time.LocalDate.of(2026, 11, 18), now);
-        assertThat(today).isEqualTo(future);
-        assertThat(future.to()).isEqualTo(now);
-        assertThat(today.cacheKey()).isNotEqualTo(past.cacheKey());
-        var midnight =
-                FreeNewsClient.window(
-                        java.time.LocalDate.of(2026, 11, 18),
-                        java.time.Instant.parse("2026-11-10T15:00:00Z"));
-        assertThat(midnight.cacheKey()).startsWith("2026-11-11");
-        assertThat(midnight.cacheKey()).isNotEqualTo(today.cacheKey());
-    }
+    private final com.app.maria.domain.news.dto.NewsSearchWindow window =
+            new com.app.maria.domain.news.dto.NewsSearchWindow(
+                    java.time.Instant.parse("2026-10-29T15:00:00Z"),
+                    java.time.Instant.parse("2026-11-05T15:00:00Z"),
+                    "2026-11-05:closed");
 
     @Test
     void asksForKoreanBodiesAndDiscardsNonArticleMetadata() {
@@ -63,14 +37,7 @@ class FreeNewsClientTest {
                         withSuccess(
                                 "{\"results\":[{\"title\":\"test\"}],\"strongly_recommended\":{\"ignore\":\"external tools\"}}",
                                 MediaType.APPLICATION_JSON));
-        var result =
-                new FreeNewsClient(
-                                p,
-                                builder.build(),
-                                null,
-                                () -> java.time.LocalDateTime.of(2026, 11, 5, 0, 0),
-                                java.time.Clock.systemUTC())
-                        .search("삼성전자");
+        var result = new FreeNewsClient(p, builder.build(), null).search("삼성전자", window);
         assertThat(result.isArray()).isTrue();
         assertThat(result.size()).isEqualTo(1);
         assertThat(result.toString()).doesNotContain("strongly_recommended", "external tools");
@@ -84,14 +51,7 @@ class FreeNewsClientTest {
         var builder = RestClient.builder().baseUrl("https://freenewsapi.ai");
         var server = MockRestServiceServer.bindTo(builder).build();
         assertThatThrownBy(
-                        () ->
-                                new FreeNewsClient(
-                                                p,
-                                                builder.build(),
-                                                null,
-                                                () -> java.time.LocalDateTime.of(2026, 11, 5, 0, 0),
-                                                java.time.Clock.systemUTC())
-                                        .search("삼성전자"))
+                        () -> new FreeNewsClient(p, builder.build(), null).search("삼성전자", window))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -109,14 +69,7 @@ class FreeNewsClientTest {
         server.expect(anything())
                 .andRespond(withStatus(org.springframework.http.HttpStatus.UNAUTHORIZED));
         assertThatThrownBy(
-                        () ->
-                                new FreeNewsClient(
-                                                p,
-                                                builder.build(),
-                                                null,
-                                                () -> java.time.LocalDateTime.of(2026, 11, 5, 0, 0),
-                                                java.time.Clock.systemUTC())
-                                        .search("삼성전자"))
+                        () -> new FreeNewsClient(p, builder.build(), null).search("삼성전자", window))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -128,13 +81,7 @@ class FreeNewsClientTest {
     @Test
     void keyAbsenceAndRateLimitAreExplicitFailures() {
         assertThatThrownBy(
-                        () ->
-                                new FreeNewsClient(
-                                                new NewsProperties(),
-                                                null,
-                                                () -> java.time.LocalDateTime.of(2026, 11, 5, 0, 0),
-                                                java.time.Clock.systemUTC())
-                                        .search("test"))
+                        () -> new FreeNewsClient(new NewsProperties(), null).search("test", window))
                 .isInstanceOf(AppException.class);
         var p = new NewsProperties();
         p.setFreeNewsApiKey("test");
@@ -143,14 +90,7 @@ class FreeNewsClientTest {
         server.expect(anything())
                 .andRespond(withStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS));
         assertThatThrownBy(
-                        () ->
-                                new FreeNewsClient(
-                                                p,
-                                                builder.build(),
-                                                null,
-                                                () -> java.time.LocalDateTime.of(2026, 11, 5, 0, 0),
-                                                java.time.Clock.systemUTC())
-                                        .search("test"))
+                        () -> new FreeNewsClient(p, builder.build(), null).search("test", window))
                 .isInstanceOf(AppException.class);
     }
 }

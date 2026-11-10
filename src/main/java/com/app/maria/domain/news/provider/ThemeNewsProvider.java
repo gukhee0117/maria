@@ -59,11 +59,6 @@ public class ThemeNewsProvider implements NewsProvider {
         source.inventorySize(queries(c).tickers().size());
     }
 
-    public String contextVersion(Context c) {
-        return NewsCacheIdentity.hash(
-                themes.themes(c.tickers()).toString() + ":" + source.contextVersion(c));
-    }
-
     public List<NewsArticle> articles(Context c) {
         var q = queries(c);
         if (q.tickers().isEmpty()) return List.of();
@@ -74,6 +69,21 @@ public class ThemeNewsProvider implements NewsProvider {
         var q = queries(c);
         if (q.tickers().isEmpty()) return Optional.of(List.of());
         return source.cachedArticles(q).map(rows -> project(rows, c));
+    }
+
+    @Override
+    public Snapshot snapshot(Context c) {
+        var q = queries(c);
+        if (q.tickers().isEmpty())
+            return new Snapshot(id(), List::of, () -> Optional.of(List.of()));
+        var sourceSnapshot = source.snapshot(q);
+        String version =
+                NewsCacheIdentity.hash(
+                        themes.themes(c.tickers()).toString() + ":" + sourceSnapshot.version());
+        return new Snapshot(
+                version,
+                () -> project(sourceSnapshot.articles().get(), c),
+                () -> sourceSnapshot.cachedArticles().get().map(rows -> project(rows, c)));
     }
 
     private boolean isThemeStockMarketArticle(NewsArticle article, Map<String, String> allThemes) {

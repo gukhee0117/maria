@@ -15,7 +15,7 @@ class NewsWarmupServiceTest {
     @Test
     void allDynamicGroupsShareFirstTargetsAndPlanningNeverFetchesPerCustomer() {
         var inventory = mock(NewsInventoryService.class);
-        var provider = mock(NewsProvider.class);
+        var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
         var service = mock(NewsBriefingService.class);
         var properties = new NewsProperties();
         var ready = new HashSet<String>();
@@ -61,7 +61,7 @@ class NewsWarmupServiceTest {
     @Test
     void failedKeysBackOffAndDoNotPreventOtherProfilesOrRealtimeFallback() {
         var inventory = mock(NewsInventoryService.class);
-        var provider = mock(NewsProvider.class);
+        var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
         var service = mock(NewsBriefingService.class);
         var properties = new NewsProperties();
         when(inventory.load())
