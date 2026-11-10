@@ -275,12 +275,13 @@ public class StockOrderServiceImpl implements StockOrderService {
                 if (weightRoom != null) {
                     BigDecimal executedCost =
                             StockOrderCalculator.cost(order.getQty(), order.getPrice());
-                    weightRoom.merge(
+                    // 패키지에 없는 종목(제거 후 매도)은 한도 맵에 새로 만들지 않는다
+                    weightRoom.computeIfPresent(
                             order.getDomesticProductId(),
-                            order.getSide() == DomesticOrderSide.BUY
-                                    ? executedCost.negate()
-                                    : executedCost,
-                            BigDecimal::add);
+                            (id, left) ->
+                                    order.getSide() == DomesticOrderSide.BUY
+                                            ? left.subtract(executedCost)
+                                            : left.add(executedCost));
                 }
                 if (CHANNEL_CUSTOMER.equals(channel)) {
                     toRecord.add(order);
@@ -373,6 +374,8 @@ public class StockOrderServiceImpl implements StockOrderService {
                                         weightRoom.getOrDefault(
                                                 product.getDomesticProductId(), BigDecimal.ZERO))
                                 > 0) {
+                    // 비중 한도는 체결금액(cost)만 본다. 이미 담은 금액도 수수료를 뺀 cost로 차감하므로 한도 계산은 일관된다.
+                    // 한도 직전까지 담아 수수료 낼 현금이 모자라면 아래 예수금 검사에서 INSUFFICIENT_CASH가 된다(의도한 순서)
                     reason = StockOrderRejectReason.WEIGHT_LIMIT_EXCEEDED;
                 } else if (cost.add(fee).compareTo(buyingPower) > 0) {
                     reason = StockOrderRejectReason.INSUFFICIENT_CASH;
@@ -424,12 +427,15 @@ public class StockOrderServiceImpl implements StockOrderService {
 
     /**
      * 패키지 종목별로 더 살 수 있는 금액. 패키지 총액 x 목표 비중(%)에서 이 패키지로 이미 산 금액(매수 - 매도, 수량 x 체결가)을 뺀다. 패키지 총액이 없으면
-     * 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음).
+     * 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음). 패키지가 없으면(주문 도중 삭제 등) 한도 없이 체결하지 않고
+     * STOCK_PACKAGE_NOT_FOUND로 막는다.
      */
     private Map<Long, BigDecimal> weightRoomByProduct(Long customerId, Long stockPackageId) {
         StockPackageVO pkg =
-                stockPackageMapper.selectByIdAndCustomerId(stockPackageId, customerId).orElse(null);
-        if (pkg == null || pkg.getTotalAmount() == null) {
+                stockPackageMapper
+                        .selectByIdAndCustomerId(stockPackageId, customerId)
+                        .orElseThrow(() -> new AppException(ErrorType.STOCK_PACKAGE_NOT_FOUND));
+        if (pkg.getTotalAmount() == null) {
             return null;
         }
         Map<Long, BigDecimal> room = new HashMap<>();

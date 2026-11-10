@@ -139,7 +139,9 @@ class StockOrderServiceImplTest {
                                 rule(TaxRuleType.COMMISSION_RIA_YEARS, "1.0000"),
                                 rule(TaxRuleType.SEC_TX_TAX_STOCK, "0.2000")));
         when(orderMapper.sumProvisionalAmount(ACCOUNT)).thenReturn(BigDecimal.ZERO);
-        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+        // 주문 처리 전에 예외가 나는 경우(패키지 없음 등)에는 쓰이지 않는다
+        lenient()
+                .when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
                 .thenReturn(Optional.empty());
     }
 
@@ -204,8 +206,10 @@ class StockOrderServiceImplTest {
     /** 패키지 총액 1,000만 원, 삼성전자 목표 비중 1%(= 한도 10만 원)인 패키지. */
     private void prepareWeightedPackage() {
         prepare(account(Status.OPENED, "10000000"), quote("100000"));
-        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
-        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.empty());
+        lenient().when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        lenient()
+                .when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG))
+                .thenReturn(Optional.empty());
         when(packageMapper.selectByIdAndCustomerId(PACKAGE, CUSTOMER))
                 .thenReturn(
                         Optional.of(
@@ -246,6 +250,33 @@ class StockOrderServiceImplTest {
                         .get(0);
 
         assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+    }
+
+    @Test
+    void 주문_도중_패키지가_사라지면_한도_없이_체결하지_않고_패키지없음으로_막는다() {
+        prepareWeightedPackage();
+        // 첫 조회(place의 존재 확인)는 있고, 두 번째 조회(트랜잭션 안의 한도 계산)는 이미 삭제된 상태
+        when(packageMapper.selectByIdAndCustomerId(PACKAGE, CUSTOMER))
+                .thenReturn(
+                        Optional.of(
+                                StockPackageVO.builder()
+                                        .stockPackageId(PACKAGE)
+                                        .totalAmount(new BigDecimal("10000000"))
+                                        .build()),
+                        Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.place(
+                                        CUSTOMER,
+                                        PACKAGE,
+                                        request("w4", DomesticOrderSide.BUY, "1")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.STOCK_PACKAGE_NOT_FOUND));
+        verify(orderMapper, never()).insertBalance(any());
     }
 
     @Test
