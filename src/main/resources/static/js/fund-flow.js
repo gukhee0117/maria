@@ -161,9 +161,7 @@ $(function () {
         });
     }
 
-    function addNote($ul, text, warn) {
-        $ul.append($("<li>").toggleClass("is-warn", !!warn).text(text));
-    }
+    function addNote($ul, text, warn) { } // 패널 하단 보조 설명 비활성화
 
     /* ---------- ① 요약 ---------- */
     function summaryLoading(ids) {
@@ -431,18 +429,7 @@ $(function () {
         if (negative) {
             addNote($notes, "계산상 예수금 잔류가 음수예요(국내 매수 + 인출이 확정 원화 + 국내 매도 회수보다 커요). 월별 원천 값을 확인해 주세요", true);
         }
-        sankeyOverviewNote($notes, t);
         return true;
-    }
-
-    // overview 의 국내 매수(체결금액)와 월별 합계의 국내 매수(수수료 포함 예수금 순액)는 기준이 달라 값이 다르다
-    function sankeyOverviewNote($notes, t) {
-        $notes.find("li.ff-overview-note").remove();
-        if (!state.overview || !state.monthly) return;
-        var diff = t.buy - num(state.overview.domesticBuyTotal);
-        $notes.append($("<li>").addClass("ff-overview-note").text(
-            "상단 국내 재투자율의 국내 매수(체결금액 " + krwShort(state.overview.domesticBuyTotal) + "원)와 이 그림의 국내 매수(수수료를 포함한 예수금 순액 " +
-            krwShort(t.buy) + "원)는 기준이 달라 " + (diff === 0 ? "같은 값이에요" : "차이가 " + krwShort(Math.abs(diff)) + "원 있어요")));
     }
 
     function renderSankey() {
@@ -797,17 +784,6 @@ $(function () {
         var extSold = cats.filter(function (c) { return MARIA.status.leakageGroup(c.code) !== "excluded"; })
             .reduce(function (s, c) { return s + num(c.withExternalBuy); }, 0);
         addNote($notes, "다른 계좌 순매수가 있는 계좌 비율(매도한 계좌 기준) = " + KRW.format(extSold) + " ÷ " + KRW.format(g.base) + " = " + pct1(extSold / g.base), false);
-        // 요약 ①-6 과 숫자 일치 검산: 이 패널 행으로 다시 계산한 값 vs 요약 칸에 실제로 보이는 값
-        function rowsOf(code) {
-            var c = cats.filter(function (x) { return x.code === code; })[0];
-            return c ? num(c.accounts) : 0;
-        }
-        var again = benefitTexts({ normal: rowsOf("NO_IMPACT"), reduced: rowsOf("PARTIAL_REDUCED"), canceled: rowsOf("BENEFIT_CANCELED") + rowsOf("EXTERNAL_BUY_OFFSET"), base: g.base });
-        var shown = $("#ffSumBenefit .ff-sum-part").map(function () { return $(this).text().trim(); }).get();
-        var ok = shown.length === 3 && shown.every(function (t, i) { return t === again[i]; });
-        $notes.append($("<li>").toggleClass("is-warn", !ok).addClass("ff-leak-check").text(
-            (ok ? "요약 ①-6과 일치 ✓ " : "요약 ①-6과 달라요 ✗ ") + "· 분모 = 매도한 계좌 " + KRW.format(g.base) + "개 (전체 " + KRW.format(total) + " − 매도 없음 " + KRW.format(g.excluded) + "), " +
-            again.join(" · ") + " (취소 = 혜택 취소 + 순매수 소멸)"));
         if (d.snapshotCalculatedAt) addNote($notes, "세액 스냅샷 계산 시각 " + String(d.snapshotCalculatedAt).replace("T", " ").slice(0, 16) + " · 표시용 예상값이며 확정 세액이 아니에요", false);
     }
 

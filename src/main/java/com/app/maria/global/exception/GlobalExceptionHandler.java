@@ -16,6 +16,7 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -78,6 +79,12 @@ public class GlobalExceptionHandler {
         // code는 지금 화면(JS)에선 안 쓰지만, 2차 React 화면에서 에러 종류별로 분기할 때 쓸 값.
         return ResponseEntity.status(e.getErrorType().getStatus())
                 .body(ApiResponseDTO.error(e.getErrorType().name(), e.getMessage()));
+    }
+
+    // 클라이언트가 응답 수신 전에 연결을 끊은 경우 — 탭 닫기·페이지 이동 등 정상 동작이므로 로그 없이 무시한다.
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientAbort(AsyncRequestNotUsableException e) {
+        // no-op
     }
 
     // Spring Security 예외(403/401)는 여기서 잡지 않고 Security 필터 체인에 위임한다.
