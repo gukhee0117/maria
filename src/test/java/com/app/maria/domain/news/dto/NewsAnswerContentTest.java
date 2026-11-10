@@ -24,6 +24,128 @@ class NewsAnswerContentTest {
                     5);
 
     @Test
+    void equalRankedFiguresStayInSourceOrderAndDuplicatesAreExcluded() {
+        String body =
+                "매출 1억원이다. "
+                        + java.util.stream.IntStream.rangeClosed(1, 80)
+                                .mapToObj(i -> "매출 " + i + "억원이다.")
+                                .collect(java.util.stream.Collectors.joining(" "));
+        var source =
+                new NewsArticle(
+                        "order",
+                        "v1",
+                        "매출 공시",
+                        body,
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source))
+                .containsExactlyElementsOf(
+                        java.util.stream.IntStream.rangeClosed(1, 12)
+                                .mapToObj(i -> "매출 " + i + "억원이다.")
+                                .toList());
+    }
+
+    @Test
+    void numericResultKeepsMatchingAndFallbackMetadataTogether() {
+        var matching = NewsAnswerContent.numericEvidenceResult(article, "매출은 얼마야?");
+        assertThat(matching.matchesQuestion()).isTrue();
+        assertThat(matching.points()).anyMatch(text -> text.contains("1,000억원"));
+        var fallback = NewsAnswerContent.numericEvidenceResult(article, "투자금은 얼마야?");
+        assertThat(fallback.matchesQuestion()).isFalse();
+        assertThat(fallback.points()).isNotEmpty();
+    }
+
+    @Test
+    void boundedRankingStillFindsRelevantNumbersAtTheEndOfALongArticle() {
+        var source =
+                new NewsArticle(
+                        "long",
+                        "v1",
+                        "투자 계획",
+                        java.util.stream.IntStream.range(1, 501)
+                                        .mapToObj(i -> "일정은 " + i + "일이다.")
+                                        .collect(java.util.stream.Collectors.joining(" "))
+                                + " 투자금은 1,000억원이며 아직 확정되지 않았다.",
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source, "투자금은 얼마야?"))
+                .singleElement()
+                .asString()
+                .contains("1,000억원", "확정되지");
+        assertThat(NewsAnswerContent.numericEvidence(source)).hasSizeLessThanOrEqualTo(12);
+    }
+
+    @Test
+    void generalEvidenceUsesCodePointsForThresholdAndTruncation() {
+        var source =
+                new NewsArticle(
+                        "unicode",
+                        "v1",
+                        "설명",
+                        "😀".repeat(321),
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        var point = NewsAnswerContent.articleEvidence(source, "").get(0);
+        assertThat(point).isEqualTo("😀".repeat(240) + "…");
+    }
+
+    @Test
+    void targetedNumbersSearchTheWholeArticleAndKeepContextInsteadOfReturningEarlierDates() {
+        String body =
+                java.util.stream.IntStream.range(1, 16)
+                                .mapToObj(i -> "일정은 " + i + "일이다.")
+                                .collect(java.util.stream.Collectors.joining(" "))
+                        + " 투자금은 1,000억원으로 검토 중이며 아직 확정되지 않았다. 설비 용량은 250MW다.";
+        var source =
+                new NewsArticle(
+                        "a",
+                        "v1",
+                        "투자 계획",
+                        body,
+                        "테스트",
+                        null,
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        5,
+                        5,
+                        5);
+        assertThat(NewsAnswerContent.numericEvidence(source, "투자금은 얼마야?"))
+                .hasSize(1)
+                .first()
+                .asString()
+                .contains("1,000억원", "확정되지");
+        assertThat(NewsAnswerContent.numericEvidence(source, "매출은 얼마야?")).isNotEmpty();
+        assertThat(NewsAnswerContent.numericEvidence(source))
+                .first()
+                .asString()
+                .contains("1,000억원");
+        assertThat(NewsAnswerContent.asksForNumbers("설비 용량은 얼마야?")).isTrue();
+    }
+
+    @Test
     void percentagePointsRemainDistinctFromPercent() {
         var source =
                 new NewsArticle(
