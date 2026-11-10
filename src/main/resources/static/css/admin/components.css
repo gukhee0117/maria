@@ -206,7 +206,7 @@
     right: 0;
     bottom: 26px;
     z-index: 31;
-    width: min(520px, 100vw);
+    width: min(680px, 100vw);
     display: flex;
     flex-direction: column;
     background: var(--adm-panel);

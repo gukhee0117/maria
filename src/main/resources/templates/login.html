@@ -19,7 +19,6 @@
         <div class="adm-login-brand-body">
             <div class="adm-login-brand-eyebrow">RIA ADMIN</div>
             <div class="adm-login-brand-title">RIA 관리 시스템</div>
-            <div class="adm-login-brand-desc">계좌 심사부터 정산, 세액 계산, 사후관리까지 한곳에서 처리해요.</div>
         </div>
         <div class="adm-login-character">
             <img th:src="@{/images/admin/char-front.png}" alt="">
@@ -37,11 +36,10 @@
         <form id="loginForm" class="adm-login-form" novalidate>
             <div class="adm-login-eyebrow">ADMIN SIGN IN</div>
             <h1 class="adm-login-heading">관리자 <span>로그인</span></h1>
-            <div class="adm-login-lead">인가된 직원 계정으로만 접속할 수 있어요.</div>
 
             <label class="adm-login-field adm-login-field-first" for="loginId">아이디
                 <input type="text" id="loginId" name="loginId" autocomplete="username"
-                       placeholder="사번 또는 관리자 아이디" required>
+                       placeholder="관리자 아이디" required>
             </label>
             <label class="adm-login-field" for="password">비밀번호
                 <input type="password" id="password" name="password" autocomplete="current-password"
@@ -57,7 +55,6 @@
                 <span id="loginSubmitLabel">로그인</span>
             </button>
 
-            <div class="adm-login-notice">본 시스템은 인가된 사용자만 접근할 수 있으며 모든 접속 기록은 저장됩니다.</div>
 
             <!-- "고객 사이트로" 링크 자리. 이동할 고객 웹 주소가 정해지면 href를 채우고 hidden을 지운다. -->
             <div class="adm-login-links" hidden>
