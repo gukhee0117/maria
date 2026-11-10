@@ -55,7 +55,9 @@ class PythonStockClassificationClientTest {
                 new CurrentStockRiskService(
                                 client,
                                 com.app.maria.domain.risk.RiskTestSupport.clock(
-                                        "2026-11-05T12:00:00+09:00"))
+                                        "2026-11-05T12:00:00+09:00"),
+                                77,
+                                60)
                         .findCurrent("005930");
         assertThat(result.ticker()).isEqualTo("005930");
         assertThat(result.riskGrade()).isEqualTo(2);

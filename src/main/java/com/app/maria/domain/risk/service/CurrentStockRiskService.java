@@ -9,15 +9,12 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /** Current stock status cache, independent of historical-price expiry. */
 @Service
 public class CurrentStockRiskService {
-    private static final int DEFAULT_MAX_CACHED_TICKERS = 77;
-    private static final long DEFAULT_CACHE_TTL_SECONDS = 60;
     private final PythonStockClassificationClient client;
     private final RiskMarketClock clock;
     // Defensive memory bound for this cache, independent of the number of listed stocks.
@@ -27,16 +24,11 @@ public class CurrentStockRiskService {
 
     private record Entry(CurrentStockGrade grade, Instant receivedAt) {}
 
-    public CurrentStockRiskService(PythonStockClassificationClient client, RiskMarketClock clock) {
-        this(client, clock, DEFAULT_MAX_CACHED_TICKERS, DEFAULT_CACHE_TTL_SECONDS);
-    }
-
-    @Autowired
     public CurrentStockRiskService(
             PythonStockClassificationClient client,
             RiskMarketClock clock,
-            @Value("${app.risk.current-stock-cache-max-tickers:77}") int maxCachedTickers,
-            @Value("${app.risk.current-stock-cache-ttl-seconds:60}") long cacheTtlSeconds) {
+            @Value("${app.risk.current-stock-cache-max-tickers}") int maxCachedTickers,
+            @Value("${app.risk.current-stock-cache-ttl-seconds}") long cacheTtlSeconds) {
         this.client = client;
         this.clock = clock;
         this.maxCachedTickers = maxCachedTickers;
