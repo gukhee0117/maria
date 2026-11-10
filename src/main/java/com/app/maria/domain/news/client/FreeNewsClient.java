@@ -1,6 +1,7 @@
 package com.app.maria.domain.news.client;
 
 import com.app.maria.domain.news.config.NewsProperties;
+import com.app.maria.domain.news.dto.NewsSearchWindow;
 import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
@@ -22,17 +23,9 @@ public class FreeNewsClient {
     private java.time.YearMonth requestMonth;
     private int requestsThisMonth;
 
-    public FreeNewsClient(NewsProperties properties) {
-        this(properties, createClient(), null);
-    }
-
     @Autowired
     public FreeNewsClient(NewsProperties properties, NewsSourceUsageMapper usageMapper) {
         this(properties, createClient(), usageMapper);
-    }
-
-    FreeNewsClient(NewsProperties properties, RestClient client) {
-        this(properties, client, null);
     }
 
     FreeNewsClient(
@@ -52,7 +45,7 @@ public class FreeNewsClient {
                 .build();
     }
 
-    public JsonNode search(String stockName) {
+    public JsonNode search(String stockName, NewsSearchWindow window) {
         if (properties.getFreeNewsApiKey().isBlank()
                 || properties.getFreeNewsApiKey().chars().anyMatch(ch -> ch <= 32 || ch >= 127))
             throw new AppException(ErrorType.NEWS_SOURCE_NOT_CONFIGURED);
@@ -66,7 +59,8 @@ public class FreeNewsClient {
                                                     .queryParam("q", "{query}")
                                                     .queryParam("lang", "ko")
                                                     .queryParam("country", "KR")
-                                                    .queryParam("date", "7d")
+                                                    .queryParam("from", window.from().toString())
+                                                    .queryParam("to", window.to().toString())
                                                     .queryParam("size", 10)
                                                     .queryParam("sort", "relevance")
                                                     .queryParam("full_text", "true")

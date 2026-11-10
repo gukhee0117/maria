@@ -26,7 +26,14 @@ class NewsFreeIntegrationTest {
         var properties = new NewsProperties();
         properties.setProvider("free");
         properties.setFreeNewsApiKey(System.getenv("FREENEWS_API_KEY"));
-        var provider = new FreeNewsProvider(new FreeNewsClient(properties));
+        var provider =
+                new FreeNewsProvider(
+                        new FreeNewsClient(properties, null),
+                        properties,
+                        () ->
+                                java.time.LocalDateTime.ofInstant(
+                                        java.time.Instant.now(), java.time.ZoneId.of("Asia/Seoul")),
+                        java.time.Clock.systemUTC());
         var context =
                 new Context(
                         1L,

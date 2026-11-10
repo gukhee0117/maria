@@ -6,6 +6,15 @@ import java.util.List;
 
 /** Implementations must have permission to pass the full article to AI. */
 public interface NewsProvider {
+    record Snapshot(
+            String version,
+            java.util.function.Supplier<List<NewsArticle>> articles,
+            java.util.function.Supplier<java.util.Optional<List<NewsArticle>>> cachedArticles) {}
+
+    default Snapshot snapshot(Context context) {
+        return new Snapshot(id(), () -> articles(context), () -> cachedArticles(context));
+    }
+
     String id();
 
     List<NewsArticle> articles();
@@ -15,10 +24,6 @@ public interface NewsProvider {
     }
 
     default void configureInventory(Context context) {}
-
-    default String contextVersion(Context context) {
-        return id();
-    }
 
     default java.util.List<String> themeNames(Context context) {
         return java.util.List.of();
