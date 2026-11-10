@@ -1,6 +1,7 @@
 package com.app.maria.domain.news.provider;
 
 import com.app.maria.domain.news.client.FreeNewsClient;
+import com.app.maria.domain.news.client.FreeNewsClient.SearchWindow;
 import com.app.maria.domain.news.dto.NewsArticle;
 import com.app.maria.domain.news.dto.NewsContract.Context;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -77,6 +78,8 @@ public class FreeNewsProvider implements NewsProvider {
 
     @Override
     public List<NewsArticle> articles(Context context) {
+        if (context.tickers().isEmpty()) return List.of();
+        SearchWindow window = client.searchWindow();
         var pending =
                 context.tickers().stream()
                         .sorted()
@@ -87,8 +90,8 @@ public class FreeNewsProvider implements NewsProvider {
                         .map(
                                 t ->
                                         Map.entry(
-                                                sourceKey(t, context.stockNames().get(t)),
-                                                prepare(t, context.stockNames().get(t))))
+                                                sourceKey(t, context.stockNames().get(t), window),
+                                                prepare(t, context.stockNames().get(t), window)))
                         .toList();
         var lists = new ArrayList<List<NewsArticle>>();
         try {
@@ -140,11 +143,13 @@ public class FreeNewsProvider implements NewsProvider {
 
     @Override
     public Optional<List<NewsArticle>> cachedArticles(Context context) {
+        if (context.tickers().isEmpty()) return Optional.of(List.of());
+        SearchWindow window = client.searchWindow();
         var lists = new ArrayList<List<NewsArticle>>();
         for (var ticker : context.tickers().stream().sorted().toList()) {
             var name = context.stockNames().get(ticker);
             if (name == null || name.isBlank()) continue;
-            var entry = getCached(sourceKey(ticker, name));
+            var entry = getCached(sourceKey(ticker, name, window));
             if (entry == null || !entry.expiresAt().isAfter(clock.instant()))
                 return Optional.empty();
             lists.add(entry.articles());
@@ -152,13 +157,13 @@ public class FreeNewsProvider implements NewsProvider {
         return Optional.of(merge(lists));
     }
 
-    private String sourceKey(String ticker, String name) {
-        return ticker + ":" + name + ":" + client.cacheVersion();
+    private String sourceKey(String ticker, String name, SearchWindow window) {
+        return ticker + ":" + name + ":" + window.cacheKey();
     }
 
     @Override
     public String contextVersion(Context context) {
-        return String.valueOf(client.cacheVersion());
+        return client.cacheVersion();
     }
 
     public void inventorySize(int size) {
@@ -204,11 +209,11 @@ public class FreeNewsProvider implements NewsProvider {
         return List.copyOf(unique.values());
     }
 
-    private List<NewsArticle> load(String ticker, String name) {
-        String key = sourceKey(ticker, name);
+    private List<NewsArticle> load(String ticker, String name, SearchWindow window) {
+        String key = sourceKey(ticker, name, window);
         var stored = getCached(key);
         if (stored != null && stored.expiresAt().isAfter(clock.instant())) return stored.articles();
-        var result = fetch(ticker, name);
+        var result = fetch(ticker, name, window);
         synchronized (cache) {
             cache.entrySet().removeIf(e -> !e.getValue().expiresAt().isAfter(clock.instant()));
             cache.put(key, result);
@@ -227,8 +232,9 @@ public class FreeNewsProvider implements NewsProvider {
         return getCached(key);
     }
 
-    private CompletableFuture<List<NewsArticle>> prepare(String ticker, String name) {
-        String key = sourceKey(ticker, name);
+    private CompletableFuture<List<NewsArticle>> prepare(
+            String ticker, String name, SearchWindow window) {
+        String key = sourceKey(ticker, name, window);
         var ready = getCached(key);
         if (ready != null && ready.expiresAt().isAfter(clock.instant()))
             return CompletableFuture.completedFuture(ready.articles());
@@ -236,16 +242,17 @@ public class FreeNewsProvider implements NewsProvider {
                 inFlight.computeIfAbsent(
                         key,
                         ignored ->
-                                CompletableFuture.supplyAsync(() -> load(ticker, name), workers));
+                                CompletableFuture.supplyAsync(
+                                        () -> load(ticker, name, window), workers));
         task.whenComplete((value, error) -> inFlight.remove(key, task));
         return task;
     }
 
-    private Cached fetch(String ticker, String name) {
+    private Cached fetch(String ticker, String name, SearchWindow window) {
         List<NewsArticle> result = new ArrayList<>();
         Set<String> urls = new HashSet<>();
         Set<String> bodies = new HashSet<>();
-        for (JsonNode item : client.search(name)) {
+        for (JsonNode item : client.search(name, window)) {
             NewsArticle article = map(item, ticker, name);
             if (article != null
                     && urls.add(article.url())

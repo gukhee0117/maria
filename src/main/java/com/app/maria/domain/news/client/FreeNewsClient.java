@@ -6,7 +6,12 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import com.app.maria.global.exception.AppException;
 import com.app.maria.global.exception.ErrorType;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.*;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -16,18 +21,15 @@ import org.springframework.web.client.RestClientResponseException;
 /** Only the fixed provider host is contacted. Article URLs are never fetched or crawled. */
 @Component
 public class FreeNewsClient {
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final RestClient client;
     private final NewsProperties properties;
     private final NewsSourceUsageMapper usageMapper;
-    private BusinessClockService businessClock;
-    private Clock clock = Clock.systemUTC();
+    private final BusinessClockService businessClock;
+    private final Clock clock;
     private long nextRequestNanos;
     private java.time.YearMonth requestMonth;
     private int requestsThisMonth;
-
-    public FreeNewsClient(NewsProperties properties) {
-        this(properties, createClient(), null);
-    }
 
     @Autowired
     public FreeNewsClient(
@@ -35,32 +37,30 @@ public class FreeNewsClient {
             NewsSourceUsageMapper usageMapper,
             BusinessClockService businessClock,
             Clock clock) {
-        this(properties, createClient(), usageMapper);
-        this.businessClock = businessClock;
-        this.clock = clock;
+        this(properties, createClient(), usageMapper, businessClock, clock);
     }
 
     public record SearchWindow(Instant from, Instant to, String cacheKey) {}
 
     public static SearchWindow window(LocalDate businessDate, Instant now) {
-        ZoneId zone = ZoneId.of("Asia/Seoul");
-        LocalDate today = now.atZone(zone).toLocalDate();
+        LocalDate today = now.atZone(SEOUL).toLocalDate();
         LocalDate effective = businessDate.isBefore(today) ? businessDate : today;
         Instant end =
                 effective.isBefore(today)
-                        ? effective.plusDays(1).atStartOfDay(zone).toInstant()
+                        ? effective.plusDays(1).atStartOfDay(SEOUL).toInstant()
                         : now;
-        Instant start = effective.minusDays(6).atStartOfDay(zone).toInstant();
+        Instant start = effective.minusDays(6).atStartOfDay(SEOUL).toInstant();
         return new SearchWindow(
                 start, end, effective + (effective.isBefore(today) ? ":closed" : ":live"));
     }
 
-    private SearchWindow searchWindow() {
+    /**
+     * Capture once per collection/read. The live suffix partitions dates, not freshness: current
+     * and historical dates both retain the provider TTL and API request budget.
+     */
+    public SearchWindow searchWindow() {
         Instant now = clock.instant();
-        LocalDate day =
-                businessClock == null
-                        ? now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate()
-                        : businessClock.now().toLocalDate();
+        LocalDate day = businessClock.now().toLocalDate();
         return window(day, now);
     }
 
@@ -68,15 +68,17 @@ public class FreeNewsClient {
         return searchWindow().cacheKey();
     }
 
-    FreeNewsClient(NewsProperties properties, RestClient client) {
-        this(properties, client, null);
-    }
-
     FreeNewsClient(
-            NewsProperties properties, RestClient client, NewsSourceUsageMapper usageMapper) {
+            NewsProperties properties,
+            RestClient client,
+            NewsSourceUsageMapper usageMapper,
+            BusinessClockService businessClock,
+            Clock clock) {
         this.properties = properties;
         this.client = client;
         this.usageMapper = usageMapper;
+        this.businessClock = Objects.requireNonNull(businessClock);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     private static RestClient createClient() {
@@ -90,10 +92,13 @@ public class FreeNewsClient {
     }
 
     public JsonNode search(String stockName) {
+        return search(stockName, searchWindow());
+    }
+
+    public JsonNode search(String stockName, SearchWindow window) {
         if (properties.getFreeNewsApiKey().isBlank()
                 || properties.getFreeNewsApiKey().chars().anyMatch(ch -> ch <= 32 || ch >= 127))
             throw new AppException(ErrorType.NEWS_SOURCE_NOT_CONFIGURED);
-        SearchWindow window = searchWindow();
         try {
             pace();
             JsonNode response =

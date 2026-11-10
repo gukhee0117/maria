@@ -41,20 +41,61 @@ class FreeNewsProviderTest {
         return node;
     }
 
+    @org.junit.jupiter.api.BeforeEach
+    void defaultWindow() {
+        when(client.searchWindow())
+                .thenReturn(
+                        FreeNewsClient.window(
+                                LocalDate.of(2026, 11, 5), Instant.parse("2026-11-10T03:00:00Z")));
+    }
+
+    @Test
+    void capturesOneWindowForAllTickersAndCacheReadsKeepTheTtl() {
+        var captured =
+                FreeNewsClient.window(
+                        LocalDate.of(2026, 11, 18), Instant.parse("2026-11-10T03:00:00Z"));
+        when(client.searchWindow()).thenReturn(captured);
+        clearInvocations(client);
+        when(client.search(any(), any())).thenReturn(mapper.createArrayNode());
+        var pair =
+                new Context(
+                        1L,
+                        Set.of("005930", "000660"),
+                        InvestorType.STABLE,
+                        PersonalizationStatus.ACTIVE,
+                        Map.of("005930", "삼성전자", "000660", "SK하이닉스"));
+        var provider = new FreeNewsProvider(client);
+        try {
+            provider.articles(pair);
+            verify(client, times(1)).searchWindow();
+            verify(client, times(2)).search(any(), same(captured));
+            clearInvocations(client);
+            assertThat(provider.cachedArticles(pair)).isPresent();
+            verify(client, times(1)).searchWindow();
+            verify(client, never()).search(any(), any());
+        } finally {
+            provider.close();
+        }
+    }
+
     @Test
     void businessDateChangeDoesNotReuseCachedNews() {
-        when(client.cacheVersion()).thenReturn("2026-11-05:closed");
-        when(client.search(any())).thenReturn(mapper.createArrayNode());
+
+        when(client.search(any(), any())).thenReturn(mapper.createArrayNode());
         var provider = new FreeNewsProvider(client);
         try {
             provider.articles(context);
             assertThat(provider.cachedArticles(context)).isPresent();
-            String before = provider.contextVersion(context);
-            when(client.cacheVersion()).thenReturn("2026-11-06:closed");
+
+            when(client.searchWindow())
+                    .thenReturn(
+                            FreeNewsClient.window(
+                                    LocalDate.of(2026, 11, 6),
+                                    Instant.parse("2026-11-10T03:00:00Z")));
             assertThat(provider.cachedArticles(context)).isEmpty();
-            assertThat(provider.contextVersion(context)).isNotEqualTo(before);
+
             provider.articles(context);
-            verify(client, times(2)).search("삼성전자");
+            verify(client, times(2)).search(eq("삼성전자"), any());
         } finally {
             provider.close();
         }
@@ -65,11 +106,11 @@ class FreeNewsProviderTest {
         var original = article("삼성전자 사업 확대", "https://example.com/news", body);
         var firstClient = mock(FreeNewsClient.class);
         var changedClient = mock(FreeNewsClient.class);
-        when(firstClient.search(any())).thenReturn(mapper.createArrayNode().add(original));
+        when(firstClient.search(any(), any())).thenReturn(mapper.createArrayNode().add(original));
         var changed = original.deepCopy();
         changed.put("sitename", "변경 언론사");
         changed.put("title", "삼성전자 사업 확대 후속 발표");
-        when(changedClient.search(any()))
+        when(changedClient.search(any(), any()))
                 .thenReturn(
                         mapper.createArrayNode()
                                 .add(changed)
@@ -78,6 +119,9 @@ class FreeNewsProviderTest {
                                                 "삼성전자 같은 본문 재전송",
                                                 "https://example.com/duplicate",
                                                 body)));
+        var capturedWindow = client.searchWindow();
+        when(firstClient.searchWindow()).thenReturn(capturedWindow);
+        when(changedClient.searchWindow()).thenReturn(capturedWindow);
         var first = new FreeNewsProvider(firstClient);
         var next = new FreeNewsProvider(changedClient);
         try {
@@ -100,7 +144,7 @@ class FreeNewsProviderTest {
         var unrelated = article("기업인 춤 영상 인기", "https://example.com/unrelated", body);
         var english = article("삼성전자", "https://example.com/en", body);
         english.put("lang", "en");
-        when(client.search("삼성전자"))
+        when(client.search(eq("삼성전자"), any()))
                 .thenReturn(
                         mapper.createArrayNode()
                                 .add(valid)
@@ -124,12 +168,12 @@ class FreeNewsProviderTest {
                                         PersonalizationStatus.ACTIVE,
                                         context.stockNames())))
                 .isEqualTo(first);
-        verify(client, times(1)).search("삼성전자");
+        verify(client, times(1)).search(eq("삼성전자"), any());
     }
 
     @Test
     void financialTitleAndBodyReferenceAreRelevantEvenWithoutCompanyInTitle() {
-        when(client.search("삼성전자"))
+        when(client.search(eq("삼성전자"), any()))
                 .thenReturn(
                         mapper.createArrayNode()
                                 .add(article("반도체 투톱 실적 증가", "https://example.com/news", body)));
@@ -148,14 +192,14 @@ class FreeNewsProviderTest {
                                         PersonalizationStatus.ACTIVE)))
                 .isEmpty();
         verifyNoInteractions(client);
-        when(client.search(any())).thenThrow(new IllegalStateException("offline"));
+        when(client.search(any(), any())).thenThrow(new IllegalStateException("offline"));
         assertThatThrownBy(() -> provider.articles(context))
                 .isInstanceOf(IllegalStateException.class);
         doReturn(
                         mapper.createArrayNode()
                                 .add(article("삼성전자 실적 증가", "https://example.com/news", body)))
                 .when(client)
-                .search(any());
+                .search(any(), any());
         assertThat(provider.articles(context)).hasSize(1);
     }
 
@@ -165,7 +209,7 @@ class FreeNewsProviderTest {
         var release = new CountDownLatch(1);
         var active = new AtomicInteger();
         var peak = new AtomicInteger();
-        when(client.search(anyString()))
+        when(client.search(anyString(), any()))
                 .thenAnswer(
                         invocation -> {
                             String name = invocation.getArgument(0);
@@ -211,7 +255,7 @@ class FreeNewsProviderTest {
 
     @Test
     void cachedStockDoesNotWaitBehindOtherBlockedNetworkQueries() throws Exception {
-        when(client.search("삼성전자"))
+        when(client.search(eq("삼성전자"), any()))
                 .thenReturn(
                         mapper.createArrayNode()
                                 .add(article("삼성전자 실적", "https://example.com/samsung", body)));
@@ -220,7 +264,7 @@ class FreeNewsProviderTest {
         var entered = new CountDownLatch(2);
         var release = new CountDownLatch(1);
         for (String name : List.of("SK하이닉스", "NAVER"))
-            when(client.search(name))
+            when(client.search(eq(name), any()))
                     .thenAnswer(
                             invocation -> {
                                 entered.countDown();
@@ -243,7 +287,7 @@ class FreeNewsProviderTest {
                     .hasSize(1);
             release.countDown();
             pending.get(5, TimeUnit.SECONDS);
-            verify(client, times(1)).search("삼성전자");
+            verify(client, times(1)).search(eq("삼성전자"), any());
         } finally {
             release.countDown();
             provider.close();
