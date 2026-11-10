@@ -145,6 +145,21 @@ class MydataClientTest {
     }
 
     @Test
+    void myData가_모르는_고객은_타사_계좌가_없는_것으로_본다() {
+        String body = "{\"message\":\"등록되지 않은 CiHash입니다.\",\"data\":null}";
+        mockServer
+                .expect(requestTo(RIA_ACCOUNTS_URL))
+                .andRespond(
+                        org.springframework.test.web.client.response.MockRestResponseCreators
+                                .withStatus(org.springframework.http.HttpStatus.NOT_FOUND)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body));
+
+        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash")).isEqualByComparingTo("0");
+        mockServer.verify();
+    }
+
+    @Test
     void 서버오류_404_모두_UNAVAILABLE로_던진다() {
         mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withServerError());
         assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))

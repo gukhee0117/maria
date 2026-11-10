@@ -1,5 +1,6 @@
 package com.app.maria.domain.account.mapper;
 
+import static com.app.maria.domain.account.type.CustomerConsentType.MYDATA_PROVISION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -576,6 +577,31 @@ class AccountMapperTest {
         assertThat(result.getBenefit()).isEqualTo(BenefitType.IMPOSSIBLE);
     }
 
+    @Test
+    @DisplayName("마이데이터 동의는 가장 최근 이력의 값이고, 이력이 없으면 비어 있다")
+    void mydataConsent_가장_최근_이력이_현재_값() {
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).isEmpty();
+
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT);
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(true);
+
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, false, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(false);
+
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT.plusMinutes(1));
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(true);
+        assertThat(accountMapper.selectLatestConsent(2L, MYDATA_PROVISION)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업무시계를 되돌려 철회해도 나중에 쌓인 이력이 현재 값이다")
+    void mydataConsent_시계를_되돌려도_쌓인_순서가_기준() {
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, true, CREATED_AT);
+        accountMapper.insertConsent(1L, MYDATA_PROVISION, false, CREATED_AT.minusDays(30));
+
+        assertThat(accountMapper.selectLatestConsent(1L, MYDATA_PROVISION)).contains(false);
+    }
+
     private void resetSchema() throws SQLException {
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
@@ -590,6 +616,16 @@ class AccountMapperTest {
               investor_type VARCHAR(20) NOT NULL,
               ci_hash VARCHAR(64) NOT NULL,
               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+          """);
+            statement.execute(
+                    """
+          CREATE TABLE customer_consent (
+              customer_consent_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+              customer_id BIGINT NOT NULL,
+              consent_type VARCHAR(30) NOT NULL,
+              agreed BOOLEAN NOT NULL,
+              changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
           """);
             statement.execute(
