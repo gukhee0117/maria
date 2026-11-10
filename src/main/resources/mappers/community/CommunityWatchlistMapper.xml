@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.maria.domain.community.mapper.CommunityWatchlistMapper">
+    <select id="lockCustomer" resultType="long">
+        SELECT customer_id FROM customer WHERE customer_id = #{customerId} FOR UPDATE
+    </select>
+    <select id="findTickers" resultType="string">
+        SELECT ticker FROM community_watchlist WHERE customer_id = #{customerId}
+        ORDER BY created_at, ticker
+    </select>
+    <insert id="add">
+        INSERT INTO community_watchlist (customer_id, ticker, created_at)
+        VALUES (#{customerId}, #{ticker}, #{createdAt})
+        ON DUPLICATE KEY UPDATE ticker = VALUES(ticker)
+    </insert>
+    <delete id="remove">
+        DELETE FROM community_watchlist WHERE customer_id = #{customerId} AND ticker = #{ticker}
+    </delete>
+</mapper>
