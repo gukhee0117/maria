@@ -70,10 +70,18 @@ class ThemeNewsProviderTest {
                                 "earnings",
                                 "반도체 실적 개선에 주가 상승",
                                 "반도체 기업의 실적이 개선됐다. 앞서 열린 행사에서도 실적 전망이 논의됐다."),
+                        news("rights", "반도체 기업 신주인수권 행사로 주식 수 증가", "반도체 기업의 신주인수권 행사로 주식 수가 증가했다."),
+                        news("agency", "반도체 광고대행사 실적 개선에 주가 상승", "반도체 광고대행사의 주가가 올랐다."),
                         news(
-                                "rights",
-                                "반도체 기업 신주인수권 행사로 주식 수 증가",
-                                "반도체 기업의 신주인수권 행사로 주식 수가 증가했다."));
+                                "conversion",
+                                "반도체 기업 전환청구권 행사로 주식 수 증가",
+                                "반도체 기업의 전환청구권 행사로 주식 수가 증가했다."),
+                        news("conversion-spaced", "반도체 기업 전환청구권  행사 공시", "반도체 주식 수 변동을 공시했다."),
+                        news("agency-promotion", "반도체 광고대행사 투자 행사 개최", "증권사가 반도체 체험 행사 참가자를 모집한다."),
+                        news(
+                                "rights-promotion",
+                                "반도체 신주인수권 행사 설명회 개최",
+                                "증권사가 반도체 금융 설명회 참가자를 모집한다."));
         when(source.articles(any(Context.class))).thenReturn(rows);
         when(source.cachedArticles(any(Context.class))).thenReturn(Optional.of(rows));
         when(source.snapshot(any()))
@@ -81,17 +89,17 @@ class ThemeNewsProviderTest {
         var provider = new ThemeNewsProvider(source, themes);
         assertThat(provider.articles(c))
                 .extracting(NewsArticle::id)
-                .containsExactly("earnings", "rights");
+                .containsExactly("earnings", "rights", "agency", "conversion", "conversion-spaced");
         assertThat(provider.cachedArticles(c).orElseThrow())
                 .extracting(NewsArticle::id)
-                .containsExactly("earnings", "rights");
+                .containsExactly("earnings", "rights", "agency", "conversion", "conversion-spaced");
         var captured = provider.snapshot(c);
         assertThat(captured.articles().get())
                 .extracting(NewsArticle::id)
-                .containsExactly("earnings", "rights");
+                .containsExactly("earnings", "rights", "agency", "conversion", "conversion-spaced");
         assertThat(captured.cachedArticles().get().orElseThrow())
                 .extracting(NewsArticle::id)
-                .containsExactly("earnings", "rights");
+                .containsExactly("earnings", "rights", "agency", "conversion", "conversion-spaced");
     }
 
     private NewsArticle news(String id, String title, String body) {

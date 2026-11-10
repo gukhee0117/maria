@@ -22,9 +22,9 @@ public class ThemeNewsProvider implements NewsProvider {
                     "주가|주식(?!회사)|증권|증시|코스피|코스닥|유가증권|상장|공모주|시가총액|목표주가|투자의견|자사주|유상증자|액면분할|주당(?:순이익|배당)|배당(?:금|수익률|정책|주)|\\b(?:IPO|ETF|ETN|PER|PBR|EPS)\\b",
                     Pattern.CASE_INSENSITIVE);
     private static final Pattern PROMOTIONAL_EVENT =
-            Pattern.compile("공모전|경진대회|이벤트|박람회|페스티벌|기념식|체험전|행사|세미나|컨퍼런스|포럼|설명회");
+            Pattern.compile("공모전|경진대회|이벤트|박람회|페스티벌|기념식|체험전|(?<!대)행사|세미나|컨퍼런스|포럼|설명회");
     private static final Pattern FINANCIAL_EXERCISE =
-            Pattern.compile("(?:신주인수권|주식매수선택권|스톡옵션|전환권|매수청구권|권리)\\s*행사");
+            Pattern.compile("(?:신주인수권|주식매수선택권|스톡옵션|전환권|전환청구권|매수청구권|권리)\\s*행사");
     private static final Pattern ARTICLE_FOOTER = Pattern.compile("※|ⓒ|무단\\s*(?:전재|복제)|저작권자");
     private final FreeNewsProvider source;
     private final NewsThemeService themes;
@@ -35,7 +35,7 @@ public class ThemeNewsProvider implements NewsProvider {
     }
 
     public String id() {
-        return "THEME_FREE_NEWS_V3_NO_PROMOTIONAL_EVENTS";
+        return "THEME_FREE_NEWS_V4_NO_PROMOTIONAL_EVENTS";
     }
 
     public List<String> themeNames(Context c) {
