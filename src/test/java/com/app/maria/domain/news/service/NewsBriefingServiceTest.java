@@ -36,6 +36,44 @@ class NewsBriefingServiceTest {
     }
 
     @Test
+    void articleQuestionUsesLiveAiWithoutClientHistoryAndDemoModeHasSourceFallback() {
+        var original = NewsSelectionServiceTest.article("a", 5, 5);
+        var article =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        "a",
+                        "v1",
+                        "ESS 설비 투자",
+                        "ESS는 전기를 저장하는 장치다. 투자금은 1,000억원이며 아직 확정되지 않았다.",
+                        "테스트",
+                        null,
+                        original.publishedAt(),
+                        original.tickers(),
+                        List.of("설비 계획"),
+                        List.of(),
+                        5,
+                        5,
+                        5,
+                        false);
+        when(provider.articles()).thenReturn(List.of(article));
+        when(ai.question(any(), any(), any())).thenReturn("ESS는 기사에 나온 전기 저장 장치예요.");
+        var live = service.question(1L, "a", new QuestionRequest("v1", "ESS가 뭐야?", List.of()));
+        assertThat(live.origin()).isEqualTo(Origin.LIVE_LLM);
+        var targeted = service.question(1L, "a", new QuestionRequest("v1", "투자금은 얼마야?", List.of()));
+        assertThat(targeted.points())
+                .anyMatch(text -> text.contains("1,000억원") && text.contains("확정되지"));
+        var missing =
+                service.question(1L, "a", new QuestionRequest("v1", "이 기사 매출은 얼마야?", List.of()));
+        assertThat(missing.points()).first().asString().contains("다른 수치");
+        assertThat(missing.points()).anyMatch(text -> text.contains("투자금은 1,000억원"));
+        properties.setLiveQuestions(false);
+        var fallback = service.question(1L, "a", new QuestionRequest("v1", "ESS가 뭐야?", List.of()));
+        assertThat(fallback.points()).contains("ESS는 전기를 저장하는 장치다.");
+        var unrelated =
+                service.question(1L, "a", new QuestionRequest("v1", "내일 날씨 알려줘", List.of()));
+        assertThat(unrelated.preparedReason()).isEqualTo(PreparedReason.POLICY_REFUSAL);
+    }
+
+    @Test
     void figureQuestionsUseOnlySourceNumbersWithoutCallingOrDependingOnAi() {
         var original = NewsSelectionServiceTest.article("a", 5, 5);
         var article =
@@ -55,7 +93,8 @@ class NewsBriefingServiceTest {
                         5,
                         false);
         when(provider.articles()).thenReturn(List.of(article));
-        var result = service.question(1L, "a", new QuestionRequest("v1", "수치 알려줘", List.of()));
+        var result =
+                service.question(1L, "a", new QuestionRequest("v1", "기사에 나온 숫자만 정리해줘", List.of()));
         assertThat(result.preparedReason()).isEqualTo(PreparedReason.ARTICLE_EVIDENCE);
         assertThat(result.points())
                 .anyMatch(point -> point.contains("250MW") && point.contains("계획"))

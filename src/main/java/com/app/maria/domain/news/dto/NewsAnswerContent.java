@@ -7,11 +7,24 @@ import java.util.regex.Pattern;
 
 /** Structured presentation plus source-bound quotations; never executes model-supplied markup. */
 public record NewsAnswerContent(String explanation, List<String> points, String quote) {
+    private static final int MAX_EVIDENCE_CANDIDATES = 50;
+    private static final int SHORT_SENTENCE_CODE_POINTS = 320;
+    private static final int EXCERPT_CODE_POINTS = 240;
     private static final ObjectMapper MAPPER = new ObjectMapper();
     // Match percentage points (%p) before percent (%) to preserve the complete source unit.
     private static final Pattern NUMBER =
             Pattern.compile(
                     "(?<![A-Za-z\\p{N}])([+-]?\\d[\\d,]*(?:\\.\\d+)?)(\\s*(?:조|억|만|천)?\\s*(?:%p|%|퍼센트|GWh|MWh|kWh|GW|MW|kW|kV|㎿|㎾|km|㎞|㎡|달러|유로|원|배|명|개|건|대|주|톤|년|월|일|분기|위|시|분|초)?)");
+
+    private static final Set<String> KEYWORD_STOP_WORDS =
+            Set.of(
+                    "기사", "뉴스", "기사에", "기사에서", "이기사", "이뉴스", "나온", "관련", "내용", "수치", "숫자", "알려줘",
+                    "알려주세요", "정리해줘", "설명해줘", "무엇", "어떤", "왜", "뭐야", "얼마", "얼마야", "몇", "알려주기", "간단히",
+                    "쉽게", "이유", "핵심", "뜻", "의미", "좀", "자세히", "정확히", "얼마인가요", "뭔데", "무슨", "그런거야",
+                    "이게", "말이야");
+    private static final Pattern WORD_PATTERN = Pattern.compile("[가-힣A-Za-z][가-힣A-Za-z0-9]*");
+    private static final Pattern KEYWORD_SUFFIX =
+            Pattern.compile("(?:에서는|에서|으로|이란|란|인가요|이야|은|는|이|가|을|를|의|도)$");
 
     public NewsAnswerContent {
         points = List.copyOf(points);
@@ -51,32 +64,146 @@ public record NewsAnswerContent(String explanation, List<String> points, String 
     }
 
     public static boolean asksForNumbers(String question) {
-        return question.contains("숫자") || question.contains("수치");
+        return question.matches("(?s).*(?:숫자|수치|얼마|몇|규모|금액|용량|비율|증가율|감소율|퍼센트).*");
     }
 
     public static List<String> numericEvidence(NewsArticle article) {
-        Set<String> evidence = new LinkedHashSet<>();
+        return numericEvidence(article, "");
+    }
+
+    public static List<String> numericEvidence(NewsArticle article, String question) {
+        return numericEvidenceResult(article, question).points();
+    }
+
+    public record NumericEvidence(List<String> points, boolean matchesQuestion) {}
+
+    public static NumericEvidence numericEvidenceResult(NewsArticle article, String question) {
+        var keywords = questionKeywords(question);
+        var evidence = new EvidenceCandidates(keywords);
         for (String sentence :
                 (article.title() + "\n" + article.body()).split("(?<=[.!?。])\\s+|\n+")) {
             sentence = sentence.strip();
             var matches = NUMBER.matcher(sentence);
             if (!matches.find()) continue;
-            if (sentence.length() <= 320) evidence.add(sentence);
+            int length = sentence.codePointCount(0, sentence.length());
+            if (length <= SHORT_SENTENCE_CODE_POINTS) evidence.add(sentence);
             else {
                 do {
-                    int start = Math.max(0, matches.start() - 80);
-                    int end = Math.min(sentence.length(), Math.max(start + 240, matches.end()));
-                    if (start > 0 && Character.isLowSurrogate(sentence.charAt(start))) start++;
-                    if (end > start && Character.isHighSurrogate(sentence.charAt(end - 1))) end--;
-                    evidence.add(
+                    int start = Math.max(0, sentence.codePointCount(0, matches.start()) - 80);
+                    int end =
+                            Math.min(
+                                    length,
+                                    Math.max(
+                                            start + EXCERPT_CODE_POINTS,
+                                            sentence.codePointCount(0, matches.end())));
+                    String excerpt =
                             (start > 0 ? "…" : "")
-                                    + sentence.substring(start, end).strip()
-                                    + (end < sentence.length() ? "…" : ""));
-                } while (matches.find() && evidence.size() < 12);
+                                    + sentence.substring(
+                                                    sentence.offsetByCodePoints(0, start),
+                                                    sentence.offsetByCodePoints(0, end))
+                                            .strip()
+                                    + (end < length ? "…" : "");
+                    evidence.add(excerpt);
+                } while (matches.find());
             }
-            if (evidence.size() >= 12) break;
         }
-        return evidence.stream().limit(12).toList();
+        var ranked = evidence.ranked();
+        boolean matches =
+                keywords.isEmpty() || ranked.stream().anyMatch(row -> row.keywordScore() > 0);
+        if (!keywords.isEmpty() && matches)
+            ranked = ranked.stream().filter(row -> row.keywordScore() > 0).toList();
+        return new NumericEvidence(
+                ranked.stream().limit(12).map(RankedEvidence::text).toList(), matches);
+    }
+
+    private record RankedEvidence(String text, int keywordScore, int numericScore, long order) {}
+
+    private static final Comparator<RankedEvidence> EVIDENCE_RANK =
+            Comparator.comparingInt(RankedEvidence::keywordScore)
+                    .thenComparingInt(RankedEvidence::numericScore)
+                    .thenComparing(Comparator.comparingLong(RankedEvidence::order).reversed());
+
+    private static final class EvidenceCandidates {
+        private final List<String> keywords;
+        private final PriorityQueue<RankedEvidence> heap = new PriorityQueue<>(EVIDENCE_RANK);
+        private final Set<String> retained = new HashSet<>();
+        private long sequence;
+
+        private EvidenceCandidates(List<String> keywords) {
+            this.keywords = keywords;
+        }
+
+        private void add(String text) {
+            if (retained.contains(text)) return;
+            var candidate =
+                    new RankedEvidence(
+                            text, relevance(text, keywords), numericWeight(text), sequence++);
+            if (heap.size() >= MAX_EVIDENCE_CANDIDATES) {
+                if (EVIDENCE_RANK.compare(candidate, heap.peek()) <= 0) return;
+                retained.remove(heap.remove().text());
+            }
+            heap.add(candidate);
+            retained.add(text);
+        }
+
+        private List<RankedEvidence> ranked() {
+            return heap.stream().sorted(EVIDENCE_RANK.reversed()).toList();
+        }
+    }
+
+    private static int numericWeight(String text) {
+        var matcher = NUMBER.matcher(text);
+        int score = 0;
+        while (matcher.find()) {
+            String unit = matcher.group(2).strip();
+            // Dates and identifiers are useful context but should not hide money/capacity/rates.
+            if (!unit.isEmpty() && !unit.matches("(?:년|월|일|분기|시|분|초)")) score += 2;
+        }
+        return score;
+    }
+
+    public static List<String> questionKeywords(String question) {
+        return WORD_PATTERN
+                .matcher(question)
+                .results()
+                .map(m -> m.group().toLowerCase(Locale.ROOT))
+                .filter(word -> !KEYWORD_STOP_WORDS.contains(word))
+                .map(word -> KEYWORD_SUFFIX.matcher(word).replaceFirst(""))
+                .filter(word -> word.length() >= 2 && !KEYWORD_STOP_WORDS.contains(word))
+                .distinct()
+                .toList();
+    }
+
+    private static int relevance(String text, List<String> keywords) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return (int) keywords.stream().filter(lower::contains).count();
+    }
+
+    public static List<String> articleEvidence(NewsArticle article, String question) {
+        var keywords = questionKeywords(question);
+        return Arrays.stream(article.body().split("(?<=[.!?。])\\s+|\n+"))
+                .map(String::strip)
+                .filter(text -> !text.isEmpty())
+                .filter(text -> keywords.isEmpty() || relevance(text, keywords) > 0)
+                .sorted(
+                        Comparator.comparingInt((String text) -> relevance(text, keywords))
+                                .thenComparingInt(NewsAnswerContent::numericWeight)
+                                .reversed())
+                .map(
+                        text ->
+                                text.codePointCount(0, text.length()) <= SHORT_SENTENCE_CODE_POINTS
+                                        ? text
+                                        : text.substring(
+                                                        0,
+                                                        text.offsetByCodePoints(
+                                                                0,
+                                                                Math.min(
+                                                                        EXCERPT_CODE_POINTS,
+                                                                        text.codePointCount(
+                                                                                0, text.length()))))
+                                                + "…")
+                .limit(3)
+                .toList();
     }
 
     public boolean numbersComeFrom(NewsArticle article) {
