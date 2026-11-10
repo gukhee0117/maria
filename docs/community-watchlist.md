@@ -14,7 +14,7 @@
 | ticker | VARCHAR(20) | 국내·해외 종목코드, 복합 PK |
 | created_at | DATETIME | SYSTEM_CLOCK 등록시각 |
 
-국내·해외 공통 코드이므로 상품 테이블 FK는 두지 않고 추가 시 종목 마스터에 존재하는지 확인한다. 중복 추가는 최초 등록시각을 유지하고, 없는 항목 삭제도 성공한다. 같은 고객의 쓰기는 CUSTOMER 행을 먼저 FOR UPDATE로 잠가 직렬화한다.
+국내·해외 공통 코드이므로 상품 테이블 FK는 두지 않고 추가 시 종목 마스터에 존재하는지 확인한다. 고객당 최대 100개를 허용하며 상한에 도달해도 기존 항목의 중복 추가는 성공한다. 중복 추가는 최초 등록시각을 유지하고, 없는 항목 삭제도 성공한다. 같은 고객의 쓰기는 CUSTOMER 행을 먼저 FOR UPDATE로 잠가 직렬화한다.
 
 ## API
 
@@ -31,7 +31,8 @@
 ## 검증
 
 - 백엔드: `./gradlew test --tests '*CommunityWatchlist*' --tests '*CommunityTickerMapperTest' spotlessCheck`
-- 프론트: `npm test`, `npm run build`
+- 프론트: `npm test`, `node --test tests/community-*.test.mjs`, `npm run build`
+- 현재 커뮤니티 화면은 국내 종목만 표시한다. 해외 관심종목은 API에 보존하되 국내 시세 요청이나 패널에 넘기지 않는다.
 - 실제 HTTP·MariaDB 검증은 customer-web의 `tests/community-watchlist-http.test.mjs`에 있다. 로컬 시드 서버만 허용하고 시드 고객 1·2를 사용한다.
 - `WATCHLIST_HTTP_TEST=1`, `WATCHLIST_TEST_PASSWORD=<시드 비밀번호>`를 설정한 뒤 `node --test tests/community-watchlist-http.test.mjs` 실행.
 - 12개 동시 추가를 3회 실행해 모든 응답 성공·중복 한 건을 확인한다. 고객 ID 변조·타 고객 삭제·CSRF·없는 종목·반복 삭제도 검사한다.

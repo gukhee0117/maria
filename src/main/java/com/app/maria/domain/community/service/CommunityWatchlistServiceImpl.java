@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class CommunityWatchlistServiceImpl implements CommunityWatchlistService {
+    private static final int MAX_ITEMS = 100;
     private final CommunityWatchlistMapper mapper;
     private final CommunityTickerService tickers;
     private final BusinessClockService clock;
@@ -28,6 +29,9 @@ public class CommunityWatchlistServiceImpl implements CommunityWatchlistService 
         validate(ticker);
         lockCustomer(customerId);
         tickers.requireExists(ticker);
+        var current = mapper.findTickers(customerId);
+        if (!current.contains(ticker) && current.size() >= MAX_ITEMS)
+            throw new AppException(ErrorType.COMMUNITY_WATCHLIST_LIMIT_EXCEEDED);
         mapper.add(customerId, ticker, clock.now());
     }
 

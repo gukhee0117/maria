@@ -21,10 +21,18 @@ public class ThemeNewsProvider implements NewsProvider {
             Pattern.compile(
                     "주가|주식(?!회사)|증권|증시|코스피|코스닥|유가증권|상장|공모주|시가총액|목표주가|투자의견|자사주|유상증자|액면분할|주당(?:순이익|배당)|배당(?:금|수익률|정책|주)|\\b(?:IPO|ETF|ETN|PER|PBR|EPS)\\b",
                     Pattern.CASE_INSENSITIVE);
+    private static final String FILTER_VERSION = "promotion-v5-market-context";
+    private static final Pattern CONTEST = Pattern.compile("공모전(?!략)|경진대회|박람회|페스티벌|체험전");
     private static final Pattern PROMOTIONAL_EVENT =
-            Pattern.compile("공모전|경진대회|이벤트|박람회|페스티벌|기념식|체험전|(?<!대)행사|세미나|컨퍼런스|포럼|설명회");
+            Pattern.compile("(?<![가-힣])행사(?!가)|(?:체험|홍보|기념|고객|초청)\\s*행사|이벤트|세미나|컨퍼런스|포럼|설명회|기념식");
+    private static final Pattern PROMOTION =
+            Pattern.compile("개최|모집|참가|경품|증정|초청|응모|접수|개막|성료|진행|거래\\s*이벤트|체험\\s*행사|투자\\s*세미나");
+    private static final Pattern MARKET_TITLE =
+            Pattern.compile(
+                    "주가|증시|코스피|코스닥|상장|실적|가이던스|금리|신용등급|부도|지분\\s*매각|행사가[격액]|FOMC|이벤트\\s*드리븐",
+                    Pattern.CASE_INSENSITIVE);
     private static final Pattern FINANCIAL_EXERCISE =
-            Pattern.compile("(?:신주인수권|주식매수선택권|스톡옵션|전환권|전환청구권|매수청구권|권리)\\s*행사");
+            Pattern.compile("(?:[가-힣]*권|[가-힣]*옵션|워런트|권리)\\s*행사");
     private static final Pattern ARTICLE_FOOTER = Pattern.compile("※|ⓒ|무단\\s*(?:전재|복제)|저작권자");
     private final FreeNewsProvider source;
     private final NewsThemeService themes;
@@ -35,7 +43,7 @@ public class ThemeNewsProvider implements NewsProvider {
     }
 
     public String id() {
-        return "THEME_FREE_NEWS_V4_NO_PROMOTIONAL_EVENTS";
+        return "THEME_FREE_NEWS_V2_STOCK_MARKET";
     }
 
     public List<String> themeNames(Context c) {
@@ -83,7 +91,9 @@ public class ThemeNewsProvider implements NewsProvider {
         var sourceSnapshot = source.snapshot(q);
         String version =
                 NewsCacheIdentity.hash(
-                        id()
+                        FILTER_VERSION
+                                + ":"
+                                + id()
                                 + ":"
                                 + themes.themes(c.tickers()).toString()
                                 + ":"
@@ -98,7 +108,10 @@ public class ThemeNewsProvider implements NewsProvider {
         // Do not let publisher footers or investment disclaimers turn a general story into stock
         // news.
         String title = FINANCIAL_EXERCISE.matcher(article.title()).replaceAll("");
-        if (PROMOTIONAL_EVENT.matcher(title).find()) return false;
+        if (CONTEST.matcher(title).find()) return false;
+        if (PROMOTIONAL_EVENT.matcher(title).find()
+                && PROMOTION.matcher(title).find()
+                && !MARKET_TITLE.matcher(title).find()) return false;
         String body = ARTICLE_FOOTER.split(article.body(), 2)[0];
         String text = article.title() + " " + body;
         if (!STOCK_MARKET.matcher(text).find()) return false;

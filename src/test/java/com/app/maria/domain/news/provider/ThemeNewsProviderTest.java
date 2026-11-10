@@ -102,6 +102,65 @@ class ThemeNewsProviderTest {
                 .containsExactly("earnings", "rights", "agency", "conversion", "conversion-spaced");
     }
 
+    @Test
+    void preservesFinancialTermsAndMarketReportingInsteadOfBanningEventWords() {
+        var source = mock(FreeNewsProvider.class);
+        var themes = mock(NewsThemeService.class);
+        var c =
+                new Context(
+                        1L,
+                        Set.of("005930"),
+                        InvestorType.STABLE,
+                        PersonalizationStatus.ACTIVE,
+                        Map.of("005930", "삼성전자"));
+        when(themes.themes(c.tickers())).thenReturn(Map.of("005930", Set.of("반도체")));
+        var titles =
+                List.of(
+                        "의결권 행사 논란 주가 급등",
+                        "국민연금 의결권 행사 반대",
+                        "주주권 행사",
+                        "콜옵션 행사",
+                        "풋옵션 행사",
+                        "교환권 행사",
+                        "상환권 행사",
+                        "경영권 행사",
+                        "워런트 행사",
+                        "행사가격 하향 조정",
+                        "행사가액 조정 공시",
+                        "여행사 주가 급등",
+                        "PF 시행사 부도에 건설주 급락",
+                        "발행사 신용등급 하향",
+                        "운행사 지분 매각",
+                        "기업설명회(IR) 개최 후 주가 상승",
+                        "투자설명회서 실적 가이던스",
+                        "코스닥 상장 기념식",
+                        "FOMC 이벤트 앞두고 증시 관망",
+                        "이벤트 드리븐 전략",
+                        "다보스 포럼서 증시 전망",
+                        "세미나서 금리 전망");
+        var rows = new java.util.ArrayList<NewsArticle>();
+        for (int i = 0; i < titles.size(); i++)
+            rows.add(news("keep-" + i, "반도체 " + titles.get(i), "반도체 관련 증권시장 분석이다."));
+        var expected = rows.stream().map(NewsArticle::id).toList();
+        rows.add(news("contest", "반도체 창업공모전 개최", "반도체 증권 공모전 모집"));
+        rows.add(news("promo", "반도체 고객 초청 행사", "반도체 증권 고객 초청 행사"));
+        when(source.articles(any(Context.class))).thenReturn(rows);
+        when(source.cachedArticles(any(Context.class))).thenReturn(Optional.of(rows));
+        when(source.snapshot(any()))
+                .thenReturn(new NewsProvider.Snapshot("day", () -> rows, () -> Optional.of(rows)));
+        var provider = new ThemeNewsProvider(source, themes);
+        assertThat(provider.articles(c))
+                .extracting(NewsArticle::id)
+                .containsExactlyElementsOf(expected);
+        assertThat(provider.cachedArticles(c).orElseThrow())
+                .extracting(NewsArticle::id)
+                .containsExactlyElementsOf(expected);
+        assertThat(provider.snapshot(c).articles().get())
+                .extracting(NewsArticle::id)
+                .containsExactlyElementsOf(expected);
+        assertThat(provider.id()).isEqualTo("THEME_FREE_NEWS_V2_STOCK_MARKET");
+    }
+
     private NewsArticle news(String id, String title, String body) {
         return new NewsArticle(
                 id,

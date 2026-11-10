@@ -20,6 +20,25 @@ class CommunityWatchlistServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void customerExists() {
         when(mapper.lockCustomer(52L)).thenReturn(52L);
+        when(mapper.findTickers(52L)).thenReturn(List.of());
+    }
+
+    @Test
+    void fullWatchlistRejectsNewTickerButAllowsIdempotentDuplicate() {
+        var full =
+                java.util.stream.IntStream.range(0, 100)
+                        .mapToObj(i -> String.format("%06d", i))
+                        .toList();
+        when(mapper.findTickers(52L)).thenReturn(full);
+        assertThatThrownBy(() -> service.add(52L, "005930"))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.COMMUNITY_WATCHLIST_LIMIT_EXCEEDED));
+        verify(mapper, never()).add(any(), any(), any());
+        service.add(52L, "000001");
+        verify(mapper).add(eq(52L), eq("000001"), any());
     }
 
     @Test
@@ -37,6 +56,7 @@ class CommunityWatchlistServiceTest {
         var order = inOrder(mapper, tickers, clock);
         order.verify(mapper).lockCustomer(52L);
         order.verify(tickers).requireExists("AAPL");
+        order.verify(mapper).findTickers(52L);
         order.verify(clock).now();
         order.verify(mapper).add(52L, "AAPL", now);
     }
