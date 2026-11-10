@@ -45,7 +45,5 @@ jwt:
 kkiru:
   docs:
     enabled: false
-app:
-  risk:
-    current-stock-cache-ttl-seconds: 60
-    current-stock-cache-max-tickers: 77
+custom.risk.current-stock-cache-ttl-seconds: 60
+custom.risk.current-stock-cache-max-tickers: 77

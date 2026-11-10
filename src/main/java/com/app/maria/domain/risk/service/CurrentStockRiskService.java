@@ -27,8 +27,8 @@ public class CurrentStockRiskService {
     public CurrentStockRiskService(
             PythonStockClassificationClient client,
             RiskMarketClock clock,
-            @Value("${app.risk.current-stock-cache-max-tickers}") int maxCachedTickers,
-            @Value("${app.risk.current-stock-cache-ttl-seconds}") long cacheTtlSeconds) {
+            @Value("${custom.risk.current-stock-cache-max-tickers}") int maxCachedTickers,
+            @Value("${custom.risk.current-stock-cache-ttl-seconds}") long cacheTtlSeconds) {
         this.client = client;
         this.clock = clock;
         this.maxCachedTickers = maxCachedTickers;
