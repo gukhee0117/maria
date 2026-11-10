@@ -253,7 +253,7 @@ class PythonRiskHttpIntegrationTest {
         var classifications =
                 new PythonStockClassificationClient(
                         RestClient.builder().baseUrl(baseUrl).build(), properties);
-        var live = new CurrentStockRiskService(classifications, clock);
+        var live = new CurrentStockRiskService(classifications, clock, 77, 60);
         var split = new RiskGradeServiceImpl(mapper, calendar, clock, live);
         assertThat(split.findClassificationByTicker("005930"))
                 .get()
