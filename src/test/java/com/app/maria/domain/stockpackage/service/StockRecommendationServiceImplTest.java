@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.type.Type;
+import com.app.maria.domain.stockpackage.ai.AiBusyException;
 import com.app.maria.domain.stockpackage.ai.StockRecommendationAnswerer;
 import com.app.maria.domain.stockpackage.dto.request.StockCandidateRequestDTO;
 import com.app.maria.domain.stockpackage.dto.request.StockRecommendationAskRequestDTO;
@@ -653,6 +654,63 @@ class StockRecommendationServiceImplTest {
                         new StockRecommendationAskRequestDTO("이 종목 어때?", null, null, null));
         assertThat(fallback.isAiGenerated()).isFalse();
         assertThat(fallback.getAnswer()).isEqualTo(StockRecommendationServiceImpl.FALLBACK_ANSWER);
+    }
+
+    @Test
+    @DisplayName("종목 없이 \"왜 추천했어?\"라고 물으면 AI 없이 추천 기준과 종목별 등급으로 답한다")
+    void whyWithoutFocusAnswersFromFacts() {
+        candidates(
+                true,
+                2,
+                row(1, "A전자", "000001", Type.STOCK, "전기", 2, true),
+                row(2, "B소재", "000002", Type.STOCK, "소재", 3, true));
+
+        StockRecommendationAskResponseDTO res =
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("왜 이 종목을 추천했어?", null, null, null));
+
+        assertThat(res.isAiGenerated()).isFalse();
+        assertThat(res.getTicker()).isNull();
+        assertThat(res.getAnswer())
+                .contains("2~6등급")
+                .contains("A전자 2등급")
+                .contains("B소재 3등급")
+                .contains("보유하지 않은")
+                .contains("펼치면");
+        verify(answerer, never()).answer(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("추천과 상관없는 \"왜\" 질문은 이유 답변으로 가로채지 않고 AI에 넘긴다")
+    void whyAboutSomethingElseGoesToAi() {
+        candidates(true, 2, row(1, "A전자", "000001", Type.STOCK, "전기", 2, true));
+        when(answerer.answer(anyString(), anyString())).thenReturn(Optional.of("AI 답"));
+
+        StockRecommendationAskResponseDTO res =
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("삼성전자는 왜 없어?", null, null, null));
+
+        assertThat(res.isAiGenerated()).isTrue();
+        assertThat(res.getAnswer()).isEqualTo("AI 답");
+    }
+
+    @Test
+    @DisplayName("AI 호출이 모두 쓰이는 중이면 \"정보 없음\"이 아니라 잠시 뒤에 다시 물으라고 안내한다")
+    void busyAiGetsRetryAnswer() {
+        candidates(true, 2, row(1, "A전자", "000001", Type.STOCK, "전기", 2, true));
+        when(answerer.answer(anyString(), anyString())).thenThrow(new AiBusyException());
+
+        StockRecommendationAskResponseDTO res =
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("이 종목 어때?", null, null, null));
+
+        assertThat(res.isAiGenerated()).isFalse();
+        assertThat(res.getTicker()).isNull();
+        assertThat(res.getAnswer()).isEqualTo(StockRecommendationServiceImpl.BUSY_ANSWER);
+        assertThat(res.getAnswer()).isNotEqualTo(StockRecommendationServiceImpl.FALLBACK_ANSWER);
     }
 
     @Test

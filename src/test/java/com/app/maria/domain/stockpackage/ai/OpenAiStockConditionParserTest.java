@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.stockpackage.ai.ConditionDraft.Intent;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,8 +26,15 @@ class OpenAiStockConditionParserTest {
 
     private final ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
 
+    private final AiCallExecutor executor = new AiCallExecutor(10);
+
+    @AfterEach
+    void tearDown() {
+        executor.shutdown();
+    }
+
     private OpenAiStockConditionParser parser(long timeoutMillis) {
-        return new OpenAiStockConditionParser(chatClient, PROMPT, timeoutMillis);
+        return new OpenAiStockConditionParser(chatClient, PROMPT, timeoutMillis, executor);
     }
 
     @Test
