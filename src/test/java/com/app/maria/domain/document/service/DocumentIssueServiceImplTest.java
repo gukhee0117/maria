@@ -194,6 +194,27 @@ class DocumentIssueServiceImplTest {
     }
 
     @Test
+    @DisplayName("발급: 저장값과 재계산 값이 반올림 차이뿐이면 일치로 본다")
+    void issue_acceptsRoundingDifference() {
+        readyToIssue(BenefitType.POSSIBLE);
+        when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .thenReturn(Optional.of(stored()));
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
+        when(taxCalculationService.taxCalculate(ACCOUNT_ID))
+                .thenReturn(preview(new BigDecimal("1938472.996")));
+        when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(TaxReliefCertView.builder().build());
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
+
+        service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
+
+        verify(documentIssueMapper).insert(any(DocumentIssueDTO.class));
+    }
+
+    @Test
     @DisplayName("발급: 과세특례 증빙서가 있어도 순매수 내역서는 따로 만들고 종류를 저장한다")
     void issueForCustomer_netPurchaseStatementIsIssuedIndependently() {
         readyToIssue(BenefitType.POSSIBLE);

@@ -22,6 +22,7 @@ import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.domain.tax.type.TaxBasisType;
+import com.app.maria.domain.tax.type.TaxScale;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
@@ -229,16 +230,21 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     /** 저장된 확정 세액과 지금 다시 계산한 결과가 다르면 발급하지 않는다. */
     private void verifyMatchesStored(
             Long accountId, TaxCalculationDTO stored, TaxCalculationResultDTO fresh) {
+        // 저장값은 DB에서 반올림돼 있으므로 재계산 값도 같은 자릿수로 맞춰 비교한다.
         boolean same =
-                same(stored.getWeightedSell(), fresh.getWeightedSell())
-                        && same(stored.getOriginalGainAmount(), fresh.getOriginalGainAmount())
-                        && same(stored.getWeightedGain(), fresh.getWeightedGain())
+                same(stored.getWeightedSell(), amount(fresh.getWeightedSell()))
+                        && same(
+                                stored.getOriginalGainAmount(),
+                                amount(fresh.getOriginalGainAmount()))
+                        && same(stored.getWeightedGain(), amount(fresh.getWeightedGain()))
                         && same(
                                 stored.getWeightedExternalAmount(),
-                                fresh.getWeightedExternalAmount())
-                        && same(stored.getAdjustRatio(), fresh.getAdjustRatio())
-                        && same(stored.getFinalDeduction(), fresh.getFinalDeduction())
-                        && same(stored.getFinalTax(), fresh.getFinalTax());
+                                amount(fresh.getWeightedExternalAmount()))
+                        && same(
+                                stored.getAdjustRatio(),
+                                TaxScale.RATIO.round(fresh.getAdjustRatio()))
+                        && same(stored.getFinalDeduction(), amount(fresh.getFinalDeduction()))
+                        && same(stored.getFinalTax(), amount(fresh.getFinalTax()));
         if (!same) {
             throw new AppException(ErrorType.DOCUMENT_BASIS_MISMATCH, accountId);
         }
@@ -261,6 +267,10 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
 
     private boolean differs(BigDecimal a, BigDecimal b) {
         return a.subtract(b).abs().compareTo(ROUNDING_TOLERANCE) > 0;
+    }
+
+    private BigDecimal amount(BigDecimal value) {
+        return TaxScale.AMOUNT.round(value);
     }
 
     private boolean same(BigDecimal a, BigDecimal b) {
