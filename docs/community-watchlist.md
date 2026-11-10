@@ -32,7 +32,7 @@
 
 - 백엔드: `./gradlew test --tests '*CommunityWatchlist*' --tests '*CommunityTickerMapperTest' spotlessCheck`
 - 프론트: `npm test`, `node --test tests/community-*.test.mjs`, `npm run build`
-- 현재 커뮤니티 화면은 국내 종목만 표시한다. 해외 관심종목은 API에 보존하되 국내 시세 요청이나 패널에 넘기지 않는다.
+- 현재 커뮤니티 화면은 서버 종목 마스터의 market=DOMESTIC에 있는 코드만 표시하고 시세를 요청한다. 6자리 숫자인 해외 종목도 제외한다. 해외 관심종목은 API에 보존한다.
 - 실제 HTTP·MariaDB 검증은 customer-web의 `tests/community-watchlist-http.test.mjs`에 있다. 로컬 시드 서버만 허용하고 시드 고객 1·2를 사용한다.
 - `WATCHLIST_HTTP_TEST=1`, `WATCHLIST_TEST_PASSWORD=<시드 비밀번호>`를 설정한 뒤 `node --test tests/community-watchlist-http.test.mjs` 실행.
 - 12개 동시 추가를 3회 실행해 모든 응답 성공·중복 한 건을 확인한다. 고객 ID 변조·타 고객 삭제·CSRF·없는 종목·반복 삭제도 검사한다.

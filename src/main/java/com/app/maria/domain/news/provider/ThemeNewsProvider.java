@@ -21,12 +21,14 @@ public class ThemeNewsProvider implements NewsProvider {
             Pattern.compile(
                     "주가|주식(?!회사)|증권|증시|코스피|코스닥|유가증권|상장|공모주|시가총액|목표주가|투자의견|자사주|유상증자|액면분할|주당(?:순이익|배당)|배당(?:금|수익률|정책|주)|\\b(?:IPO|ETF|ETN|PER|PBR|EPS)\\b",
                     Pattern.CASE_INSENSITIVE);
-    private static final String FILTER_VERSION = "promotion-v5-market-context";
+    private static final String FILTER_VERSION = "promotion-v6-explicit-advertising";
     private static final Pattern CONTEST = Pattern.compile("공모전(?!략)|경진대회|박람회|페스티벌|체험전");
     private static final Pattern PROMOTIONAL_EVENT =
             Pattern.compile("(?<![가-힣])행사(?!가)|(?:체험|홍보|기념|고객|초청)\\s*행사|이벤트|세미나|컨퍼런스|포럼|설명회|기념식");
     private static final Pattern PROMOTION =
             Pattern.compile("개최|모집|참가|경품|증정|초청|응모|접수|개막|성료|진행|거래\\s*이벤트|체험\\s*행사|투자\\s*세미나");
+    private static final Pattern EXPLICIT_ADVERTISING =
+            Pattern.compile("경품|증정|응모|접수|(?:참가자|참가팀|참가기업|참가업체|수강생|신청자|고객)\\s*모집");
     private static final Pattern MARKET_TITLE =
             Pattern.compile(
                     "주가|증시|코스피|코스닥|상장|실적|가이던스|금리|신용등급|부도|지분\\s*매각|행사가[격액]|FOMC|이벤트\\s*드리븐",
@@ -109,6 +111,9 @@ public class ThemeNewsProvider implements NewsProvider {
         // news.
         String title = FINANCIAL_EXERCISE.matcher(article.title()).replaceAll("");
         if (CONTEST.matcher(title).find()) return false;
+        // A market-related event topic does not turn a participation advert into market reporting.
+        if (PROMOTIONAL_EVENT.matcher(title).find() && EXPLICIT_ADVERTISING.matcher(title).find())
+            return false;
         if (PROMOTIONAL_EVENT.matcher(title).find()
                 && PROMOTION.matcher(title).find()
                 && !MARKET_TITLE.matcher(title).find()) return false;

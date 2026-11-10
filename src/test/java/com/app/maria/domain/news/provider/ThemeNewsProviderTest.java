@@ -144,6 +144,9 @@ class ThemeNewsProviderTest {
         var expected = rows.stream().map(NewsArticle::id).toList();
         rows.add(news("contest", "반도체 창업공모전 개최", "반도체 증권 공모전 모집"));
         rows.add(news("promo", "반도체 고객 초청 행사", "반도체 증권 고객 초청 행사"));
+        rows.add(news("listed-etf-promo", "반도체 상장 ETF 거래 이벤트 경품 증정", "반도체 증권 고객 경품 이벤트다."));
+        rows.add(news("market-seminar-ad", "반도체 주가 전망 세미나 참가자 모집", "반도체 증권 투자 세미나 모집 안내다."));
+        rows.add(news("market-seminar-entry", "반도체 증시 전망 세미나 신청자 모집", "반도체 증권 세미나 신청 안내다."));
         when(source.articles(any(Context.class))).thenReturn(rows);
         when(source.cachedArticles(any(Context.class))).thenReturn(Optional.of(rows));
         when(source.snapshot(any()))
