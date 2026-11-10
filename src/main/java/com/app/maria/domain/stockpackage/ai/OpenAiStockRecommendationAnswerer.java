@@ -104,12 +104,12 @@ public class OpenAiStockRecommendationAnswerer implements StockRecommendationAns
         if (end < 0) {
             end = lastSentenceEnd(text, head.length(), false);
         }
-        return end > 0 ? head.substring(0, end + 1).trim() : head;
+        return end >= 0 ? head.substring(0, end + 1).trim() : head;
     }
 
     /** limit 앞에서 마지막으로 끝난 문장의 마지막 글자 위치를 찾는다. 없으면 -1이다. */
     private static int lastSentenceEnd(String text, int limit, boolean byPunctuation) {
-        for (int i = limit - 1; i > 0; i--) {
+        for (int i = limit - 1; i >= 0; i--) {
             char c = text.charAt(i);
             boolean ender =
                     byPunctuation

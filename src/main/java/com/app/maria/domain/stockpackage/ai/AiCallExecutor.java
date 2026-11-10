@@ -8,6 +8,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class AiCallExecutor {
     static final int MAX_THREADS = 10;
 
+    private final AtomicInteger threadSeq = new AtomicInteger();
     private final ExecutorService executor;
 
     @Autowired
@@ -35,7 +37,8 @@ public class AiCallExecutor {
                         TimeUnit.SECONDS,
                         new SynchronousQueue<>(),
                         r -> {
-                            Thread t = new Thread(r, "stock-ai-call");
+                            Thread t =
+                                    new Thread(r, "stock-ai-call-" + threadSeq.incrementAndGet());
                             t.setDaemon(true);
                             return t;
                         },

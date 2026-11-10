@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,6 +20,13 @@ class OpenAiStockRecommendationAnswererTest {
     private static final String PROMPT = "사실: <<FACTS>>";
 
     private final ChatClient chatClient = mock(ChatClient.class, RETURNS_DEEP_STUBS);
+
+    private final AiCallExecutor executor = new AiCallExecutor();
+
+    @AfterEach
+    void tearDown() {
+        executor.shutdown();
+    }
 
     private void content(String text) {
         when(chatClient.prompt().system(anyString()).user(anyString()).call().content())
@@ -31,8 +39,7 @@ class OpenAiStockRecommendationAnswererTest {
         content("  답이에요.  ");
 
         Optional<String> r =
-                new OpenAiStockRecommendationAnswerer(
-                                chatClient, PROMPT, 2_000, new AiCallExecutor())
+                new OpenAiStockRecommendationAnswerer(chatClient, PROMPT, 2_000, executor)
                         .answer("질문", "사실");
 
         assertThat(r).contains("답이에요.");
@@ -62,6 +69,14 @@ class OpenAiStockRecommendationAnswererTest {
         // 숫자 사이의 점은 문장 끝이 아니다
         String decimal = "가".repeat(595) + " 3.5나다라마바";
         assertThat(OpenAiStockRecommendationAnswerer.cut(decimal)).hasSize(600);
+    }
+
+    @Test
+    @DisplayName("문장 끝 부호가 맨 앞 글자뿐이어도 그 위치를 문장 끝으로 본다")
+    void cutAtFirstCharacterEnder() {
+        String text = ". " + "가".repeat(700);
+
+        assertThat(OpenAiStockRecommendationAnswerer.cut(text)).isEqualTo(".");
     }
 
     @Test

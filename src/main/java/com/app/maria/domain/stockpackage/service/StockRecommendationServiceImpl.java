@@ -580,7 +580,11 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         return Optional.empty();
     }
 
-    /** 추천 기준 한 문장과 종목별 위험등급·거래 경향 일치 여부로 "왜 이 종목들을 추천했는지"를 알려 준다. 이유는 모두 서버가 가진 사실이다. */
+    /**
+     * 추천 기준 한 문장과 종목별 위험등급·거래 경향 일치 여부로 "왜 이 종목들을 추천했는지"를 알려 준다. 이유는 모두 서버가 가진 사실이다.
+     *
+     * @param items 비어 있지 않아야 한다. 비면 종목 줄 없이 "종목을 눌러 펼치면..." 안내만 붙는다.
+     */
     private static String whyAnswer(StockRecommendationVO rec, List<Item> items) {
         String lines =
                 items.stream()
