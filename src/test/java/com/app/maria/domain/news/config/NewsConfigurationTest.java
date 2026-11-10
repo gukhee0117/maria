@@ -43,6 +43,7 @@ class NewsConfigurationTest {
     void newBeansWireAlongsideExistingChatClientWithoutDatabaseOrFinanceChanges() {
         new ApplicationContextRunner()
                 .withUserConfiguration(Config.class)
+                .withBean(java.time.Clock.class, java.time.Clock::systemUTC)
                 .withBean(
                         ObjectMapper.class,
                         () -> new ObjectMapper().registerModule(new JavaTimeModule()))

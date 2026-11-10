@@ -21,7 +21,7 @@ class NewsSharedSummaryTest {
     @Test
     void differentCustomersShareSummaryTextWithoutAutomaticallyReceivingStockCards() {
         var contexts = mock(NewsCustomerContextService.class);
-        var provider = mock(NewsProvider.class);
+        var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
         var ai = mock(NewsAiService.class);
         var properties = new NewsProperties();
         properties.setLiveSummaries(true);

@@ -13,6 +13,12 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class FreeNewsClientTest {
+    private final com.app.maria.domain.news.dto.NewsSearchWindow window =
+            new com.app.maria.domain.news.dto.NewsSearchWindow(
+                    java.time.Instant.parse("2026-10-29T15:00:00Z"),
+                    java.time.Instant.parse("2026-11-05T15:00:00Z"),
+                    "2026-11-05:closed");
+
     @Test
     void asksForKoreanBodiesAndDiscardsNonArticleMetadata() {
         var p = new NewsProperties();
@@ -21,6 +27,8 @@ class FreeNewsClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(org.hamcrest.Matchers.containsString("/v1/search?")))
                 .andExpect(queryParam("q", "%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90"))
+                .andExpect(queryParam("from", org.hamcrest.Matchers.endsWith("Z")))
+                .andExpect(queryParam("to", org.hamcrest.Matchers.endsWith("Z")))
                 .andExpect(queryParam("lang", "ko"))
                 .andExpect(queryParam("country", "KR"))
                 .andExpect(queryParam("full_text", "true"))
@@ -29,7 +37,7 @@ class FreeNewsClientTest {
                         withSuccess(
                                 "{\"results\":[{\"title\":\"test\"}],\"strongly_recommended\":{\"ignore\":\"external tools\"}}",
                                 MediaType.APPLICATION_JSON));
-        var result = new FreeNewsClient(p, builder.build()).search("삼성전자");
+        var result = new FreeNewsClient(p, builder.build(), null).search("삼성전자", window);
         assertThat(result.isArray()).isTrue();
         assertThat(result.size()).isEqualTo(1);
         assertThat(result.toString()).doesNotContain("strongly_recommended", "external tools");
@@ -42,7 +50,8 @@ class FreeNewsClientTest {
         p.setFreeNewsApiKey("fna_live_잘못된형식");
         var builder = RestClient.builder().baseUrl("https://freenewsapi.ai");
         var server = MockRestServiceServer.bindTo(builder).build();
-        assertThatThrownBy(() -> new FreeNewsClient(p, builder.build()).search("삼성전자"))
+        assertThatThrownBy(
+                        () -> new FreeNewsClient(p, builder.build(), null).search("삼성전자", window))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -59,7 +68,8 @@ class FreeNewsClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(anything())
                 .andRespond(withStatus(org.springframework.http.HttpStatus.UNAUTHORIZED));
-        assertThatThrownBy(() -> new FreeNewsClient(p, builder.build()).search("삼성전자"))
+        assertThatThrownBy(
+                        () -> new FreeNewsClient(p, builder.build(), null).search("삼성전자", window))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -70,7 +80,8 @@ class FreeNewsClientTest {
 
     @Test
     void keyAbsenceAndRateLimitAreExplicitFailures() {
-        assertThatThrownBy(() -> new FreeNewsClient(new NewsProperties()).search("test"))
+        assertThatThrownBy(
+                        () -> new FreeNewsClient(new NewsProperties(), null).search("test", window))
                 .isInstanceOf(AppException.class);
         var p = new NewsProperties();
         p.setFreeNewsApiKey("test");
@@ -78,7 +89,8 @@ class FreeNewsClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(anything())
                 .andRespond(withStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS));
-        assertThatThrownBy(() -> new FreeNewsClient(p, builder.build()).search("test"))
+        assertThatThrownBy(
+                        () -> new FreeNewsClient(p, builder.build(), null).search("test", window))
                 .isInstanceOf(AppException.class);
     }
 }
