@@ -18,6 +18,7 @@ import com.app.maria.domain.stockpackage.type.StockOrderRejectReason;
 import com.app.maria.domain.stockpackage.vo.StockBalanceVO;
 import com.app.maria.domain.stockpackage.vo.StockOrderVO;
 import com.app.maria.domain.stockpackage.vo.StockPackageItemVO;
+import com.app.maria.domain.stockpackage.vo.StockPackageVO;
 import com.app.maria.domain.stockpackage.vo.StockQuoteVO;
 import com.app.maria.domain.tax.dto.TaxRuleDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
@@ -239,6 +240,12 @@ public class StockOrderServiceImpl implements StockOrderService {
         BigDecimal buyingPower =
                 amountNow.subtract(stockOrderMapper.sumProvisionalAmount(accountId));
 
+        // 패키지 주문의 종목별 매수 가능 잔여 금액(패키지 총액 x 목표 비중 - 이미 담은 금액). 총액이 없거나 생성기 주문이면 null(제한 없음)
+        Map<Long, BigDecimal> weightRoom =
+                stockPackageId == null
+                        ? null
+                        : weightRoomByProduct(account.getCustomerId(), stockPackageId);
+
         List<StockOrderResultDTO> results = new ArrayList<>();
         List<StockOrderVO> toRecord = new ArrayList<>();
         int index = 0;
@@ -262,8 +269,20 @@ public class StockOrderServiceImpl implements StockOrderService {
                             buyingPower,
                             rules,
                             now,
-                            channel);
+                            channel,
+                            weightRoom);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
+                if (weightRoom != null) {
+                    BigDecimal executedCost =
+                            StockOrderCalculator.cost(order.getQty(), order.getPrice());
+                    // 패키지에 없는 종목(제거 후 매도)은 한도 맵에 새로 만들지 않는다
+                    weightRoom.computeIfPresent(
+                            order.getDomesticProductId(),
+                            (id, left) ->
+                                    order.getSide() == DomesticOrderSide.BUY
+                                            ? left.subtract(executedCost)
+                                            : left.add(executedCost));
+                }
                 if (CHANNEL_CUSTOMER.equals(channel)) {
                     toRecord.add(order);
                 }
@@ -314,7 +333,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             BigDecimal buyingPower,
             List<TaxRuleDTO> rules,
             LocalDateTime now,
-            String channel) {
+            String channel,
+            Map<Long, BigDecimal> weightRoom) {
         Long accountId = account.getAccountId();
         DomesticOrderSide side = item.side();
         BigDecimal qty = item.qty();
@@ -349,6 +369,14 @@ public class StockOrderServiceImpl implements StockOrderService {
             if (side == DomesticOrderSide.BUY) {
                 if (balance != null && StockOrderCalculator.isBlocked(balance.getStatus())) {
                     reason = StockOrderRejectReason.TRADE_RESTRICTED;
+                } else if (weightRoom != null
+                        && cost.compareTo(
+                                        weightRoom.getOrDefault(
+                                                product.getDomesticProductId(), BigDecimal.ZERO))
+                                > 0) {
+                    // 비중 한도는 체결금액(cost)만 본다. 이미 담은 금액도 수수료를 뺀 cost로 차감하므로 한도 계산은 일관된다.
+                    // 한도 직전까지 담아 수수료 낼 현금이 모자라면 아래 예수금 검사에서 INSUFFICIENT_CASH가 된다(의도한 순서)
+                    reason = StockOrderRejectReason.WEIGHT_LIMIT_EXCEEDED;
                 } else if (cost.add(fee).compareTo(buyingPower) > 0) {
                     reason = StockOrderRejectReason.INSUFFICIENT_CASH;
                 }
@@ -395,6 +423,40 @@ public class StockOrderServiceImpl implements StockOrderService {
         // 예수금은 방금 기록한 체결 주문의 금액으로만 바꾼다(호출하는 쪽이 금액을 넘기지 않는다)
         stockOrderMapper.applyOrderAmount(accountId, executed.getDomesticOrderId());
         return executed;
+    }
+
+    /**
+     * 패키지 종목별로 더 살 수 있는 금액. 패키지 총액 x 목표 비중(%)에서 이 패키지로 이미 산 금액(매수 - 매도, 수량 x 체결가)을 뺀다. 패키지 총액이 없으면
+     * 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음). 패키지가 없으면(주문 도중 삭제 등) 한도 없이 체결하지 않고
+     * STOCK_PACKAGE_NOT_FOUND로 막는다.
+     */
+    private Map<Long, BigDecimal> weightRoomByProduct(Long customerId, Long stockPackageId) {
+        StockPackageVO pkg =
+                stockPackageMapper
+                        .selectByIdAndCustomerId(stockPackageId, customerId)
+                        .orElseThrow(() -> new AppException(ErrorType.STOCK_PACKAGE_NOT_FOUND));
+        if (pkg.getTotalAmount() == null) {
+            return null;
+        }
+        Map<Long, BigDecimal> room = new HashMap<>();
+        for (StockPackageItemVO packageItem :
+                stockPackageMapper.selectItemsByPackageId(stockPackageId)) {
+            BigDecimal limit =
+                    pkg.getTotalAmount()
+                            .multiply(packageItem.getWeight())
+                            .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.DOWN);
+            room.put(packageItem.getDomesticProductId(), limit);
+        }
+        for (StockOrderVO executed : stockOrderMapper.selectExecutedByPackageAsc(stockPackageId)) {
+            BigDecimal cost = StockOrderCalculator.cost(executed.getQty(), executed.getPrice());
+            room.computeIfPresent(
+                    executed.getDomesticProductId(),
+                    (id, left) ->
+                            executed.getSide() == DomesticOrderSide.BUY
+                                    ? left.subtract(cost)
+                                    : left.add(cost));
+        }
+        return room;
     }
 
     private void applyToBalance(

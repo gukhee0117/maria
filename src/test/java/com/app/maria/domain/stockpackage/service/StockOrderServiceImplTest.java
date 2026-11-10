@@ -139,7 +139,9 @@ class StockOrderServiceImplTest {
                                 rule(TaxRuleType.COMMISSION_RIA_YEARS, "1.0000"),
                                 rule(TaxRuleType.SEC_TX_TAX_STOCK, "0.2000")));
         when(orderMapper.sumProvisionalAmount(ACCOUNT)).thenReturn(BigDecimal.ZERO);
-        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+        // 주문 처리 전에 예외가 나는 경우(패키지 없음 등)에는 쓰이지 않는다
+        lenient()
+                .when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
                 .thenReturn(Optional.empty());
     }
 
@@ -199,6 +201,104 @@ class StockOrderServiceImplTest {
         assertThat(o.feeAmount()).isEqualByComparingTo("0");
         verify(orderMapper, never()).applyOrderAmount(anyLong(), any());
         verify(orderMapper, never()).insertBalance(any());
+    }
+
+    /** 패키지 총액 1,000만 원, 삼성전자 목표 비중 1%(= 한도 10만 원)인 패키지. */
+    private void prepareWeightedPackage() {
+        prepare(account(Status.OPENED, "10000000"), quote("100000"));
+        lenient().when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        lenient()
+                .when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG))
+                .thenReturn(Optional.empty());
+        when(packageMapper.selectByIdAndCustomerId(PACKAGE, CUSTOMER))
+                .thenReturn(
+                        Optional.of(
+                                StockPackageVO.builder()
+                                        .stockPackageId(PACKAGE)
+                                        .totalAmount(new BigDecimal("10000000"))
+                                        .build()));
+        when(packageMapper.selectItemsByPackageId(PACKAGE))
+                .thenReturn(
+                        List.of(
+                                StockPackageItemVO.builder()
+                                        .domesticProductId(SAMSUNG)
+                                        .weight(BigDecimal.ONE)
+                                        .build()));
+    }
+
+    @Test
+    void 목표_비중이_정한_금액을_넘게_사려_하면_예수금이_충분해도_WEIGHT_LIMIT_EXCEEDED로_거부한다() {
+        prepareWeightedPackage();
+
+        StockOrderResultDTO o =
+                service.place(CUSTOMER, PACKAGE, request("w1", DomesticOrderSide.BUY, "10"))
+                        .orders()
+                        .get(0);
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.REJECTED);
+        assertThat(o.rejectReason()).isEqualTo(StockOrderRejectReason.WEIGHT_LIMIT_EXCEEDED.name());
+        verify(orderMapper, never()).insertBalance(any());
+    }
+
+    @Test
+    void 목표_비중_한도_안의_매수는_체결된다() {
+        prepareWeightedPackage();
+
+        StockOrderResultDTO o =
+                service.place(CUSTOMER, PACKAGE, request("w2", DomesticOrderSide.BUY, "1"))
+                        .orders()
+                        .get(0);
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+    }
+
+    @Test
+    void 주문_도중_패키지가_사라지면_한도_없이_체결하지_않고_패키지없음으로_막는다() {
+        prepareWeightedPackage();
+        // 첫 조회(place의 존재 확인)는 있고, 두 번째 조회(트랜잭션 안의 한도 계산)는 이미 삭제된 상태
+        when(packageMapper.selectByIdAndCustomerId(PACKAGE, CUSTOMER))
+                .thenReturn(
+                        Optional.of(
+                                StockPackageVO.builder()
+                                        .stockPackageId(PACKAGE)
+                                        .totalAmount(new BigDecimal("10000000"))
+                                        .build()),
+                        Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.place(
+                                        CUSTOMER,
+                                        PACKAGE,
+                                        request("w4", DomesticOrderSide.BUY, "1")))
+                .isInstanceOfSatisfying(
+                        AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(ErrorType.STOCK_PACKAGE_NOT_FOUND));
+        verify(orderMapper, never()).insertBalance(any());
+    }
+
+    @Test
+    void 이미_담은_금액은_한도에서_빼고_남은_만큼만_살_수_있다() {
+        prepareWeightedPackage();
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE))
+                .thenReturn(
+                        List.of(
+                                StockOrderVO.builder()
+                                        .domesticProductId(SAMSUNG)
+                                        .side(DomesticOrderSide.BUY)
+                                        .qty(BigDecimal.ONE)
+                                        .price(new BigDecimal("100000"))
+                                        .build()));
+
+        StockOrderResultDTO o =
+                service.place(CUSTOMER, PACKAGE, request("w3", DomesticOrderSide.BUY, "1"))
+                        .orders()
+                        .get(0);
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.REJECTED);
+        assertThat(o.rejectReason()).isEqualTo(StockOrderRejectReason.WEIGHT_LIMIT_EXCEEDED.name());
     }
 
     @Test
