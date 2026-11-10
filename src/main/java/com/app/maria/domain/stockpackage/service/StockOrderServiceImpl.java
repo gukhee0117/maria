@@ -273,7 +273,8 @@ public class StockOrderServiceImpl implements StockOrderService {
                             weightRoom);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
                 if (weightRoom != null) {
-                    BigDecimal executedCost = StockOrderCalculator.cost(order.getQty(), order.getPrice());
+                    BigDecimal executedCost =
+                            StockOrderCalculator.cost(order.getQty(), order.getPrice());
                     weightRoom.merge(
                             order.getDomesticProductId(),
                             order.getSide() == DomesticOrderSide.BUY
@@ -422,8 +423,8 @@ public class StockOrderServiceImpl implements StockOrderService {
     }
 
     /**
-     * 패키지 종목별로 더 살 수 있는 금액. 패키지 총액 x 목표 비중(%)에서 이 패키지로 이미 산 금액(매수 - 매도, 수량 x 체결가)을 뺀다. 패키지 총액이
-     * 없으면 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음).
+     * 패키지 종목별로 더 살 수 있는 금액. 패키지 총액 x 목표 비중(%)에서 이 패키지로 이미 산 금액(매수 - 매도, 수량 x 체결가)을 뺀다. 패키지 총액이 없으면
+     * 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음).
      */
     private Map<Long, BigDecimal> weightRoomByProduct(Long customerId, Long stockPackageId) {
         StockPackageVO pkg =
@@ -432,7 +433,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             return null;
         }
         Map<Long, BigDecimal> room = new HashMap<>();
-        for (StockPackageItemVO packageItem : stockPackageMapper.selectItemsByPackageId(stockPackageId)) {
+        for (StockPackageItemVO packageItem :
+                stockPackageMapper.selectItemsByPackageId(stockPackageId)) {
             BigDecimal limit =
                     pkg.getTotalAmount()
                             .multiply(packageItem.getWeight())
