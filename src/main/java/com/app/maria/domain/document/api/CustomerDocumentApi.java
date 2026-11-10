@@ -2,6 +2,7 @@ package com.app.maria.domain.document.api;
 
 import com.app.maria.domain.document.dto.response.DocumentIssueResponseDTO;
 import com.app.maria.domain.document.service.DocumentIssueService;
+import com.app.maria.domain.document.type.DocumentType;
 import com.app.maria.global.response.ApiResponseDTO;
 import com.app.maria.global.security.customer.CustomerPrincipal;
 import jakarta.validation.constraints.Positive;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,11 +28,12 @@ public class CustomerDocumentApi {
 
     @PostMapping
     public ResponseEntity<ApiResponseDTO<DocumentIssueResponseDTO>> issue(
-            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
+            @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
+            @RequestParam(defaultValue = "TAX_RELIEF_CERT") DocumentType docType) {
         return ResponseEntity.ok(
                 ApiResponseDTO.of(
                         "증빙서류 발급 완료",
-                        documentIssueService.issueForCustomer(principal.customerId())));
+                        documentIssueService.issueForCustomer(principal.customerId(), docType)));
     }
 
     @GetMapping

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.app.maria.domain.document.dto.DocumentFileDTO;
 import com.app.maria.domain.document.dto.response.DocumentIssueResponseDTO;
+import com.app.maria.domain.document.type.DocumentType;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationResultDTO;
 import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
@@ -198,7 +199,8 @@ class DocumentIssueIntegrationTest {
     @Test
     @DisplayName("고객 발급 -> 저장 -> 다운로드: 실제 PDF가 DB에 저장되고 해시가 맞아 그대로 내려받는다")
     void issue_store_download() throws Exception {
-        DocumentIssueResponseDTO issued = service.issueForCustomer(CUSTOMER_ID);
+        DocumentIssueResponseDTO issued =
+                service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
 
         assertThat(count("SELECT COUNT(*) FROM document_issue WHERE status = 'ISSUED'"))
                 .isEqualTo(1);
@@ -235,8 +237,10 @@ class DocumentIssueIntegrationTest {
     @Test
     @DisplayName("같은 계좌에서 두 번 발급해도 증빙은 하나만 남는다")
     void issueTwice_keepsOne() {
-        DocumentIssueResponseDTO first = service.issueForCustomer(CUSTOMER_ID);
-        DocumentIssueResponseDTO second = service.issueForCustomer(CUSTOMER_ID);
+        DocumentIssueResponseDTO first =
+                service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
+        DocumentIssueResponseDTO second =
+                service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
 
         assertThat(second.getDocumentIssueId()).isEqualTo(first.getDocumentIssueId());
         assertThat(count("SELECT COUNT(*) FROM document_issue")).isEqualTo(1);
@@ -247,7 +251,7 @@ class DocumentIssueIntegrationTest {
     void adminIssue_rollsBackWhenAuditFails() {
         doThrow(new IllegalStateException("audit down")).when(auditLogService).log(any());
 
-        assertThatThrownBy(() -> service.issueForAdmin(ACCOUNT_ID))
+        assertThatThrownBy(() -> service.issueForAdmin(ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOf(IllegalStateException.class);
 
         assertThat(count("SELECT COUNT(*) FROM document_issue")).isZero();
@@ -258,7 +262,8 @@ class DocumentIssueIntegrationTest {
     void issue_afterBenefitCanceled_rejected() {
         jdbc.update("UPDATE account SET benefit = 'IMPOSSIBLE' WHERE account_id = ?", ACCOUNT_ID);
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .hasMessageContaining("세제혜택이 취소");
         assertThat(count("SELECT COUNT(*) FROM document_issue")).isZero();
     }

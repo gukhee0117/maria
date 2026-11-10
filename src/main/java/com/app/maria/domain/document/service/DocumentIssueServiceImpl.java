@@ -3,8 +3,8 @@ package com.app.maria.domain.document.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
-import com.app.maria.domain.document.component.TaxReliefCertPdfRenderer;
-import com.app.maria.domain.document.component.TaxReliefCertView;
+import com.app.maria.domain.document.component.DocumentPdfRenderer;
+import com.app.maria.domain.document.component.NetPurchaseStatementViewAssembler;
 import com.app.maria.domain.document.component.TaxReliefCertViewAssembler;
 import com.app.maria.domain.document.dto.DocumentFileDTO;
 import com.app.maria.domain.document.dto.DocumentIssueDTO;
@@ -22,6 +22,7 @@ import com.app.maria.domain.tax.dto.response.TaxCalculationPreviewResponseDTO;
 import com.app.maria.domain.tax.mapper.TaxMapper;
 import com.app.maria.domain.tax.service.TaxCalculationService;
 import com.app.maria.domain.tax.type.TaxBasisType;
+import com.app.maria.domain.tax.type.TaxScale;
 import com.app.maria.global.audit.dto.AuditLogDTO;
 import com.app.maria.global.audit.provider.AuditActorProvider;
 import com.app.maria.global.audit.service.AuditLogService;
@@ -57,8 +58,9 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     private final AccountMapper accountMapper;
     private final TaxMapper taxMapper;
     private final TaxCalculationService taxCalculationService;
-    private final TaxReliefCertViewAssembler viewAssembler;
-    private final TaxReliefCertPdfRenderer pdfRenderer;
+    private final TaxReliefCertViewAssembler taxReliefCertAssembler;
+    private final NetPurchaseStatementViewAssembler netPurchaseStatementAssembler;
+    private final DocumentPdfRenderer pdfRenderer;
     private final BusinessClockService clockService;
     private final DocumentProperties documentProperties;
     private final RiaTaxProperties riaTaxProperties;
@@ -70,16 +72,16 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
 
     @Override
     @Transactional
-    public DocumentIssueResponseDTO issueForCustomer(Long customerId) {
+    public DocumentIssueResponseDTO issueForCustomer(Long customerId, DocumentType docType) {
         AccountDTO account = findAccountByCustomer(customerId);
-        return issue(account.getAccountId(), IssuedByType.CUSTOMER, customerId).response();
+        return issue(account.getAccountId(), docType, IssuedByType.CUSTOMER, customerId).response();
     }
 
     @Override
     @Transactional
-    public DocumentIssueResponseDTO issueForAdmin(Long accountId) {
+    public DocumentIssueResponseDTO issueForAdmin(Long accountId, DocumentType docType) {
         Long adminId = auditActorProvider.getCurrentAdminId();
-        Issued issued = issue(accountId, IssuedByType.ADMIN, adminId);
+        Issued issued = issue(accountId, docType, IssuedByType.ADMIN, adminId);
         if (issued.created()) {
             audit(
                     adminId,
@@ -134,7 +136,7 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
         return file;
     }
 
-    private Issued issue(Long accountId, IssuedByType byType, Long byId) {
+    private Issued issue(Long accountId, DocumentType docType, IssuedByType byType, Long byId) {
         // 같은 계좌의 동시 발급·재계산을 한 줄로 세운다.
         AccountDTO account =
                 accountMapper
@@ -159,9 +161,9 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
                                                 ErrorType.DOCUMENT_FINAL_REPORT_NOT_FOUND,
                                                 accountId));
 
-        // 이미 발급된 증빙이 있으면 새로 만들지 않고 그대로 돌려준다.
+        // 같은 종류의 증빙이 이미 발급돼 있으면 새로 만들지 않고 그대로 돌려준다.
         Optional<DocumentIssueDTO> existing =
-                documentIssueMapper.selectIssuedByAccountId(accountId);
+                documentIssueMapper.selectIssuedByAccountIdAndType(accountId, docType);
         if (existing.isPresent()) {
             return new Issued(DocumentIssueResponseDTO.of(existing.get()), false);
         }
@@ -176,23 +178,36 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
                         .selectHolderName(accountId)
                         .orElseThrow(
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, accountId));
-        TaxReliefCertView view =
-                viewAssembler.assemble(
-                        riaTaxProperties.getYear(),
-                        issueNo,
-                        now,
-                        holderName,
-                        account,
-                        calc,
-                        preview.getBreakdown(),
-                        taxMapper.selectTaxRules());
-        byte[] pdf = pdfRenderer.render(view);
+        byte[] pdf =
+                switch (docType) {
+                    case TAX_RELIEF_CERT ->
+                            pdfRenderer.render(
+                                    taxReliefCertAssembler.assemble(
+                                            riaTaxProperties.getYear(),
+                                            issueNo,
+                                            now,
+                                            holderName,
+                                            account,
+                                            calc,
+                                            preview.getBreakdown(),
+                                            taxMapper.selectTaxRules()));
+                    case NET_PURCHASE_STATEMENT ->
+                            pdfRenderer.render(
+                                    netPurchaseStatementAssembler.assemble(
+                                            riaTaxProperties.getYear(),
+                                            issueNo,
+                                            now,
+                                            holderName,
+                                            account,
+                                            calc,
+                                            preview.getBreakdown()));
+                };
 
         DocumentIssueDTO issue =
                 DocumentIssueDTO.builder()
                         .accountId(accountId)
                         .calcId(calc.getCalcId())
-                        .docType(DocumentType.TAX_RELIEF_CERT)
+                        .docType(docType)
                         .issueNo(issueNo)
                         .status(DocumentStatus.ISSUED)
                         .fileContent(pdf)
@@ -215,16 +230,21 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
     /** 저장된 확정 세액과 지금 다시 계산한 결과가 다르면 발급하지 않는다. */
     private void verifyMatchesStored(
             Long accountId, TaxCalculationDTO stored, TaxCalculationResultDTO fresh) {
+        // 저장값은 DB에서 반올림돼 있으므로 재계산 값도 같은 자릿수로 맞춰 비교한다.
         boolean same =
-                same(stored.getWeightedSell(), fresh.getWeightedSell())
-                        && same(stored.getOriginalGainAmount(), fresh.getOriginalGainAmount())
-                        && same(stored.getWeightedGain(), fresh.getWeightedGain())
+                same(stored.getWeightedSell(), amount(fresh.getWeightedSell()))
+                        && same(
+                                stored.getOriginalGainAmount(),
+                                amount(fresh.getOriginalGainAmount()))
+                        && same(stored.getWeightedGain(), amount(fresh.getWeightedGain()))
                         && same(
                                 stored.getWeightedExternalAmount(),
-                                fresh.getWeightedExternalAmount())
-                        && same(stored.getAdjustRatio(), fresh.getAdjustRatio())
-                        && same(stored.getFinalDeduction(), fresh.getFinalDeduction())
-                        && same(stored.getFinalTax(), fresh.getFinalTax());
+                                amount(fresh.getWeightedExternalAmount()))
+                        && same(
+                                stored.getAdjustRatio(),
+                                TaxScale.RATIO.round(fresh.getAdjustRatio()))
+                        && same(stored.getFinalDeduction(), amount(fresh.getFinalDeduction()))
+                        && same(stored.getFinalTax(), amount(fresh.getFinalTax()));
         if (!same) {
             throw new AppException(ErrorType.DOCUMENT_BASIS_MISMATCH, accountId);
         }
@@ -249,6 +269,10 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
         return a.subtract(b).abs().compareTo(ROUNDING_TOLERANCE) > 0;
     }
 
+    private BigDecimal amount(BigDecimal value) {
+        return TaxScale.AMOUNT.round(value);
+    }
+
     private boolean same(BigDecimal a, BigDecimal b) {
         return a.compareTo(b) == 0;
     }
@@ -258,7 +282,12 @@ public class DocumentIssueServiceImpl implements DocumentIssueService {
         if (content == null || !sha256(content).equals(issue.getFileHash())) {
             throw new AppException(ErrorType.DOCUMENT_FILE_CORRUPTED, issue.getDocumentIssueId());
         }
-        return new DocumentFileDTO("RIA증빙서_" + issue.getIssueNo() + ".pdf", content);
+        String fileName =
+                switch (issue.getDocType()) {
+                    case TAX_RELIEF_CERT -> "RIA증빙서_";
+                    case NET_PURCHASE_STATEMENT -> "RIA순매수내역서_";
+                };
+        return new DocumentFileDTO(fileName + issue.getIssueNo() + ".pdf", content);
     }
 
     private DocumentIssueDTO findWithFile(Long documentIssueId) {
