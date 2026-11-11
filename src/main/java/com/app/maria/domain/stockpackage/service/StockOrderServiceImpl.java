@@ -240,11 +240,20 @@ public class StockOrderServiceImpl implements StockOrderService {
         BigDecimal buyingPower =
                 amountNow.subtract(stockOrderMapper.sumProvisionalAmount(accountId));
 
+        // 이 패키지로 체결된 주문. 계좌 락 안에서 읽으므로 같은 패키지의 동시 주문도 한 줄로 선다. 생성기 주문이면 null
+        List<StockOrderVO> packageOrders =
+                stockPackageId == null
+                        ? null
+                        : stockOrderMapper.selectExecutedByPackageAsc(stockPackageId);
         // 패키지 주문의 종목별 매수 가능 잔여 금액(패키지 총액 x 목표 비중 - 이미 담은 금액). 총액이 없거나 생성기 주문이면 null(제한 없음)
         Map<Long, BigDecimal> weightRoom =
                 stockPackageId == null
                         ? null
-                        : weightRoomByProduct(account.getCustomerId(), stockPackageId);
+                        : weightRoomByProduct(
+                                account.getCustomerId(), stockPackageId, packageOrders);
+        // 패키지 주문의 종목별 매도 가능 수량(이 패키지의 보유). 계좌 잔고만 보면 다른 패키지·생성기 몫까지 팔려 보유가 음수가 된다. 생성기 주문이면 null
+        Map<Long, BigDecimal> packageQty =
+                packageOrders == null ? null : heldQtyByProduct(packageOrders);
 
         List<StockOrderResultDTO> results = new ArrayList<>();
         List<StockOrderVO> toRecord = new ArrayList<>();
@@ -270,8 +279,17 @@ public class StockOrderServiceImpl implements StockOrderService {
                             rules,
                             now,
                             channel,
-                            weightRoom);
+                            weightRoom,
+                            packageQty);
             if (order.getStatus() == DomesticOrderStatus.EXECUTED) {
+                if (packageQty != null) {
+                    packageQty.merge(
+                            order.getDomesticProductId(),
+                            order.getSide() == DomesticOrderSide.BUY
+                                    ? order.getQty()
+                                    : order.getQty().negate(),
+                            BigDecimal::add);
+                }
                 if (weightRoom != null) {
                     BigDecimal executedCost =
                             StockOrderCalculator.cost(order.getQty(), order.getPrice());
@@ -334,7 +352,8 @@ public class StockOrderServiceImpl implements StockOrderService {
             List<TaxRuleDTO> rules,
             LocalDateTime now,
             String channel,
-            Map<Long, BigDecimal> weightRoom) {
+            Map<Long, BigDecimal> weightRoom,
+            Map<Long, BigDecimal> packageQty) {
         Long accountId = account.getAccountId();
         DomesticOrderSide side = item.side();
         BigDecimal qty = item.qty();
@@ -380,7 +399,14 @@ public class StockOrderServiceImpl implements StockOrderService {
                 } else if (cost.add(fee).compareTo(buyingPower) > 0) {
                     reason = StockOrderRejectReason.INSUFFICIENT_CASH;
                 }
-            } else if (balance == null || balance.getQty().compareTo(qty) < 0) {
+            } else if (balance == null
+                    || balance.getQty().compareTo(qty) < 0
+                    || (packageQty != null
+                            && packageQty
+                                            .getOrDefault(
+                                                    product.getDomesticProductId(), BigDecimal.ZERO)
+                                            .compareTo(qty)
+                                    < 0)) {
                 reason = StockOrderRejectReason.INSUFFICIENT_QTY;
             } else if (StockOrderCalculator.isBlocked(balance.getStatus())) {
                 reason = StockOrderRejectReason.TRADE_RESTRICTED;
@@ -430,7 +456,8 @@ public class StockOrderServiceImpl implements StockOrderService {
      * 비중의 기준 금액이 없어 null을 돌려준다(제한하지 않음). 패키지가 없으면(주문 도중 삭제 등) 한도 없이 체결하지 않고
      * STOCK_PACKAGE_NOT_FOUND로 막는다.
      */
-    private Map<Long, BigDecimal> weightRoomByProduct(Long customerId, Long stockPackageId) {
+    private Map<Long, BigDecimal> weightRoomByProduct(
+            Long customerId, Long stockPackageId, List<StockOrderVO> packageOrders) {
         StockPackageVO pkg =
                 stockPackageMapper
                         .selectByIdAndCustomerId(stockPackageId, customerId)
@@ -447,7 +474,7 @@ public class StockOrderServiceImpl implements StockOrderService {
                             .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.DOWN);
             room.put(packageItem.getDomesticProductId(), limit);
         }
-        for (StockOrderVO executed : stockOrderMapper.selectExecutedByPackageAsc(stockPackageId)) {
+        for (StockOrderVO executed : packageOrders) {
             BigDecimal cost = StockOrderCalculator.cost(executed.getQty(), executed.getPrice());
             room.computeIfPresent(
                     executed.getDomesticProductId(),
@@ -457,6 +484,16 @@ public class StockOrderServiceImpl implements StockOrderService {
                                     : left.add(cost));
         }
         return room;
+    }
+
+    /** 패키지 보유 화면과 같은 계산(체결 매수 - 매도)으로 구한 종목별 보유 수량. */
+    private static Map<Long, BigDecimal> heldQtyByProduct(List<StockOrderVO> packageOrders) {
+        Map<Long, BigDecimal> held = new HashMap<>();
+        for (StockPackageHoldingCalculator.Position p :
+                StockPackageHoldingCalculator.positions(packageOrders)) {
+            held.put(p.domesticProductId(), p.qty());
+        }
+        return held;
     }
 
     private void applyToBalance(
