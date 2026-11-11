@@ -36,9 +36,15 @@ repositories {
     mavenCentral()
 }
 
+// 보안점검 §2-2 — Boot BOM 버전 속성 재정의 (Boot 업그레이드 시 제거)
+ext['tomcat.version'] = '10.1.59'        // CRITICAL 5건
+ext['jackson-bom.version'] = '2.21.7'   // HIGH 5건
+ext['netty.version'] = '4.1.137.Final'  // CRITICAL 1건 + HIGH 5건
+// spring-webmvc / spring-webflux: Trivy 표시 수정 버전이 7.0.9(Spring Boot 4.x)뿐 — 별도 처리
+
 dependencyManagement {
     imports {
-        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0'
+        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.7'  // 1.0.0 → 1.0.7 (CVE-2026-22738 CRITICAL)
     }
 }
 
