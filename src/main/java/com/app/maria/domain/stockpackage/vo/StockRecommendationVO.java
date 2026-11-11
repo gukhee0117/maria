@@ -17,8 +17,11 @@ public class StockRecommendationVO {
     private final Integer allowedMinGrade;
     private final String filter;
 
-    /** 고객이 질문으로 고른 테마. 있으면 성향으로 거르지 않은 전체 종목 중 이 테마 안에서 골랐다. 없으면 null이다. */
+    /** 고객이 질문으로 고른 테마. 있으면 이 테마 안의 설문 허용 범위 안 상품에서 골랐다. 없으면 null이다. */
     private final String theme;
+
+    /** 테마 안에서 고를 수 있었지만 설문 허용 범위 밖이라 추천하지 않은 상품 수. 테마가 없으면 0이다. */
+    private final int outOfProfileCount;
 
     /** 추천 기준: SURVEY(설문 투자성향) 또는 TRADING(거래에서 본 경향). */
     private final String basis;
