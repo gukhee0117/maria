@@ -1052,4 +1052,22 @@ class StockRecommendationServiceImplTest {
         assertThat(req.getAllValues().get(0).themes()).isNull();
         assertThat(req.getAllValues().get(1).themes()).containsExactly("건설");
     }
+
+    @Test
+    @DisplayName("(재리뷰) 짧은 영문 테마는 다른 영어 단어 안에서 맞지 않고 단어로 쓰일 때만 맞는다")
+    void shortEnglishThemeNeedsWordBoundary() {
+        when(candidateService.themeNames()).thenReturn(List.of("AI"));
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 3, true));
+
+        service.ask(
+                CUSTOMER_ID,
+                new StockRecommendationAskRequestDTO("mail chain 추천해줘", null, null, 1));
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("ai 추천해줘", null, null, 1));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService, org.mockito.Mockito.times(2)).search(any(), req.capture());
+        assertThat(req.getAllValues().get(0).themes()).isNull();
+        assertThat(req.getAllValues().get(1).themes()).containsExactly("AI");
+    }
 }

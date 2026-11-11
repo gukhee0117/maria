@@ -383,10 +383,20 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 .filter(
                         n ->
                                 squash(n).length() <= SHORT_THEME_LENGTH
-                                        ? lower.contains(n.trim().toLowerCase(Locale.ROOT))
+                                        ? containsShort(lower, n.trim().toLowerCase(Locale.ROOT))
                                         : squashed.contains(squash(n)))
                 .max(Comparator.comparingInt((String n) -> squash(n).length()))
                 .orElse(null);
+    }
+
+    /** 짧은 테마 이름이 질문에 있는지 본다. "ai"가 "mail" 안에서 맞지 않도록 영문·숫자 이름은 앞뒤가 영문·숫자가 아닐 때만 인정한다. */
+    private static boolean containsShort(String lowerQuestion, String name) {
+        if (!name.matches("[a-z0-9]+")) {
+            return lowerQuestion.contains(name);
+        }
+        return Pattern.compile("(?<![a-z0-9])" + name + "(?![a-z0-9])")
+                .matcher(lowerQuestion)
+                .find();
     }
 
     /** 공백을 모두 빼고 소문자로 바꾼다. 테마 이름 비교에만 쓴다. */
