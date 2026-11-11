@@ -175,13 +175,6 @@ class StockRiskGradeMariaDbTest {
     }
 
     @Test
-    void fundGradeFromBatchIsIgnoredAndStoredFundGradeIsKept() {
-        jdbc.update("UPDATE domestic_product SET type='FUND' WHERE ticker='005930'");
-        assertThat(store.store(grade(1), received())).isEqualTo(RiskGradeStore.Outcome.IGNORED);
-        assertThat(count()).isZero();
-    }
-
-    @Test
     void primaryKeyAndForeignKeyArePresent() {
         assertThat(
                         jdbc.queryForObject(

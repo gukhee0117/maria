@@ -1,6 +1,5 @@
 package com.app.maria.domain.risk.service;
 
-import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.domain.risk.clock.RiskMarketClock;
 import com.app.maria.domain.risk.dto.StockRiskGradeDTO;
 import com.app.maria.domain.risk.mapper.StockRiskGradeMapper;
@@ -37,9 +36,6 @@ public class RiskGradeStore {
         var ids = mapper.lockProductsByTicker(incoming.ticker());
         if (ids.size() != 1)
             throw new AppException(ErrorType.RISK_PRODUCT_UNRESOLVED, incoming.ticker());
-        // 지금은 주식 등급만 받는다. 배치의 ETF VaR 등급은 69개 중 60개가 1등급이라 검토 전까지 기존 값을 유지한다.
-        if (mapper.findProductByTicker(incoming.ticker()).type() != Type.STOCK)
-            return Outcome.IGNORED;
         var row = new StockRiskGradeDTO();
         row.setDomesticProductId(ids.get(0));
         row.setTicker(incoming.ticker());

@@ -45,6 +45,48 @@ class RiskGradeClassificationServiceTest {
         verifyNoInteractions(live);
     }
 
+    @Test
+    void confirmedGradesRecheckStocksLiveAndKeepStoredFundGrades() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        var live = mock(CurrentStockRiskService.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(32400);
+        when(mapper.findAll())
+                .thenReturn(
+                        List.of(
+                                row(1L, "005930", 2, "2026-10-29"),
+                                row(2L, "069500", 5, "2026-10-29")));
+        when(mapper.findProductsByIds(java.util.Set.of(1L, 2L)))
+                .thenReturn(
+                        List.of(
+                                new RiskProductDTO(1L, "005930", "Stock", Type.STOCK),
+                                new RiskProductDTO(2L, "069500", "ETF", Type.FUND)));
+        when(live.findCurrent("005930"))
+                .thenReturn(
+                        new CurrentStockRiskService.CurrentStockGrade(
+                                "005930", 1, OffsetDateTime.parse("2026-10-30T17:00:00+09:00")));
+
+        assertThat(service(mapper, live).findConfirmedGrades(List.of(1L, 2L)))
+                .containsExactlyInAnyOrderEntriesOf(java.util.Map.of(1L, 1, 2L, 5));
+        verify(live, never()).findCurrent("069500");
+    }
+
+    @Test
+    void confirmedGradeDoesNotFallBackToStoredValueWhenLiveCheckFails() throws Exception {
+        var mapper = mock(StockRiskGradeMapper.class);
+        var live = mock(CurrentStockRiskService.class);
+        when(mapper.sessionUtcOffsetSeconds()).thenReturn(32400);
+        when(mapper.findAll()).thenReturn(List.of(row(1L, "005930", 2, "2026-10-29")));
+        when(mapper.findProductsByIds(java.util.Set.of(1L)))
+                .thenReturn(List.of(new RiskProductDTO(1L, "005930", "Stock", Type.STOCK)));
+        when(live.findCurrent("005930"))
+                .thenThrow(
+                        new com.app.maria.global.exception.AppException(
+                                com.app.maria.global.exception.ErrorType
+                                        .RISK_UPSTREAM_UNAVAILABLE));
+
+        assertThat(service(mapper, live).findConfirmedGrades(List.of(1L))).isEmpty();
+    }
+
     private static RiskGradeServiceImpl service(
             StockRiskGradeMapper mapper, CurrentStockRiskService live) throws Exception {
         return new RiskGradeServiceImpl(

@@ -14,7 +14,7 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 public class PythonRiskClient {
-    static final int MAX_GRADES = 2000;
+    public static final int MAX_GRADES = 2000;
     private final RestClient client;
     private final RiskProperties properties;
 

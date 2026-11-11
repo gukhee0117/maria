@@ -4,6 +4,10 @@
     <select id="sessionUtcOffsetSeconds" resultType="integer">
         SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), CURRENT_TIMESTAMP)
     </select>
+    <select id="findProductsByIds" resultType="com.app.maria.domain.risk.dto.RiskProductDTO">
+        SELECT domestic_product_id, ticker, name, type FROM domestic_product
+        WHERE domestic_product_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
     <select id="findProductByTicker" resultType="com.app.maria.domain.risk.dto.RiskProductDTO">
         SELECT domestic_product_id, ticker, name, type FROM domestic_product WHERE ticker=#{ticker}
     </select>
