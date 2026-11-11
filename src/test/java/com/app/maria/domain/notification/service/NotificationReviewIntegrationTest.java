@@ -348,7 +348,7 @@ class NotificationReviewIntegrationTest {
     @Test
     void failedSettingWriteRollsBackAllPartialRows() {
         jdbc.execute("ALTER TABLE customer_consent ADD CHECK (consent_type <> 'NOTIFY_EMAIL')");
-        assertThatThrownBy(() -> settings.update(1L, request(false)))
+        assertThatThrownBy(() -> settings.update(1L, request(true)))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(count("customer_consent")).isZero();
     }

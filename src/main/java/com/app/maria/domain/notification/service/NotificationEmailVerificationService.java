@@ -8,8 +8,10 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.*;
 import java.util.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -18,7 +20,10 @@ import org.springframework.stereotype.Service;
 
 /** Security TTL uses real time. Proof is bound to the customer's current address. */
 @Service
+@Slf4j
 public class NotificationEmailVerificationService {
+    private final SeedEmailVerificationExemptions seedExemptions =
+            new SeedEmailVerificationExemptions();
     private final CustomerNotificationSettingsMapper contacts;
     private final StringRedisTemplate redis;
     private final ObjectProvider<JavaMailSender> senders;
@@ -91,11 +96,19 @@ public class NotificationEmailVerificationService {
     }
 
     public boolean isVerified(Long customerId, String email) {
-        return email != null
-                && email.equals(contacts.selectEmail(customerId))
-                && (SeedEmailVerificationExemptions.matches(
-                                customerId, contacts.selectLocalLoginId(customerId))
-                        || Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email))));
+        if (email == null || email.isBlank() || !email.equals(contacts.selectEmail(customerId)))
+            return false;
+        // Only known seed IDs need an extra auth lookup. Changing their original address removes
+        // the exemption.
+        if (seedExemptions.containsCustomer(customerId)
+                && seedExemptions.matches(
+                        customerId, contacts.selectLocalLoginId(customerId), email)) return true;
+        try {
+            return Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
+        } catch (DataAccessException failure) {
+            log.warn("NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE customerId={}", customerId);
+            return false;
+        }
     }
 
     public Challenge send(Long customerId) {

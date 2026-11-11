@@ -53,6 +53,27 @@ class CustomerNotificationSettingsServiceImplTest {
     }
 
     @Test
+    void explicitEnableRecordsConsentEvenWhenItMatchesDefault() {
+        when(mapper.lockCustomer(45L)).thenReturn(45L);
+        when(clock.now()).thenReturn(NOW);
+        when(mapper.hasRegisteredEmail(45L)).thenReturn(true);
+        when(mapper.selectEmail(45L)).thenReturn("test@example.com");
+        when(verification.isVerified(45L, "test@example.com")).thenReturn(true);
+        service.update(45L, request(true));
+        verify(mapper).insertConsent(45L, NotificationConsentType.NOTIFY_EMAIL, true, NOW);
+    }
+
+    @Test
+    void savingImplicitUnverifiedOffDoesNotCreateAnOptOut() {
+        when(mapper.lockCustomer(45L)).thenReturn(45L);
+        when(clock.now()).thenReturn(NOW);
+        service.update(45L, request(false));
+        verify(mapper, never())
+                .insertConsent(
+                        anyLong(), eq(NotificationConsentType.NOTIFY_EMAIL), anyBoolean(), any());
+    }
+
+    @Test
     void missingEmailRejectsEntireUpdateBeforeAnyConsentIsSaved() {
         when(mapper.lockCustomer(45L)).thenReturn(45L);
         when(mapper.hasRegisteredEmail(45L)).thenReturn(false);

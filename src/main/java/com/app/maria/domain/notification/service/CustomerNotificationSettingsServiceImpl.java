@@ -62,7 +62,16 @@ public class CustomerNotificationSettingsServiceImpl
             if (type == NotificationConsentType.NOTIFY_COMMENT
                     || type == NotificationConsentType.NOTIFY_KIRU) continue;
             boolean next = requestedValue(request, type);
-            if (agreed(previous, type) != next) {
+            boolean changed = agreed(previous, type) != next;
+            if (type == NotificationConsentType.NOTIFY_EMAIL && !previous.containsKey(type)) {
+                // Persist an explicit enable even when it equals the default. An unverified
+                // implicit OFF is not a user opt-out just because another setting was saved.
+                changed =
+                        next
+                                || verification.isVerified(
+                                        customerId, settingsMapper.selectEmail(customerId));
+            }
+            if (changed) {
                 settingsMapper.insertConsent(customerId, type, next, changedAt);
             }
         }
