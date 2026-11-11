@@ -66,7 +66,7 @@ public class StockRecommendationResponseDTO {
         private final int riskGrade;
         private final BigDecimal volatilityPercent;
 
-        /** true면 내 설문 투자성향 허용 범위보다 위험한 상품이다(거래 기준 추천에서 나올 수 있다). */
+        /** true면 내 설문 투자성향 허용 범위보다 위험한 상품이다. 추천은 범위 안 상품으로만 하므로 지금은 항상 false다. */
         private final boolean outOfProfile;
 
         private final List<String> reasons;
