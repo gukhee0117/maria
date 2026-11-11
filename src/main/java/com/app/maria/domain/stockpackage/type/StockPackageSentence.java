@@ -104,6 +104,7 @@ public enum StockPackageSentence {
     CANDIDATE_SORT_NOTE("이 순서는 정렬 기준에 따른 것일 뿐 상품을 비교하거나 순위를 매긴 것이 아니에요."),
     CANDIDATE_PROFILE_ONLY("내 투자성향 범위 안의 상품만 보여줘요."),
     CANDIDATE_PROFILE_ALL("내 투자성향 범위 밖의 상품도 함께 보여줘요."),
+    CANDIDATE_PROFILE_FIRST("내 투자성향 범위 안 상품을 먼저 두고, 범위 밖 상품에는 표시를 붙여요."),
     CANDIDATE_PROFILE_UNKNOWN("투자성향 진단이 없거나 만료되어 성향 범위를 적용하지 않았어요."),
     CANDIDATE_UNSELECTABLE_NO_GRADE("위험등급이 아직 계산되지 않아 담을 수 없어요."),
 

@@ -14,7 +14,10 @@ public interface StockRecommendationService {
     StockRecommendationResponseDTO recommend(
             Long customerId, String filter, int limit, String basis);
 
-    /** 추천 종목에 대한 질문에 답한다. 답은 서버가 가진 사실(등급·변동성·테마)만으로 만든다. */
+    /**
+     * 추천 종목에 대한 질문에 답한다. 답은 서버가 가진 사실(등급·변동성·테마)만으로 만든다. 질문에 테마가 있으면 성향으로 거르지 않은 전체 종목에서 그 테마로 좁혀
+     * 다시 고르고, 범위 안 상품을 먼저 담은 뒤 모자라면 범위 밖 상품을 경고와 함께 채운다.
+     */
     StockRecommendationAskResponseDTO ask(
             Long customerId, StockRecommendationAskRequestDTO request);
 }

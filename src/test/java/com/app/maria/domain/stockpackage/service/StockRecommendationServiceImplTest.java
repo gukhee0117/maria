@@ -782,4 +782,105 @@ class StockRecommendationServiceImplTest {
         assertThat(vol).contains("연 변동성은").contains("21.5%");
         assertThat(grade).contains("위험등급은 1등급").doesNotContain("연 변동성은");
     }
+
+    /** 테마 행. out이 true면 후보 서비스가 성향 범위 밖으로 표시한 상품이다. */
+    private static Row themed(long id, String name, String sector, int grade, boolean out) {
+        return new Row(
+                id,
+                String.format("%06d", id),
+                name,
+                "KOSPI",
+                Type.STOCK,
+                sector,
+                List.of("반도체"),
+                grade,
+                new BigDecimal("30.0"),
+                out,
+                true,
+                null);
+    }
+
+    @Test
+    @DisplayName("테마를 말하면 전체 종목에서 그 테마로 좁히고, 범위 안을 먼저 담은 뒤 모자라면 범위 밖을 경고와 함께 채운다")
+    void themeAskFillsOutOfProfileWithWarning() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체", "배당"));
+        candidates(
+                true,
+                2,
+                themed(1, "A반도체", "전기전자", 3, false),
+                themed(2, "B반도체", "전기전자", 1, true),
+                themed(3, "C반도체", "장비", 1, true));
+
+        StockRecommendationAskResponseDTO res =
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("반도체 종목 추천해줘", null, null, 3));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService).search(any(), req.capture());
+        assertThat(req.getValue().themes()).containsExactly("반도체");
+        assertThat(req.getValue().includeOutOfProfile()).isTrue();
+
+        String answer = res.getAnswer();
+        assertThat(answer).startsWith("반도체 테마 안에서");
+        // 범위 안 A가 먼저, 그다음 범위 밖 B·C
+        assertThat(answer.indexOf("A반도체")).isLessThan(answer.indexOf("B반도체"));
+        assertThat(answer).contains("B반도체 1등급(매우 높은 위험)").contains("C반도체 1등급");
+        assertThat(answer).contains("· 내 투자성향 범위 밖").contains("담기 전에 위험을 꼭 확인해 주세요.");
+        assertThat(answer.lines().filter(l -> l.contains("A반도체")).findFirst().orElseThrow())
+                .doesNotContain("범위 밖");
+        assertThat(res.isAiGenerated()).isFalse();
+        verify(answerer, never()).answer(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("테마 안에 범위 안 상품이 충분하면 범위 밖 상품은 넣지 않는다")
+    void themeAskEnoughInProfile() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(
+                true,
+                2,
+                themed(1, "A반도체", "전기전자", 3, false),
+                themed(2, "B반도체", "장비", 2, false),
+                themed(3, "C반도체", "소재", 1, true));
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천", null, null, 2))
+                        .getAnswer();
+
+        assertThat(answer).contains("A반도체").contains("B반도체").doesNotContain("C반도체");
+        assertThat(answer).doesNotContain("범위 밖");
+    }
+
+    @Test
+    @DisplayName("테마를 말했지만 그 테마에 고를 상품이 없으면 없다고 알린다")
+    void themeAskEmpty() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 2);
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천해줘", null, null, null))
+                        .getAnswer();
+
+        assertThat(answer).startsWith("반도체 테마에는");
+    }
+
+    @Test
+    @DisplayName("테마를 말하지 않은 추천은 지금처럼 성향 범위 안 상품만 받는다")
+    void defaultRecommendStaysInProfile() {
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 2, true));
+
+        service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY");
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService).search(any(), req.capture());
+        assertThat(req.getValue().includeOutOfProfile()).isFalse();
+        assertThat(req.getValue().themes()).isNull();
+    }
 }
