@@ -41,7 +41,8 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
     @Override
     public List<CustomerForeignProductResponseDTO> getForeignProducts(Long customerId) {
         String ciHash = getCiHash(customerId);
-        List<RegistrableStockResponseDTO> lots = registrableStockClient.findCustomerLots(ciHash, customerId);
+        List<RegistrableStockResponseDTO> lots =
+                registrableStockClient.findCustomerLots(ciHash, customerId);
 
         Set<Long> productIds =
                 lots.stream()
