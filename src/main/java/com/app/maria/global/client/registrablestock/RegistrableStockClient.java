@@ -21,7 +21,7 @@ public class RegistrableStockClient {
     }
 
     /** 고객의 활성 일반계좌 전체에 걸친 적격 원본 lot 목록을 반환한다. 빈 목록은 정상 응답이다. */
-    public List<RegistrableStockResponseDTO> findCustomerLots(String ciHash) {
+    public List<RegistrableStockResponseDTO> findCustomerLots(String ciHash, Object logRef) {
         try {
             ApiResponseDTO<List<RegistrableStockResponseDTO>> apiResponse =
                     restClient
@@ -33,11 +33,11 @@ public class RegistrableStockClient {
                                             ApiResponseDTO<
                                                     List<RegistrableStockResponseDTO>>>() {});
             if (apiResponse == null || apiResponse.getData() == null) {
-                throw new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash);
+                throw new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND, logRef);
             }
             return apiResponse.getData();
         } catch (RestClientException e) {
-            throw new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash, e);
+            throw new AppException(ErrorType.REGISTRABLE_STOCK_NOT_FOUND, logRef, e);
         }
     }
 }
