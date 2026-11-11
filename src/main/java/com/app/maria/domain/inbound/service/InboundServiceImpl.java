@@ -113,7 +113,8 @@ public class InboundServiceImpl implements InboundService {
 
         if (apiResponse == null || apiResponse.getData() == null) {
             throw new AppException(
-                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, customerId + "/" + foreignProductId);
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND,
+                    "customerId=" + customerId + ",productId=" + foreignProductId);
         }
 
         RegistrableStockResponseDTO registrableStock = apiResponse.getData();
@@ -398,7 +399,8 @@ public class InboundServiceImpl implements InboundService {
                                         ApiResponseDTO<List<RegistrableStockResponseDTO>>>() {});
         if (apiResponse == null || apiResponse.getData() == null) {
             throw new AppException(
-                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, accountId + "/" + foreignProductId);
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND,
+                    "accountId=" + accountId + ",productId=" + foreignProductId);
         }
         return apiResponse.getData();
     }
