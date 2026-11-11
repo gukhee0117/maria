@@ -38,7 +38,8 @@ public class SellLimitServiceImpl implements SellLimitService {
                                                 ErrorType.SELL_ORDER_CUSTOMER_NOT_FOUND,
                                                 accountId));
 
-        BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
+        BigDecimal externalSum =
+                mydataClient.getExternalSellTotal(ciHash, "accountId=" + accountId);
 
         BigDecimal limitAmount =
                 sellLimitMapper
@@ -98,7 +99,8 @@ public class SellLimitServiceImpl implements SellLimitService {
                                                 accountId));
 
         // 조회 실패 시 AppException 전파 — 한도 불명 상태에서 추천 반환하지 않음
-        BigDecimal externalSum = mydataClient.getExternalSellTotal(ciHash);
+        BigDecimal externalSum =
+                mydataClient.getExternalSellTotal(ciHash, "accountId=" + accountId);
 
         BigDecimal limitAmount = account.getLimitAmount();
         BigDecimal usedAmount = sellLimitMapper.sumUsedAmount(accountId);

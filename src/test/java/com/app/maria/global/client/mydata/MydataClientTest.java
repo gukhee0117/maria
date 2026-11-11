@@ -63,7 +63,8 @@ class MydataClientTest {
                         + account("증권사B", "10000000", "2000000")
                         + "]");
 
-        assertThat(mydataClient.getExternalSellTotal("ci-hash")).isEqualByComparingTo("3000000");
+        assertThat(mydataClient.getExternalSellTotal("ci-hash", 1L))
+                .isEqualByComparingTo("3000000");
         mockServer.verify();
     }
 
@@ -76,7 +77,7 @@ class MydataClientTest {
                         + account("리턴증권", "30000000", "0")
                         + "]");
 
-        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash", 1L))
                 .isEqualByComparingTo("20000000");
     }
 
@@ -84,7 +85,7 @@ class MydataClientTest {
     void 타사_계좌가_없으면_0이다() {
         respondAccounts("[]");
 
-        assertThat(mydataClient.getExternalSellTotal("ci-hash")).isEqualByComparingTo("0");
+        assertThat(mydataClient.getExternalSellTotal("ci-hash", 1L)).isEqualByComparingTo("0");
     }
 
     @Test
@@ -96,7 +97,7 @@ class MydataClientTest {
                         withSuccess(
                                 "{\"message\":\"성공\",\"data\":[]}", MediaType.APPLICATION_JSON));
 
-        mydataClient.getExternalSellTotal("ci-hash-xyz");
+        mydataClient.getExternalSellTotal("ci-hash-xyz", 1L);
 
         mockServer.verify();
     }
@@ -104,14 +105,14 @@ class MydataClientTest {
     @Test
     void 타사_금액이_null이거나_음수면_INVALID_RESPONSE() {
         respondAccounts("[" + account("증권사A", "20000000", "null") + "]");
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
 
         mockServer.reset();
         respondAccounts("[" + account("증권사A", "-1", "0") + "]");
-        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
@@ -121,7 +122,7 @@ class MydataClientTest {
     void 응답_data가_null이면_INVALID_RESPONSE() {
         respondAccounts("null");
 
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
@@ -131,7 +132,7 @@ class MydataClientTest {
     void 응답_목록에_null_원소가_있으면_INVALID_RESPONSE() {
         respondAccounts("[null]");
 
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_INVALID_RESPONSE);
@@ -141,7 +142,7 @@ class MydataClientTest {
     void 우리증권사_행의_금액이_비정상이어도_무시한다() {
         respondAccounts("[" + account("리턴증권", "null", "null") + "]");
 
-        assertThat(mydataClient.getExternalSellTotal("ci-hash")).isEqualByComparingTo("0");
+        assertThat(mydataClient.getExternalSellTotal("ci-hash", 1L)).isEqualByComparingTo("0");
     }
 
     @Test
@@ -155,21 +156,22 @@ class MydataClientTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body(body));
 
-        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash")).isEqualByComparingTo("0");
+        assertThat(mydataClient.getExternalConfiguredLimit("ci-hash", 1L))
+                .isEqualByComparingTo("0");
         mockServer.verify();
     }
 
     @Test
     void 서버오류_404_모두_UNAVAILABLE로_던진다() {
         mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withServerError());
-        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalSellTotal("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);
 
         mockServer.reset();
         mockServer.expect(requestTo(RIA_ACCOUNTS_URL)).andRespond(withResourceNotFound());
-        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash"))
+        assertThatThrownBy(() -> mydataClient.getExternalConfiguredLimit("ci-hash", 1L))
                 .isInstanceOf(AppException.class)
                 .extracting("errorType")
                 .isEqualTo(ErrorType.MYDATA_API_UNAVAILABLE);

@@ -2,6 +2,7 @@ package com.app.maria.domain.inbound.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
@@ -186,7 +187,7 @@ class CustomerInboundTransactionTest {
     @Test
     @DisplayName("정상 입고는 세 테이블에 커밋되고 원본별 FIFO 배분 수량이 보존된다")
     void commitsParentDetailsAndEvidenceWithFifoQuantities() {
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "10", "USD"), lot(301L, "20", "USD")));
 
         CustomerInboundSubmitResponseDTO result = service.submit(1L, request("25"));
@@ -232,7 +233,7 @@ class CustomerInboundTransactionTest {
         //           lot301은 10주 → remaining=5 소진 불가 → INTEGRITY_FAILED
         seedInconsistentHistory();
         List<List<Integer>> beforeRollback = new CopyOnWriteArrayList<>();
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenAnswer(
                         invocation -> {
                             observeRowsBeforeCompletion(beforeRollback);
@@ -256,7 +257,7 @@ class CustomerInboundTransactionTest {
     @DisplayName("출고 이력이 있으면 출고 수량만큼 재입고할 수 있고, 스냅샷 전량을 소진하면 추가 입고가 거절된다")
     void reinboundSucceedsAfterOutboundAndIsBlockedWhenSnapshotExhausted() {
         // Step 1: 5주 입고
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO first = service.submit(1L, request("5"));
         assertThat(first.getApprovedQty()).isEqualByComparingTo("5");
@@ -277,7 +278,7 @@ class CustomerInboundTransactionTest {
                 detailId);
 
         // Step 3: 3주 재입고 — netLocked = 5-3 = 2, available = 5-2 = 3 → 승인
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO reinbound = service.submit(1L, request("3"));
         assertThat(reinbound.getApprovedQty()).isEqualByComparingTo("3");
@@ -285,7 +286,7 @@ class CustomerInboundTransactionTest {
         assertThat(rowCounts()).containsExactly(2, 2, 2);
 
         // Step 4: 추가 입고 거절 — netLocked = (5+3)-3 = 5, available = 0
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         assertThatThrownBy(() -> service.submit(1L, request("1")))
                 .isInstanceOfSatisfying(
@@ -299,7 +300,7 @@ class CustomerInboundTransactionTest {
     @DisplayName("두 번째 상세의 DB 제약 위반은 앞서 저장한 행까지 롤백하고 이후 정상 신청을 허용한다")
     void databaseFailureRollsBackEarlierInsertsAndReleasesAccountLock() {
         List<List<Integer>> beforeRollback = new CopyOnWriteArrayList<>();
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenAnswer(
                         invocation -> {
                             observeRowsBeforeCompletion(beforeRollback);
@@ -315,7 +316,7 @@ class CustomerInboundTransactionTest {
 
         doReturn(List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD")))
                 .when(registrableStockClient)
-                .findCustomerLots(CI_HASH);
+                .findCustomerLots(any(), any());
         CustomerInboundSubmitResponseDTO recovered = service.submit(1L, request("15"));
         assertThat(recovered.getApprovedQty()).isEqualByComparingTo("15");
         assertThat(rowCounts()).containsExactly(1, 2, 2);
@@ -325,7 +326,7 @@ class CustomerInboundTransactionTest {
     @DisplayName("5주 입고·2주 매도 시뮬레이션·3주 출고·3주 재입고 후 최종 보유량은 3주다")
     void fullFlowInboundSimulateSellOutboundReinbound() {
         // Step 1: 5주 입고
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO first = service.submit(1L, request("5"));
         assertThat(first.getApprovedQty()).isEqualByComparingTo("5");
@@ -343,7 +344,7 @@ class CustomerInboundTransactionTest {
                 .isEqualTo(1);
 
         // Step 4: 3주 재입고 — netLocked = 5-3 = 2, available = 5-2 = 3 → 전량 승인
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO reinbound = service.submit(1L, request("3"));
         assertThat(reinbound.getApprovedQty()).isEqualByComparingTo("3");
@@ -362,7 +363,7 @@ class CustomerInboundTransactionTest {
     @DisplayName("출고·재입고를 반복해도 스냅샷 기준 가용 수량이 정확히 누적 관리된다")
     void repeatedOutboundAndReinboundCyclesAreTrackedCorrectly() {
         // 1. 5주 입고
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         service.submit(1L, request("5"));
 
@@ -371,7 +372,7 @@ class CustomerInboundTransactionTest {
         assertThat(out1.getTotalOutboundQty()).isEqualByComparingTo("3");
 
         // 3. 3주 재입고 → netLocked = (5+3)-3 = 5, available = 0
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO reinbound1 = service.submit(1L, request("3"));
         assertThat(reinbound1.getApprovedQty()).isEqualByComparingTo("3");
@@ -383,13 +384,13 @@ class CustomerInboundTransactionTest {
         assertThat(out2.getLotCount()).isEqualTo(2);
 
         // 5. 3주 재입고 → alreadyInbounded=8, alreadyOutbounded=6, netLocked=2, available=3 → 전량 승인
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         CustomerInboundSubmitResponseDTO reinbound2 = service.submit(1L, request("3"));
         assertThat(reinbound2.getApprovedQty()).isEqualByComparingTo("3");
 
         // 6. 스냅샷(5주) 전량 소진 — netLocked = (5+3+3)-(3+3) = 5 → available=0 → 거절
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(300L, "5", "USD")));
         assertThatThrownBy(() -> service.submit(1L, request("1")))
                 .isInstanceOfSatisfying(
@@ -410,12 +411,12 @@ class CustomerInboundTransactionTest {
     @DisplayName("서로 다른 출처 계좌의 입고 이력이 있으면 후보 조회에서 수량이 독립적으로 계산된다")
     void candidatesShowIndependentAvailabilityPerSourceAccount() {
         // source=200에서 5주 입고 (lot300 사용)
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lotFromAccount(300L, "5", 200L)));
         service.submit(1L, requestFromAccount("5", 200L));
 
         // 후보 조회 시 source=200(5주 소진)과 source=201(5주 미사용) 두 계좌를 반환
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(
                         List.of(lotFromAccount(300L, "5", 200L), lotFromAccount(400L, "5", 201L)));
         CustomerInboundCandidatesResponseDTO candidates = queryService.getCandidates(1L, 100L);
@@ -429,7 +430,7 @@ class CustomerInboundTransactionTest {
         assertThat(candidate.getAlreadyApprovedQty()).isEqualByComparingTo("0");
 
         // source=201로 실제 입고 — source=200 이력과 무관하게 5주 전량 승인 (계좌 독립성 직접 검증)
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lotFromAccount(400L, "5", 201L)));
         CustomerInboundSubmitResponseDTO inbound201 =
                 service.submit(1L, requestFromAccount("5", 201L));
@@ -443,7 +444,7 @@ class CustomerInboundTransactionTest {
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondStarted = new CountDownLatch(1);
         AtomicInteger externalCalls = new AtomicInteger();
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenAnswer(
                         invocation -> {
                             assertThat(

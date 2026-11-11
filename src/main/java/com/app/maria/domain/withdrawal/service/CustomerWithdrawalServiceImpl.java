@@ -42,7 +42,7 @@ public class CustomerWithdrawalServiceImpl implements CustomerWithdrawalService 
                         .selectCiHashByCustomerId(customerId)
                         .orElseThrow(
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
-        return generalAccountClient.findByCiHash(ciHash);
+        return generalAccountClient.findByCiHash(ciHash, "customerId=" + customerId);
     }
 
     @Override

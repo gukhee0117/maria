@@ -30,24 +30,24 @@ public class MydataClient {
         this.mydataApiProperties = mydataApiProperties;
     }
 
-    public BigDecimal getExternalSellTotal(String ciHash) {
-        return sumOtherBrokers(ciHash, MydataRiaAccountDTO::getRiaCumulativeSell);
+    public BigDecimal getExternalSellTotal(String ciHash, Object logRef) {
+        return sumOtherBrokers(ciHash, logRef, MydataRiaAccountDTO::getRiaCumulativeSell);
     }
 
-    public BigDecimal getExternalConfiguredLimit(String ciHash) {
-        return sumOtherBrokers(ciHash, MydataRiaAccountDTO::getRiaLimit);
+    public BigDecimal getExternalConfiguredLimit(String ciHash, Object logRef) {
+        return sumOtherBrokers(ciHash, logRef, MydataRiaAccountDTO::getRiaLimit);
     }
 
     private BigDecimal sumOtherBrokers(
-            String ciHash, Function<MydataRiaAccountDTO, BigDecimal> amount) {
+            String ciHash, Object logRef, Function<MydataRiaAccountDTO, BigDecimal> amount) {
         String ownBrokerName = mydataApiProperties.getOwnBrokerName();
-        return fetchRiaAccounts(ciHash).stream()
+        return fetchRiaAccounts(ciHash, logRef).stream()
                 .filter(account -> !ownBrokerName.equals(account.getBrokerName()))
-                .map(account -> requireAmount(amount.apply(account), ciHash))
+                .map(account -> requireAmount(amount.apply(account), logRef))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private List<MydataRiaAccountDTO> fetchRiaAccounts(String ciHash) {
+    private List<MydataRiaAccountDTO> fetchRiaAccounts(String ciHash, Object logRef) {
         ApiResponseDTO<List<MydataRiaAccountDTO>> response;
         try {
             response =
@@ -66,19 +66,19 @@ public class MydataClient {
             if (e.getResponseBodyAsString().contains("CiHash")) {
                 return List.of();
             }
-            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
+            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, logRef, e);
         } catch (RestClientException e) {
-            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, ciHash, e);
+            throw new AppException(ErrorType.MYDATA_API_UNAVAILABLE, logRef, e);
         }
         if (response == null || response.getData() == null || response.getData().contains(null)) {
-            throw new AppException(ErrorType.MYDATA_API_INVALID_RESPONSE, ciHash);
+            throw new AppException(ErrorType.MYDATA_API_INVALID_RESPONSE, logRef);
         }
         return response.getData();
     }
 
-    private BigDecimal requireAmount(BigDecimal amount, String ciHash) {
+    private BigDecimal requireAmount(BigDecimal amount, Object logRef) {
         if (amount == null || amount.signum() < 0) {
-            throw new AppException(ErrorType.MYDATA_API_INVALID_RESPONSE, ciHash);
+            throw new AppException(ErrorType.MYDATA_API_INVALID_RESPONSE, logRef);
         }
         return amount;
     }
