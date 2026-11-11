@@ -28,7 +28,15 @@ public class CustomerNotificationSettingsServiceImpl
     @Override
     @Transactional(readOnly = true)
     public CustomerNotificationSettingsResponseDTO get(Long customerId) {
-        return toResponse(settingsMapper.selectLatestByCustomerId(customerId));
+        Map<NotificationConsentType, Boolean> values =
+                values(settingsMapper.selectLatestByCustomerId(customerId));
+        if (agreed(values, NotificationConsentType.NOTIFY_EMAIL)) {
+            String email = settingsMapper.selectEmail(customerId);
+            if (email == null || email.isBlank() || !verification.isVerified(customerId, email)) {
+                values.put(NotificationConsentType.NOTIFY_EMAIL, false);
+            }
+        }
+        return toResponse(values);
     }
 
     @Override
@@ -62,8 +70,7 @@ public class CustomerNotificationSettingsServiceImpl
     }
 
     private CustomerNotificationSettingsResponseDTO toResponse(
-            List<CustomerNotificationConsentDTO> rows) {
-        Map<NotificationConsentType, Boolean> values = values(rows);
+            Map<NotificationConsentType, Boolean> values) {
         return new CustomerNotificationSettingsResponseDTO(
                 agreed(values, NotificationConsentType.NOTIFY_PUSH),
                 agreed(values, NotificationConsentType.NOTIFY_SMS),

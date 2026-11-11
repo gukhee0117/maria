@@ -93,7 +93,9 @@ public class NotificationEmailVerificationService {
     public boolean isVerified(Long customerId, String email) {
         return email != null
                 && email.equals(contacts.selectEmail(customerId))
-                && Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
+                && (SeedEmailVerificationExemptions.matches(
+                                customerId, contacts.selectLocalLoginId(customerId))
+                        || Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email))));
     }
 
     public Challenge send(Long customerId) {

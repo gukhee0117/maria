@@ -29,6 +29,30 @@ class CustomerNotificationSettingsServiceImplTest {
     @InjectMocks private CustomerNotificationSettingsServiceImpl service;
 
     @Test
+    void verifiedEmailDefaultsToEnabledWithoutSavedPreference() {
+        when(mapper.selectEmail(45L)).thenReturn("test@example.com");
+        when(verification.isVerified(45L, "test@example.com")).thenReturn(true);
+        assertThat(service.get(45L).email()).isTrue();
+    }
+
+    @Test
+    void missingOrUnverifiedEmailRemainsDisabledByDefault() {
+        assertThat(service.get(45L).email()).isFalse();
+        when(mapper.selectEmail(45L)).thenReturn("test@example.com");
+        assertThat(service.get(45L).email()).isFalse();
+    }
+
+    @Test
+    void explicitEmailOptOutOverridesDefault() {
+        var row = new CustomerNotificationConsentDTO();
+        row.setConsentType(NotificationConsentType.NOTIFY_EMAIL);
+        row.setAgreed(false);
+        when(mapper.selectLatestByCustomerId(45L)).thenReturn(List.of(row));
+        assertThat(service.get(45L).email()).isFalse();
+        verifyNoInteractions(verification);
+    }
+
+    @Test
     void missingEmailRejectsEntireUpdateBeforeAnyConsentIsSaved() {
         when(mapper.lockCustomer(45L)).thenReturn(45L);
         when(mapper.hasRegisteredEmail(45L)).thenReturn(false);
@@ -52,7 +76,10 @@ class CustomerNotificationSettingsServiceImplTest {
         CustomerNotificationConsentDTO row = new CustomerNotificationConsentDTO();
         row.setConsentType(NotificationConsentType.NOTIFY_EMAIL);
         row.setAgreed(true);
-        when(mapper.selectLatestByCustomerId(45L)).thenReturn(List.of(), List.of(row));
+        var previous = new CustomerNotificationConsentDTO();
+        previous.setConsentType(NotificationConsentType.NOTIFY_EMAIL);
+        previous.setAgreed(false);
+        when(mapper.selectLatestByCustomerId(45L)).thenReturn(List.of(previous), List.of(row));
 
         assertThat(service.update(45L, request(true)).email()).isTrue();
 
