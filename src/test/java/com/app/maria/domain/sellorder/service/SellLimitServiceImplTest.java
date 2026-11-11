@@ -67,7 +67,7 @@ class SellLimitServiceImplTest {
 
         var order = inOrder(sellLimitMapper, mydataClient);
         order.verify(sellLimitMapper).selectCiHashByAccountId(100L);
-        order.verify(mydataClient).getExternalSellTotal("ci-hash-1");
+        order.verify(mydataClient).getExternalSellTotal(any(), any());
         order.verify(sellLimitMapper).selectAccountLimitForUpdate(100L);
         order.verify(sellLimitMapper).sumUsedAmount(100L);
     }

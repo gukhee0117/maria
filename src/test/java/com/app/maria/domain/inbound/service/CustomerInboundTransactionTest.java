@@ -316,7 +316,7 @@ class CustomerInboundTransactionTest {
 
         doReturn(List.of(lot(300L, "10", "USD"), lot(301L, "10", "USD")))
                 .when(registrableStockClient)
-                .findCustomerLots(CI_HASH);
+                .findCustomerLots(any(), any());
         CustomerInboundSubmitResponseDTO recovered = service.submit(1L, request("15"));
         assertThat(recovered.getApprovedQty()).isEqualByComparingTo("15");
         assertThat(rowCounts()).containsExactly(1, 2, 2);

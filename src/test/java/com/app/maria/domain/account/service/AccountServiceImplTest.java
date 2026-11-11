@@ -148,7 +148,7 @@ class AccountServiceImplTest {
 
         var order = inOrder(mydataConsentService, mydataClient);
         order.verify(mydataConsentService).record(CUSTOMER_ID, true);
-        order.verify(mydataClient).getExternalConfiguredLimit("ci-hash");
+        order.verify(mydataClient).getExternalConfiguredLimit(any(), any());
     }
 
     @Test

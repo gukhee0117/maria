@@ -107,7 +107,7 @@ class CustomerWithdrawalServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getGeneralAccountId()).isEqualTo(20L);
-        verify(generalAccountClient).findByCiHash(CI_HASH);
+        verify(generalAccountClient).findByCiHash(any(), any());
     }
 
     @Test

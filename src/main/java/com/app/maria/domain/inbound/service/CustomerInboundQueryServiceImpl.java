@@ -42,7 +42,7 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
     public List<CustomerForeignProductResponseDTO> getForeignProducts(Long customerId) {
         String ciHash = getCiHash(customerId);
         List<RegistrableStockResponseDTO> lots =
-                registrableStockClient.findCustomerLots(ciHash, customerId);
+                registrableStockClient.findCustomerLots(ciHash, "customerId=" + customerId);
 
         Set<Long> productIds =
                 lots.stream()
@@ -63,7 +63,7 @@ public class CustomerInboundQueryServiceImpl implements CustomerInboundQueryServ
         String ciHash = getCiHash(customerId);
 
         List<RegistrableStockResponseDTO> lots =
-                registrableStockClient.findCustomerLots(ciHash, customerId).stream()
+                registrableStockClient.findCustomerLots(ciHash, "customerId=" + customerId).stream()
                         .filter(lot -> foreignProductId.equals(lot.getForeignProductId()))
                         .toList();
 
