@@ -144,17 +144,31 @@ public class ThemeNewsProvider implements NewsProvider {
                 .filter(a -> isThemeStockMarketArticle(a, allThemes))
                 .map(
                         a -> {
+                            String text =
+                                    (a.title() + " " + ARTICLE_FOOTER.split(a.body(), 2)[0])
+                                            .replaceAll("[^\\p{L}\\p{N}]", "")
+                                            .toLowerCase(Locale.ROOT);
+                            var matchedThemes =
+                                    allThemes.entrySet().stream()
+                                            .filter(
+                                                    e ->
+                                                            a.tickers()
+                                                                            .contains(
+                                                                                    "theme:"
+                                                                                            + e
+                                                                                                    .getKey())
+                                                                    && text.contains(e.getValue()))
+                                            .map(Map.Entry::getKey)
+                                            .sorted()
+                                            .toList();
                             var owned =
                                     mapping.entrySet().stream()
                                             .filter(
                                                     e ->
                                                             e.getValue().stream()
                                                                     .anyMatch(
-                                                                            t ->
-                                                                                    a.tickers()
-                                                                                            .contains(
-                                                                                                    "theme:"
-                                                                                                            + t)))
+                                                                            matchedThemes
+                                                                                    ::contains))
                                             .map(Map.Entry::getKey)
                                             .sorted()
                                             .toList();
@@ -173,7 +187,8 @@ public class ThemeNewsProvider implements NewsProvider {
                                     a.stability(),
                                     a.growth(),
                                     a.demo(),
-                                    themes.mentionedStocks(a));
+                                    themes.mentionedStocks(a),
+                                    matchedThemes);
                         })
                 .filter(a -> !a.tickers().isEmpty())
                 .toList();

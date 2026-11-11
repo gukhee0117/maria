@@ -90,7 +90,7 @@ class NewsSelectionServiceTest {
     }
 
     @Test
-    void latestDisplayDoesNotReplacePersonalizedTopEightMembership() {
+    void latestArticleIsSelectedAheadOfOlderHigherScores() {
         var candidates = new ArrayList<NewsArticle>();
         for (int i = 0; i < 8; i++) candidates.add(article("selected-" + i, 10, 10));
         var base = article("low-score-newest", 0, 0);
@@ -111,7 +111,7 @@ class NewsSelectionServiceTest {
                         base.growth()));
         assertThat(service.select(context(InvestorType.STABLE), candidates))
                 .hasSize(8)
-                .noneMatch(s -> s.article().id().equals("low-score-newest"));
+                .anyMatch(s -> s.article().id().equals("low-score-newest"));
     }
 
     @Test
