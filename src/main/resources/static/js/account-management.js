@@ -360,7 +360,7 @@ $(function () {
                 '<tr class="is-clickable account-row' + selectedClass + '" data-account-id="' + account.accountId + '">' +
                 '<td class="adm-col-no">' + (startIndex + index + 1) + '</td>' +
                 '<td><span>' + escapeHtml(MARIA.fmt.hyphenateAccountNo(account.accountNo)) + '</span></td>' +
-                '<td class="account-col-name"><span>' + escapeHtml(account.customerName || "고객 ID " + account.customerId) + '</span></td>' +
+                '<td class="account-col-name"><span>' + escapeHtml(MARIA.fmt.maskName(account.customerName) || "고객 ID " + account.customerId) + '</span></td>' +
                 '<td class="is-c"><span class="adm-chip adm-chip-' + statusTone + '">' + escapeHtml(statusLabel(account.status)) + '</span></td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.limitAmount || 0)) + '</td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.amount || 0)) + '</td>' +
@@ -407,7 +407,7 @@ $(function () {
         $("#accountDetailBackdrop").prop("hidden", false).addClass("is-open");
         $("#accountDetail").css("display", "");
         $("body").addClass("account-modal-open");
-        $("#detailCustomerName").text(account.customerName ? account.customerName + " 님 계좌" : "계좌 상세");
+        $("#detailCustomerName").text(account.customerName ? MARIA.fmt.maskName(account.customerName) + " 님 계좌" : "계좌 상세");
         $("#detailAccountNo").html(MARIA.fmt.accountNoHtml(account.accountNo));
         $("#detailCustomerId").text(account.customerId || "-");
         var statusTone = MARIA.status.accountStatusTone(account.status);
@@ -681,7 +681,7 @@ $(function () {
     }
 
     function accountLabelOf(account) {
-        return (account.customerName || "고객 ID " + account.customerId) + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo);
+        return (MARIA.fmt.maskName(account.customerName) || "고객 ID " + account.customerId) + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo);
     }
 
     function closeModal(modalSelector) {

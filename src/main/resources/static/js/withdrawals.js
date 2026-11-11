@@ -148,7 +148,7 @@ $(function () {
                 '<tr class="is-clickable' + selectedClass + '" tabindex="0" data-withdrawal-id="' + item.withdrawalId + '">' +
                 '<td class="adm-col-no">' + (start + index + 1) + "</td>" +
                 "<td><span>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(item.riaAccountNo)) + "</span></td>" +
-                '<td class="withdrawals-col-name"><span>' + escapeHtml(item.customerName || "") + "</span></td>" +
+                '<td class="withdrawals-col-name"><span>' + escapeHtml(MARIA.fmt.maskName(item.customerName) || "") + "</span></td>" +
                 '<td class="is-c">' + kindChip(item) + "</td>" +
                 '<td class="is-r is-strong"><span>' + formatAmount(item.requestedAmount) + "</span></td>" +
                 "<td><span>" + formatDateTime(item.processedAt) + "</span></td>" +
@@ -207,8 +207,7 @@ $(function () {
             }
             var accountNo = String(item.riaAccountNo || "").toLowerCase();
             return String(item.customerName || "").toLowerCase().indexOf(keyword) >= 0 ||
-                accountNo.indexOf(keyword) >= 0 ||
-                MARIA.fmt.hyphenateAccountNo(accountNo).toLowerCase().indexOf(keyword) >= 0;
+                accountNo.indexOf(keyword.replace(/-/g, "")) >= 0;
         });
 
         if (sortSpec) {
@@ -368,7 +367,7 @@ $(function () {
         var meta = accountMetaByNo[String(detail.riaAccountNo || "-")] || {};
         var kind = STATUS.withdrawalKind(detail);
 
-        $("#withdrawal-detail-title").text((detail.customerName || "-") + " 님 인출");
+        $("#withdrawal-detail-title").text((MARIA.fmt.maskName(detail.customerName) || "-") + " 님 인출");
         $("#withdrawal-account-no").text(detail.riaAccountNo ? MARIA.fmt.hyphenateAccountNo(detail.riaAccountNo) : "-");
 
         $("#withdrawal-detail-kind").html(kindChip(detail));
@@ -382,7 +381,7 @@ $(function () {
         $("#withdrawal-account-benefit-warning").prop("hidden", meta.benefit !== "IMPOSSIBLE");
 
         // 원본에 없는 기존 요소: 인출 상세
-        $("#withdrawal-customer-name").text(detail.customerName || "-");
+        $("#withdrawal-customer-name").text(MARIA.fmt.maskName(detail.customerName) || "-");
         $("#withdrawal-account-opened-at").text(formatDateTime(meta.openedAt));
         $("#withdrawal-current-balance").text(meta.amount == null ? "-" : formatAmount(meta.amount) + "원");
         $("#withdrawal-destination-account").text(

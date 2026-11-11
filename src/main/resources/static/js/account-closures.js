@@ -81,7 +81,7 @@ $(function () {
                 '<tr class="is-clickable' + selected + '" tabindex="0" data-closure-id="' + closure.closureRequestId + '">' +
                 '<td class="adm-col-no">' + (startIndex + index + 1) + "</td>" +
                 "<td><span>" + MARIA.fmt.accountNoHtml(closure.accountNo) + "</span></td>" +
-                '<td class="closure-col-name"><span>' + escapeHtml(closure.customerName || "-") + "</span></td>" +
+                '<td class="closure-col-name"><span>' + escapeHtml(MARIA.fmt.maskName(closure.customerName) || "-") + "</span></td>" +
                 "<td><span>" + escapeHtml(formatDateTime(closure.requestedAt)) + "</span></td>" +
                 '<td class="is-c">' + statusChip(closure.status) + "</td></tr>"
             );
@@ -145,8 +145,8 @@ $(function () {
 
     function renderDetail(closure) {
         selectedClosureId = Number(closure.closureRequestId);
-        $("#detail-request-title").text((closure.customerName || "-") + " 님");
-        $("#detail-customer-name").text(closure.customerName || "-");
+        $("#detail-request-title").text((MARIA.fmt.maskName(closure.customerName) || "-") + " 님");
+        $("#detail-customer-name").text(MARIA.fmt.maskName(closure.customerName) || "-");
         $("#detail-account-no").html(MARIA.fmt.accountNoHtml(closure.accountNo));
         $("#detail-account-amount").text(formatAmount(closure.accountAmount));
         $("#detail-destination-id").text(closure.destinationGeneralAccountId);

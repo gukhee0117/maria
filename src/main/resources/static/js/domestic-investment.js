@@ -141,7 +141,7 @@ $(function () {
                 '<tr class="is-clickable' + selected + '" tabindex="0" data-account-id="' + item.accountId + '">' +
                 '<td class="adm-col-no">' + (currentPage * PAGE_SIZE + index + 1) + "</td>" +
                 "<td><span>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(item.accountNo)) + "</span></td>" +
-                "<td><span>" + escapeHtml(item.customerName || "") + "</span></td>" +
+                "<td><span>" + escapeHtml(MARIA.fmt.maskName(item.customerName) || "") + "</span></td>" +
                 '<td class="is-r is-strong"><span>' + formatAmount(item.cashAmount) + "</span></td>" +
                 '<td class="is-r"><span>' + cashRatioText(item.cashAmount) + "</span></td>" +
                 '<td class="is-r"><span>' + KRW_FORMATTER.format(item.holdingCount || 0) + "</span></td>" +
@@ -314,7 +314,7 @@ $(function () {
         var trades = data.tradeHistory || [];
         var buyable = STATUS.domesticBuyable(holdings);
 
-        $("#diDetailTitle").text((data.customerName || "-") + " 님 국내투자");
+        $("#diDetailTitle").text((MARIA.fmt.maskName(data.customerName) || "-") + " 님 국내투자");
         $("#diDetailSub").text(data.accountNo ? MARIA.fmt.hyphenateAccountNo(data.accountNo) : "");
         $("#diDetailCash").text(data.cashAmount == null ? "-" : formatAmount(data.cashAmount) + "원");
         $("#diDetailRatio").text(cashRatioText(data.cashAmount));
@@ -391,7 +391,7 @@ $(function () {
     function loadDetail(accountId) {
         var item = investments.filter(function (i) { return i.accountId === accountId; })[0];
         setTab("holdings");
-        $("#diDetailTitle").text(item ? item.customerName + " 님 국내투자" : "-");
+        $("#diDetailTitle").text(item ? MARIA.fmt.maskName(item.customerName) + " 님 국내투자" : "-");
         $("#diDetailSub").text(item ? MARIA.fmt.hyphenateAccountNo(item.accountNo) : "");
         $("#diDetailTabs").prop("hidden", true);
         $("#diFold").prop("hidden", true);
@@ -515,7 +515,7 @@ $(function () {
             checkState("#diCheckRestricted", 5, "불러오는 중...");
             MARIA.auth.ajax({ url: CHECK_API + "restricted-holdings", method: "GET" }).done(function (res) {
                 checkList("#diCheckRestricted", 5, res.data, "거래제한·정지 종목이 없습니다.", function (r, i) {
-                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
                         productCell(r) + '<td class="is-c">' + statusChip(r.status) + "</td></tr>";
                 });
             }).fail(function () { checkState("#diCheckRestricted", 5, "목록을 불러오지 못했습니다."); });
@@ -523,7 +523,7 @@ $(function () {
             checkState("#diCheckUnpurchasable", 6, "불러오는 중...");
             MARIA.auth.ajax({ url: CHECK_API + "unpurchasable-holdings", method: "GET" }).done(function (res) {
                 checkList("#diCheckUnpurchasable", 6, res.data, "매수불가 종목이 없습니다.", function (r, i) {
-                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
                         productCell(r) +
                         '<td class="is-r">' + (r.domesticStockRatio == null ? "-" : escapeHtml(Number(r.domesticStockRatio).toFixed(1)) + "%") + "</td>" +
                         '<td class="is-c">' + escapeHtml(r.inceptionDate || "-") + "</td></tr>";
@@ -534,7 +534,7 @@ $(function () {
             checkState("#diCheckRecent", 3, "불러오는 중...");
             MARIA.auth.ajax({ url: CHECK_API + "recent-buy-accounts", method: "GET", data: { days: recentDays, hasRecentBuy: flag } }).done(function (res) {
                 checkList("#diCheckRecent", 3, res.data, "해당하는 계좌가 없습니다.", function (r, i) {
-                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td></tr>";
+                    return "<tr>" + checkNo(i) + "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td></tr>";
                 });
             }).fail(function () { checkState("#diCheckRecent", 3, "목록을 불러오지 못했습니다."); });
         } else {
@@ -555,7 +555,7 @@ $(function () {
         MARIA.auth.ajax({ url: CHECK_API + "cash-heavy-accounts", method: "GET", data: $.extend({ page: page, size: 20 }, cashSort ? { sort: cashSort.key, direction: cashSort.dir } : {}) }).done(function (res) {
             var d = res.data || {};
             checkList("#diCheckCash", 6, d.content, "예탁금 비중이 높은 계좌가 없습니다.", function (r, i) {
-                return "<tr>" + checkNo(page * 20 + i) + "<td>" + escapeHtml(r.customerName || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
+                return "<tr>" + checkNo(page * 20 + i) + "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td><td>" + escapeHtml(accountNoText(r.accountNo)) + "</td>" +
                     '<td class="is-r">' + escapeHtml(formatAmount(r.cashAmount)) + '</td><td class="is-r">' + escapeHtml(formatAmount(r.investedAmount)) +
                     '</td><td class="is-r">' + escapeHtml(ratioText(r.cashRatio)) + "</td></tr>";
             });
