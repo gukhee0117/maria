@@ -28,7 +28,15 @@ public class CustomerNotificationSettingsServiceImpl
     @Override
     @Transactional(readOnly = true)
     public CustomerNotificationSettingsResponseDTO get(Long customerId) {
-        return toResponse(settingsMapper.selectLatestByCustomerId(customerId));
+        Map<NotificationConsentType, Boolean> values =
+                values(settingsMapper.selectLatestByCustomerId(customerId));
+        if (agreed(values, NotificationConsentType.NOTIFY_EMAIL)) {
+            String email = settingsMapper.selectEmail(customerId);
+            if (!verification.isRegisteredEmailVerified(customerId, email)) {
+                values.put(NotificationConsentType.NOTIFY_EMAIL, false);
+            }
+        }
+        return toResponse(values);
     }
 
     @Override
@@ -44,7 +52,8 @@ public class CustomerNotificationSettingsServiceImpl
             throw new AppException(ErrorType.CUSTOMER_NOTIFICATION_EMAIL_REQUIRED);
         }
         if (Boolean.TRUE.equals(request.email())
-                && !verification.isVerified(customerId, settingsMapper.selectEmail(customerId))) {
+                && !verification.isRegisteredEmailVerified(
+                        customerId, settingsMapper.selectEmail(customerId))) {
             throw new AppException(ErrorType.NOTIFICATION_EMAIL_VERIFICATION_REQUIRED);
         }
         Map<NotificationConsentType, Boolean> previous =
@@ -54,7 +63,13 @@ public class CustomerNotificationSettingsServiceImpl
             if (type == NotificationConsentType.NOTIFY_COMMENT
                     || type == NotificationConsentType.NOTIFY_KIRU) continue;
             boolean next = requestedValue(request, type);
-            if (agreed(previous, type) != next) {
+            boolean changed = agreed(previous, type) != next;
+            if (type == NotificationConsentType.NOTIFY_EMAIL && !previous.containsKey(type)) {
+                // The required email field is explicit in this full-settings PUT. Persist both
+                // choices even when there is no previous row or ownership proof yet.
+                changed = true;
+            }
+            if (changed) {
                 settingsMapper.insertConsent(customerId, type, next, changedAt);
             }
         }
@@ -62,8 +77,7 @@ public class CustomerNotificationSettingsServiceImpl
     }
 
     private CustomerNotificationSettingsResponseDTO toResponse(
-            List<CustomerNotificationConsentDTO> rows) {
-        Map<NotificationConsentType, Boolean> values = values(rows);
+            Map<NotificationConsentType, Boolean> values) {
         return new CustomerNotificationSettingsResponseDTO(
                 agreed(values, NotificationConsentType.NOTIFY_PUSH),
                 agreed(values, NotificationConsentType.NOTIFY_SMS),

@@ -8,8 +8,11 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.*;
 import java.util.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -18,7 +21,9 @@ import org.springframework.stereotype.Service;
 
 /** Security TTL uses real time. Proof is bound to the customer's current address. */
 @Service
+@Slf4j
 public class NotificationEmailVerificationService {
+    private final SeedEmailVerificationExemptions seedExemptions;
     private final CustomerNotificationSettingsMapper contacts;
     private final StringRedisTemplate redis;
     private final ObjectProvider<JavaMailSender> senders;
@@ -74,6 +79,18 @@ public class NotificationEmailVerificationService {
             ObjectProvider<JavaMailSender> senders,
             @Value("${SMTP_FROM:}") String from,
             Clock clock) {
+        this(contacts, redis, senders, from, clock, new SeedEmailVerificationExemptions());
+    }
+
+    @Autowired
+    public NotificationEmailVerificationService(
+            CustomerNotificationSettingsMapper contacts,
+            StringRedisTemplate redis,
+            ObjectProvider<JavaMailSender> senders,
+            @Value("${SMTP_FROM:}") String from,
+            Clock clock,
+            SeedEmailVerificationExemptions seedExemptions) {
+        this.seedExemptions = seedExemptions;
         this.contacts = contacts;
         this.redis = redis;
         this.senders = senders;
@@ -87,13 +104,35 @@ public class NotificationEmailVerificationService {
 
     public Status status(Long customerId) {
         String email = contacts.selectEmail(customerId);
-        return new Status(email != null && isVerified(customerId, email), mask(email));
+        return new Status(isRegisteredEmailVerified(customerId, email), mask(email));
     }
 
     public boolean isVerified(Long customerId, String email) {
-        return email != null
-                && email.equals(contacts.selectEmail(customerId))
-                && Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
+        if (email == null || email.isBlank() || !email.equals(contacts.selectEmail(customerId))) {
+            return false;
+        }
+        return isRegisteredEmailVerified(customerId, email);
+    }
+
+    /** Internal only: the address must come from the customer's registered contact row. */
+    boolean isRegisteredEmailVerified(Long customerId, String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        // Only known seed IDs need an extra auth lookup. Changing their original address removes
+        // the exemption.
+        if (seedExemptions.containsCustomer(customerId)
+                && seedExemptions.matches(
+                        customerId, contacts.selectLocalLoginId(customerId), email)) {
+            return true;
+        }
+        try {
+            return Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
+        } catch (DataAccessException failure) {
+            log.warn("NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE customerId={}", customerId);
+            throw new AppException(
+                    ErrorType.NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE, null, failure);
+        }
     }
 
     public Challenge send(Long customerId) {

@@ -104,7 +104,7 @@ class NotificationReviewIntegrationTest {
         @Bean
         NotificationEmailVerificationService verification() {
             var verification = mock(NotificationEmailVerificationService.class);
-            when(verification.isVerified(any(), any())).thenReturn(true);
+            when(verification.isRegisteredEmailVerified(any(), any())).thenReturn(true);
             return verification;
         }
 
@@ -168,16 +168,17 @@ class NotificationReviewIntegrationTest {
                 1L,
                 new CustomerNotificationSettingsRequestDTO(
                         false, false, false, true, true, true, true));
-        assertThat(count("customer_consent")).isEqualTo(1);
+        assertThat(count("customer_consent")).isEqualTo(2);
         assertThat(
                         jdbc.queryForObject(
-                                "SELECT changed_at FROM customer_consent", LocalDateTime.class))
+                                "SELECT DISTINCT changed_at FROM customer_consent",
+                                LocalDateTime.class))
                 .isEqualTo(NOW);
         settings.update(
                 1L,
                 new CustomerNotificationSettingsRequestDTO(
                         false, false, false, true, true, true, true));
-        assertThat(count("customer_consent")).isEqualTo(1);
+        assertThat(count("customer_consent")).isEqualTo(2);
         assertThat(settings.get(2L).push()).isTrue();
     }
 
@@ -248,7 +249,9 @@ class NotificationReviewIntegrationTest {
                         true, false, false, true, true, true, true));
         assertThat(settings.get(1L).reply()).isFalse();
         assertThat(settings.get(1L).kiru()).isFalse();
-        assertThat(count("customer_consent")).isZero();
+        assertThat(count("customer_consent")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT consent_type FROM customer_consent", String.class))
+                .isEqualTo("NOTIFY_EMAIL");
         notificationMapper.insertEvent(
                 1L,
                 NotificationType.COMMUNITY_COMMENT,

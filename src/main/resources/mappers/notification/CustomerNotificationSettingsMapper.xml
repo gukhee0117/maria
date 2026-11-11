@@ -3,6 +3,11 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper">
+    <select id="selectLocalLoginId" resultType="String">
+        SELECT login_id FROM customer_auth
+        WHERE customer_id = #{customerId} AND type = 'LOCAL'
+        ORDER BY auth_id LIMIT 1
+    </select>
     <select id="selectEmail" resultType="String">
         SELECT email FROM customer WHERE customer_id = #{customerId}
     </select>
