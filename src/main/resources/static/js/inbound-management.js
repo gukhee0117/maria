@@ -163,7 +163,7 @@ $(function () {
                 '" data-account-id="' + account.accountId + '"' + (selected ? ' aria-current="true"' : "") + ">" +
                 '<span class="adm-master-main">' +
                 '<span class="adm-master-no">' + escapeHtml(MARIA.fmt.hyphenateAccountNo(account.accountNo)) + "</span>" +
-                '<span class="adm-master-sub" title="최근 처리 ' + escapeHtml(recent) + '">' + escapeHtml(account.customerName || "") +
+                '<span class="adm-master-sub" title="최근 처리 ' + escapeHtml(recent) + '">' + escapeHtml(MARIA.fmt.maskName(account.customerName) || "") +
                 (account.lastProcessedAt ? " · 최근 " + escapeHtml(recent.substring(5)) : "") + "</span>" +
                 "</span>" +
                 '<span class="adm-master-n">' + INT_FORMATTER.format(account.inboundCount || 0) + "건</span>" +
@@ -273,7 +273,7 @@ $(function () {
 
         $("#inbound-count").text(INT_FORMATTER.format(pageData.totalElements || 0));
         $("#inbound-selected-account").text(account
-            ? (account.customerName || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
+            ? (MARIA.fmt.maskName(account.customerName) || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
         renderPager($("#inbound-pagination"), pageData.page || 0, pageData.totalPages || 0, function (targetPage) {
             closeDrawer();
             loadAccountInbounds(targetPage);
@@ -283,7 +283,7 @@ $(function () {
             renderInboundState("empty");
             $("#inbound-count").text(INT_FORMATTER.format(pageData.totalElements || 0));
             $("#inbound-selected-account").text(account
-                ? (account.customerName || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
+                ? (MARIA.fmt.maskName(account.customerName) || "") + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo) : "");
             return;
         }
 
@@ -511,7 +511,7 @@ $(function () {
         var isZero = item.approvedQty === 0;
 
         $("#inbound-detail-title").text(productLabel(item));
-        $("#inbound-detail-sub").text((item.customerName || "-") + " · " + MARIA.fmt.hyphenateAccountNo(item.accountNo));
+        $("#inbound-detail-sub").text((MARIA.fmt.maskName(item.customerName) || "-") + " · " + MARIA.fmt.hyphenateAccountNo(item.accountNo));
 
         $("#inbound-detail-source").text(sourceLabel(item));
         $("#inbound-detail-processed-at").text(formatDateTime(item.processedAt));
