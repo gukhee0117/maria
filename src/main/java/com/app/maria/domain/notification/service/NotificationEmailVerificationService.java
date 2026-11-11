@@ -10,6 +10,7 @@ import java.time.*;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,8 +23,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class NotificationEmailVerificationService {
-    private final SeedEmailVerificationExemptions seedExemptions =
-            new SeedEmailVerificationExemptions();
+    private final SeedEmailVerificationExemptions seedExemptions;
     private final CustomerNotificationSettingsMapper contacts;
     private final StringRedisTemplate redis;
     private final ObjectProvider<JavaMailSender> senders;
@@ -79,6 +79,18 @@ public class NotificationEmailVerificationService {
             ObjectProvider<JavaMailSender> senders,
             @Value("${SMTP_FROM:}") String from,
             Clock clock) {
+        this(contacts, redis, senders, from, clock, new SeedEmailVerificationExemptions());
+    }
+
+    @Autowired
+    public NotificationEmailVerificationService(
+            CustomerNotificationSettingsMapper contacts,
+            StringRedisTemplate redis,
+            ObjectProvider<JavaMailSender> senders,
+            @Value("${SMTP_FROM:}") String from,
+            Clock clock,
+            SeedEmailVerificationExemptions seedExemptions) {
+        this.seedExemptions = seedExemptions;
         this.contacts = contacts;
         this.redis = redis;
         this.senders = senders;
@@ -118,7 +130,8 @@ public class NotificationEmailVerificationService {
             return Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
         } catch (DataAccessException failure) {
             log.warn("NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE customerId={}", customerId);
-            return false;
+            throw new AppException(
+                    ErrorType.NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE, null, failure);
         }
     }
 

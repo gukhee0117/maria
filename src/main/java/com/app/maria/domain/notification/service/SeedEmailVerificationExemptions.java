@@ -10,11 +10,17 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Component;
 
 /** Public seed contact fingerprints are lookup indexes, never authentication secrets. */
 @Slf4j
+@Component
 final class SeedEmailVerificationExemptions {
     private final Map<Long, String> contacts;
 
@@ -24,6 +30,19 @@ final class SeedEmailVerificationExemptions {
 
     SeedEmailVerificationExemptions(Resource resource) {
         contacts = load(resource);
+    }
+
+    @Autowired
+    SeedEmailVerificationExemptions(
+            @Value(
+                            "${app.notification.seed-email-exemptions:classpath:notification/seed-email-exemptions.sha256}")
+                    Resource resource,
+            @Value("${app.notification.seed-email-exemptions-enabled:true}") boolean enabled,
+            Environment environment) {
+        contacts =
+                enabled && !environment.acceptsProfiles(Profiles.of("prod"))
+                        ? load(resource)
+                        : Map.of();
     }
 
     boolean containsCustomer(Long customerId) {
@@ -47,11 +66,13 @@ final class SeedEmailVerificationExemptions {
     }
 
     private static Map<Long, String> load(Resource resource) {
+        int lineNumber = 0;
         try (var reader =
                 new BufferedReader(
                         new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
             Map<Long, String> rows = new HashMap<>();
-            for (String line : reader.lines().toList()) {
+            for (String line; (line = reader.readLine()) != null; ) {
+                lineNumber++;
                 if (line.isBlank() || line.startsWith("#")) {
                     continue;
                 }
@@ -64,7 +85,7 @@ final class SeedEmailVerificationExemptions {
             }
             return Map.copyOf(rows);
         } catch (IOException | IllegalArgumentException failure) {
-            log.warn("NOTIFICATION_SEED_EMAIL_EXEMPTIONS_UNAVAILABLE");
+            log.warn("NOTIFICATION_SEED_EMAIL_EXEMPTIONS_UNAVAILABLE line={}", lineNumber, failure);
             return Map.of();
         }
     }

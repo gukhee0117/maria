@@ -65,12 +65,9 @@ public class CustomerNotificationSettingsServiceImpl
             boolean next = requestedValue(request, type);
             boolean changed = agreed(previous, type) != next;
             if (type == NotificationConsentType.NOTIFY_EMAIL && !previous.containsKey(type)) {
-                // Persist an explicit enable even when it equals the default. An unverified
-                // implicit OFF is not a user opt-out just because another setting was saved.
-                changed =
-                        next
-                                || verification.isRegisteredEmailVerified(
-                                        customerId, settingsMapper.selectEmail(customerId));
+                // The required email field is explicit in this full-settings PUT. Persist both
+                // choices even when there is no previous row or ownership proof yet.
+                changed = true;
             }
             if (changed) {
                 settingsMapper.insertConsent(customerId, type, next, changedAt);

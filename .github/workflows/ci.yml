@@ -17,6 +17,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test seed email index generator
+        run: python -B -m unittest discover -s scripts -p 'test_*.py'
+
       - name: Spotless
         run: |
           chmod +x gradlew

@@ -1,6 +1,7 @@
 package com.app.maria.domain.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import com.app.maria.domain.notification.mapper.CustomerNotificationSettingsMapper;
@@ -11,6 +12,36 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 
 class SeedEmailVerificationExemptionsTest {
+    @Test
+    @SuppressWarnings("unchecked")
+    void verificationUsesInjectedApprovedResourceInsteadOfClasspathDefaults() throws Exception {
+        String address = "approved@example.com";
+        String fingerprint =
+                java.util.HexFormat.of()
+                        .formatHex(
+                                java.security.MessageDigest.getInstance("SHA-256")
+                                        .digest(
+                                                ("2000\ncustom-login\n" + address)
+                                                        .getBytes(
+                                                                java.nio.charset.StandardCharsets
+                                                                        .UTF_8)));
+        var index =
+                new SeedEmailVerificationExemptions(
+                        new org.springframework.core.io.ByteArrayResource(
+                                ("2000:" + fingerprint + "\n")
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        var contacts = mock(CustomerNotificationSettingsMapper.class);
+        var redis = mock(StringRedisTemplate.class);
+        var senders = (ObjectProvider<JavaMailSender>) mock(ObjectProvider.class);
+        var verification =
+                new NotificationEmailVerificationService(
+                        contacts, redis, senders, "", Clock.systemUTC(), index);
+        when(contacts.selectEmail(2000L)).thenReturn(address);
+        when(contacts.selectLocalLoginId(2000L)).thenReturn("custom-login");
+        assertThat(verification.isVerified(2000L, address)).isTrue();
+        verifyNoInteractions(redis);
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void settingsGetAndVerificationStatusReadRegisteredEmailOnceEach() {
@@ -115,7 +146,7 @@ class SeedEmailVerificationExemptionsTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void redisOutageDoesNotAuthenticateAnUnverifiedAddressOrThrow() {
+    void redisOutageReturnsUnavailableInsteadOfFalseAndNeverWritesOptOut() {
         var contacts = mock(CustomerNotificationSettingsMapper.class);
         var redis = mock(StringRedisTemplate.class);
         var senders = (ObjectProvider<JavaMailSender>) mock(ObjectProvider.class);
@@ -127,7 +158,59 @@ class SeedEmailVerificationExemptionsTest {
                 .thenThrow(
                         new org.springframework.data.redis.RedisConnectionFailureException(
                                 "offline"));
-        assertThat(service.status(2000L).verified()).isFalse();
+        assertThatThrownBy(() -> service.status(2000L))
+                .isInstanceOfSatisfying(
+                        com.app.maria.global.exception.AppException.class,
+                        e ->
+                                assertThat(e.getErrorType())
+                                        .isEqualTo(
+                                                com.app.maria.global.exception.ErrorType
+                                                        .NOTIFICATION_EMAIL_VERIFICATION_UNAVAILABLE));
+        var settings =
+                new CustomerNotificationSettingsServiceImpl(
+                        contacts,
+                        mock(com.app.maria.global.clock.service.BusinessClockService.class),
+                        service);
+        assertThatThrownBy(() -> settings.get(2000L))
+                .isInstanceOf(com.app.maria.global.exception.AppException.class);
+        when(contacts.lockCustomer(2000L)).thenReturn(2000L);
+        when(contacts.hasRegisteredEmail(2000L)).thenReturn(true);
+        assertThatThrownBy(
+                        () ->
+                                settings.update(
+                                        2000L,
+                                        new com.app.maria.domain.notification.dto
+                                                .CustomerNotificationSettingsRequestDTO(
+                                                true, false, true, true, true, false, false)))
+                .isInstanceOf(com.app.maria.global.exception.AppException.class);
+        verify(contacts, never()).insertConsent(anyLong(), any(), anyBoolean(), any());
         verify(contacts, never()).selectLocalLoginId(anyLong());
+    }
+
+    @Test
+    void actualClasspathIndexIsNonemptyAndContainsApprovedSeedCustomer() {
+        assertThat(new SeedEmailVerificationExemptions().containsCustomer(24L)).isTrue();
+    }
+
+    @Test
+    void injectedSmallResourceWorksButProdAndDisabledFlagNeverLoadIt() {
+        var resource =
+                new org.springframework.core.io.ByteArrayResource(
+                        ("7:" + "a".repeat(64) + "\n")
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var environment = new org.springframework.core.env.StandardEnvironment();
+        assertThat(
+                        new SeedEmailVerificationExemptions(resource, true, environment)
+                                .containsCustomer(7L))
+                .isTrue();
+        assertThat(
+                        new SeedEmailVerificationExemptions(resource, false, environment)
+                                .containsCustomer(7L))
+                .isFalse();
+        environment.setActiveProfiles("prod");
+        assertThat(
+                        new SeedEmailVerificationExemptions(resource, true, environment)
+                                .containsCustomer(7L))
+                .isFalse();
     }
 }

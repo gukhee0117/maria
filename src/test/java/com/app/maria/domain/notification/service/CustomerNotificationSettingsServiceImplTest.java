@@ -64,21 +64,24 @@ class CustomerNotificationSettingsServiceImplTest {
     }
 
     @Test
-    void savingImplicitUnverifiedOffDoesNotCreateAnOptOut() {
+    void explicitUnverifiedOffIsPersistedAndSurvivesLaterVerification() {
         when(mapper.lockCustomer(45L)).thenReturn(45L);
         when(clock.now()).thenReturn(NOW);
+        var off = new CustomerNotificationConsentDTO();
+        off.setConsentType(NotificationConsentType.NOTIFY_EMAIL);
+        off.setAgreed(false);
+        when(mapper.selectLatestByCustomerId(45L))
+                .thenReturn(List.of(), List.of(off), List.of(off));
         service.update(45L, request(false));
-        verify(mapper, never())
-                .insertConsent(
-                        anyLong(), eq(NotificationConsentType.NOTIFY_EMAIL), anyBoolean(), any());
+        verify(mapper).insertConsent(45L, NotificationConsentType.NOTIFY_EMAIL, false, NOW);
+        assertThat(service.get(45L).email()).isFalse();
+        verifyNoInteractions(verification);
     }
 
     @Test
     void explicitOffFromVerifiedDefaultIsRecordedAndRepeatedSaveIsNoop() {
         when(mapper.lockCustomer(45L)).thenReturn(45L);
         when(clock.now()).thenReturn(NOW);
-        when(mapper.selectEmail(45L)).thenReturn("test@example.com");
-        when(verification.isRegisteredEmailVerified(45L, "test@example.com")).thenReturn(true);
         var off = new CustomerNotificationConsentDTO();
         off.setConsentType(NotificationConsentType.NOTIFY_EMAIL);
         off.setAgreed(false);
