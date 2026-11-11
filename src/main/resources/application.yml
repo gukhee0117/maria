@@ -29,6 +29,9 @@ spring:
       connection-timeout: 30000  # 커넥션 획득 대기 시간(ms)
       idle-timeout: 600000       # 유휴 커넥션 유지 시간(ms)
       initialization-fail-timeout: -1
+  # 켜 두면 JPA 커넥션을 응답이 끝날 때까지 쥔다. risk처럼 느린 외부 호출을 기다리는 요청이 쌓이면 풀이 바닥나 다른 화면이 멈춘다
+  jpa:
+    open-in-view: false
   # DevTools
   devtools:
     restart:
