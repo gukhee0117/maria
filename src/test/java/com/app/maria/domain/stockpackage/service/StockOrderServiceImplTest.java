@@ -359,6 +359,7 @@ class StockOrderServiceImplTest {
                         .avgPurchasePrice(new BigDecimal("90000"))
                         .build();
         when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.of(held));
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE)).thenReturn(List.of(packageBuy("10")));
 
         StockOrderResultDTO o =
                 service.place(CUSTOMER, PACKAGE, request("k6", DomesticOrderSide.SELL, "4"))
@@ -386,6 +387,103 @@ class StockOrderServiceImplTest {
                         .get(0);
 
         assertThat(o.rejectReason()).isEqualTo("INSUFFICIENT_QTY");
+    }
+
+    private static StockOrderVO packageBuy(String qty) {
+        return StockOrderVO.builder()
+                .domesticProductId(SAMSUNG)
+                .side(DomesticOrderSide.BUY)
+                .qty(new BigDecimal(qty))
+                .price(new BigDecimal("90000"))
+                .build();
+    }
+
+    private StockBalanceVO accountHolds(String qty) {
+        StockBalanceVO held =
+                StockBalanceVO.builder()
+                        .domesticStockBalanceId(9L)
+                        .accountId(ACCOUNT)
+                        .domesticProductId(SAMSUNG)
+                        .qty(new BigDecimal(qty))
+                        .status(DomesticStockStatus.HOLDING)
+                        .avgPurchasePrice(new BigDecimal("90000"))
+                        .build();
+        when(orderMapper.selectBalanceForUpdate(ACCOUNT, SAMSUNG)).thenReturn(Optional.of(held));
+        return held;
+    }
+
+    @Test
+    void 계좌_잔고가_있어도_이_패키지_보유보다_많이_팔면_INSUFFICIENT_QTY로_거부한다() {
+        prepare(account(Status.OPENED, "0"), quote("100000"));
+        StockBalanceVO held = accountHolds("26"); // 다른 패키지·생성기 몫까지 합친 계좌 잔고
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE)).thenReturn(List.of(packageBuy("8")));
+
+        StockOrderResultDTO o =
+                service.place(CUSTOMER, PACKAGE, request("p1", DomesticOrderSide.SELL, "10"))
+                        .orders()
+                        .get(0);
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.REJECTED);
+        assertThat(o.rejectReason()).isEqualTo("INSUFFICIENT_QTY");
+        assertThat(held.getQty()).isEqualByComparingTo("26");
+        verify(orderMapper, never()).updateBalance(any());
+    }
+
+    @Test
+    void 한_주문_안의_매도_여러_건은_앞에서_판_수량을_빼고_패키지_보유와_비교한다() {
+        prepare(account(Status.OPENED, "0"), quote("100000"));
+        accountHolds("26");
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE)).thenReturn(List.of(packageBuy("8")));
+        StockOrderRequestDTO twoSells =
+                new StockOrderRequestDTO(
+                        "p2",
+                        List.of(
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.SELL, new BigDecimal("5")),
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.SELL, new BigDecimal("5"))));
+
+        List<StockOrderResultDTO> orders = service.place(CUSTOMER, PACKAGE, twoSells).orders();
+
+        assertThat(orders.get(0).status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        assertThat(orders.get(1).status()).isEqualTo(DomesticOrderStatus.REJECTED);
+        assertThat(orders.get(1).rejectReason()).isEqualTo("INSUFFICIENT_QTY");
+    }
+
+    @Test
+    void 한_주문_안에서_먼저_산_수량까지_더해_패키지_보유로_팔_수_있다() {
+        prepare(account(Status.OPENED, "10000000"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        accountHolds("26");
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE)).thenReturn(List.of(packageBuy("3")));
+        StockOrderRequestDTO buyThenSell =
+                new StockOrderRequestDTO(
+                        "p3",
+                        List.of(
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.BUY, new BigDecimal("1")),
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.SELL, new BigDecimal("4"))));
+
+        List<StockOrderResultDTO> orders = service.place(CUSTOMER, PACKAGE, buyThenSell).orders();
+
+        assertThat(orders.get(0).status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        assertThat(orders.get(1).status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+    }
+
+    @Test
+    void 생성기_매도는_패키지_보유가_아니라_계좌_잔고만_본다() {
+        prepareGenerator(account(Status.OPENED, "0"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        accountHolds("5");
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.SELL, 5, "GEN-S");
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        verify(orderMapper, never()).selectExecutedByPackageAsc(any());
     }
 
     @Test
