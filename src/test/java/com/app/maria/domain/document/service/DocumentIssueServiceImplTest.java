@@ -14,7 +14,9 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.account.type.BenefitType;
-import com.app.maria.domain.document.component.TaxReliefCertPdfRenderer;
+import com.app.maria.domain.document.component.DocumentPdfRenderer;
+import com.app.maria.domain.document.component.NetPurchaseStatementView;
+import com.app.maria.domain.document.component.NetPurchaseStatementViewAssembler;
 import com.app.maria.domain.document.component.TaxReliefCertView;
 import com.app.maria.domain.document.component.TaxReliefCertViewAssembler;
 import com.app.maria.domain.document.dto.DocumentFileDTO;
@@ -22,6 +24,7 @@ import com.app.maria.domain.document.dto.DocumentIssueDTO;
 import com.app.maria.domain.document.dto.response.DocumentIssueResponseDTO;
 import com.app.maria.domain.document.mapper.DocumentIssueMapper;
 import com.app.maria.domain.document.type.DocumentStatus;
+import com.app.maria.domain.document.type.DocumentType;
 import com.app.maria.domain.document.type.IssuedByType;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
@@ -70,7 +73,8 @@ class DocumentIssueServiceImplTest {
     @Mock TaxMapper taxMapper;
     @Mock TaxCalculationService taxCalculationService;
     @Mock TaxReliefCertViewAssembler viewAssembler;
-    @Mock TaxReliefCertPdfRenderer pdfRenderer;
+    @Mock NetPurchaseStatementViewAssembler netPurchaseAssembler;
+    @Mock DocumentPdfRenderer pdfRenderer;
     @Mock BusinessClockService clockService;
     @Mock AuditLogService auditLogService;
     @Mock AuditActorProvider auditActorProvider;
@@ -160,15 +164,18 @@ class DocumentIssueServiceImplTest {
         readyToIssue(BenefitType.POSSIBLE);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938473")));
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
         when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
-        when(pdfRenderer.render(any())).thenReturn(PDF);
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
 
-        DocumentIssueResponseDTO response = service.issueForCustomer(CUSTOMER_ID);
+        DocumentIssueResponseDTO response =
+                service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
 
         ArgumentCaptor<DocumentIssueDTO> saved = ArgumentCaptor.forClass(DocumentIssueDTO.class);
         verify(documentIssueMapper).insert(saved.capture());
@@ -186,12 +193,59 @@ class DocumentIssueServiceImplTest {
         verify(auditLogService, never()).log(any());
     }
 
+    @Test
+    @DisplayName("발급: 저장값과 재계산 값이 반올림 차이뿐이면 일치로 본다")
+    void issue_acceptsRoundingDifference() {
+        readyToIssue(BenefitType.POSSIBLE);
+        when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .thenReturn(Optional.of(stored()));
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
+        when(taxCalculationService.taxCalculate(ACCOUNT_ID))
+                .thenReturn(preview(new BigDecimal("1938472.996")));
+        when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
+        when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(TaxReliefCertView.builder().build());
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
+
+        service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
+
+        verify(documentIssueMapper).insert(any(DocumentIssueDTO.class));
+    }
+
+    @Test
+    @DisplayName("발급: 과세특례 증빙서가 있어도 순매수 내역서는 따로 만들고 종류를 저장한다")
+    void issueForCustomer_netPurchaseStatementIsIssuedIndependently() {
+        readyToIssue(BenefitType.POSSIBLE);
+        when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
+                .thenReturn(Optional.of(stored()));
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.NET_PURCHASE_STATEMENT))
+                .thenReturn(Optional.empty());
+        when(taxCalculationService.taxCalculate(ACCOUNT_ID))
+                .thenReturn(preview(new BigDecimal("1938473")));
+        when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
+        when(netPurchaseAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(NetPurchaseStatementView.builder().build());
+        when(pdfRenderer.render(any(NetPurchaseStatementView.class))).thenReturn(PDF);
+
+        service.issueForCustomer(CUSTOMER_ID, DocumentType.NET_PURCHASE_STATEMENT);
+
+        ArgumentCaptor<DocumentIssueDTO> saved = ArgumentCaptor.forClass(DocumentIssueDTO.class);
+        verify(documentIssueMapper).insert(saved.capture());
+        assertThat(saved.getValue().getDocType()).isEqualTo(DocumentType.NET_PURCHASE_STATEMENT);
+        verify(pdfRenderer, never()).render(any(TaxReliefCertView.class));
+    }
+
     /** 발급 직전까지의 준비를 모두 해 둔다(발급번호 검사만 각 테스트가 정한다). */
     private void readyForIssueNo() {
         readyToIssue(BenefitType.POSSIBLE);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938473")));
     }
@@ -204,9 +258,9 @@ class DocumentIssueServiceImplTest {
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
         when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
-        when(pdfRenderer.render(any())).thenReturn(PDF);
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
 
-        service.issueForCustomer(CUSTOMER_ID);
+        service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
 
         verify(documentIssueMapper, times(3)).existsByIssueNo(anyString());
         ArgumentCaptor<DocumentIssueDTO> saved = ArgumentCaptor.forClass(DocumentIssueDTO.class);
@@ -220,14 +274,15 @@ class DocumentIssueServiceImplTest {
         readyForIssueNo();
         when(documentIssueMapper.existsByIssueNo(anyString())).thenReturn(true);
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
                                 assertThat(e.getErrorType())
                                         .isEqualTo(ErrorType.DOCUMENT_ISSUE_NO_GENERATION_FAILED));
         verify(documentIssueMapper, times(5)).existsByIssueNo(anyString());
-        verify(pdfRenderer, never()).render(any());
+        verify(pdfRenderer, never()).render(any(TaxReliefCertView.class));
         verify(documentIssueMapper, never()).insert(any());
     }
 
@@ -239,12 +294,13 @@ class DocumentIssueServiceImplTest {
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
         when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
-        when(pdfRenderer.render(any())).thenReturn(PDF);
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
         doThrow(new DuplicateKeyException("uk_document_issue_no"))
                 .when(documentIssueMapper)
                 .insert(any());
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -261,7 +317,8 @@ class DocumentIssueServiceImplTest {
                 .thenReturn(Optional.of(account(BenefitType.POSSIBLE)));
         when(clockService.now()).thenReturn(LocalDateTime.of(2027, 3, 31, 23, 59));
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -277,7 +334,8 @@ class DocumentIssueServiceImplTest {
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -290,7 +348,8 @@ class DocumentIssueServiceImplTest {
     void issue_benefitCanceled_rejected() {
         readyToIssue(BenefitType.IMPOSSIBLE);
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
@@ -304,17 +363,20 @@ class DocumentIssueServiceImplTest {
         readyToIssue(BenefitType.POSSIBLE);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938474")));
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
                                 assertThat(e.getErrorType())
                                         .isEqualTo(ErrorType.DOCUMENT_BASIS_MISMATCH));
-        verify(pdfRenderer, never()).render(any());
+        verify(pdfRenderer, never()).render(any(TaxReliefCertView.class));
         verify(documentIssueMapper, never()).insert(any());
     }
 
@@ -324,7 +386,9 @@ class DocumentIssueServiceImplTest {
         readyToIssue(BenefitType.POSSIBLE);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
         TaxCalculationPreviewResponseDTO matchingTotals = preview(new BigDecimal("1938473"));
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(
@@ -345,13 +409,14 @@ class DocumentIssueServiceImplTest {
                                                 List.of()))
                                 .build());
 
-        assertThatThrownBy(() -> service.issueForCustomer(CUSTOMER_ID))
+        assertThatThrownBy(
+                        () -> service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         e ->
                                 assertThat(e.getErrorType())
                                         .isEqualTo(ErrorType.DOCUMENT_BASIS_MISMATCH));
-        verify(pdfRenderer, never()).render(any());
+        verify(pdfRenderer, never()).render(any(TaxReliefCertView.class));
     }
 
     @Test
@@ -360,7 +425,8 @@ class DocumentIssueServiceImplTest {
         readyToIssue(BenefitType.POSSIBLE);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID))
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
                 .thenReturn(
                         Optional.of(
                                 DocumentIssueDTO.builder()
@@ -370,10 +436,11 @@ class DocumentIssueServiceImplTest {
                                         .status(DocumentStatus.ISSUED)
                                         .build()));
 
-        DocumentIssueResponseDTO response = service.issueForCustomer(CUSTOMER_ID);
+        DocumentIssueResponseDTO response =
+                service.issueForCustomer(CUSTOMER_ID, DocumentType.TAX_RELIEF_CERT);
 
         assertThat(response.getDocumentIssueId()).isEqualTo(5L);
-        verify(pdfRenderer, never()).render(any());
+        verify(pdfRenderer, never()).render(any(TaxReliefCertView.class));
         verify(documentIssueMapper, never()).insert(any());
     }
 
@@ -384,15 +451,17 @@ class DocumentIssueServiceImplTest {
         when(auditActorProvider.getCurrentAdminId()).thenReturn(99L);
         when(taxMapper.selectCalculationByAccountAndBasis(ACCOUNT_ID, TaxBasisType.FINAL_REPORT))
                 .thenReturn(Optional.of(stored()));
-        when(documentIssueMapper.selectIssuedByAccountId(ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(documentIssueMapper.selectIssuedByAccountIdAndType(
+                        ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(Optional.empty());
         when(taxCalculationService.taxCalculate(ACCOUNT_ID))
                 .thenReturn(preview(new BigDecimal("1938473")));
         when(documentIssueMapper.selectHolderName(ACCOUNT_ID)).thenReturn(Optional.of("홍길동"));
         when(viewAssembler.assemble(anyInt(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(TaxReliefCertView.builder().build());
-        when(pdfRenderer.render(any())).thenReturn(PDF);
+        when(pdfRenderer.render(any(TaxReliefCertView.class))).thenReturn(PDF);
 
-        service.issueForAdmin(ACCOUNT_ID);
+        service.issueForAdmin(ACCOUNT_ID, DocumentType.TAX_RELIEF_CERT);
 
         ArgumentCaptor<DocumentIssueDTO> saved = ArgumentCaptor.forClass(DocumentIssueDTO.class);
         verify(documentIssueMapper).insert(saved.capture());
@@ -408,6 +477,7 @@ class DocumentIssueServiceImplTest {
         return DocumentIssueDTO.builder()
                 .documentIssueId(5L)
                 .accountId(accountId)
+                .docType(DocumentType.TAX_RELIEF_CERT)
                 .issueNo("RIA-2027-AAAAAAAA")
                 .status(status)
                 .fileContent(file)

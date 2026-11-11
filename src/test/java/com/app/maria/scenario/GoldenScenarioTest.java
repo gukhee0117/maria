@@ -141,7 +141,7 @@ class GoldenScenarioTest {
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
         when(exchangeRateProvider.getFinalRate(anyString(), any()))
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
-        doReturn(BigDecimal.ZERO).when(mydataClient).getExternalSellTotal(anyString());
+        doReturn(BigDecimal.ZERO).when(mydataClient).getExternalSellTotal(anyString(), any());
     }
 
     @Test

@@ -26,12 +26,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +60,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     static final int DEFAULT_ASK_LIMIT = 6;
     static final String BASIS_SURVEY = "SURVEY";
     static final String BASIS_TRADING = "TRADING";
+    // 이 길이 이하의 테마 이름은 공백을 지우지 않고 비교한다(다른 단어에 걸리는 오탐을 줄이려고)
+    static final int SHORT_THEME_LENGTH = 2;
 
     private static final Pattern GRADE_Q = Pattern.compile("등급|위험");
     private static final Pattern VOL_Q = Pattern.compile("변동성");
@@ -81,21 +85,31 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     public StockRecommendationResponseDTO recommend(
             Long customerId, String filter, int limit, String basis) {
         return new StockRecommendationResponseDTO(
-                build(customerId, normalizeFilter(filter), limit, normalizeBasis(basis)));
+                build(customerId, normalizeFilter(filter), limit, normalizeBasis(basis), null));
     }
 
+    /**
+     * 질문에 테마(예: 반도체)가 있으면 그 테마 안으로 좁혀 추천을 다시 계산하고, 그 종목들로 답한다. 추천은 성향 범위 안 상품으로만 하고(적합성 원칙), 그 테마에
+     * 범위 밖 상품이 있으면 개수만 알려 후보 화면에서 고객이 직접 확인하게 한다.
+     */
     @Override
     public StockRecommendationAskResponseDTO ask(
             Long customerId, StockRecommendationAskRequestDTO request) {
         int limit = request.limit() == null ? DEFAULT_ASK_LIMIT : request.limit();
-        StockRecommendationVO rec =
-                build(customerId, "ALL", limit, normalizeBasis(request.basis()));
         String question = request.question().trim();
+        String theme = themeIn(question);
+        StockRecommendationVO rec =
+                build(customerId, "ALL", limit, normalizeBasis(request.basis()), theme);
         List<Item> items = rec.getItems();
         boolean trading = BASIS_TRADING.equals(rec.getBasis());
         if (!rec.isBasisAvailable() || items.isEmpty()) {
             String text;
-            if (trading && !rec.isProfileAvailable()) {
+            if (theme != null && rec.isBasisAvailable()) {
+                text =
+                        theme
+                                + " 테마에는 내 투자성향 범위 안이고 RIA 계좌로 살 수 있으며 위험등급이 계산된, 지금 보유하지 않은 상품이 없어요."
+                                + outOfProfileNote(rec);
+            } else if (trading && !rec.isProfileAvailable()) {
                 text = TRADING_NEEDS_PROFILE_ANSWER;
             } else if (trading) {
                 text =
@@ -121,8 +135,20 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
 
         Optional<String> rule = ruleAnswer(question, rec, items, hit, focus);
         if (rule.isPresent()) {
+            // 테마 질문이면 규칙 답에도 추천하지 않은 범위 밖 상품 개수와 후보 화면 안내를 붙인다
             return new StockRecommendationAskResponseDTO(
-                    rule.get(), focus == null ? null : focus.ticker(), false, DISCLAIMER);
+                    rule.get() + outOfProfileNote(rec),
+                    focus == null ? null : focus.ticker(),
+                    false,
+                    DISCLAIMER);
+        }
+        // 테마를 말했는데 다른 규칙에 걸리지 않으면 AI에 넘기지 않고 그 테마 안에서 고른 종목을 사실로 보여 준다
+        if (theme != null) {
+            return new StockRecommendationAskResponseDTO(
+                    themeAnswer(rec, items),
+                    focus == null ? null : focus.ticker(),
+                    false,
+                    DISCLAIMER);
         }
         Optional<String> ai;
         try {
@@ -139,16 +165,19 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
 
     // ───── 추천 목록 ─────
 
-    private StockRecommendationVO build(Long customerId, String filter, int limit, String basis) {
+    /** theme이 있으면 그 테마 안에서 고른다. 어느 쪽이든 추천은 설문 성향 범위 안 상품으로만 한다. */
+    private StockRecommendationVO build(
+            Long customerId, String filter, int limit, String basis, String theme) {
         return BASIS_TRADING.equals(basis)
-                ? buildTrading(customerId, filter, limit)
-                : buildSurvey(customerId, filter, limit);
+                ? buildTrading(customerId, filter, limit, theme)
+                : buildSurvey(customerId, filter, limit, theme);
     }
 
-    private StockRecommendationVO buildSurvey(Long customerId, String filter, int limit) {
+    private StockRecommendationVO buildSurvey(
+            Long customerId, String filter, int limit, String theme) {
         int size = Math.max(1, Math.min(MAX_LIMIT, limit));
         Set<Type> types = typesOf(filter);
-        StockCandidateResponseDTO candidates = searchInProfile(customerId, types);
+        StockCandidateResponseDTO candidates = searchCandidates(customerId, types, theme);
         LocalDateTime now = businessClockService.now();
 
         if (!candidates.isProfileAvailable()) {
@@ -163,21 +192,25 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         // 설문 기준: 목표는 허용 범위에서 가장 위험한 경계, 범위는 허용 범위 전체
         Target target = new Target(BigDecimal.valueOf(minGrade), minGrade, 6, false);
         Taste taste = tasteOf(customerId);
+        Set<Long> held = heldProductIds(customerId);
         List<Item> items =
                 choose(
                         candidates,
                         target,
                         taste,
-                        heldProductIds(customerId),
+                        held,
                         now.toLocalDate(),
                         size,
                         i -> surveyLead(i, label, minGrade),
-                        true);
+                        true,
+                        theme != null);
         return StockRecommendationVO.builder()
                 .items(items)
                 .profileAvailable(true)
                 .profileLabel(label)
                 .allowedMinGrade(minGrade)
+                .theme(theme)
+                .outOfProfileCount(theme == null ? 0 : countOutOfProfile(candidates, held))
                 .basis(BASIS_SURVEY)
                 .basisAvailable(true)
                 .basisFacts(List.of())
@@ -217,13 +250,14 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
      * 등급~6등급)와 겹친 구간이다(자세한 계산은 {@link #tradingTarget}). 설문 진단이 없거나 만료돼서 허용 범위를 모르면 추천하지 않고
      * basisAvailable=false로 안내만 준다. 고르는 규칙은 설문 기준과 같은 함수를 쓴다.
      */
-    private StockRecommendationVO buildTrading(Long customerId, String filter, int limit) {
+    private StockRecommendationVO buildTrading(
+            Long customerId, String filter, int limit, String theme) {
         int size = Math.max(1, Math.min(MAX_LIMIT, limit));
         Set<Type> types = typesOf(filter);
         LocalDateTime now = businessClockService.now();
         StockTendencyResponseDTO.TradingResponse trading =
                 tendencyService.getTendency(customerId).getTrading();
-        StockCandidateResponseDTO candidates = searchInProfile(customerId, types);
+        StockCandidateResponseDTO candidates = searchCandidates(customerId, types, theme);
 
         // 허용 범위(설문 진단)를 모르면 거래 기준도 범위를 정할 수 없어 추천하지 않는다
         if (!candidates.isProfileAvailable()) {
@@ -248,17 +282,19 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         int allowedMin = candidates.getAllowedMinGrade();
         Target target = tradingTarget(avg, allowedMin);
         Taste taste = tasteOf(trading);
+        Set<Long> held = heldProductIds(customerId);
 
         List<Item> items =
                 choose(
                         candidates,
                         target,
                         taste,
-                        heldProductIds(customerId),
+                        held,
                         now.toLocalDate(),
                         size,
                         i -> tradingLead(i, avg),
-                        false);
+                        false,
+                        theme != null);
         List<String> facts = new ArrayList<>();
         facts.add("평균 매수 위험등급은 " + plain(avg) + "등급이에요.");
         if (target.adjusted()) {
@@ -278,6 +314,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         return StockRecommendationVO.builder()
                 .items(items)
                 .profileAvailable(true)
+                .theme(theme)
+                .outOfProfileCount(theme == null ? 0 : countOutOfProfile(candidates, held))
                 .basis(BASIS_TRADING)
                 .basisAvailable(true)
                 .basisFacts(List.copyOf(facts))
@@ -315,11 +353,55 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 grade, Math.max(allowedMin, center - 1), Math.min(6, center + 1), adjusted);
     }
 
-    private StockCandidateResponseDTO searchInProfile(Long customerId, Set<Type> types) {
-        // includeOutOfProfile=false: 진단이 유효하면 설문 허용 범위 밖 상품은 후보에서 빠진다
+    /**
+     * 테마가 없으면 includeOutOfProfile=false로 설문 허용 범위 안 상품만 받는다. 테마가 있으면 범위 밖 개수를 알리려고 그 테마 상품 전체를 받는다.
+     * 추천({@link #choose})은 어느 쪽이든 범위 안 상품만 고른다.
+     */
+    private StockCandidateResponseDTO searchCandidates(
+            Long customerId, Set<Type> types, String theme) {
         return candidateService.search(
                 customerId,
-                new StockCandidateRequestDTO(types, null, null, null, null, false, null, null));
+                theme == null
+                        ? new StockCandidateRequestDTO(
+                                types, null, null, null, null, false, null, null)
+                        : new StockCandidateRequestDTO(
+                                types, List.of(theme), null, null, null, true, null, null));
+    }
+
+    /** 질문에 들어 있는 테마 이름. 여러 개면 가장 긴 이름(더 구체적인 테마)을 고르고, 없으면 null이다. */
+    private String themeIn(String question) {
+        List<String> names = candidateService.themeNames();
+        if (names == null) {
+            return null;
+        }
+        // "2차 전지"·"ai반도체"처럼 띄어쓰기나 대소문자가 달라도 같은 테마로 본다. 다만 "건설"처럼 두 글자 이하 이름은 공백을 지우면
+        // "이 건 설명"이 "건설명"이 되듯 다른 단어에 걸리기 쉬워, 공백을 그대로 둔 채 대소문자만 무시하고 비교한다
+        String squashed = squash(question);
+        String lower = question.toLowerCase(Locale.ROOT);
+        return names.stream()
+                .filter(n -> n != null && !squash(n).isEmpty())
+                .filter(
+                        n ->
+                                squash(n).length() <= SHORT_THEME_LENGTH
+                                        ? containsShort(lower, n.trim().toLowerCase(Locale.ROOT))
+                                        : squashed.contains(squash(n)))
+                .max(Comparator.comparingInt((String n) -> squash(n).length()))
+                .orElse(null);
+    }
+
+    /** 짧은 테마 이름이 질문에 있는지 본다. "ai"가 "mail" 안에서 맞지 않도록 영문·숫자 이름은 앞뒤가 영문·숫자가 아닐 때만 인정한다. */
+    private static boolean containsShort(String lowerQuestion, String name) {
+        if (!name.matches("[a-z0-9]+")) {
+            return lowerQuestion.contains(name);
+        }
+        return Pattern.compile("(?<![a-z0-9])" + name + "(?![a-z0-9])")
+                .matcher(lowerQuestion)
+                .find();
+    }
+
+    /** 공백을 모두 빼고 소문자로 바꾼다. 테마 이름 비교에만 쓴다. */
+    private static String squash(String s) {
+        return s.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
 
     private static Set<Type> typesOf(String filter) {
@@ -362,6 +444,9 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
      * 두 기준이 같이 쓰는 선택 함수. 후보에서 고를 수 없거나 등급이 없는 상품, 목표 범위 밖 등급, 설문 허용 범위 밖 상품, 이미 보유한 상품을 뺀다. 남은 상품은
      * 많이 산 업종·테마와 같은 것 먼저, 목표 등급에 가까운 순서, 업무일마다 달라지는 고정 순서로 줄을 세우고, 업종이 겹치지 않게 먼저 채운 뒤 모자라면 나머지로
      * 채운다.
+     *
+     * <p>widen이 true(고객이 테마를 골랐을 때)면 목표 구간 안 상품으로 모자랄 때 목표 구간(거래 기준의 평균 매수 등급 앞뒤 1등급) 밖이지만 설문 허용 범위
+     * 안인 상품을 목표 등급에 가까운 순서로 더 채운다. 설문 허용 범위 밖 상품은 어느 경우에도 추천하지 않는다.
      */
     private List<Item> choose(
             StockCandidateResponseDTO candidates,
@@ -371,32 +456,84 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             LocalDate day,
             int size,
             Function<StockCandidateResponseDTO.ItemResponse, String> lead,
-            boolean withThemeLine) {
+            boolean withThemeLine,
+            boolean widen) {
         int allowedMin = candidates.getAllowedMinGrade();
+        String label = labelOf(allowedMin);
+        List<StockCandidateResponseDTO.ItemResponse> inProfilePool =
+                pickable(candidates, held)
+                        .filter(i -> i.getRiskGrade() >= allowedMin)
+                        .filter(i -> !Boolean.TRUE.equals(i.getOutOfProfile()))
+                        .toList();
+
+        // ① 목표 구간 안의 범위 안 상품
         Comparator<StockCandidateResponseDTO.ItemResponse> order =
                 Comparator.comparingInt(
                                 (StockCandidateResponseDTO.ItemResponse i) ->
                                         matchRank(i, taste.sector(), taste.theme()))
-                        .thenComparing(
-                                i ->
-                                        target.grade()
-                                                .subtract(BigDecimal.valueOf(i.getRiskGrade()))
-                                                .abs())
+                        .thenComparing(i -> distance(target, i))
                         .thenComparingInt(i -> shuffle(i.getTicker(), day))
                         .thenComparing(StockCandidateResponseDTO.ItemResponse::getTicker);
+        List<StockCandidateResponseDTO.ItemResponse> first =
+                pickSpread(
+                        inProfilePool.stream()
+                                .filter(i -> i.getRiskGrade() >= target.low())
+                                .filter(i -> i.getRiskGrade() <= target.high())
+                                .sorted(order)
+                                .toList(),
+                        size);
+        List<Item> result = new ArrayList<>();
+        first.forEach(i -> result.add(toItem(i, lead.apply(i), taste, withThemeLine)));
+        if (!widen || result.size() >= size) {
+            return List.copyOf(result);
+        }
 
-        List<StockCandidateResponseDTO.ItemResponse> pool =
-                candidates.getItems().stream()
-                        .filter(StockCandidateResponseDTO.ItemResponse::isSelectable)
-                        .filter(i -> i.getRiskGrade() != null)
-                        .filter(i -> i.getRiskGrade() >= target.low())
-                        .filter(i -> i.getRiskGrade() <= target.high())
-                        .filter(i -> i.getRiskGrade() >= allowedMin)
-                        .filter(i -> !Boolean.TRUE.equals(i.getOutOfProfile()))
-                        .filter(i -> !held.contains(i.getDomesticProductId()))
-                        .sorted(order)
-                        .toList();
+        // ② 목표 구간 밖이지만 설문 허용 범위 안인 상품
+        Comparator<StockCandidateResponseDTO.ItemResponse> widenOrder =
+                Comparator.comparing(
+                                (StockCandidateResponseDTO.ItemResponse i) -> distance(target, i))
+                        .thenComparingInt(i -> matchRank(i, taste.sector(), taste.theme()))
+                        .thenComparingInt(i -> shuffle(i.getTicker(), day))
+                        .thenComparing(StockCandidateResponseDTO.ItemResponse::getTicker);
+        pickSpread(
+                        inProfilePool.stream()
+                                .filter(i -> !first.contains(i))
+                                .sorted(widenOrder)
+                                .toList(),
+                        size - result.size())
+                .forEach(
+                        i ->
+                                result.add(
+                                        toItem(
+                                                i,
+                                                widenedLead(i, target, label, allowedMin),
+                                                taste,
+                                                withThemeLine)));
+        return List.copyOf(result);
+    }
 
+    /** 테마 안에서 담을 수 있고 위험등급이 있으며 지금 보유하지 않은, 설문 허용 범위 밖 상품 수. 추천에는 넣지 않고 개수만 알린다. */
+    private static int countOutOfProfile(StockCandidateResponseDTO candidates, Set<Long> held) {
+        int allowedMin = candidates.getAllowedMinGrade();
+        return (int) pickable(candidates, held).filter(i -> i.getRiskGrade() < allowedMin).count();
+    }
+
+    /** 담을 수 있고 위험등급이 있으며 지금 보유하지 않은 후보. */
+    private static Stream<StockCandidateResponseDTO.ItemResponse> pickable(
+            StockCandidateResponseDTO candidates, Set<Long> held) {
+        return candidates.getItems().stream()
+                .filter(StockCandidateResponseDTO.ItemResponse::isSelectable)
+                .filter(i -> i.getRiskGrade() != null)
+                .filter(i -> !held.contains(i.getDomesticProductId()));
+    }
+
+    private static BigDecimal distance(Target target, StockCandidateResponseDTO.ItemResponse i) {
+        return target.grade().subtract(BigDecimal.valueOf(i.getRiskGrade())).abs();
+    }
+
+    /** 업종이 겹치지 않게 먼저 채운 뒤 모자라면 나머지로 채운다. pool의 순서를 그대로 유지한다. */
+    private static List<StockCandidateResponseDTO.ItemResponse> pickSpread(
+            List<StockCandidateResponseDTO.ItemResponse> pool, int size) {
         Set<StockCandidateResponseDTO.ItemResponse> picked = new LinkedHashSet<>();
         Set<String> seen = new HashSet<>();
         for (StockCandidateResponseDTO.ItemResponse i : pool) {
@@ -411,13 +548,10 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
             if (picked.size() >= size) {
                 break;
             }
-            // pool의 항목은 같은 reference라서, 첫 번째 루프에서 이미 담긴 항목은 Set이 무시하고 그 결과가 그대로 보존된다
+            // 첫 번째 루프에서 이미 담긴 항목은 Set이 무시한다
             picked.add(i);
         }
-        return picked.stream()
-                .sorted(order)
-                .map(i -> toItem(i, lead.apply(i), taste, withThemeLine))
-                .toList();
+        return pool.stream().filter(picked::contains).toList();
     }
 
     /** 0이 가장 앞이다: 업종·테마 모두 같으면 0, 업종만 1, 테마만 2, 둘 다 아니면 3. */
@@ -447,6 +581,24 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 + "등급("
                 + gradeName(i.getRiskGrade())
                 + ") 상품이에요.";
+    }
+
+    /** 목표 구간 밖이지만 설문 허용 범위 안이라 테마 추천에서 더 채운 상품의 첫 이유. 왜 들어왔는지 함께 알린다. */
+    private static String widenedLead(
+            StockCandidateResponseDTO.ItemResponse i, Target target, String label, int allowedMin) {
+        return "기준 등급 근처("
+                + target.low()
+                + "~"
+                + target.high()
+                + "등급) 상품이 모자라, 같은 테마에서 "
+                + label
+                + " 허용 범위("
+                + allowedText(allowedMin)
+                + ") 안의 "
+                + i.getRiskGrade()
+                + "등급("
+                + gradeName(i.getRiskGrade())
+                + ") 상품을 더 골랐어요.";
     }
 
     private static String tradingLead(StockCandidateResponseDTO.ItemResponse i, BigDecimal avg) {
@@ -588,21 +740,61 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     private static String whyAnswer(StockRecommendationVO rec, List<Item> items) {
         String lines =
                 items.stream()
-                        .map(
-                                i ->
-                                        "- "
-                                                + i.name()
-                                                + " "
-                                                + i.riskGrade()
-                                                + "등급("
-                                                + gradeName(i.riskGrade())
-                                                + ")"
-                                                + matchPhrase(i))
+                        .map(i -> itemLine(i, matchPhrase(i)))
                         .collect(Collectors.joining("\n"));
         return rangeSentence(rec)
                 + " 그 안에서 RIA 계좌로 살 수 있고 위험등급이 계산됐으며 지금 보유하지 않은 상품을 골랐어요.\n"
                 + lines
                 + "\n종목을 눌러 펼치면 종목별 이유를 볼 수 있어요.";
+    }
+
+    /**
+     * 테마를 말한 질문에 대한 답. 그 테마 안에서 고른 범위 안 종목을 위험등급과 함께 나열하고, 추천하지 않은 범위 밖 종목은 개수만 알린다.
+     *
+     * @param items 비어 있지 않아야 한다.
+     */
+    private static String themeAnswer(StockRecommendationVO rec, List<Item> items) {
+        String lines =
+                items.stream()
+                        .map(
+                                i ->
+                                        itemLine(
+                                                i,
+                                                i.volatilityPercent() == null
+                                                        ? ""
+                                                        : ", 연 변동성 "
+                                                                + plain(i.volatilityPercent())
+                                                                + "%"))
+                        .collect(Collectors.joining("\n"));
+        StringBuilder sb =
+                new StringBuilder(rec.getTheme())
+                        .append(" 테마 안에서 내 투자성향 범위 안이고 RIA 계좌로 살 수 있으며 지금 보유하지 않은 상품을 골랐어요.\n")
+                        .append(lines)
+                        .append(outOfProfileNote(rec));
+        sb.append("\n종목을 눌러 펼치면 종목별 이유를 볼 수 있어요.");
+        return sb.toString();
+    }
+
+    /** "- 종목명 N등급(위험 이름)" 뒤에 extra를 붙인 한 줄. */
+    private static String itemLine(Item i, String extra) {
+        return "- "
+                + i.name()
+                + " "
+                + i.riskGrade()
+                + "등급("
+                + gradeName(i.riskGrade())
+                + ")"
+                + extra;
+    }
+
+    /** 테마 안에 추천하지 않은 범위 밖 상품이 있으면 개수와 후보 화면 안내를 준다(앞에 줄바꿈 포함). 없으면 빈 문자열이다. */
+    private static String outOfProfileNote(StockRecommendationVO rec) {
+        if (rec.getTheme() == null || rec.getOutOfProfileCount() == 0) {
+            return "";
+        }
+        return "\n이 테마에는 내 투자성향 범위 밖 상품도 "
+                + rec.getOutOfProfileCount()
+                + "개 있어요. 추천에는 넣지 않았고, 새 패키지의 후보 찾기에서 직접 확인할 수 있어요.";
     }
 
     /** 거래에서 많이 산 업종·테마와 일치하면 그 사실을 덧붙인다. 일치하지 않으면 빈 문자열이다. */
@@ -629,6 +821,9 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                     .append(allowedText(rec.getAllowedMinGrade()))
                     .append(")\n");
         }
+        if (rec.getTheme() != null) {
+            sb.append("고객이 고른 테마: ").append(rec.getTheme()).append(" (설문 허용 범위 안 상품만 추천함)\n");
+        }
         Map<String, String> lines = new LinkedHashMap<>();
         for (Item i : items) {
             lines.put(
@@ -653,6 +848,9 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     }
 
     private static String rangeSentence(StockRecommendationVO rec) {
+        if (rec.getTheme() != null) {
+            return rec.getTheme() + " 테마 안에서도 내 투자성향 범위 안 상품만 추천해요.";
+        }
         if (BASIS_TRADING.equals(rec.getBasis())) {
             return rec.getGradeFrom() == null
                     ? "거래 기준 추천은 내 평균 매수 위험등급 앞뒤 1등급과 설문 허용 범위가 겹치는 상품을 보여줘요."

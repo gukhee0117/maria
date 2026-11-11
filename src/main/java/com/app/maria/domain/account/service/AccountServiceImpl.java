@@ -235,7 +235,8 @@ public class AccountServiceImpl implements AccountService {
                                                 ErrorType.ACCOUNT_CUSTOMER_IDENTITY_NOT_FOUND,
                                                 customerId));
         return MAX_LIMIT_AMOUNT
-                .subtract(mydataClient.getExternalConfiguredLimit(ciHash))
+                .subtract(
+                        mydataClient.getExternalConfiguredLimit(ciHash, "customerId=" + customerId))
                 .max(BigDecimal.ZERO);
     }
 

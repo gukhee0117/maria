@@ -122,7 +122,7 @@ $(function () {
                 "<tr" + (isNew ? ' class="tp-new-row"' : "") + ">" +
                 '<td class="adm-col-no">' + (currentPage * PAGE_SIZE + index + 1) + "</td>" +
                 "<td><span>" + formatDateTime(item.judgedAt) + "</span></td>" +
-                "<td><span>" + escapeHtml(item.customerName || "-") + newBadge + "</span></td>" +
+                "<td><span>" + escapeHtml(MARIA.fmt.maskName(item.customerName) || "-") + newBadge + "</span></td>" +
                 "<td><span>" + escapeHtml(STATUS.stockTypeLabel(item.stockType)) + "</span></td>" +
                 "<td><span>" + assetLabel(item) + "</span></td>" +
                 '<td class="is-c">' + chip(STATUS.tradeTypeTone(item.tradeType), STATUS.tradeTypeLabel(item.tradeType)) + "</td>" +
@@ -376,7 +376,7 @@ $(function () {
                 } else {
                     $("#tpFailBody").html(rows.map(function (r, i) {
                         return "<tr>" + '<td class="adm-col-no">' + (page * 20 + i + 1) + "</td>" +
-                            "<td>" + escapeHtml(r.customerName || "-") + "</td>" +
+                            "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td>" +
                             '<td class="is-c">' + escapeHtml(r.tradeDate || "-") + "</td>" +
                             '<td class="is-r">' + escapeHtml(r.failureCount) + "</td>" +
                             '<td><span title="' + escapeHtml(r.lastError || "") + '">' + escapeHtml(r.lastError || "-") + "</span></td>" +

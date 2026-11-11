@@ -855,7 +855,7 @@ CREATE TABLE document_issue (
     document_issue_id BIGINT       NOT NULL AUTO_INCREMENT,
     account_id        BIGINT       NOT NULL,
     calc_id           BIGINT       NOT NULL COMMENT '근거 세액(tax_calculation)',
-    doc_type          VARCHAR(30)  NOT NULL COMMENT 'TAX_RELIEF_CERT',
+    doc_type          VARCHAR(30)  NOT NULL COMMENT 'TAX_RELIEF_CERT/NET_PURCHASE_STATEMENT',
     issue_no          VARCHAR(30)  NOT NULL COMMENT '발급번호',
     status            VARCHAR(10)  NOT NULL COMMENT 'ISSUED/REVOKED',
     file_content      MEDIUMBLOB   NOT NULL COMMENT '발급한 PDF 파일',
@@ -867,7 +867,7 @@ CREATE TABLE document_issue (
     recorded_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실제 시각',
     PRIMARY KEY (document_issue_id),
     UNIQUE KEY uk_document_issue_no (issue_no),
-    CONSTRAINT chk_di_type   CHECK (doc_type IN ('TAX_RELIEF_CERT')),
+    CONSTRAINT chk_di_type   CHECK (doc_type IN ('TAX_RELIEF_CERT','NET_PURCHASE_STATEMENT')),
     CONSTRAINT chk_di_by     CHECK (issued_by_type IN ('CUSTOMER','ADMIN')),
     CONSTRAINT chk_di_status CHECK ((status = 'ISSUED' AND revoked_at IS NULL) OR (status = 'REVOKED' AND revoked_at IS NOT NULL))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='증빙서류 발급 기록';

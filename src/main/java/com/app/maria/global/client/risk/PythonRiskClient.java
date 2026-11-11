@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 public class PythonRiskClient {
+    public static final int MAX_GRADES = 2000;
     private final RestClient client;
     private final RiskProperties properties;
 
@@ -48,7 +49,8 @@ public class PythonRiskClient {
             // Never log response bodies, credentials, or raw upstream exceptions.
             throw new AppException(ErrorType.RISK_UPSTREAM_UNAVAILABLE);
         }
-        if (rows == null || rows.size() > 77)
+        // 비정상적으로 큰 응답만 막는 방어 한도. 예전 종목 목록(77개) 기준이던 값을 시드 전체(459종목)가 들어가게 올렸다.
+        if (rows == null || rows.size() > MAX_GRADES)
             throw new AppException(ErrorType.RISK_INVALID_RESPONSE);
         HashSet<String> tickers = new HashSet<>();
         for (PythonGradeResponseDTO row : rows) {

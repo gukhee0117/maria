@@ -50,7 +50,8 @@ class SellLimitServiceImplTest {
     @DisplayName("RIA 확정산 + 미확정 매도주문 + myData 외부 순매수 + 이번 주문금액 합이 한도 이내면 true를 반환한다")
     void isWithinSellLimitReturnsTrueWhenTotalIsWithinLimit() {
         stubAccount(100L, "50000000", "20000000", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("10000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("10000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("15000000"))).isTrue();
     }
@@ -60,13 +61,13 @@ class SellLimitServiceImplTest {
             "호출 순서: selectCiHash → HTTP → selectAccountLimitForUpdate(락) → sumUsedAmount — 이 순서가 깨지면 테스트가 실패한다")
     void isWithinSellLimitCallsInExpectedOrder() {
         stubAccount(100L, "50000000", "0", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalSellTotal(any(), any())).thenReturn(BigDecimal.ZERO);
 
         sellLimitService.isWithinSellLimit(100L, BigDecimal.ZERO);
 
         var order = inOrder(sellLimitMapper, mydataClient);
         order.verify(sellLimitMapper).selectCiHashByAccountId(100L);
-        order.verify(mydataClient).getExternalSellTotal("ci-hash-1");
+        order.verify(mydataClient).getExternalSellTotal(any(), any());
         order.verify(sellLimitMapper).selectAccountLimitForUpdate(100L);
         order.verify(sellLimitMapper).sumUsedAmount(100L);
     }
@@ -75,7 +76,8 @@ class SellLimitServiceImplTest {
     @DisplayName("확정산+미확정+외부순매수+이번주문금액 합이 한도를 넘으면 false를 반환한다")
     void isWithinSellLimitReturnsFalseWhenTotalExceedsLimit() {
         stubAccount(100L, "50000000", "20000000", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("10000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("10000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("20000001"))).isFalse();
     }
@@ -84,7 +86,8 @@ class SellLimitServiceImplTest {
     @DisplayName("합계가 한도와 정확히 같으면(경계값) 초과가 아니므로 true를 반환한다")
     void isWithinSellLimitReturnsTrueWhenTotalExactlyEqualsLimit() {
         stubAccount(100L, "50000000", "20000000", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("10000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("10000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("20000000"))).isTrue();
     }
@@ -93,7 +96,8 @@ class SellLimitServiceImplTest {
     @DisplayName("계좌 로컬 한도 판정은 한도 사용액+이번 주문금액만 정확히 합산하고, 외부 순매수는 포함하지 않는다")
     void isWithinSellLimitComparesOnlyLocalSumAgainstAccountLimit() {
         stubAccount(100L, "3500", "3500", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("40000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("40000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, BigDecimal.ZERO)).isTrue();
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("1"))).isFalse();
@@ -103,7 +107,8 @@ class SellLimitServiceImplTest {
     @DisplayName("계좌 로컬 한도 이내여도 한도 사용액+외부순매수+이번 주문금액 합이 5천만원 하드캡을 넘으면 거부한다")
     void isWithinSellLimitReturnsFalseWhenGlobalCapExceededEvenWithinAccountLimit() {
         stubAccount(100L, "50000000", "0", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("40000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("40000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("10000000"))).isTrue();
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("10000001"))).isFalse();
@@ -113,7 +118,8 @@ class SellLimitServiceImplTest {
     @DisplayName("다른 증권사에서 이미 판 금액이 있어도, 이 계좌 로컬 한도와 5천만원 하드캡을 둘 다 넘지 않으면 승인한다 (버그 이슈 재현 시나리오)")
     void isWithinSellLimitApprovesWhenBothLocalAndGlobalLimitsAreRespectedDespiteExternalUsage() {
         stubAccount(100L, "30000000", "0", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(new BigDecimal("15000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("15000000"));
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("25000000"))).isTrue();
     }
@@ -122,7 +128,7 @@ class SellLimitServiceImplTest {
     @DisplayName("RIA 확정산이 0이어도 미확정(EXECUTED) 매도주문 합계만으로 한도초과를 잡아낸다")
     void isWithinSellLimitCatchesExcessFromPendingSellOrdersAloneWhenFinalizedSumIsZero() {
         stubAccount(100L, "50000000", "40000000", "ci-hash-1");
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalSellTotal(any(), any())).thenReturn(BigDecimal.ZERO);
 
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("10000000"))).isTrue();
         assertThat(sellLimitService.isWithinSellLimit(100L, new BigDecimal("10000001"))).isFalse();
@@ -133,7 +139,7 @@ class SellLimitServiceImplTest {
     void isWithinSellLimitThrowsWhenAccountLimitNotFound() {
         // ciHash 조회 → myData HTTP → 행 락 순서이므로 account-not-found 전에 myData는 이미 호출됨
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci-hash-1"));
-        when(mydataClient.getExternalSellTotal("ci-hash-1")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalSellTotal(any(), any())).thenReturn(BigDecimal.ZERO);
         when(sellLimitMapper.selectAccountLimitForUpdate(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> sellLimitService.isWithinSellLimit(100L, new BigDecimal("1000")))
@@ -171,7 +177,7 @@ class SellLimitServiceImplTest {
                 .thenReturn(Optional.of(account(Status.OPENED, "30000000")));
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
         when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("12000000"));
-        when(mydataClient.getExternalSellTotal("ci")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalSellTotal(any(), any())).thenReturn(BigDecimal.ZERO);
 
         SellLimitStatusDTO status = sellLimitService.getStatusByCustomerId(7L);
 
@@ -187,7 +193,8 @@ class SellLimitServiceImplTest {
                 .thenReturn(Optional.of(account(Status.OPENED, "50000000")));
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
         when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("10000000"));
-        when(mydataClient.getExternalSellTotal("ci")).thenReturn(new BigDecimal("35000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("35000000"));
 
         assertThat(sellLimitService.getStatusByCustomerId(7L).remainingLimit())
                 .isEqualByComparingTo("5000000");
@@ -200,7 +207,8 @@ class SellLimitServiceImplTest {
                 .thenReturn(Optional.of(account(Status.OPENED, "50000000")));
         when(sellLimitMapper.selectCiHashByAccountId(100L)).thenReturn(Optional.of("ci"));
         when(sellLimitMapper.sumUsedAmount(100L)).thenReturn(new BigDecimal("40000000"));
-        when(mydataClient.getExternalSellTotal("ci")).thenReturn(new BigDecimal("20000000"));
+        when(mydataClient.getExternalSellTotal(any(), any()))
+                .thenReturn(new BigDecimal("20000000"));
 
         assertThat(sellLimitService.getStatusByCustomerId(7L).remainingLimit())
                 .isEqualByComparingTo("0");

@@ -360,7 +360,7 @@ $(function () {
                 '<tr class="is-clickable account-row' + selectedClass + '" data-account-id="' + account.accountId + '">' +
                 '<td class="adm-col-no">' + (startIndex + index + 1) + '</td>' +
                 '<td><span>' + escapeHtml(MARIA.fmt.hyphenateAccountNo(account.accountNo)) + '</span></td>' +
-                '<td class="account-col-name"><span>' + escapeHtml(account.customerName || "고객 ID " + account.customerId) + '</span></td>' +
+                '<td class="account-col-name"><span>' + escapeHtml(MARIA.fmt.maskName(account.customerName) || "고객 ID " + account.customerId) + '</span></td>' +
                 '<td class="is-c"><span class="adm-chip adm-chip-' + statusTone + '">' + escapeHtml(statusLabel(account.status)) + '</span></td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.limitAmount || 0)) + '</td>' +
                 '<td class="is-r">' + KRW_FORMATTER.format(Number(account.amount || 0)) + '</td>' +
@@ -407,7 +407,7 @@ $(function () {
         $("#accountDetailBackdrop").prop("hidden", false).addClass("is-open");
         $("#accountDetail").css("display", "");
         $("body").addClass("account-modal-open");
-        $("#detailCustomerName").text(account.customerName ? account.customerName + " 님 계좌" : "계좌 상세");
+        $("#detailCustomerName").text(account.customerName ? MARIA.fmt.maskName(account.customerName) + " 님 계좌" : "계좌 상세");
         $("#detailAccountNo").html(MARIA.fmt.accountNoHtml(account.accountNo));
         $("#detailCustomerId").text(account.customerId || "-");
         var statusTone = MARIA.status.accountStatusTone(account.status);
@@ -681,7 +681,7 @@ $(function () {
     }
 
     function accountLabelOf(account) {
-        return (account.customerName || "고객 ID " + account.customerId) + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo);
+        return (MARIA.fmt.maskName(account.customerName) || "고객 ID " + account.customerId) + " · " + MARIA.fmt.hyphenateAccountNo(account.accountNo);
     }
 
     function closeModal(modalSelector) {
@@ -742,7 +742,7 @@ $(function () {
 
     function loadDocuments(accountId) {
         var canDownload = canIssueDocument();
-        $("#issueDocument").prop("hidden", !canDownload);
+        $(".issue-document").prop("hidden", !canDownload);
         $("#detailDocuments").html(relatedMessageHtml("#detailDocuments", "불러오는 중..."));
         MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "GET" })
             .done(function (res) {
@@ -753,6 +753,7 @@ $(function () {
                         ? '<a class="adm-btn" href="/api/admin/documents/' + encodeURIComponent(item.documentIssueId) + '/download" target="_blank" rel="noopener">PDF</a>'
                         : "-";
                     return "<tr>" + noCell(index) +
+                        "<td>" + (item.docType === "NET_PURCHASE_STATEMENT" ? "순매수 내역서" : "과세특례 증빙서") + "</td>" +
                         "<td>" + escapeHtml(item.issueNo) + "</td>" +
                         '<td class="is-c">' + chipHtml(revoked ? "off" : "ok", revoked ? "취소됨" : "발급됨") + "</td>" +
                         "<td>" + (item.issuedByType === "ADMIN" ? "관리자" : "고객") + "</td>" +
@@ -771,11 +772,14 @@ $(function () {
     function issueDocument() {
         var accountId = selectedAccountId;
         if (!accountId || !canIssueDocument()) return;
-        $("#issueDocument").prop("disabled", true);
-        MARIA.auth.ajax({ url: "/api/admin/documents/accounts/" + accountId, method: "POST" })
+        $(".issue-document").prop("disabled", true);
+        MARIA.auth.ajax({
+            url: "/api/admin/documents/accounts/" + accountId + "?docType=" + encodeURIComponent($(this).data("docType")),
+            method: "POST"
+        })
             .done(function () { loadDocuments(accountId); })
             .fail(function (xhr) { handleRequestFailure(xhr, "확인서를 발급하지 못했습니다."); })
-            .always(function () { $("#issueDocument").prop("disabled", false); });
+            .always(function () { $(".issue-document").prop("disabled", false); });
     }
 
     function selectAccount(accountId) {
@@ -965,7 +969,7 @@ $(function () {
         currentPage = 1;
         renderAccounts();
     });
-    $(document).on("click", "#issueDocument", issueDocument);
+    $(document).on("click", ".issue-document", issueDocument);
     $(document).on("click", "#accountListRetry", function () { loadAccounts(); });
     $(document).on("click", ".account-reset-empty", function () { $("#accountFilterReset").trigger("click"); });
     $(document).on("click", "#accountPageSize button", function () {

@@ -782,4 +782,292 @@ class StockRecommendationServiceImplTest {
         assertThat(vol).contains("연 변동성은").contains("21.5%");
         assertThat(grade).contains("위험등급은 1등급").doesNotContain("연 변동성은");
     }
+
+    /** 테마 행. out이 true면 후보 서비스가 성향 범위 밖으로 표시한 상품이다. */
+    private static Row themed(long id, String name, String sector, int grade, boolean out) {
+        return new Row(
+                id,
+                String.format("%06d", id),
+                name,
+                "KOSPI",
+                Type.STOCK,
+                sector,
+                List.of("반도체"),
+                grade,
+                new BigDecimal("30.0"),
+                out,
+                true,
+                null);
+    }
+
+    @Test
+    @DisplayName("테마를 말하면 그 테마로 좁혀 범위 안 상품만 추천하고, 범위 밖 상품은 개수만 알린다")
+    void themeAskRecommendsInProfileOnly() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체", "배당"));
+        candidates(
+                true,
+                2,
+                themed(1, "A반도체", "전기전자", 3, false),
+                themed(2, "B반도체", "전기전자", 1, true),
+                themed(3, "C반도체", "장비", 1, true));
+
+        StockRecommendationAskResponseDTO res =
+                service.ask(
+                        CUSTOMER_ID,
+                        new StockRecommendationAskRequestDTO("반도체 종목 추천해줘", null, null, 3));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService).search(any(), req.capture());
+        assertThat(req.getValue().themes()).containsExactly("반도체");
+        // 범위 밖 개수를 세려면 후보 서비스가 범위 밖 상품도 돌려줘야 한다(false면 개수가 늘 0이 된다)
+        assertThat(req.getValue().includeOutOfProfile()).isTrue();
+
+        String answer = res.getAnswer();
+        assertThat(answer).startsWith("반도체 테마 안에서 내 투자성향 범위 안");
+        assertThat(answer).contains("A반도체").doesNotContain("B반도체").doesNotContain("C반도체");
+        assertThat(answer).contains("범위 밖 상품도 2개 있어요").contains("후보 찾기에서 직접 확인");
+        assertThat(res.isAiGenerated()).isFalse();
+        verify(answerer, never()).answer(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("테마 안에 범위 밖 상품이 없으면 범위 밖 안내를 붙이지 않는다")
+    void themeAskWithoutOutOfProfileHasNoNote() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 2, themed(1, "A반도체", "전기전자", 3, false), themed(2, "B반도체", "장비", 2, false));
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천", null, null, 2))
+                        .getAnswer();
+
+        assertThat(answer).contains("A반도체").contains("B반도체").doesNotContain("범위 밖");
+    }
+
+    @Test
+    @DisplayName("테마 안에 범위 안 상품이 없으면 추천하지 않고, 범위 밖 개수와 후보 화면을 안내한다")
+    void themeAskOnlyOutOfProfile() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 4, themed(1, "A반도체", "가", 1, true), themed(2, "B반도체", "나", 2, true));
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천해줘", null, null, 3))
+                        .getAnswer();
+
+        assertThat(answer)
+                .startsWith("반도체 테마에는 내 투자성향 범위 안이고")
+                .contains("범위 밖 상품도 2개 있어요")
+                .doesNotContain("A반도체")
+                .doesNotContain("B반도체");
+    }
+
+    @Test
+    @DisplayName("테마에 고를 상품이 하나도 없으면 범위 밖 안내 없이 없다고만 알린다")
+    void themeAskEmpty() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 2);
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천해줘", null, null, null))
+                        .getAnswer();
+
+        assertThat(answer).startsWith("반도체 테마에는").doesNotContain("범위 밖");
+    }
+
+    @Test
+    @DisplayName("(리뷰) 테마 질문이 위험등급·변동성·비교 규칙 답에 걸려도 범위 밖 종목은 답에 나오지 않는다")
+    void themeRuleAnswersNeverListOutOfProfile() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 2, themed(1, "A반도체", "전기전자", 3, false), themed(2, "B반도체", "장비", 1, true));
+
+        for (String q : List.of("반도체 위험등급 알려줘", "반도체 변동성 알려줘", "반도체 종목 비교해줘")) {
+            String answer =
+                    service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO(q, null, null, 2))
+                            .getAnswer();
+
+            assertThat(answer).as(q).contains("A반도체").doesNotContain("B반도체");
+        }
+        verify(answerer, never()).answer(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("(리뷰) 거래 기준 테마 추천: 목표 구간 밖이어도 설문 허용 범위 안 상품은 채우고, 범위 밖 상품은 넣지 않는다")
+    void tradingThemeWidensWithinProfileOnly() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        trading(9, new BigDecimal("2"), null, null); // 목표 구간 2~3, 설문 허용 2~6
+        candidates(true, 2, themed(1, "A반도체", "전기전자", 6, false), themed(2, "B반도체", "장비", 1, true));
+
+        String one =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천", null, "TRADING", 1))
+                        .getAnswer();
+        String two =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천", null, "TRADING", 2))
+                        .getAnswer();
+
+        assertThat(one).contains("A반도체").doesNotContain("B반도체");
+        assertThat(two).contains("A반도체").doesNotContain("B반도체").contains("범위 밖 상품도 1개 있어요");
+    }
+
+    @Test
+    @DisplayName("거래 기준이라도 테마 없는 추천은 목표 구간 밖 상품으로 넓히지 않는다")
+    void tradingWithoutThemeDoesNotWiden() {
+        trading(9, new BigDecimal("2"), null, null);
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 6, true));
+
+        StockRecommendationResponseDTO res = service.recommend(CUSTOMER_ID, "ALL", 3, "TRADING");
+
+        assertThat(res.getItems()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("이미 보유했거나 등급이 없는 범위 밖 상품은 범위 밖 개수에 세지 않는다")
+    void outOfProfileCountSkipsHeldAndUngraded() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        holding(2L);
+        Row ungraded =
+                new Row(
+                        3L,
+                        "000003",
+                        "C반도체",
+                        "KOSPI",
+                        Type.STOCK,
+                        "다",
+                        List.of("반도체"),
+                        null,
+                        null,
+                        null,
+                        false,
+                        "등급 없음");
+        candidates(
+                true,
+                2,
+                themed(1, "A반도체", "가", 3, false),
+                themed(2, "B반도체", "나", 1, true),
+                ungraded,
+                themed(4, "D반도체", "라", 1, true));
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO("반도체 추천", null, null, 3))
+                        .getAnswer();
+
+        assertThat(answer).contains("범위 밖 상품도 1개 있어요");
+    }
+
+    @Test
+    @DisplayName("테마를 말하지 않은 추천은 지금처럼 성향 범위 안 상품만 받는다")
+    void defaultRecommendStaysInProfile() {
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 2, true));
+
+        service.recommend(CUSTOMER_ID, "ALL", 3, "SURVEY");
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService).search(any(), req.capture());
+        assertThat(req.getValue().includeOutOfProfile()).isFalse();
+        assertThat(req.getValue().themes()).isNull();
+    }
+
+    @Test
+    @DisplayName("(리뷰) 테마 이름은 띄어쓰기와 대소문자가 달라도 찾는다")
+    void themeMatchIgnoresSpacesAndCase() {
+        when(candidateService.themeNames()).thenReturn(List.of("2차전지", "AI반도체"));
+        candidates(true, 2, themed(1, "A", "가", 3, false));
+
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("2차 전지 추천", null, null, 1));
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("ai 반도체 추천", null, null, 1));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService, org.mockito.Mockito.times(2)).search(any(), req.capture());
+        assertThat(req.getAllValues())
+                .extracting(StockCandidateRequestDTO::themes)
+                .containsExactly(List.of("2차전지"), List.of("AI반도체"));
+    }
+
+    @Test
+    @DisplayName("(재리뷰) 테마 질문이 규칙 답에 걸려도 범위 밖 개수와 후보 화면 안내를 붙인다")
+    void themeRuleAnswersCarryOutOfProfileNote() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        candidates(true, 2, themed(1, "A반도체", "전기전자", 3, false), themed(2, "B반도체", "장비", 1, true));
+
+        for (String q : List.of("반도체 위험등급 알려줘", "반도체 변동성 알려줘", "반도체 종목 비교해줘")) {
+            String answer =
+                    service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO(q, null, null, 2))
+                            .getAnswer();
+
+            assertThat(answer).as(q).contains("범위 밖 상품도 1개 있어요").doesNotContain("B반도체");
+        }
+        // 테마가 없는 규칙 답에는 붙지 않는다
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 3, true));
+        assertThat(
+                        service.ask(
+                                        CUSTOMER_ID,
+                                        new StockRecommendationAskRequestDTO(
+                                                "위험등급 알려줘", null, null, 1))
+                                .getAnswer())
+                .doesNotContain("범위 밖 상품도");
+    }
+
+    @Test
+    @DisplayName("(재리뷰) 거래 기준 테마 추천에서 넓혀 채운 종목은 왜 들어왔는지 이유에 적는다")
+    void widenedItemExplainsWhy() {
+        when(candidateService.themeNames()).thenReturn(List.of("반도체"));
+        trading(9, new BigDecimal("2"), null, null); // 목표 구간 2~3
+        candidates(true, 2, themed(1, "A반도체", "전기전자", 6, false));
+
+        String answer =
+                service.ask(
+                                CUSTOMER_ID,
+                                new StockRecommendationAskRequestDTO(
+                                        "반도체 A반도체는 왜 골랐어?", null, "TRADING", 1))
+                        .getAnswer();
+
+        assertThat(answer).contains("기준 등급 근처(2~3등급) 상품이 모자라").contains("6등급(매우 낮은 위험)");
+    }
+
+    @Test
+    @DisplayName("(재리뷰) 두 글자 테마는 공백을 지우지 않고 비교해 다른 단어에 걸리지 않는다")
+    void shortThemeNeedsExactWord() {
+        when(candidateService.themeNames()).thenReturn(List.of("건설", "2차전지"));
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 3, true));
+
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("이 건 설명해줘", null, null, 1));
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("건설 추천", null, null, 1));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService, org.mockito.Mockito.times(2)).search(any(), req.capture());
+        assertThat(req.getAllValues().get(0).themes()).isNull();
+        assertThat(req.getAllValues().get(1).themes()).containsExactly("건설");
+    }
+
+    @Test
+    @DisplayName("(재리뷰) 짧은 영문 테마는 다른 영어 단어 안에서 맞지 않고 단어로 쓰일 때만 맞는다")
+    void shortEnglishThemeNeedsWordBoundary() {
+        when(candidateService.themeNames()).thenReturn(List.of("AI"));
+        candidates(true, 2, row(1, "A", "000001", Type.STOCK, "가", 3, true));
+
+        service.ask(
+                CUSTOMER_ID,
+                new StockRecommendationAskRequestDTO("mail chain 추천해줘", null, null, 1));
+        service.ask(CUSTOMER_ID, new StockRecommendationAskRequestDTO("ai 추천해줘", null, null, 1));
+
+        ArgumentCaptor<StockCandidateRequestDTO> req =
+                ArgumentCaptor.forClass(StockCandidateRequestDTO.class);
+        verify(candidateService, org.mockito.Mockito.times(2)).search(any(), req.capture());
+        assertThat(req.getAllValues().get(0).themes()).isNull();
+        assertThat(req.getAllValues().get(1).themes()).containsExactly("AI");
+    }
 }

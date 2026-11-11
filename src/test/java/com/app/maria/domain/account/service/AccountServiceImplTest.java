@@ -63,7 +63,7 @@ class AccountServiceImplTest {
         when(accountMapper.existsCustomerById(CUSTOMER_ID)).thenReturn(true);
         when(accountMapper.selectCiHashByCustomerId(CUSTOMER_ID))
                 .thenReturn(Optional.of("ci-hash"));
-        when(mydataClient.getExternalConfiguredLimit("ci-hash")).thenReturn(BigDecimal.ZERO);
+        when(mydataClient.getExternalConfiguredLimit(any(), any())).thenReturn(BigDecimal.ZERO);
         when(businessClockService.now()).thenReturn(NOW);
         when(auditActorProvider.getCurrentAdminId()).thenReturn(ADMIN_ID);
     }
@@ -106,7 +106,7 @@ class AccountServiceImplTest {
     })
     void customerApplicationRejectsUnavailableLimitBeforeSaving(
             String externalLimit, ErrorType expected) {
-        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit(any(), any()))
                 .thenReturn(new BigDecimal(externalLimit));
         assertThatThrownBy(() -> accountService.applyCustomerAccount(CUSTOMER_ID, LIMIT, true))
                 .isInstanceOfSatisfying(
@@ -148,7 +148,7 @@ class AccountServiceImplTest {
 
         var order = inOrder(mydataConsentService, mydataClient);
         order.verify(mydataConsentService).record(CUSTOMER_ID, true);
-        order.verify(mydataClient).getExternalConfiguredLimit("ci-hash");
+        order.verify(mydataClient).getExternalConfiguredLimit(any(), any());
     }
 
     @Test
@@ -164,7 +164,7 @@ class AccountServiceImplTest {
 
     @Test
     void customerAvailableLimitSubtractsOtherBrokersAfterConsent() {
-        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit(any(), any()))
                 .thenReturn(new BigDecimal("20000000"));
 
         assertThat(accountService.getCustomerAvailableLimit(CUSTOMER_ID))
@@ -198,7 +198,7 @@ class AccountServiceImplTest {
 
     @Test
     void updateLimitRejectsAmountThatExceedsMydataAvailableLimit() {
-        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit(any(), any()))
                 .thenReturn(BigDecimal.valueOf(20_000_000L));
 
         assertThatThrownBy(
@@ -217,7 +217,7 @@ class AccountServiceImplTest {
 
     @Test
     void updateLimitRejectsWhenNoLimitIsAvailable() {
-        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit(any(), any()))
                 .thenReturn(BigDecimal.valueOf(50_000_000L));
 
         assertThatThrownBy(
@@ -341,7 +341,7 @@ class AccountServiceImplTest {
     @Test
     void applyKeepsAccountAppliedWhenExternalLimitDoesNotMatch() {
         AccountDTO applied = account(Status.APPLIED, LIMIT);
-        when(mydataClient.getExternalConfiguredLimit("ci-hash"))
+        when(mydataClient.getExternalConfiguredLimit(any(), any()))
                 .thenReturn(BigDecimal.valueOf(25_000_000L));
         when(accountTransactionalService.apply(
                         eq(ADMIN_ID), any(AccountDTO.class), eq(NOW), eq(false)))

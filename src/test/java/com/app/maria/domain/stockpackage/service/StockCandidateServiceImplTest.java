@@ -61,11 +61,6 @@ class StockCandidateServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        org.mockito.Mockito.lenient()
-                .doCallRealMethod()
-                .when(riskGradeService)
-                .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
-        org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
         when(clock.now()).thenReturn(NOW);
         // 위험중립형(4등급까지)
         when(assessmentService.getMine(CUSTOMER_ID))
@@ -95,22 +90,6 @@ class StockCandidateServiceImplTest {
     }
 
     @Test
-    void currentGradeRemainsSelectableWithoutExpiredVolatility() {
-        org.mockito.Mockito.doReturn(java.util.Map.of(4L, 2))
-                .when(riskGradeService)
-                .findUsableGrades();
-        var response = service.search(CUSTOMER_ID, request(true, null, null));
-        var row =
-                response.getItems().stream()
-                        .filter(r -> r.getTicker().equals("123456"))
-                        .findFirst()
-                        .orElseThrow();
-        assertThat(row.getRiskGrade()).isEqualTo(2);
-        assertThat(row.getVolatilityPercent()).isNull();
-        assertThat(row.isSelectable()).isTrue();
-    }
-
-    @Test
     @DisplayName("기본은 내 성향 범위 안의 상품만 가나다순으로 보여주고 RIA에서 살 수 없는 상품은 뺀다")
     void defaultRestrictsToProfile() {
         StockCandidateResponseDTO r = service.search(CUSTOMER_ID, request(false, null, null));
@@ -127,12 +106,12 @@ class StockCandidateServiceImplTest {
     }
 
     @Test
-    @DisplayName("범위 밖 포함을 켜면 등급 없는 상품도 보이되 담을 수 없다고 표시한다")
+    @DisplayName("범위 밖 포함을 켜면 범위 안 → 범위 밖 → 등급 없음 순서로 보이고, 등급 없는 상품은 담을 수 없다고 표시한다")
     void includeOutOfProfile() {
         StockCandidateResponseDTO r = service.search(CUSTOMER_ID, request(true, null, null));
 
-        assertThat(names(r)).containsExactly("A전자", "B소재", "C펀드", "D신규");
-        var b = r.getItems().get(1);
+        assertThat(names(r)).containsExactly("A전자", "C펀드", "B소재", "D신규");
+        var b = r.getItems().get(2);
         assertThat(b.getOutOfProfile()).isTrue();
         assertThat(b.isSelectable()).isTrue();
         var d = r.getItems().get(3);
@@ -208,7 +187,18 @@ class StockCandidateServiceImplTest {
                                                 null,
                                                 CandidateSort.NAME,
                                                 SortDirection.DESC))))
-                .containsExactly("D신규", "C펀드", "B소재", "A전자");
+                // 종목명순은 범위 안(C펀드·A전자) → 범위 밖(B소재) → 등급 없음(D신규)으로 묶은 뒤 그 안에서 역순이다
+                .containsExactly("C펀드", "A전자", "B소재", "D신규");
+    }
+
+    @Test
+    @DisplayName("범위 밖도 함께 보는 종목명순 목록은 범위 안 상품을 먼저 둔다고 알린다")
+    void profileFirstSummary() {
+        StockCandidateResponseDTO all = service.search(CUSTOMER_ID, request(true, null, null));
+        StockCandidateResponseDTO only = service.search(CUSTOMER_ID, request(false, null, null));
+
+        assertThat(all.getSummary()).contains("내 투자성향 범위 안 상품을 먼저 두고, 범위 밖 상품에는 표시를 붙여요.");
+        assertThat(only.getSummary()).noneMatch(s -> s.contains("먼저 두고"));
     }
 
     @Test

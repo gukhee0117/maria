@@ -75,12 +75,13 @@ class CustomerDocumentApiTest {
         mockMvc.perform(post("/api/customer/documents").with(customerAuth()))
                 .andExpect(status().isForbidden());
 
-        verify(documentIssueService, never()).issueForCustomer(any());
+        verify(documentIssueService, never()).issueForCustomer(any(), any());
     }
 
     @Test
     void issue_usesLoggedInCustomerId() throws Exception {
-        when(documentIssueService.issueForCustomer(3L)).thenReturn(issued());
+        when(documentIssueService.issueForCustomer(3L, DocumentType.TAX_RELIEF_CERT))
+                .thenReturn(issued());
 
         mockMvc.perform(post("/api/customer/documents").with(customerAuth()).with(csrf()))
                 .andExpect(status().isOk())
@@ -89,8 +90,23 @@ class CustomerDocumentApiTest {
     }
 
     @Test
+    void issue_passesDocTypeParam() throws Exception {
+        when(documentIssueService.issueForCustomer(3L, DocumentType.NET_PURCHASE_STATEMENT))
+                .thenReturn(issued());
+
+        mockMvc.perform(
+                        post("/api/customer/documents")
+                                .param("docType", "NET_PURCHASE_STATEMENT")
+                                .with(customerAuth())
+                                .with(csrf()))
+                .andExpect(status().isOk());
+
+        verify(documentIssueService).issueForCustomer(3L, DocumentType.NET_PURCHASE_STATEMENT);
+    }
+
+    @Test
     void issue_whenNotOpen_returnsConflictWithCode() throws Exception {
-        when(documentIssueService.issueForCustomer(3L))
+        when(documentIssueService.issueForCustomer(3L, DocumentType.TAX_RELIEF_CERT))
                 .thenThrow(new AppException(ErrorType.DOCUMENT_ISSUE_NOT_OPEN));
 
         mockMvc.perform(post("/api/customer/documents").with(customerAuth()).with(csrf()))

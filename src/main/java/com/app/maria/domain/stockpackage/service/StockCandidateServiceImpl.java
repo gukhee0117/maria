@@ -90,11 +90,13 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                                         g -> g,
                                         (a, b) -> a));
 
+        // 주식·펀드 모두 저장값이라 위에서 읽은 행에서 바로 등급을 꺼낸다(findUsable을 두 번 읽지 않는다).
         Map<Long, Integer> classifications =
-                riskGradeService.findUsableGrades(
-                        products.stream()
-                                .map(StockCandidateProductVO::getDomesticProductId)
-                                .toList());
+                grades.values().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        UsableRiskGradeDTO::domesticProductId,
+                                        UsableRiskGradeDTO::riskGrade));
         List<StockCandidateProductVO> matched = new ArrayList<>();
         for (StockCandidateProductVO p : products) {
             if (!purchaseEligibilityService.isPurchasable(
@@ -155,7 +157,17 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                                             Map.of())
                                     : null));
         }
-        rows.sort(comparator(sort, direction));
+        // 범위 밖도 함께 보면서 종목명순일 때는 범위 안 → 범위 밖 → 등급이 없어 범위를 모르는(담을 수 없는) 상품 순서로 묶고, 묶음 안에서는
+        // 종목명순을 따른다. 위험등급순·변동성순은 고객이 값 순서를 고른 것이라 묶지 않는다
+        boolean profileFirst =
+                range.isPresent() && request.includeOutOfProfile() && sort == CandidateSort.NAME;
+        Comparator<Row> order = comparator(sort, direction);
+        if (profileFirst) {
+            order =
+                    Comparator.comparingInt(StockCandidateServiceImpl::profileGroup)
+                            .thenComparing(order);
+        }
+        rows.sort(order);
 
         int total = rows.size();
         boolean truncated = total > MAX_ITEMS;
@@ -178,7 +190,8 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                                         sort,
                                         direction,
                                         range.isPresent(),
-                                        request.includeOutOfProfile()))
+                                        request.includeOutOfProfile(),
+                                        profileFirst))
                         .disclaimer(StockPackageCheckServiceImpl.DISCLAIMER)
                         .checkedAt(businessClockService.now())
                         .build());
@@ -187,6 +200,14 @@ public class StockCandidateServiceImpl implements StockCandidateService {
     @Override
     public List<String> themeNames() {
         return candidateMapper.selectThemeNames();
+    }
+
+    /** 0: 성향 범위 안, 1: 범위 밖, 2: 등급이 없어 범위를 판단할 수 없음. */
+    private static int profileGroup(Row r) {
+        if (r.outOfProfile() == null) {
+            return 2;
+        }
+        return r.outOfProfile() ? 1 : 0;
     }
 
     /** 값이 없는 쪽은 정렬 방향과 상관없이 맨 뒤에 둔다. 같은 값이면 종목명, 종목코드 순이다. */
@@ -222,7 +243,8 @@ public class StockCandidateServiceImpl implements StockCandidateService {
             CandidateSort sort,
             SortDirection direction,
             boolean profileAvailable,
-            boolean includeOutOfProfile) {
+            boolean includeOutOfProfile,
+            boolean profileFirst) {
         List<String> lines = new ArrayList<>();
         if (total == 0) {
             lines.add(StockPackageSentence.CANDIDATE_EMPTY.render(Map.of()));
@@ -264,6 +286,9 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                                         ? StockPackageSentence.CANDIDATE_PROFILE_ALL
                                         : StockPackageSentence.CANDIDATE_PROFILE_ONLY)
                         .render(Map.of()));
+        if (profileFirst) {
+            lines.add(StockPackageSentence.CANDIDATE_PROFILE_FIRST.render(Map.of()));
+        }
         return List.copyOf(lines);
     }
 

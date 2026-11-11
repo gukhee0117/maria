@@ -189,7 +189,7 @@ $(function () {
                 '<tr class="is-clickable' + selectedClass + '" tabindex="0" data-order-id="' + order.orderId + '">' +
                 '<td class="adm-col-no">' + (currentPage * PAGE_SIZE + index + 1) + "</td>" +
                 "<td><span>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(order.accountNo)) + "</span></td>" +
-                "<td><span>" + escapeHtml(order.customerName || "") + "</span></td>" +
+                "<td><span>" + escapeHtml(MARIA.fmt.maskName(order.customerName) || "") + "</span></td>" +
                 "<td><span>" + escapeHtml(productLabel(order)) + "</span></td>" +
                 '<td class="is-r"><span>' + formatQty(order.sellQty) + "</span></td>" +
                 '<td class="is-r"><span>' + formatAmount(order.basePrice) + "</span></td>" +
@@ -311,7 +311,7 @@ $(function () {
             : null;
 
         $("#sellorder-detail-title").text(productLabel(detail));
-        $("#sellorder-detail-customer-name").text(detail.customerName || "-");
+        $("#sellorder-detail-customer-name").text(MARIA.fmt.maskName(detail.customerName) || "-");
         $("#sellorder-detail-account-no").text(detail.accountNo ? MARIA.fmt.hyphenateAccountNo(detail.accountNo) : "-");
 
         $("#sellorder-detail-status").html(chip(stage));
@@ -479,7 +479,7 @@ $(function () {
                     var limit = Number(r.limitAmount || 0), used = Number(r.usedAmount || 0);
                     return '<tr><td class="adm-col-no">' + (i + 1) + "</td>" +
                         "<td>" + escapeHtml(MARIA.fmt.hyphenateAccountNo(r.accountNo)) + "</td>" +
-                        "<td>" + escapeHtml(r.customerName || "-") + "</td>" +
+                        "<td>" + escapeHtml(MARIA.fmt.maskName(r.customerName) || "-") + "</td>" +
                         '<td class="is-c"><span class="adm-chip adm-chip-' + STATUS.accountStatusTone(r.status) + '">' + escapeHtml(STATUS.accountStatusLabel(r.status)) + "</span></td>" +
                         '<td class="is-r">' + formatAmount(limit) + '</td><td class="is-r">' + formatAmount(used) +
                         '</td><td class="is-r">' + formatAmount(Math.max(0, limit - used)) + "</td></tr>";

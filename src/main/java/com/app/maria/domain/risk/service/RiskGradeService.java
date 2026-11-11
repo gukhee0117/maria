@@ -20,6 +20,11 @@ public interface RiskGradeService {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /** 패키지 저장(성향 적합성 확정)용 등급. 구현은 주식을 실시간 상태로 다시 확인할 수 있다. */
+    default Map<Long, Integer> findConfirmedGrades(Collection<Long> productIds) {
+        return findUsableGrades(productIds);
+    }
+
     default Map<Long, Integer> findUsableGrades() {
         return findUsable().stream()
                 .collect(

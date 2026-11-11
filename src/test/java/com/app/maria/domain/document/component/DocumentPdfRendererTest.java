@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.tax.dto.TaxBreakdownDTO;
 import com.app.maria.domain.tax.dto.TaxCalculationDTO;
+import com.app.maria.domain.tax.dto.TaxExternalTradeDetailDTO;
 import com.app.maria.domain.tax.dto.TaxPeriodBreakdownDTO;
 import com.app.maria.domain.tax.type.TaxBasisType;
 import java.math.BigDecimal;
@@ -20,10 +21,10 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
-class TaxReliefCertPdfRendererTest {
+class DocumentPdfRendererTest {
 
     private final TaxReliefCertViewAssembler assembler = new TaxReliefCertViewAssembler();
-    private final TaxReliefCertPdfRenderer renderer = new TaxReliefCertPdfRenderer(engine());
+    private final DocumentPdfRenderer renderer = new DocumentPdfRenderer(engine());
 
     private static SpringTemplateEngine engine() {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
@@ -151,5 +152,119 @@ class TaxReliefCertPdfRendererTest {
             assertThat(new PDFTextStripper().getText(document))
                     .doesNotContain("RIA 외 계좌의 해외주식 순매수");
         }
+    }
+
+    @Test
+    @DisplayName("순매수 내역서: 구간별 가중 순매수와 건별 내역이 PDF에 찍힌다")
+    void renderNetPurchaseStatement_listsPeriodsAndTrades() throws Exception {
+        TaxCalculationDTO calc =
+                TaxCalculationDTO.builder()
+                        .weightedExternalAmount(new BigDecimal("11000000.00"))
+                        .build();
+        TaxBreakdownDTO breakdown =
+                TaxBreakdownDTO.of(
+                        List.of(
+                                externalPeriod(1, 5, "1.0000", "0"),
+                                externalPeriod(6, 7, "0.8000", "20000000"),
+                                externalPeriod(8, 12, "0.5000", "-10000000")),
+                        List.of(),
+                        List.of(
+                                TaxExternalTradeDetailDTO.builder()
+                                        .productLabel("해외주식형펀드A")
+                                        .tradeDate(LocalDate.of(2026, 6, 10))
+                                        .netBuyAmount(new BigDecimal("20000000"))
+                                        .build(),
+                                TaxExternalTradeDetailDTO.builder()
+                                        .productLabel("AAPL")
+                                        .tradeDate(LocalDate.of(2026, 9, 3))
+                                        .netBuyAmount(new BigDecimal("-10000000"))
+                                        .build()));
+        AccountDTO account = AccountDTO.builder().accountNo("1234567890").build();
+
+        NetPurchaseStatementView v =
+                new NetPurchaseStatementViewAssembler()
+                        .assemble(
+                                2026,
+                                "RIA-2027-ABCD2345",
+                                LocalDateTime.of(2027, 4, 1, 10, 0),
+                                "홍길동",
+                                account,
+                                calc,
+                                breakdown);
+        assertThat(v.getPeriods().get(1).getWeightedNetBuy()).isEqualTo("16,000,000");
+        assertThat(v.getTotalNetBuy()).isEqualTo("10,000,000");
+        assertThat(v.getTotalWeightedNetBuy()).isEqualTo("11,000,000");
+
+        byte[] pdf = renderer.render(v);
+        try (PDDocument document = PDDocument.load(pdf)) {
+            String text = new PDFTextStripper().getText(document);
+            assertThat(text)
+                    .contains("RIA 외 계좌 순매수 내역서")
+                    .contains("RIA-2027-ABCD2345")
+                    .contains("해외주식형펀드A")
+                    .contains("-10,000,000")
+                    .doesNotContain("과세특례 증빙서");
+        }
+    }
+
+    @Test
+    @DisplayName("순매수 내역서: 가중 순매수가 음수면 0원으로 반영된다는 안내가 찍힌다")
+    void renderNetPurchaseStatement_negativeIsClampedNotice() throws Exception {
+        NetPurchaseStatementView v =
+                new NetPurchaseStatementViewAssembler()
+                        .assemble(
+                                2026,
+                                "RIA-2027-ABCD2345",
+                                LocalDateTime.of(2027, 4, 1, 10, 0),
+                                "홍길동",
+                                AccountDTO.builder().accountNo("1234567890").build(),
+                                TaxCalculationDTO.builder()
+                                        .weightedExternalAmount(BigDecimal.ZERO)
+                                        .build(),
+                                TaxBreakdownDTO.of(
+                                        List.of(externalPeriod(8, 12, "0.5000", "-10000000")),
+                                        List.of(),
+                                        List.of()));
+
+        assertThat(v.isClampedToZero()).isTrue();
+        try (PDDocument document = PDDocument.load(renderer.render(v))) {
+            assertThat(new PDFTextStripper().getText(document)).contains("0원으로 반영됩니다");
+        }
+    }
+
+    @Test
+    @DisplayName("순매수 내역서: 거래가 없으면 없다는 문구가 찍힌다")
+    void renderNetPurchaseStatement_noTrades() throws Exception {
+        NetPurchaseStatementView v =
+                new NetPurchaseStatementViewAssembler()
+                        .assemble(
+                                2026,
+                                "RIA-2027-ABCD2345",
+                                LocalDateTime.of(2027, 4, 1, 10, 0),
+                                "홍길동",
+                                AccountDTO.builder().accountNo("1234567890").build(),
+                                TaxCalculationDTO.builder()
+                                        .weightedExternalAmount(BigDecimal.ZERO)
+                                        .build(),
+                                TaxBreakdownDTO.of(
+                                        List.of(externalPeriod(1, 5, "1.0000", "0")),
+                                        List.of(),
+                                        List.of()));
+
+        try (PDDocument document = PDDocument.load(renderer.render(v))) {
+            assertThat(new PDFTextStripper().getText(document)).contains("순매수 거래가 없습니다");
+        }
+    }
+
+    private TaxPeriodBreakdownDTO externalPeriod(
+            int fromMonth, int toMonth, String weight, String externalNetBuy) {
+        return TaxPeriodBreakdownDTO.builder()
+                .validFrom(LocalDate.of(2026, fromMonth, 1))
+                .validTo(LocalDate.of(2026, toMonth, 28))
+                .weight(new BigDecimal(weight))
+                .sellAmount(BigDecimal.ZERO)
+                .gainAmount(BigDecimal.ZERO)
+                .externalNetBuyAmount(new BigDecimal(externalNetBuy))
+                .build();
     }
 }

@@ -1,6 +1,7 @@
 package com.app.maria.domain.document.mapper;
 
 import com.app.maria.domain.document.dto.DocumentIssueDTO;
+import com.app.maria.domain.document.type.DocumentType;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -14,8 +15,9 @@ public interface DocumentIssueMapper {
     /** 파일(file_content)은 읽지 않는다. */
     List<DocumentIssueDTO> selectByAccountId(@Param("accountId") Long accountId);
 
-    /** 파일은 읽지 않는다. */
-    Optional<DocumentIssueDTO> selectIssuedByAccountId(@Param("accountId") Long accountId);
+    /** 계좌·종류별로 발급 중인 증빙을 읽는다. 파일은 읽지 않는다. */
+    Optional<DocumentIssueDTO> selectIssuedByAccountIdAndType(
+            @Param("accountId") Long accountId, @Param("docType") DocumentType docType);
 
     /** 파일을 포함해 한 행을 읽는다. 다운로드에서만 쓴다. */
     Optional<DocumentIssueDTO> selectWithFileById(@Param("documentIssueId") Long documentIssueId);

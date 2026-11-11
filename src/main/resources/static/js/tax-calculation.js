@@ -262,10 +262,10 @@ $(function () {
             var selected = Number(snapshot.accountId) === Number(selectedAccountId);
             var row = '<tr class="tax-snapshot-row is-clickable' + (selected ? " is-selected" : "") +
                 '" data-account-id="' + escapeHtml(snapshot.accountId) + '" tabindex="0" role="button" ' +
-                'aria-label="' + escapeHtml((account.customerName || "고객") + " 세액 계산 상세") + '">' +
+                'aria-label="' + escapeHtml((MARIA.fmt.maskName(account.customerName) || "고객") + " 세액 계산 상세") + '">' +
                 '<td class="adm-col-no">' + (startIndex + index + 1) + "</td>" +
                 '<td class="tax-account-no">' + escapeHtml(accountNo) + "</td>" +
-                '<td class="tax-account-name">' + escapeHtml(account.customerName || "-") + "</td>" +
+                '<td class="tax-account-name">' + escapeHtml(MARIA.fmt.maskName(account.customerName) || "-") + "</td>" +
                 '<td class="is-c">' + benefitChip(account.benefit) + "</td>" +
                 '<td class="is-r">' + formatAmount(snapshot.weightedSell) + "</td>" +
                 '<td class="is-r">' + formatAmount(snapshot.weightedGain) + "</td>" +
@@ -422,7 +422,7 @@ $(function () {
         selectedAccountId = Number(accountId);
         var account = accountFor(accountId);
         var snapshot = snapshotByAccountId[accountId] || {};
-        $("#detailAccountNo").text((account.accountNo || "-") + " · " + (account.customerName || "-"));
+        $("#detailAccountNo").text((account.accountNo || "-") + " · " + (MARIA.fmt.maskName(account.customerName) || "-"));
         $("#detailDescription").text("세액 계산 상세");
         $("#detailStaleBadge, #detailSavedBadge, #detailBenefitReason").prop("hidden", true);
         $("#detailConfirmResult").text("");

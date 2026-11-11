@@ -43,6 +43,23 @@ class PythonRiskClientTest {
     }
 
     @Test
+    void rowCountCapAcceptsMaxAndRejectsOneMore() {
+        for (int n : new int[] {PythonRiskClient.MAX_GRADES, PythonRiskClient.MAX_GRADES + 1}) {
+            var body =
+                    java.util.stream.IntStream.range(0, n)
+                            .mapToObj(i -> ROW.replace("005930", String.format("%06d", i)))
+                            .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+            var b = RestClient.builder().baseUrl("http://risk.test");
+            var server = MockRestServiceServer.bindTo(b).build();
+            server.expect(requestTo("http://risk.test/grades"))
+                    .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+            var client = authenticated(b.build());
+            if (n == PythonRiskClient.MAX_GRADES) assertThat(client.fetch()).hasSize(n);
+            else assertThatThrownBy(client::fetch).isInstanceOf(AppException.class);
+        }
+    }
+
+    @Test
     void emptyArrayIsValidPartialPublicationAndVersionZeroIsRejected() {
         for (String body :
                 java.util.List.of(
