@@ -451,6 +451,42 @@ class StockOrderServiceImplTest {
     }
 
     @Test
+    void 한_주문_안에서_먼저_산_수량까지_더해_패키지_보유로_팔_수_있다() {
+        prepare(account(Status.OPENED, "10000000"), quote("100000"));
+        when(eligibility.isPurchasable(any(), any(), any())).thenReturn(true);
+        accountHolds("26");
+        when(orderMapper.selectExecutedByPackageAsc(PACKAGE)).thenReturn(List.of(packageBuy("3")));
+        StockOrderRequestDTO buyThenSell =
+                new StockOrderRequestDTO(
+                        "p3",
+                        List.of(
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.BUY, new BigDecimal("1")),
+                                new StockOrderRequestDTO.Item(
+                                        SAMSUNG, DomesticOrderSide.SELL, new BigDecimal("4"))));
+
+        List<StockOrderResultDTO> orders = service.place(CUSTOMER, PACKAGE, buyThenSell).orders();
+
+        assertThat(orders.get(0).status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        assertThat(orders.get(1).status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+    }
+
+    @Test
+    void 생성기_매도는_패키지_보유가_아니라_계좌_잔고만_본다() {
+        prepareGenerator(account(Status.OPENED, "0"));
+        when(orderMapper.selectByIdempotencyKey(anyLong(), anyString()))
+                .thenReturn(Optional.empty());
+        accountHolds("5");
+
+        StockOrderResultDTO o =
+                service.placeGeneratorOrder(
+                        ACCOUNT, samsung(), quote("100000"), DomesticOrderSide.SELL, 5, "GEN-S");
+
+        assertThat(o.status()).isEqualTo(DomesticOrderStatus.EXECUTED);
+        verify(orderMapper, never()).selectExecutedByPackageAsc(any());
+    }
+
+    @Test
     void 같은_주문키로_다시_보내면_새로_체결하지_않고_처음_결과를_돌려준다() {
         prepare(account(Status.OPENED, "10000000"), quote("100000"));
         StockOrderVO prior =

@@ -13,6 +13,9 @@ import java.util.Map;
  * 패키지 몫을 나눌 수 없다). 평균매입가는 계좌 잔고와 같은 이동평균(체결가 기준, 수수료 제외)이다.
  *
  * <p>계좌 보유 기준으로 판 수량이 이 패키지에서 산 수량보다 많으면 패키지 보유는 0으로 둔다(마이너스로 만들지 않는다).
+ *
+ * <p>이 수량은 화면 표시뿐 아니라 패키지 매도 한도로도 쓴다({@code StockOrderServiceImpl}). 위 0 하한 규칙을 바꾸면 매도할 수 있는 수량도 같이
+ * 바뀐다. 패키지 매도가 이 수량 안으로 제한된 뒤로는 새로 0 아래로 내려가는 경우가 생기지 않는다.
  */
 final class StockPackageHoldingCalculator {
     private StockPackageHoldingCalculator() {}
