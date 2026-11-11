@@ -195,6 +195,56 @@ class NewsBalancedSelectionTest {
     }
 
     @Test
+    void differentProfilesSelectTheSameLatestEightWhenPublicationTimesDiffer() {
+        var rows = new ArrayList<NewsArticle>();
+        for (int i = 0; i < 10; i++) {
+            var a = article("a" + i, i, 5, "chip");
+            rows.add(
+                    new NewsArticle(
+                            a.id(),
+                            a.version(),
+                            a.title(),
+                            a.body(),
+                            a.source(),
+                            a.url(),
+                            a.publishedAt(),
+                            a.tickers(),
+                            a.facts(),
+                            a.risks(),
+                            5,
+                            i % 2 == 0 ? 10 : 0,
+                            i % 2 == 0 ? 0 : 10,
+                            false,
+                            List.of(),
+                            List.of("chip")));
+        }
+        var stable = service.select(NewsSelectionServiceTest.context(InvestorType.STABLE), rows);
+        var aggressive =
+                service.select(NewsSelectionServiceTest.context(InvestorType.AGGRESSIVE), rows);
+        assertThat(stable)
+                .extracting(s -> s.article().id())
+                .containsExactly("a9", "a8", "a7", "a6", "a5", "a4", "a3", "a2");
+        assertThat(aggressive)
+                .extracting(s -> s.article().id())
+                .containsExactlyElementsOf(stable.stream().map(s -> s.article().id()).toList());
+        assertThat(stable.get(0).score()).isNotEqualTo(aggressive.get(0).score());
+    }
+
+    @Test
+    void unclassifiedArticlesDoNotConsumeRealThemeQuotas() {
+        var rows = new ArrayList<NewsArticle>();
+        for (int i = 0; i < 8; i++) {
+            rows.add(article("chip" + i, i, 0, "chip"));
+            rows.add(article("tel" + i, i, 0, "telecom"));
+            rows.add(article("unclassified" + i, 100 + i, 10));
+        }
+        var selected = select(rows);
+        assertThat(count(selected, "chip")).isEqualTo(4);
+        assertThat(count(selected, "telecom")).isEqualTo(4);
+        assertThat(selected).noneMatch(s -> s.article().selectionThemes().isEmpty());
+    }
+
+    @Test
     void equalPublicationTimeUsesExistingScoreThenStableId() {
         assertThat(
                         select(

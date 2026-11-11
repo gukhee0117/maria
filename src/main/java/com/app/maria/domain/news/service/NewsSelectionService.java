@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class NewsSelectionService {
-    public static final String RULE_VERSION = "theme-balanced-latest-first-v5-shared-coverage";
+    public static final String RULE_VERSION = "theme-balanced-latest-first-v6-real-theme-quotas";
 
     private static final int LIMIT = 8;
 
@@ -28,9 +28,8 @@ public class NewsSelectionService {
                                         .computeIfAbsent(a.id(), ignored -> new ArrayList<>())
                                         .add(a));
         Map<String, Selected> unique = new TreeMap<>();
-        Comparator<Selected> revisionOrder =
-                newest.thenComparing(s -> s.article().version())
-                        .thenComparing(s -> s.article().toString());
+        // A revision identifies immutable article content; only projected links are merged.
+        Comparator<Selected> revisionOrder = newest.thenComparing(s -> s.article().version());
         for (var copies : revisions.values()) {
             var base =
                     copies.stream()
@@ -72,22 +71,19 @@ public class NewsSelectionService {
                             List.copyOf(themes));
             unique.put(merged.id(), new Selected(merged, score(context, merged)));
         }
+        var ranked = unique.values().stream().sorted(newest).toList();
         Map<String, List<Selected>> buckets = new TreeMap<>();
-        unique.values().stream()
-                .sorted(newest)
+        ranked.stream()
                 .forEach(
                         s -> {
-                            // Non-theme providers keep one pool rather than inventing themes from
-                            // stock counts.
-                            var themes =
-                                    s.article().selectionThemes().isEmpty()
-                                            ? List.of("")
-                                            : s.article().selectionThemes();
+                            var themes = s.article().selectionThemes();
                             for (String theme : new TreeSet<>(themes)) {
+                                if (theme.isBlank()) continue;
                                 buckets.computeIfAbsent(theme, ignored -> new ArrayList<>()).add(s);
                             }
                         });
-        if (buckets.isEmpty()) return List.of();
+        // Unclassified articles do not consume a theme quota. Non-theme providers use latest-first.
+        if (buckets.isEmpty()) return ranked.stream().limit(LIMIT).toList();
         var ordered =
                 buckets.entrySet().stream()
                         .sorted(
@@ -120,8 +116,7 @@ public class NewsSelectionService {
             }
         }
         // Remainder and undersupplied quotas go to the newest remaining unique articles.
-        unique.values().stream()
-                .sorted(newest)
+        ranked.stream()
                 .filter(s -> !picked.containsKey(s.article().id()))
                 .limit(LIMIT - picked.size())
                 .forEach(s -> picked.put(s.article().id(), s));

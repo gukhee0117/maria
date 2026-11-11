@@ -22,6 +22,8 @@ public record NewsArticle(
         int growth,
         boolean demo,
         List<NewsStockReference> relatedStocks,
+        // In-memory selection metadata. JSON persistence must restore matched themes before
+        // selection.
         @JsonIgnore List<String> selectionThemes) {
     public NewsArticle(
             String id,
