@@ -56,7 +56,7 @@ public class GeneralAccountClient {
         }
     }
 
-    public List<GeneralAccountResponseDTO> findByCiHash(String ciHash) {
+    public List<GeneralAccountResponseDTO> findByCiHash(String ciHash, Object logRef) {
         try {
             ApiResponseDTO<List<GeneralAccountResponseDTO>> apiResponse =
                     restClient
@@ -67,13 +67,13 @@ public class GeneralAccountClient {
                                     new ParameterizedTypeReference<
                                             ApiResponseDTO<List<GeneralAccountResponseDTO>>>() {});
             if (apiResponse == null || apiResponse.getData() == null) {
-                throw new AppException(ErrorType.GENERAL_ACCOUNT_API_INVALID_RESPONSE, ciHash);
+                throw new AppException(ErrorType.GENERAL_ACCOUNT_API_INVALID_RESPONSE, logRef);
             }
             return apiResponse.getData();
         } catch (HttpClientErrorException e) {
-            throw new AppException(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE, ciHash, e);
+            throw new AppException(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE, logRef, e);
         } catch (RestClientException e) {
-            throw new AppException(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE, ciHash, e);
+            throw new AppException(ErrorType.GENERAL_ACCOUNT_API_UNAVAILABLE, logRef, e);
         }
     }
 }

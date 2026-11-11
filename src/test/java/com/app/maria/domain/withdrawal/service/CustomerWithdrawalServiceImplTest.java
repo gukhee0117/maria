@@ -101,13 +101,13 @@ class CustomerWithdrawalServiceImplTest {
                         .accountNo("1234567890")
                         .status(GeneralAccountStatus.ACTIVE)
                         .build();
-        when(generalAccountClient.findByCiHash(CI_HASH)).thenReturn(List.of(account));
+        when(generalAccountClient.findByCiHash(any(), any())).thenReturn(List.of(account));
 
         List<GeneralAccountResponseDTO> result = service.getDestinationAccounts(CUSTOMER_ID);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getGeneralAccountId()).isEqualTo(20L);
-        verify(generalAccountClient).findByCiHash(CI_HASH);
+        verify(generalAccountClient).findByCiHash(any(), any());
     }
 
     @Test
@@ -122,7 +122,7 @@ class CustomerWithdrawalServiceImplTest {
                                 assertThat(((AppException) ex).getErrorType())
                                         .isEqualTo(ErrorType.ACCOUNT_NOT_FOUND));
 
-        verify(generalAccountClient, never()).findByCiHash(any());
+        verify(generalAccountClient, never()).findByCiHash(any(), any());
     }
 
     // ── withdraw ───────────────────────────────────────────────────────────

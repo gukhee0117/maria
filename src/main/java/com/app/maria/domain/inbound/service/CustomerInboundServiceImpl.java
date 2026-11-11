@@ -61,7 +61,7 @@ public class CustomerInboundServiceImpl implements CustomerInboundService {
                                 () -> new AppException(ErrorType.ACCOUNT_NOT_FOUND, customerId));
 
         List<RegistrableStockResponseDTO> matchingLots =
-                registrableStockClient.findCustomerLots(ciHash).stream()
+                registrableStockClient.findCustomerLots(ciHash, "customerId=" + customerId).stream()
                         .filter(
                                 lot ->
                                         foreignProductId.equals(lot.getForeignProductId())
