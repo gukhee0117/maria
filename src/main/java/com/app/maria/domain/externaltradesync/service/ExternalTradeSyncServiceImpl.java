@@ -170,10 +170,7 @@ public class ExternalTradeSyncServiceImpl implements ExternalTradeSyncService {
 
     private void recordFailure(MydataTradeResponseDTO trade, Exception e) {
         LocalDateTime now = businessClockService.now();
-        String detail =
-                e instanceof AppException appException
-                        ? e.getMessage() + " data=" + appException.getErrorData()
-                        : e.getMessage();
+        String detail = e.getMessage();
         targetProductMapper.upsertFailure(
                 TargetProductJudgementFailureDTO.builder()
                         .mydataTradeId(trade.getTradeId())

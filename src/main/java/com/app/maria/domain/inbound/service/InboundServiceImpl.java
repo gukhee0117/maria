@@ -113,7 +113,7 @@ public class InboundServiceImpl implements InboundService {
 
         if (apiResponse == null || apiResponse.getData() == null) {
             throw new AppException(
-                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash + "/" + foreignProductId);
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, customerId + "/" + foreignProductId);
         }
 
         RegistrableStockResponseDTO registrableStock = apiResponse.getData();
@@ -156,7 +156,7 @@ public class InboundServiceImpl implements InboundService {
         inboundMapper.insertInbound(inboundDTO);
 
         List<RegistrableStockResponseDTO> lots =
-                fetchRegistrableStockLots(ciHash, foreignProductId);
+                fetchRegistrableStockLots(ciHash, foreignProductId, accountId);
         Map<Long, BigDecimal> approvedByAccount =
                 inboundMapper
                         .sumApprovedQtyBySourceGeneralAccount(accountId, foreignProductId)
@@ -384,7 +384,7 @@ public class InboundServiceImpl implements InboundService {
     }
 
     private List<RegistrableStockResponseDTO> fetchRegistrableStockLots(
-            String ciHash, Long foreignProductId) {
+            String ciHash, Long foreignProductId, Long accountId) {
         ApiResponseDTO<List<RegistrableStockResponseDTO>> apiResponse =
                 restClient
                         .get()
@@ -398,7 +398,7 @@ public class InboundServiceImpl implements InboundService {
                                         ApiResponseDTO<List<RegistrableStockResponseDTO>>>() {});
         if (apiResponse == null || apiResponse.getData() == null) {
             throw new AppException(
-                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, ciHash + "/" + foreignProductId);
+                    ErrorType.REGISTRABLE_STOCK_NOT_FOUND, accountId + "/" + foreignProductId);
         }
         return apiResponse.getData();
     }
