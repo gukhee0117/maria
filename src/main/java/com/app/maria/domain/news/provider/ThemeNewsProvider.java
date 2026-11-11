@@ -17,6 +17,12 @@ import org.springframework.stereotype.Component;
 @Primary
 @ConditionalOnProperty(name = "news.provider", havingValue = "free")
 public class ThemeNewsProvider implements NewsProvider {
+    private static final Pattern NORMALIZE_TEXT = Pattern.compile("[^\\p{L}\\p{N}]");
+
+    private static String normalize(String text) {
+        return NORMALIZE_TEXT.matcher(text).replaceAll("").toLowerCase(Locale.ROOT);
+    }
+
     private static final Pattern STOCK_MARKET =
             Pattern.compile(
                     "주가|주식(?!회사)|증권|증시|코스피|코스닥|유가증권|상장|공모주|시가총액|목표주가|투자의견|자사주|유상증자|액면분할|주당(?:순이익|배당)|배당(?:금|수익률|정책|주)|\\b(?:IPO|ETF|ETN|PER|PBR|EPS)\\b",
@@ -106,26 +112,29 @@ public class ThemeNewsProvider implements NewsProvider {
                 () -> sourceSnapshot.cachedArticles().get().map(rows -> project(rows, c)));
     }
 
-    private boolean isThemeStockMarketArticle(NewsArticle article, Map<String, String> allThemes) {
+    private List<String> matchedThemes(NewsArticle article, Map<String, String> allThemes) {
         // Do not let publisher footers or investment disclaimers turn a general story into stock
         // news.
         String title = FINANCIAL_EXERCISE.matcher(article.title()).replaceAll("");
-        if (CONTEST.matcher(title).find()) return false;
+        if (CONTEST.matcher(title).find()) return List.of();
         // A market-related event topic does not turn a participation advert into market reporting.
         if (PROMOTIONAL_EVENT.matcher(title).find() && EXPLICIT_ADVERTISING.matcher(title).find())
-            return false;
+            return List.of();
         if (PROMOTIONAL_EVENT.matcher(title).find()
                 && PROMOTION.matcher(title).find()
-                && !MARKET_TITLE.matcher(title).find()) return false;
+                && !MARKET_TITLE.matcher(title).find()) return List.of();
         String body = ARTICLE_FOOTER.split(article.body(), 2)[0];
         String text = article.title() + " " + body;
-        if (!STOCK_MARKET.matcher(text).find()) return false;
-        String normalized = text.replaceAll("[^\\p{L}\\p{N}]", "").toLowerCase(Locale.ROOT);
+        if (!STOCK_MARKET.matcher(text).find()) return List.of();
+        String normalized = normalize(text);
         return allThemes.entrySet().stream()
-                .anyMatch(
+                .filter(
                         theme ->
                                 article.tickers().contains("theme:" + theme.getKey())
-                                        && normalized.contains(theme.getValue()));
+                                        && normalized.contains(theme.getValue()))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
     }
 
     private List<NewsArticle> project(List<NewsArticle> rows, Context c) {
@@ -135,45 +144,42 @@ public class ThemeNewsProvider implements NewsProvider {
                 .forEach(
                         values ->
                                 values.forEach(
-                                        theme ->
-                                                allThemes.putIfAbsent(
-                                                        theme,
-                                                        theme.replaceAll("[^\\p{L}\\p{N}]", "")
-                                                                .toLowerCase(Locale.ROOT))));
+                                        theme -> allThemes.putIfAbsent(theme, normalize(theme))));
         return rows.stream()
-                .filter(a -> isThemeStockMarketArticle(a, allThemes))
-                .map(
+                .flatMap(
                         a -> {
+                            var matchedThemes = matchedThemes(a, allThemes);
+                            if (matchedThemes.isEmpty())
+                                return java.util.stream.Stream.<NewsArticle>empty();
                             var owned =
                                     mapping.entrySet().stream()
                                             .filter(
                                                     e ->
                                                             e.getValue().stream()
                                                                     .anyMatch(
-                                                                            t ->
-                                                                                    a.tickers()
-                                                                                            .contains(
-                                                                                                    "theme:"
-                                                                                                            + t)))
+                                                                            matchedThemes
+                                                                                    ::contains))
                                             .map(Map.Entry::getKey)
                                             .sorted()
                                             .toList();
-                            return new NewsArticle(
-                                    a.id(),
-                                    a.version(),
-                                    a.title(),
-                                    a.body(),
-                                    a.source(),
-                                    a.url(),
-                                    a.publishedAt(),
-                                    owned,
-                                    a.facts(),
-                                    a.risks(),
-                                    a.importance(),
-                                    a.stability(),
-                                    a.growth(),
-                                    a.demo(),
-                                    themes.mentionedStocks(a));
+                            return java.util.stream.Stream.of(
+                                    new NewsArticle(
+                                            a.id(),
+                                            a.version(),
+                                            a.title(),
+                                            a.body(),
+                                            a.source(),
+                                            a.url(),
+                                            a.publishedAt(),
+                                            owned,
+                                            a.facts(),
+                                            a.risks(),
+                                            a.importance(),
+                                            a.stability(),
+                                            a.growth(),
+                                            a.demo(),
+                                            themes.mentionedStocks(a),
+                                            matchedThemes));
                         })
                 .filter(a -> !a.tickers().isEmpty())
                 .toList();

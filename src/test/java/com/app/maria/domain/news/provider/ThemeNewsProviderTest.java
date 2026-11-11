@@ -13,6 +13,34 @@ import org.junit.jupiter.api.Test;
 
 class ThemeNewsProviderTest {
     @Test
+    void selectionThemesComeFromTheArticleRatherThanEveryThemeOfItsLinkedStock() throws Exception {
+        var source = mock(FreeNewsProvider.class);
+        var themes = mock(NewsThemeService.class);
+        var context =
+                new Context(
+                        1L,
+                        Set.of("005930", "000660"),
+                        InvestorType.STABLE,
+                        PersonalizationStatus.ACTIVE);
+        when(themes.themes(context.tickers()))
+                .thenReturn(Map.of("005930", Set.of("반도체", "통신"), "000660", Set.of("반도체")));
+        var article = news("chip", "반도체 주가 상승", "반도체 수요 회복에 증권사가 목표주가를 높였다.");
+        when(source.articles(any(Context.class))).thenReturn(List.of(article));
+        when(source.cachedArticles(any(Context.class))).thenReturn(Optional.of(List.of(article)));
+        var provider = new ThemeNewsProvider(source, themes);
+        var projected = provider.articles(context).get(0);
+        assertThat(projected.selectionThemes()).containsExactly("반도체");
+        assertThat(projected.tickers()).containsExactly("000660", "005930");
+        assertThat(provider.cachedArticles(context).orElseThrow().get(0).selectionThemes())
+                .containsExactly("반도체");
+        var json =
+                new com.fasterxml.jackson.databind.ObjectMapper()
+                        .findAndRegisterModules()
+                        .writeValueAsString(projected);
+        assertThat(json).doesNotContain("selectionThemes").doesNotContain("수요 회복");
+    }
+
+    @Test
     void themeAndStockMarketContextAreBothRequiredForFreshAndCachedArticles() {
         var source = mock(FreeNewsProvider.class);
         var themes = mock(NewsThemeService.class);

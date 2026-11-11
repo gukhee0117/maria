@@ -13,6 +13,56 @@ import org.junit.jupiter.api.Test;
 
 class NewsWarmupServiceTest {
     @Test
+    void warmupPreparesNewestSelectedArticleRatherThanOlderHigherScore() {
+        var inventory = mock(NewsInventoryService.class);
+        var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
+        var service = mock(NewsBriefingService.class);
+        when(inventory.load())
+                .thenReturn(
+                        new NewsInventoryService.Inventory(
+                                Map.of("005930", "stock"),
+                                List.of(
+                                        new NewsInventoryService.Group(
+                                                Map.of("005930", "stock"), 1))));
+        var old = NewsSelectionServiceTest.article("old", 10, 10);
+        var latest =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        "latest",
+                        "v1",
+                        "latest",
+                        "body",
+                        "source",
+                        null,
+                        old.publishedAt().plusMinutes(1),
+                        old.tickers(),
+                        old.facts(),
+                        old.risks(),
+                        0,
+                        0,
+                        0);
+        when(provider.cachedArticles(any())).thenReturn(Optional.of(List.of(old, latest)));
+        when(service.backgroundCapacity()).thenReturn(true);
+        when(service.sharedSummaryKey(any(), any())).thenAnswer(i -> "latest:" + i.getArgument(1));
+        when(service.prepareSummary(any(), any()))
+                .thenReturn(
+                        new NewsSummaryCache.Result(
+                                new NewsSummaryCache.Value("summary", Instant.now()), false));
+        var warmup =
+                new NewsWarmupService(
+                        inventory,
+                        provider,
+                        new NewsSelectionService(),
+                        service,
+                        new NewsProperties());
+        try {
+            assertThat(warmup.runCycle().generated()).isEqualTo(5);
+            verify(service, times(5)).prepareSummary(argThat(a -> a.id().equals("latest")), any());
+        } finally {
+            warmup.close();
+        }
+    }
+
+    @Test
     void allDynamicGroupsShareFirstTargetsAndPlanningNeverFetchesPerCustomer() {
         var inventory = mock(NewsInventoryService.class);
         var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
