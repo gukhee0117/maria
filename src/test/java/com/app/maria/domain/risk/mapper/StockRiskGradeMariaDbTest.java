@@ -146,7 +146,6 @@ class StockRiskGradeMariaDbTest {
                 "UPDATE domestic_product SET name='Stock',type='STOCK' WHERE domestic_product_id=1");
         jdbc.update(
                 "UPDATE domestic_product SET name='ETF',type='FUND' WHERE domestic_product_id=2");
-        assertThat(realMapper.findProducts()).hasSize(2);
         var stock = realMapper.findProductByTicker("005930");
         assertThat(stock.domesticProductId()).isEqualTo(1L);
         assertThat(stock.type()).isEqualTo(com.app.maria.domain.domestic.type.Type.STOCK);
@@ -173,6 +172,13 @@ class StockRiskGradeMariaDbTest {
         assertThat(reader.findUsable()).hasSize(1);
         assertThat(version()).isEqualTo(1);
         assertThat(count()).isEqualTo(1);
+    }
+
+    @Test
+    void fundGradeFromBatchIsIgnoredAndStoredFundGradeIsKept() {
+        jdbc.update("UPDATE domestic_product SET type='FUND' WHERE ticker='005930'");
+        assertThat(store.store(grade(1), received())).isEqualTo(RiskGradeStore.Outcome.IGNORED);
+        assertThat(count()).isZero();
     }
 
     @Test

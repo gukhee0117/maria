@@ -9,8 +9,6 @@ import org.apache.ibatis.annotations.Param;
 public interface StockRiskGradeMapper {
     Integer sessionUtcOffsetSeconds();
 
-    List<com.app.maria.domain.risk.dto.RiskProductDTO> findProducts();
-
     com.app.maria.domain.risk.dto.RiskProductDTO findProductByTicker(
             @Param("ticker") String ticker);
 

@@ -43,6 +43,19 @@ class PythonRiskClientTest {
     }
 
     @Test
+    void acceptsWholeSeedUniverseOfFourHundredFiftyNineRows() {
+        var body =
+                java.util.stream.IntStream.range(0, 459)
+                        .mapToObj(i -> ROW.replace("005930", String.format("%06d", i)))
+                        .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+        var b = RestClient.builder().baseUrl("http://risk.test");
+        var server = MockRestServiceServer.bindTo(b).build();
+        server.expect(requestTo("http://risk.test/grades"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        assertThat(authenticated(b.build()).fetch()).hasSize(459);
+    }
+
+    @Test
     void emptyArrayIsValidPartialPublicationAndVersionZeroIsRejected() {
         for (String body :
                 java.util.List.of(

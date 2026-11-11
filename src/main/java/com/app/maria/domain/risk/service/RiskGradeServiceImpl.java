@@ -100,27 +100,20 @@ public class RiskGradeServiceImpl implements RiskGradeService {
         return resolveGrades(Set.copyOf(productIds));
     }
 
+    /**
+     * 목록·패키지 화면용. 주식도 펀드처럼 risk 배치가 저장한 등급을 읽는다(주식은 마지막 배치 때 본 투자경고·관리종목 여부). 요청마다 KIS로 주식을 하나씩
+     * 조회하면 후보 수백 개가 쌓여 수십 초~수 분이 걸렸다. 실시간 판정은 단건 조회({@link #findClassificationByTicker})만 한다.
+     */
     private Map<Long, Integer> resolveGrades(Set<Long> requested) {
-        var products =
-                mapper.findProducts().stream()
-                        .filter(p -> requested == null || requested.contains(p.domesticProductId()))
-                        .toList();
         var result = new HashMap<Long, Integer>();
-        if (products.stream().anyMatch(p -> p.type() == Type.FUND)) {
-            try {
-                for (var g : findUsable()) result.put(g.domesticProductId(), g.riskGrade());
-            } catch (AppException e) {
-                if (!e.getErrorType().name().startsWith("RISK_")) throw e;
-                log.warn("RISK_METRICS_UNAVAILABLE code={}", e.getErrorType().name());
+        try {
+            for (var g : findUsable()) {
+                if (requested == null || requested.contains(g.domesticProductId()))
+                    result.put(g.domesticProductId(), g.riskGrade());
             }
-        }
-        for (var p : products) {
-            if (p.type() == Type.STOCK) {
-                result.remove(p.domesticProductId());
-                currentStock(p).ifPresent(g -> result.put(g.domesticProductId(), g.riskGrade()));
-            } else if (p.type() != Type.FUND) {
-                result.remove(p.domesticProductId());
-            }
+        } catch (AppException e) {
+            if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+            log.warn("RISK_METRICS_UNAVAILABLE code={}", e.getErrorType().name());
         }
         return Map.copyOf(result);
     }
