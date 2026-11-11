@@ -60,6 +60,8 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
     static final int DEFAULT_ASK_LIMIT = 6;
     static final String BASIS_SURVEY = "SURVEY";
     static final String BASIS_TRADING = "TRADING";
+    // 이 길이 이하의 테마 이름은 공백을 지우지 않고 비교한다(다른 단어에 걸리는 오탐을 줄이려고)
+    static final int SHORT_THEME_LENGTH = 2;
 
     private static final Pattern GRADE_Q = Pattern.compile("등급|위험");
     private static final Pattern VOL_Q = Pattern.compile("변동성");
@@ -133,8 +135,12 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
 
         Optional<String> rule = ruleAnswer(question, rec, items, hit, focus);
         if (rule.isPresent()) {
+            // 테마 질문이면 규칙 답에도 추천하지 않은 범위 밖 상품 개수와 후보 화면 안내를 붙인다
             return new StockRecommendationAskResponseDTO(
-                    rule.get(), focus == null ? null : focus.ticker(), false, DISCLAIMER);
+                    rule.get() + outOfProfileNote(rec),
+                    focus == null ? null : focus.ticker(),
+                    false,
+                    DISCLAIMER);
         }
         // 테마를 말했는데 다른 규칙에 걸리지 않으면 AI에 넘기지 않고 그 테마 안에서 고른 종목을 사실로 보여 준다
         if (theme != null) {
@@ -368,10 +374,17 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
         if (names == null) {
             return null;
         }
-        // "2차 전지"·"ai반도체"처럼 띄어쓰기나 대소문자가 달라도 같은 테마로 본다
-        String q = squash(question);
+        // "2차 전지"·"ai반도체"처럼 띄어쓰기나 대소문자가 달라도 같은 테마로 본다. 다만 "건설"처럼 두 글자 이하 이름은 공백을 지우면
+        // "이 건 설명"이 "건설명"이 되듯 다른 단어에 걸리기 쉬워, 공백을 그대로 둔 채 대소문자만 무시하고 비교한다
+        String squashed = squash(question);
+        String lower = question.toLowerCase(Locale.ROOT);
         return names.stream()
-                .filter(n -> n != null && !squash(n).isEmpty() && q.contains(squash(n)))
+                .filter(n -> n != null && !squash(n).isEmpty())
+                .filter(
+                        n ->
+                                squash(n).length() <= SHORT_THEME_LENGTH
+                                        ? lower.contains(n.trim().toLowerCase(Locale.ROOT))
+                                        : squashed.contains(squash(n)))
                 .max(Comparator.comparingInt((String n) -> squash(n).length()))
                 .orElse(null);
     }
@@ -483,7 +496,7 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                                 result.add(
                                         toItem(
                                                 i,
-                                                surveyLead(i, label, allowedMin),
+                                                widenedLead(i, target, label, allowedMin),
                                                 taste,
                                                 withThemeLine)));
         return List.copyOf(result);
@@ -558,6 +571,24 @@ public class StockRecommendationServiceImpl implements StockRecommendationServic
                 + "등급("
                 + gradeName(i.getRiskGrade())
                 + ") 상품이에요.";
+    }
+
+    /** 목표 구간 밖이지만 설문 허용 범위 안이라 테마 추천에서 더 채운 상품의 첫 이유. 왜 들어왔는지 함께 알린다. */
+    private static String widenedLead(
+            StockCandidateResponseDTO.ItemResponse i, Target target, String label, int allowedMin) {
+        return "기준 등급 근처("
+                + target.low()
+                + "~"
+                + target.high()
+                + "등급) 상품이 모자라, 같은 테마에서 "
+                + label
+                + " 허용 범위("
+                + allowedText(allowedMin)
+                + ") 안의 "
+                + i.getRiskGrade()
+                + "등급("
+                + gradeName(i.getRiskGrade())
+                + ") 상품을 더 골랐어요.";
     }
 
     private static String tradingLead(StockCandidateResponseDTO.ItemResponse i, BigDecimal avg) {
