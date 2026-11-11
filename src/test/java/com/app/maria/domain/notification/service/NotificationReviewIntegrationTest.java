@@ -104,7 +104,7 @@ class NotificationReviewIntegrationTest {
         @Bean
         NotificationEmailVerificationService verification() {
             var verification = mock(NotificationEmailVerificationService.class);
-            when(verification.isVerified(any(), any())).thenReturn(true);
+            when(verification.isRegisteredEmailVerified(any(), any())).thenReturn(true);
             return verification;
         }
 

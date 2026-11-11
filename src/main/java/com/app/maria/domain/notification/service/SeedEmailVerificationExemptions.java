@@ -31,8 +31,9 @@ final class SeedEmailVerificationExemptions {
     }
 
     boolean matches(Long customerId, String loginId, String email) {
-        if (!containsCustomer(customerId) || loginId == null || email == null || email.isBlank())
+        if (!containsCustomer(customerId) || loginId == null || email == null || email.isBlank()) {
             return false;
+        }
         try {
             byte[] digest =
                     MessageDigest.getInstance("SHA-256")
@@ -51,15 +52,18 @@ final class SeedEmailVerificationExemptions {
                         new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
             Map<Long, String> rows = new HashMap<>();
             for (String line : reader.lines().toList()) {
-                if (line.isBlank() || line.startsWith("#")) continue;
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
                 String[] parts = line.split(":", -1);
                 if (parts.length != 2
                         || !parts[1].matches("[0-9a-f]{64}")
-                        || rows.putIfAbsent(Long.valueOf(parts[0]), parts[1]) != null)
+                        || rows.putIfAbsent(Long.valueOf(parts[0]), parts[1]) != null) {
                     throw new IllegalArgumentException("Invalid seed contact index");
+                }
             }
             return Map.copyOf(rows);
-        } catch (IOException | RuntimeException failure) {
+        } catch (IOException | IllegalArgumentException failure) {
             log.warn("NOTIFICATION_SEED_EMAIL_EXEMPTIONS_UNAVAILABLE");
             return Map.of();
         }

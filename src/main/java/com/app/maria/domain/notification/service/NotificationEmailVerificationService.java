@@ -92,17 +92,28 @@ public class NotificationEmailVerificationService {
 
     public Status status(Long customerId) {
         String email = contacts.selectEmail(customerId);
-        return new Status(email != null && isVerified(customerId, email), mask(email));
+        return new Status(isRegisteredEmailVerified(customerId, email), mask(email));
     }
 
     public boolean isVerified(Long customerId, String email) {
-        if (email == null || email.isBlank() || !email.equals(contacts.selectEmail(customerId)))
+        if (email == null || email.isBlank() || !email.equals(contacts.selectEmail(customerId))) {
             return false;
+        }
+        return isRegisteredEmailVerified(customerId, email);
+    }
+
+    /** Internal only: the address must come from the customer's registered contact row. */
+    boolean isRegisteredEmailVerified(Long customerId, String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
         // Only known seed IDs need an extra auth lookup. Changing their original address removes
         // the exemption.
         if (seedExemptions.containsCustomer(customerId)
                 && seedExemptions.matches(
-                        customerId, contacts.selectLocalLoginId(customerId), email)) return true;
+                        customerId, contacts.selectLocalLoginId(customerId), email)) {
+            return true;
+        }
         try {
             return Boolean.TRUE.equals(redis.hasKey(key("verified", customerId, email)));
         } catch (DataAccessException failure) {

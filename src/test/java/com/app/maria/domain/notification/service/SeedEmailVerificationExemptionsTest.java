@@ -13,6 +13,30 @@ import org.springframework.mail.javamail.JavaMailSender;
 class SeedEmailVerificationExemptionsTest {
     @Test
     @SuppressWarnings("unchecked")
+    void settingsGetAndVerificationStatusReadRegisteredEmailOnceEach() {
+        var contacts = mock(CustomerNotificationSettingsMapper.class);
+        var redis = mock(StringRedisTemplate.class);
+        var senders = (ObjectProvider<JavaMailSender>) mock(ObjectProvider.class);
+        var verification =
+                new NotificationEmailVerificationService(
+                        contacts, redis, senders, "", Clock.systemUTC());
+        when(contacts.selectEmail(2000L)).thenReturn("new@example.com");
+        when(redis.hasKey(anyString())).thenReturn(true);
+        var settings =
+                new CustomerNotificationSettingsServiceImpl(
+                        contacts,
+                        mock(com.app.maria.global.clock.service.BusinessClockService.class),
+                        verification);
+        assertThat(settings.get(2000L).email()).isTrue();
+        verify(contacts, times(1)).selectEmail(2000L);
+        clearInvocations(contacts);
+        assertThat(verification.status(2000L).verified()).isTrue();
+        verify(contacts, times(1)).selectEmail(2000L);
+        verify(contacts, never()).selectLocalLoginId(anyLong());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void changedSeedAndUnverifiedNewCustomerNeverReachSmtp() {
         var contacts = mock(CustomerNotificationSettingsMapper.class);
         var redis = mock(StringRedisTemplate.class);

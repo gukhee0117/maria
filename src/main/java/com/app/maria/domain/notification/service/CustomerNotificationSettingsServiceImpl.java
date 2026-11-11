@@ -32,7 +32,7 @@ public class CustomerNotificationSettingsServiceImpl
                 values(settingsMapper.selectLatestByCustomerId(customerId));
         if (agreed(values, NotificationConsentType.NOTIFY_EMAIL)) {
             String email = settingsMapper.selectEmail(customerId);
-            if (email == null || email.isBlank() || !verification.isVerified(customerId, email)) {
+            if (!verification.isRegisteredEmailVerified(customerId, email)) {
                 values.put(NotificationConsentType.NOTIFY_EMAIL, false);
             }
         }
@@ -52,7 +52,8 @@ public class CustomerNotificationSettingsServiceImpl
             throw new AppException(ErrorType.CUSTOMER_NOTIFICATION_EMAIL_REQUIRED);
         }
         if (Boolean.TRUE.equals(request.email())
-                && !verification.isVerified(customerId, settingsMapper.selectEmail(customerId))) {
+                && !verification.isRegisteredEmailVerified(
+                        customerId, settingsMapper.selectEmail(customerId))) {
             throw new AppException(ErrorType.NOTIFICATION_EMAIL_VERIFICATION_REQUIRED);
         }
         Map<NotificationConsentType, Boolean> previous =
@@ -68,7 +69,7 @@ public class CustomerNotificationSettingsServiceImpl
                 // implicit OFF is not a user opt-out just because another setting was saved.
                 changed =
                         next
-                                || verification.isVerified(
+                                || verification.isRegisteredEmailVerified(
                                         customerId, settingsMapper.selectEmail(customerId));
             }
             if (changed) {
