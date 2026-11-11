@@ -9,6 +9,8 @@ logging:
     com.app.maria: INFO
     org.springframework.web: WARN
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   config:
     # 비밀값은 프로젝트 루트의 .env에서 읽는다(git 제외)
     # 서버에서는 파일 없이 환경변수로 주입하므로 optional

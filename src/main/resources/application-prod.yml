@@ -7,6 +7,3 @@ springdoc:
 app:
   cookie:
     secure: true
-logging:
-  level:
-    org.springframework.security: WARN
