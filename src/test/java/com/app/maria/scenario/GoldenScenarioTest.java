@@ -1,6 +1,7 @@
 package com.app.maria.scenario;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
@@ -141,7 +142,7 @@ class GoldenScenarioTest {
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
         when(exchangeRateProvider.getFinalRate(anyString(), any()))
                 .thenAnswer(invocation -> BigDecimal.valueOf(1300 + random.nextInt(100)));
-        doReturn(BigDecimal.ZERO).when(mydataClient).getExternalSellTotal(anyString());
+        doReturn(BigDecimal.ZERO).when(mydataClient).getExternalSellTotal(anyString(), anyLong());
     }
 
     @Test

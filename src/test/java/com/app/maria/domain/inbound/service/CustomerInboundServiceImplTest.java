@@ -140,7 +140,7 @@ class CustomerInboundServiceImplTest {
         stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         stubLotApprovedQty(STOCK_ID, BigDecimal.ZERO);
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -168,7 +168,7 @@ class CustomerInboundServiceImplTest {
         // snapshotQty=50, alreadyInbounded=30, alreadyOutbounded=0 → netLocked=30 → available=20,
         // requested=100 → approved=20
         stubLotApprovedQty(STOCK_ID, new BigDecimal("30"));
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
         when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -196,7 +196,7 @@ class CustomerInboundServiceImplTest {
         stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         Long stock1 = 301L, stock2 = 302L;
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(
                         List.of(
                                 lot(stock1, new BigDecimal("10")),
@@ -251,7 +251,7 @@ class CustomerInboundServiceImplTest {
     void submit_throws_whenNoMatchingLots() {
         stubAccount(Status.OPENED);
         stubCiHash();
-        when(registrableStockClient.findCustomerLots(CI_HASH)).thenReturn(List.of());
+        when(registrableStockClient.findCustomerLots(any(), any())).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.submit(CUSTOMER_ID, request(BigDecimal.TEN)))
                 .isInstanceOf(AppException.class)
@@ -268,7 +268,7 @@ class CustomerInboundServiceImplTest {
     void submit_throws_whenNullOriginLegacyExists() {
         stubEligibleAccount();
         stubProduct();
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -289,7 +289,7 @@ class CustomerInboundServiceImplTest {
     void submit_throws_whenAvailableQtyIsZero() {
         stubEligibleAccount();
         stubProduct();
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("50"))));
         when(inboundMapper.sumApprovedQtyByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
@@ -320,7 +320,7 @@ class CustomerInboundServiceImplTest {
         stubApprovedQty(BigDecimal.ZERO);
         // account-level: snapshotQty=10, alreadyApproved=0 → approvedQty=10
         // lot-level: lotAlreadyApproved=10 → lotAvailable=0 → remaining 소진 불가
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("10"))));
         when(inboundMapper.sumApprovedQtyByAccountAndRegistrableStockId(ACCOUNT_ID, STOCK_ID))
                 .thenReturn(new BigDecimal("10"));
@@ -346,7 +346,7 @@ class CustomerInboundServiceImplTest {
         stubPersistence();
         stubApprovedQty(BigDecimal.ZERO);
         stubLotApprovedQty(STOCK_ID, BigDecimal.ZERO);
-        when(registrableStockClient.findCustomerLots(CI_HASH))
+        when(registrableStockClient.findCustomerLots(any(), any()))
                 .thenReturn(List.of(lot(STOCK_ID, new BigDecimal("100"))));
         when(inboundMapper.existsNullOriginByAccountAndProductAndSourceGeneralAccount(
                         ACCOUNT_ID, FOREIGN_PRODUCT_ID, SOURCE_ACCOUNT_ID))
