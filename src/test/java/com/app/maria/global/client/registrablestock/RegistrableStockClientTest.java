@@ -70,7 +70,7 @@ class RegistrableStockClientTest {
                 """,
                                 MediaType.APPLICATION_JSON));
 
-        List<RegistrableStockResponseDTO> result = client.findCustomerLots("test-ci");
+        List<RegistrableStockResponseDTO> result = client.findCustomerLots("test-ci", 1L);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getRegistrableStockId()).isEqualTo(777L);
@@ -89,7 +89,7 @@ class RegistrableStockClientTest {
                 .andRespond(
                         withSuccess(
                                 "{\"message\":\"조회 성공\",\"data\":[]}", MediaType.APPLICATION_JSON));
-        assertThat(client.findCustomerLots("test-ci")).isEmpty();
+        assertThat(client.findCustomerLots("test-ci", 1L)).isEmpty();
     }
 
     @ParameterizedTest
@@ -136,7 +136,7 @@ class RegistrableStockClientTest {
 
     private void assertLookupFailed() {
         // 고객 API의 503 응답 변환은 4단계에서 연결하고 현재 Client 계약은 유지한다.
-        assertThatThrownBy(() -> client.findCustomerLots("test-ci"))
+        assertThatThrownBy(() -> client.findCustomerLots("test-ci", 1L))
                 .isInstanceOfSatisfying(
                         AppException.class,
                         exception ->
