@@ -62,15 +62,18 @@ public class StockPackageServiceImpl implements StockPackageService {
     @Override
     public StockPackageResponseDTO create(Long customerId, StockPackageSaveRequestDTO request) {
         Optional<InvestorRiskRange> range = currentRange(customerId);
-        return tx.execute(status -> doCreate(customerId, request, range));
+        Map<Long, Integer> grades = confirmedGrades(request);
+        return tx.execute(status -> doCreate(customerId, request, range, grades));
     }
 
     private StockPackageResponseDTO doCreate(
             Long customerId,
             StockPackageSaveRequestDTO request,
-            Optional<InvestorRiskRange> range) {
+            Optional<InvestorRiskRange> range,
+            Map<Long, Integer> grades) {
         LocalDateTime now = businessClockService.now();
-        List<StockPackageItemVO> items = buildItems(request, range, Map.of(), Set.of(), now);
+        List<StockPackageItemVO> items =
+                buildItems(request, range, grades, Map.of(), Set.of(), now);
 
         StockPackageVO pkg =
                 StockPackageVO.builder()
@@ -101,14 +104,16 @@ public class StockPackageServiceImpl implements StockPackageService {
     public StockPackageResponseDTO update(
             Long customerId, Long stockPackageId, StockPackageSaveRequestDTO request) {
         Optional<InvestorRiskRange> range = currentRange(customerId);
-        return tx.execute(status -> doUpdate(customerId, stockPackageId, request, range));
+        Map<Long, Integer> grades = confirmedGrades(request);
+        return tx.execute(status -> doUpdate(customerId, stockPackageId, request, range, grades));
     }
 
     private StockPackageResponseDTO doUpdate(
             Long customerId,
             Long stockPackageId,
             StockPackageSaveRequestDTO request,
-            Optional<InvestorRiskRange> range) {
+            Optional<InvestorRiskRange> range,
+            Map<Long, Integer> grades) {
         StockPackageVO pkg = lockOwnPackage(customerId, stockPackageId);
         List<StockPackageItemVO> existing =
                 stockPackageMapper.selectItemsByPackageId(stockPackageId);
@@ -118,7 +123,8 @@ public class StockPackageServiceImpl implements StockPackageService {
                         .map(StockPackageItemVO::getDomesticProductId)
                         .collect(Collectors.toSet());
         LocalDateTime now = businessClockService.now();
-        List<StockPackageItemVO> items = buildItems(request, range, confirmedBefore, keptIds, now);
+        List<StockPackageItemVO> items =
+                buildItems(request, range, grades, confirmedBefore, keptIds, now);
 
         pkg.setName(request.name().trim());
         pkg.setTotalAmount(request.totalAmount());
@@ -170,6 +176,7 @@ public class StockPackageServiceImpl implements StockPackageService {
     private List<StockPackageItemVO> buildItems(
             StockPackageSaveRequestDTO request,
             Optional<InvestorRiskRange> profileRange,
+            Map<Long, Integer> grades,
             Map<Long, LocalDateTime> confirmedBefore,
             Set<Long> keptIds,
             LocalDateTime now) {
@@ -195,7 +202,6 @@ public class StockPackageServiceImpl implements StockPackageService {
         Map<Long, StockProductVO> products =
                 stockPackageMapper.selectProductsByIds(productIds).stream()
                         .collect(Collectors.toMap(StockProductVO::getDomesticProductId, p -> p));
-        Map<Long, Integer> grades = gradeByProduct(productIds);
 
         return requested.stream()
                 .map(item -> toItem(item, products, grades, range, confirmedBefore, keptIds, now))
@@ -273,6 +279,13 @@ public class StockPackageServiceImpl implements StockPackageService {
             return Optional.empty();
         }
         return InvestorRiskRange.of(status.getInvestorType());
+    }
+
+    /** 저장할 종목의 등급. 주식은 실시간으로 다시 확인해 KIS를 기다리므로, 패키지 행을 잠그는 트랜잭션에 들어가기 전에 부른다. */
+    private Map<Long, Integer> confirmedGrades(StockPackageSaveRequestDTO request) {
+        if (request.items().isEmpty()) return Map.of();
+        return riskGradeService.findConfirmedGrades(
+                request.items().stream().map(ItemRequest::domesticProductId).toList());
     }
 
     private Map<Long, Integer> gradeByProduct(java.util.Collection<Long> productIds) {

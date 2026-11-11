@@ -90,11 +90,13 @@ public class StockCandidateServiceImpl implements StockCandidateService {
                                         g -> g,
                                         (a, b) -> a));
 
+        // 주식·펀드 모두 저장값이라 위에서 읽은 행에서 바로 등급을 꺼낸다(findUsable을 두 번 읽지 않는다).
         Map<Long, Integer> classifications =
-                riskGradeService.findUsableGrades(
-                        products.stream()
-                                .map(StockCandidateProductVO::getDomesticProductId)
-                                .toList());
+                grades.values().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        UsableRiskGradeDTO::domesticProductId,
+                                        UsableRiskGradeDTO::riskGrade));
         List<StockCandidateProductVO> matched = new ArrayList<>();
         for (StockCandidateProductVO p : products) {
             if (!purchaseEligibilityService.isPurchasable(

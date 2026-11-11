@@ -61,11 +61,6 @@ class StockCandidateServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        org.mockito.Mockito.lenient()
-                .doCallRealMethod()
-                .when(riskGradeService)
-                .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
-        org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
         when(clock.now()).thenReturn(NOW);
         // 위험중립형(4등급까지)
         when(assessmentService.getMine(CUSTOMER_ID))
@@ -92,22 +87,6 @@ class StockCandidateServiceImplTest {
                         List.of(grade(1L, 5, "0.20"), grade(2L, 2, "0.45"), grade(3L, 4, "0.10")));
         when(stockPackageMapper.selectThemesByProductIds(anyList()))
                 .thenReturn(List.of(theme(1L, "반도체"), theme(1L, "배당"), theme(3L, "배당")));
-    }
-
-    @Test
-    void currentGradeRemainsSelectableWithoutExpiredVolatility() {
-        org.mockito.Mockito.doReturn(java.util.Map.of(4L, 2))
-                .when(riskGradeService)
-                .findUsableGrades();
-        var response = service.search(CUSTOMER_ID, request(true, null, null));
-        var row =
-                response.getItems().stream()
-                        .filter(r -> r.getTicker().equals("123456"))
-                        .findFirst()
-                        .orElseThrow();
-        assertThat(row.getRiskGrade()).isEqualTo(2);
-        assertThat(row.getVolatilityPercent()).isNull();
-        assertThat(row.isSelectable()).isTrue();
     }
 
     @Test

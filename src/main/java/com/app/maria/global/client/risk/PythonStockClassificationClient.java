@@ -27,7 +27,7 @@ public class PythonStockClassificationClient {
     public Classification fetch(String ticker) {
         String key = properties.getServiceKey();
         if (ticker == null
-                || !ticker.matches("[0-9]{6}")
+                || !ticker.matches("[0-9A-Z]{6}")
                 || key == null
                 || key.isBlank()
                 || key.indexOf('\r') >= 0

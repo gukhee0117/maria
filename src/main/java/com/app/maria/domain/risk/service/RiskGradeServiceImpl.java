@@ -100,34 +100,44 @@ public class RiskGradeServiceImpl implements RiskGradeService {
         return resolveGrades(Set.copyOf(productIds));
     }
 
-    private Map<Long, Integer> resolveGrades(Set<Long> requested) {
-        var products =
-                mapper.findProducts().stream()
-                        .filter(p -> requested == null || requested.contains(p.domesticProductId()))
-                        .toList();
-        var result = new HashMap<Long, Integer>();
-        if (products.stream().anyMatch(p -> p.type() == Type.FUND)) {
-            try {
-                for (var g : findUsable()) result.put(g.domesticProductId(), g.riskGrade());
-            } catch (AppException e) {
-                if (!e.getErrorType().name().startsWith("RISK_")) throw e;
-                log.warn("RISK_METRICS_UNAVAILABLE code={}", e.getErrorType().name());
-            }
+    /**
+     * 패키지 저장용. 저장값은 마지막 배치 시점 기준이라 그 뒤에 투자경고로 지정된 주식을 놓칠 수 있으므로, 담는 주식만 실시간 상태로 다시 확인한다. 실시간 확인에
+     * 실패한 주식은 저장값으로 대신하지 않고 등급 없음으로 둔다(새로 담기는 거부된다).
+     */
+    @Override
+    public Map<Long, Integer> findConfirmedGrades(Collection<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) return Map.of();
+        var result = new HashMap<>(resolveGrades(Set.copyOf(productIds)));
+        for (var p : mapper.findProductsByIds(Set.copyOf(productIds))) {
+            if (p.type() != Type.STOCK) continue;
+            result.remove(p.domesticProductId());
+            currentStock(p).ifPresent(g -> result.put(g.domesticProductId(), g.riskGrade()));
         }
-        for (var p : products) {
-            if (p.type() == Type.STOCK) {
-                result.remove(p.domesticProductId());
-                currentStock(p).ifPresent(g -> result.put(g.domesticProductId(), g.riskGrade()));
-            } else if (p.type() != Type.FUND) {
-                result.remove(p.domesticProductId());
+        return Map.copyOf(result);
+    }
+
+    /**
+     * 목록·패키지 화면용. 주식도 펀드처럼 risk 배치가 저장한 등급을 읽는다(주식은 마지막 배치 때 본 투자경고·관리종목 여부). 요청마다 KIS로 주식을 하나씩
+     * 조회하면 후보 수백 개가 쌓여 수십 초~수 분이 걸렸다. 실시간 판정은 단건 조회({@link #findClassificationByTicker})와 패키지
+     * 저장({@link #findConfirmedGrades})만 한다.
+     */
+    private Map<Long, Integer> resolveGrades(Set<Long> requested) {
+        var result = new HashMap<Long, Integer>();
+        try {
+            for (var g : findUsable()) {
+                if (requested == null || requested.contains(g.domesticProductId()))
+                    result.put(g.domesticProductId(), g.riskGrade());
             }
+        } catch (AppException e) {
+            if (!e.getErrorType().name().startsWith("RISK_")) throw e;
+            log.warn("RISK_METRICS_UNAVAILABLE code={}", e.getErrorType().name());
         }
         return Map.copyOf(result);
     }
 
     @Override
     public Optional<RiskGradeClassificationDTO> findClassificationByTicker(String ticker) {
-        if (ticker == null || !ticker.matches("[0-9]{6}")) return Optional.empty();
+        if (ticker == null || !ticker.matches("[0-9A-Z]{6}")) return Optional.empty();
         var product = mapper.findProductByTicker(ticker);
         if (product == null) return Optional.empty();
         if (product.type() == Type.STOCK) return currentStock(product);

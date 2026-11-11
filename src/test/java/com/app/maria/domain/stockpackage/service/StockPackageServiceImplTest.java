@@ -65,6 +65,10 @@ class StockPackageServiceImplTest {
                 .when(riskGradeService)
                 .findUsableGrades(org.mockito.ArgumentMatchers.anyCollection());
         org.mockito.Mockito.doCallRealMethod().when(riskGradeService).findUsableGrades();
+        org.mockito.Mockito.lenient()
+                .doCallRealMethod()
+                .when(riskGradeService)
+                .findConfirmedGrades(org.mockito.ArgumentMatchers.anyCollection());
         when(clock.now()).thenReturn(NOW);
         // 기본: 중립형(4등급까지), 유효한 진단, 종목 1(5등급)과 2(2등급), 모두 구매 가능
         when(assessmentService.getMine(CUSTOMER_ID)).thenReturn(assessed(InvestorType.NEUTRAL));
@@ -144,6 +148,18 @@ class StockPackageServiceImplTest {
         ArgumentCaptor<List<StockPackageItemVO>> captor = ArgumentCaptor.forClass(List.class);
         verify(mapper).insertItems(eq(PACKAGE_ID), captor.capture());
         assertThat(captor.getValue().get(0).getUnsuitableConfirmedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    @DisplayName("저장할 때는 목록용 저장값이 아니라 확정용 등급(주식 실시간 재확인)으로 성향을 판단한다")
+    void saveUsesConfirmedGradesNotStoredListGrades() {
+        // 저장값은 5등급(성향 안)이지만 배치 뒤에 투자경고로 지정돼 실시간은 1등급
+        org.mockito.Mockito.doReturn(java.util.Map.of(1L, 1))
+                .when(riskGradeService)
+                .findConfirmedGrades(org.mockito.ArgumentMatchers.anyCollection());
+
+        assertError(
+                request(item(1L, "100", false)), ErrorType.STOCK_PACKAGE_UNSUITABLE_NOT_CONFIRMED);
     }
 
     @Test
