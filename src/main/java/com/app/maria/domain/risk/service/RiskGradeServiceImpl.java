@@ -127,7 +127,7 @@ public class RiskGradeServiceImpl implements RiskGradeService {
 
     @Override
     public Optional<RiskGradeClassificationDTO> findClassificationByTicker(String ticker) {
-        if (ticker == null || !ticker.matches("[0-9]{6}")) return Optional.empty();
+        if (ticker == null || !ticker.matches("[0-9A-Z]{6}")) return Optional.empty();
         var product = mapper.findProductByTicker(ticker);
         if (product == null) return Optional.empty();
         if (product.type() == Type.STOCK) return currentStock(product);

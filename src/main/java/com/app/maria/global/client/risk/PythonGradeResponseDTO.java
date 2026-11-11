@@ -17,7 +17,7 @@ public record PythonGradeResponseDTO(
         Long analysisVersion) {
     public void validate() {
         if (ticker == null
-                || !ticker.matches("[0-9]{6}")
+                || !ticker.matches("[0-9A-Z]{6}")
                 || !number(var975)
                 || !number(volatility)
                 || riskGrade == null
