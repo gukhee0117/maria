@@ -27,15 +27,14 @@ public class StockRecommendationApi {
     @GetMapping
     @Operation(
             summary =
-                    "오늘의 종목 추천. filter(ALL·STOCK·FUND, 기본 ALL)와 limit(1~12, 기본 3)로 고르고, basis는 SURVEY(설문 투자성향, 기본) 또는 TRADING(거래에서 본 경향)이다. 기준을 쓸 수 없으면(진단 없음·거래 부족) 빈 목록이고 basisAvailable=false다")
+                    "오늘의 종목 추천. filter(ALL·STOCK·FUND, 기본 ALL)와 limit(1~12, 기본 3)로 고른다. 설문 투자성향 진단이 없거나 만료되면 빈 목록이고 profileAvailable=false다")
     public ApiResponseDTO<StockRecommendationResponseDTO> recommend(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             @RequestParam(defaultValue = "ALL") String filter,
-            @RequestParam(defaultValue = "3") int limit,
-            @RequestParam(defaultValue = "SURVEY") String basis) {
+            @RequestParam(defaultValue = "3") int limit) {
         return ApiResponseDTO.of(
                 "추천 조회 성공",
-                stockRecommendationService.recommend(principal.customerId(), filter, limit, basis));
+                stockRecommendationService.recommend(principal.customerId(), filter, limit));
     }
 
     @PostMapping("/ask")
