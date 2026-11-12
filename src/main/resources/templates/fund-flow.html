@@ -133,7 +133,7 @@
             </div>
         </section>
         <div class="ff-act-title" id="ffActResult">결과</div>
-        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span> <span id="ffConclRetention" data-concl="retentionAll"></span></p>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -199,6 +199,25 @@
             <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             <ul class="ff-notes"><li id="ffSubTop10Desc"></li></ul>
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+        </div>
+        <!-- 결과: 확정 후 경과일별 원금 유지 비율(retention 응답, 출시 이후 고정). 위험집합이 5건 미만인 구간은 그리지 않는다 -->
+        <div id="ffSubRetention">
+            <div class="ff-sub-title">확정 후 경과일별 원금 유지 비율</div>
+            <div class="adm-summary ff-kpi" id="ffRetSummary">
+                <div class="adm-summary-item" id="ffRetLots">
+                    <span class="adm-summary-label">관찰한 확정 환전 건</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">건</span>
+                </div>
+                <div class="adm-summary-item" id="ffRetEvents">
+                    <span class="adm-summary-label">1년이 지나기 전 원금 인출이 있었던 건</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">건</span>
+                </div>
+            </div>
+            <div class="ff-chart ff-chart-canvas" id="ffRetBox" hidden><canvas id="ffRetChart" role="img" aria-label=""></canvas></div>
+            <ul class="ff-notes"><li id="ffRetFacts" hidden></li></ul>
+            <div class="ff-bar-item" id="ffRetCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <div class="ff-act-title" id="ffActOutlook">전망</div>
         <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span> <span id="ffConclScen" data-concl="maturity"></span></p>
@@ -275,6 +294,7 @@
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>순투자율</b><span>(국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 복귀 금액이에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>조기 인출 비율</b><span>분모는 확정된 환전이 있는 계좌 수(계좌 기준)와 확정 원금 합계(금액 기준), 분자는 1년이 지나기 전 원금이 인출된 계좌 수와 인출액이에요(해지 계좌 포함).</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>원인별 구분</b><span>1년이 지나기 전 원금 인출을 완료된 해지 요청에 연결된 인출과 그 밖의 인출로 나눠요. 한 계좌가 두 원인에 걸칠 수 있어요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>경과일별 원금 유지 비율</b><span>분자는 확정 후 그 경과일까지 1년이 지나기 전 원금 인출이 없는 환전 건, 분모는 그 경과일 이상 관찰된 환전 건(위험집합)이에요. 출시 이후 누적이고 95% 구간은 계좌 단위 부트스트랩이며, 위험집합이 5건 미만인 구간은 표시하지 않아요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>1년 유지 중인 잔액 · 만기월</b><span>혜택이 유지 중인 계좌 중 확정 후 1년이 지나지 않은 잔액 합계와, 확정일 + 1년이 속한 달(만기월)이에요. 해지 계좌는 제외해요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>시나리오(50·70·90% 가정)</b><span>1년 유지 중인 잔액 합계의 50%, 70%, 90%가 만기 후 계좌에 남는다고 가정해 계산한 값이에요. 예측값이 아니에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>예상 감면액(잠정) · 감면 비율</b><span>예상 감면액은 일반 과세 세액 − 최종 세액의 합계(잠정 정의의 예상값)이고, 감면 비율은 예상 감면액 ÷ 일반 과세 세액 합계예요.</span></div>

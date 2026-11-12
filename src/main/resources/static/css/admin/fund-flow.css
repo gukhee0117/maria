@@ -1124,7 +1124,8 @@
     color: var(--adm-text);
 }
 
-.fund-flow [data-ff-view="submit"] #ffMatChartBox {
+.fund-flow [data-ff-view="submit"] #ffMatChartBox,
+.fund-flow [data-ff-view="submit"] #ffRetBox {
     height: 180px;
     margin: 4px 0 8px;
     overflow: hidden;
