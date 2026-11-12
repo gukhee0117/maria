@@ -211,6 +211,14 @@ $(function () {
     }
 
     // 제출용 조기 인출 결과: 원인별은 계좌 수만 보이고, 5 미만이면 "5건 미만". 금액은 전체만 한 줄 설명에 쓴다
+    // 로딩 시작과 실패 때 이전 값이 남지 않게 큰 숫자 외의 부분을 비운다
+    function clearEarly() {
+        $("#ffEarlyDesc").text("");
+        $("#ffEarlyCause tbody").empty();
+        $("#ffEarlyCause, #ffEarlyCauseNote").prop("hidden", true);
+        $("#ffEarlyCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
     function renderEarlyWithdrawal() {
         var d = state.earlyWithdrawal;
         summarySet("ffEarlyAcct", d.accountShare == null ? "-" : (d.accountShare * 100).toFixed(1), "분모는 확정된 환전이 있는 계좌 수(해지 포함), 분자는 그중 1년이 지나기 전 원금이 인출된 계좌 수예요.");
@@ -1659,6 +1667,7 @@ $(function () {
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
         if (api === "maturity") clearMaturity();
+        if (api === "earlyWithdrawal") clearEarly();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -1699,6 +1708,7 @@ $(function () {
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             if (api === "maturity") clearMaturity();
+            if (api === "earlyWithdrawal") clearEarly();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
         });
