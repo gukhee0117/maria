@@ -133,7 +133,7 @@
             </div>
         </section>
         <div class="ff-act-title" id="ffActResult">결과</div>
-        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span> <span id="ffConclRetention" data-concl="retentionAll"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span> <span id="ffConclReliefVs" data-concl="overviewAll relief"></span> <span id="ffConclRetention" data-concl="retentionAll"></span></p>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -200,6 +200,8 @@
             <ul class="ff-notes"><li id="ffSubTop10Desc"></li></ul>
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
+        <!-- 결과: 복귀 확정액과 감면 예상액을 나란히 두고 비율만 적는다(프론트 나눗셈). 효율·인과를 말하지 않는다 -->
+        <ul class="ff-notes"><li id="ffReliefVs" data-concl="overviewAll relief"></li></ul>
         <!-- 결과: 확정 후 경과일별 원금 유지 비율(retention 응답, 출시 이후 고정). 위험집합이 5건 미만인 구간은 그리지 않는다 -->
         <div id="ffSubRetention">
             <div class="ff-sub-title">확정 후 경과일별 원금 유지 비율</div>
@@ -298,6 +300,7 @@
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>1년 유지 중인 잔액 · 만기월</b><span>혜택이 유지 중인 계좌 중 확정 후 1년이 지나지 않은 잔액 합계와, 확정일 + 1년이 속한 달(만기월)이에요. 해지 계좌는 제외해요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>시나리오(50·70·90% 가정)</b><span>1년 유지 중인 잔액 합계의 50%, 70%, 90%가 만기 후 계좌에 남는다고 가정해 계산한 값이에요. 예측값이 아니에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>예상 감면액(잠정) · 감면 비율</b><span>예상 감면액은 일반 과세 세액 − 최종 세액의 합계(잠정 정의의 예상값)이고, 감면 비율은 예상 감면액 ÷ 일반 과세 세액 합계예요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>복귀 확정액 대비 감면 예상액</b><span>분자는 감면 예상액(세액 스냅샷의 감면액 합계, 잠정 정의의 예상값), 분모는 출시 이후 확정된 원화 유입 합계(복귀 확정액)예요. 두 값의 대상이 달라서(분자는 세액 스냅샷의 감면 대상 계좌, 분모는 해지 계좌를 포함한 전체 개설 계좌) 비율은 서술용 참고 값이에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>상위 10% 점유율</b><span>감면액이 있는 계좌 중 감면액이 큰 상위 10% 계좌의 감면액 합 ÷ 감면액 합계예요(감면액이 있는 계좌가 50개 이상일 때만 표시해요).</span></div>
             </div>
             <div class="ff-sub-title">한계</div>

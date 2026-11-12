@@ -1745,6 +1745,24 @@ $(function () {
         return "확정 후 " + last.day + "일까지 관찰된 건 중 1년이 지나기 전 원금 인출이 없는 비율은 " + pct1(Number(last.lower)) + "~" + pct1(Number(last.upper)) + "(95% 구간)예요.";
     }
 
+    // 복귀 확정액(overviewAll)과 감면 예상액(relief)을 나란히 두고 비율만 쓴다. 효율·인과를 말하지 않는다
+    function reliefVs(o, r) {
+        if (!o || !r || o.inflowTotal == null || r.reliefTotal == null || !(num(o.inflowTotal) > 0)) return null;
+        return { inflow: num(o.inflowTotal), relief: num(r.reliefTotal), ratio: num(r.reliefTotal) / num(o.inflowTotal) };
+    }
+
+    function conclReliefVs(o, r) {
+        var v = reliefVs(o, r);
+        if (!v) return "";
+        return "복귀 확정액은 " + krwShort(v.inflow) + "원, 감면 예상액은 " + krwShort(v.relief) + "원(잠정 정의)이고, 감면 예상액은 복귀 확정액의 " + pct1(v.ratio) + "예요.";
+    }
+
+    function lineReliefVs(o, r) {
+        var v = reliefVs(o, r);
+        if (!v) return "";
+        return "복귀 확정액 " + krwShort(v.inflow) + "원 · 감면 예상액 " + krwShort(v.relief) + "원(잠정) · 감면 예상액 ÷ 복귀 확정액 = " + pct1(v.ratio);
+    }
+
     function conclScen(d) {
         if (!d || !(Number(d.lockedAmount) > 0)) return "";
         return "만기 후 계좌에 남는 금액은 " + [50, 70, 90].join("%, ") + "%를 가정해 계산한 값이며 예측값이 아니에요.";
@@ -1777,6 +1795,8 @@ $(function () {
         setConcl("ffConclEarly", conclEarly(state.earlyWithdrawal));
         setConcl("ffConclRelief", conclRelief(state.relief));
         setConcl("ffConclTop10", conclTop10(state.concentration));
+        setConcl("ffConclReliefVs", conclReliefVs(state.overviewAll, state.relief));
+        setConcl("ffReliefVs", lineReliefVs(state.overviewAll, state.relief));
         setConcl("ffConclRetention", conclRetention(state.retentionAll));
         updateConclBoxes();
     };
