@@ -82,6 +82,47 @@
 
     <!-- 제출용 보기 영역: 핵심 3칸은 기간 토글과 무관하게 출시 이후 누적(overviewAll). 나머지는 준비 중. 기본은 숨김 -->
     <div class="ff-view" data-ff-view="submit" hidden>
+        <!-- 제출용 전체 래퍼: ResizeObserver 는 이 하나에만 붙인다. 막 제목(과정·결과·전망)은 8단계에서 표지와 함께 다듬는다 -->
+        <div id="ffSubBody">
+        <div class="ff-sub-title" id="ffActProcess">과정</div>
+        <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
+        <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
+            <div class="adm-card-head">
+                <span class="adm-card-title">자금 흐름 경로 <span class="adm-card-sub">해외 매도 → 확정 원화 → 국내 매수 · 예수금 · 인출</span></span>
+            </div>
+            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+            <div class="ff-state ff-state-error"></div>
+            <div class="ff-state ff-state-empty"></div>
+            <div class="ff-body">
+                <div class="ff-chart" id="ffSubSankey"></div>
+                <div class="ff-bar-item" id="ffSubFlowCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            </div>
+        </section>
+        <section class="adm-card ff-card" id="ffSubPanelMonthly" data-state="loading">
+            <div class="adm-card-head">
+                <span class="adm-card-title">월별 유입 · 국내 매수와 재투자율</span>
+            </div>
+            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+            <div class="ff-state ff-state-error"></div>
+            <div class="ff-state ff-state-empty"></div>
+            <div class="ff-body">
+                <div class="ff-chart ff-chart-canvas"><canvas id="ffSubMonthlyChart" aria-label="월별 확정 원화 유입, 국내 매수, 재투자율"></canvas></div>
+                <div class="ff-bar-item" id="ffSubMonthlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            </div>
+        </section>
+        <section class="adm-card ff-card" id="ffSubPanelLeak" data-state="loading">
+            <div class="adm-card-head">
+                <span class="adm-card-title">혜택 누수 <span class="adm-card-sub">5분류 · 전체 계좌 기준</span></span>
+            </div>
+            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+            <div class="ff-state ff-state-error"></div>
+            <div class="ff-state ff-state-empty"></div>
+            <div class="ff-body">
+                <div class="ff-leak" id="ffSubLeakRows"></div>
+                <div class="ff-bar-item" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            </div>
+        </section>
+        <div class="ff-sub-title" id="ffActResult">결과</div>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -122,6 +163,7 @@
             <div class="ff-bar-item" id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</div>
             <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
+        <div class="ff-sub-title" id="ffActOutlook">전망</div>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">
             <div class="adm-summary" id="ffMatSummary">
@@ -148,6 +190,7 @@
             <div class="ff-bar-item" id="ffMatNote" hidden></div>
             <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
+        </div>
         </div>
         <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
     </div>

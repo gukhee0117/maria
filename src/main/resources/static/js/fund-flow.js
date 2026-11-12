@@ -9,6 +9,7 @@ $(function () {
     var state = {};          // API 이름 → 응답 data
     var chart = null;        // ③ Chart.js 인스턴스
     var matChart = null;     // 제출용 만기 도래 막대 Chart.js 인스턴스
+    var subMonthlyChart = null; // 제출용 월별 차트 Chart.js 인스턴스
     var matGroups = [];      // 제출용 만기 도래 막대 데이터(5 미만 월을 합친 결과)
     var segMetric = "reinvestRatio";
     var period = "ALL";      // 조회 기간: MONTH(이번 달) · QUARTER(분기) · ALL(출시 이후 누적)
@@ -27,6 +28,7 @@ $(function () {
 
     var API = {
         overview: { url: "/api/admin/fund-flow/overview", period: true },
+        monthlyAll: { url: "/api/admin/fund-flow/monthly?period=ALL" },         // 제출용 과정 막: 기간 토글과 무관하게 출시 이후 누적
         overviewAll: { url: "/api/admin/fund-flow/overview?period=ALL" },       // 제출용 3칸: 기간 토글과 무관하게 출시 이후 누적
         funnel: { url: "/api/admin/fund-flow/funnel", period: true },
         monthly: { url: "/api/admin/fund-flow/monthly", period: true },
@@ -327,6 +329,52 @@ $(function () {
         if (view === "submit") drawMatChart();
     }
 
+    // 제출용 과정 막: 자금 흐름 경로 · 월별 차트는 monthlyAll(출시 이후 고정)만 쓴다. 기간 토글의 state.monthly 는 쓰지 않는다
+    function renderSubProcess() {
+        var d = state.monthlyAll || {};
+        if (!(d.months || []).length) {
+            showPanelEmpty($("#ffSubPanelFlow"));
+            showPanelEmpty($("#ffSubPanelMonthly"));
+            return;
+        }
+        var cap = "리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-");
+        $("#ffSubFlowCaption, #ffSubMonthlyCaption").text(cap);
+        setPanel($("#ffSubPanelFlow"), "ready");
+        setPanel($("#ffSubPanelMonthly"), "ready");
+        if (view === "submit") drawSubProcess();
+    }
+
+    // 제출용이 보일 때만 그린다(숨겨진 동안은 크기 0)
+    function drawSubProcess() {
+        if (subMonthlyChart) { subMonthlyChart.destroy(); subMonthlyChart = null; }
+        var months = (state.monthlyAll && state.monthlyAll.months) || [];
+        if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
+        if (!buildSankey($("#ffSubSankey"), $("<ul>"), undefined, months)) showPanelEmpty($("#ffSubPanelFlow"));
+        if (window.Chart) subMonthlyChart = buildMonthlyChart(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
+    }
+
+    // 제출용 혜택 누수 축약판: 5분류를 각각 한 줄로(합치지 않는다). 계좌 수가 5 미만이면 수와 비중을 "5건 미만"으로 가린다
+    function renderSubLeakage() {
+        var d = state.leakage || {};
+        var $card = $("#ffSubPanelLeak");
+        var cats = LEAK_ORDER.map(function (code) {
+            return (d.categories || []).filter(function (c) { return c.code === code; })[0];
+        }).filter(Boolean);
+        var total = cats.reduce(function (s, c) { return s + num(c.accounts); }, 0);
+        if (!cats.length || !total) { showPanelEmpty($card); return; }
+        var cols = ' style="grid-template-columns:minmax(0,1.7fr) repeat(2,minmax(0,1fr))"';
+        var rows = '<div class="ff-leak-row is-head"' + cols + '><span>분류</span><span class="is-r">계좌 수</span><span class="is-r">전체 비중</span></div>';
+        cats.forEach(function (c) {
+            var small = num(c.accounts) < 5;
+            rows += '<div class="ff-leak-row"' + cols + '><span class="ff-leak-name"><i style="background:var(' + LEAK_COLOR[c.code] + ')"></i>' + esc(c.label || MARIA.status.leakageLabel(c.code)) + '</span>' +
+                '<span class="is-r">' + (small ? "5건 미만" : KRW.format(num(c.accounts))) + '</span>' +
+                '<span class="is-r">' + (small ? "-" : (c.share == null ? pct1(num(c.accounts) / total) : pct1(Number(c.share)))) + '</span></div>';
+        });
+        $("#ffSubLeakRows").html(rows);
+        $("#ffSubLeakCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        setPanel($card, "ready");
+    }
+
     function renderReliefSummary() {
         var d = state.relief;
         summarySet("ffSumRelief", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계 (예상값) · 기간과 무관한 기준일 스냅샷");
@@ -433,8 +481,8 @@ $(function () {
 
     /* ---------- ② 자금 흐름 경로 (Sankey) ---------- */
     // host 안에 그린다. width 를 주면 그 폭으로(PDF), 없으면 host 의 실제 폭으로 그린다. 그릴 게 없으면 false.
-    function buildSankey($host, $notes, width) {
-        var months = monthsOf();
+    function buildSankey($host, $notes, width, months) {
+        months = months || monthsOf(); // 제출용은 monthlyAll 의 months 를 넘긴다. 기존 호출은 3개 인자라 기본값(monthsOf)을 쓴다
         $host.empty();
         $notes.empty();
         var t = totals(months);
@@ -630,8 +678,8 @@ $(function () {
     };
 
     // varFn: 색 변수를 읽는 함수(화면 = 현재 테마, PDF = 라이트). responsive 를 끄면 canvas 크기 그대로 한 번만 그린다.
-    function buildMonthlyChart(canvas, varFn, responsive) {
-        var months = monthsOf();
+    function buildMonthlyChart(canvas, varFn, responsive, months) {
+        months = months || monthsOf(); // 제출용은 monthlyAll 의 months 를 넘긴다. 기존 호출은 3개 인자라 기본값(monthsOf)을 쓴다
         var font = getComputedStyle(document.body).fontFamily;
         var sub = varFn("--adm-sub");
         var cInflow = varFn("--adm-chart-bar");
@@ -1628,7 +1676,8 @@ $(function () {
     var PANELS_OF = {
         monthly: ["#ffPanelSankey", "#ffPanelMonthly", "#ffPanelBridge"],
         funnel: ["#ffPanelFunnel"],
-        leakage: ["#ffPanelLeakage"],
+        monthlyAll: ["#ffSubPanelFlow", "#ffSubPanelMonthly"],
+        leakage: ["#ffPanelLeakage", "#ffSubPanelLeak"],
         relief: ["#ffPanelRelief"],
         allocation: ["#ffPanelAllocation"],
         segments: ["#ffPanelSegments"],
@@ -1643,7 +1692,7 @@ $(function () {
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1682,12 +1731,15 @@ $(function () {
                 renderEarlyWithdrawal();
             } else if (api === "maturity") {
                 renderMaturity();
+            } else if (api === "monthlyAll") {
+                renderSubProcess();
             } else if (api === "relief") {
                 renderReliefSummary();
                 renderRelief();
             } else if (api === "leakage") {
                 renderLeakageSummary();
                 renderLeakage();
+                renderSubLeakage();
             } else if (api === "monthly") {
                 renderMonthlyPanels();
             } else if (api === "funnel") {
@@ -1765,6 +1817,7 @@ $(function () {
             // 보기별로 보이는 쪽만 다시 그린다(숨겨진 동안은 크기 0)
             if (view === "submit") {
                 if (state.maturity && matGroups.length) drawMatChart();
+                drawSubProcess();
                 return;
             }
             if (view !== "ops") return;
@@ -1779,9 +1832,9 @@ $(function () {
     $(window).on("resize", redraw);
     if (window.ResizeObserver) {
         new ResizeObserver(redraw).observe(document.querySelector(".ff-scroll"));
-        // 제출용: 한 번만 연결한다(보기 전환 때 해제·재연결하지 않아 중복이 생기지 않는다). display: contents 인 ff-view 는 크기가 없어 안쪽 블록을 본다
-        var subBlock = document.getElementById("ffSubMaturity");
-        if (subBlock) new ResizeObserver(redraw).observe(subBlock);
+        // 제출용: 전체 래퍼 하나에만 한 번 연결한다(보기 전환 때 해제·재연결하지 않아 중복이 생기지 않는다). display: contents 인 ff-view 는 크기가 없어 안쪽 래퍼를 본다
+        var subBody = document.getElementById("ffSubBody");
+        if (subBody) new ResizeObserver(redraw).observe(subBody);
     }
     if (window.MutationObserver) {
         new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
