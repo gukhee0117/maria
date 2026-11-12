@@ -230,6 +230,31 @@ class FundFlowEarlyWithdrawalMapperTest {
     }
 
     @Test
+    @DisplayName("불변식 ④: retention 의 사건이 된 건의 계좌 = /early-withdrawal 분자의 계좌(둘 다 완료 인출만 센다)")
+    void invariantRetentionEventAccountsMatchEarlyAccounts() throws SQLException {
+        seedMixed();
+
+        FundFlowEarlyWithdrawalSummaryRowDTO summary =
+                fundFlowMapper.selectEarlyWithdrawalSummary(CLOCK_DATE);
+        long retentionEventAccounts =
+                fundFlowMapper
+                        .selectRetentionLots(
+                                FundFlowFilterDTO.builder()
+                                        .asOfDate(CLOCK_DATE.minusDays(1))
+                                        .clockDate(CLOCK_DATE)
+                                        .build())
+                        .stream()
+                        .filter(lot -> Boolean.TRUE.equals(lot.getEvent()))
+                        .map(lot -> lot.getAccountId())
+                        .distinct()
+                        .count();
+
+        // 계좌 2 는 취소·실패 인출만 있어 둘 다 세지 않는다. 사건 계좌는 1·3·4
+        assertThat(retentionEventAccounts).isEqualTo(summary.getEarlyAccounts());
+        assertThat(retentionEventAccounts).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("불변식 ③: earlyAccounts <= finalizedAccounts")
     void invariantEarlyAccountsNotMoreThanFinalizedAccounts() throws SQLException {
         seedMixed();

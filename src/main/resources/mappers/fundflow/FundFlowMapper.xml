@@ -305,6 +305,7 @@
         LEFT JOIN (
         SELECT l.exchange_id, MIN(a.withdrawal_at) AS event_at
         FROM withdrawal_allocation a
+        JOIN withdrawal w ON w.withdrawal_id = a.withdrawal_id AND w.status = 'COMPLETED'
         JOIN left_amount l ON l.left_amount_id = a.left_amount_id
         WHERE a.type = 'IMMATURE_PRINCIPAL_INCLUDED' AND a.withdrawal_at &lt; #{clockDate}
         GROUP BY l.exchange_id

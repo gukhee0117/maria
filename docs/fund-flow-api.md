@@ -216,7 +216,7 @@
 
 ### 2-9. `GET /api/admin/fund-flow/retention` — 원금 유지 (Kaplan–Meier)
 
-쿼리: `period`(기간 = 그 기간에 환전이 **확정된** 건의 코호트). 단위는 확정된 환전 건(`krw_exchange` FINALIZED), 시작 = `final_at`, 사건 = 그 건의 `IMMATURE_PRINCIPAL_INCLUDED` 인출, 사건이 없으면 업무시계 날짜에서 중도절단.
+쿼리: `period`(기간 = 그 기간에 환전이 **확정된** 건의 코호트). 단위는 확정된 환전 건(`krw_exchange` FINALIZED), 시작 = `final_at`, 사건 = 그 건의 `IMMATURE_PRINCIPAL_INCLUDED` 배분이 있는 **완료(`withdrawal.status = 'COMPLETED'`) 인출**(취소·실패·요청 중 인출의 배분은 사건으로 세지 않는다. `/early-withdrawal` 분자와 같은 기준), 사건이 없으면 업무시계 날짜에서 중도절단.
 
 ```json
 "data": {
