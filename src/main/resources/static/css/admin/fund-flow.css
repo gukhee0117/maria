@@ -997,12 +997,12 @@
 
 /* ---- 제출용 보기 (운영 상세와 같은 밀도. 제출용 영역에만 적용하고 운영 상세에는 쓰지 않는다) ---- */
 .fund-flow [data-ff-view="submit"] .ff-cover {
-    padding: 8px 0 10px;
+    padding: 2px 0 6px;
     border-bottom: 1px solid var(--adm-line);
 }
 
 .fund-flow [data-ff-view="submit"] .ff-cover-title {
-    margin: 0 0 6px;
+    margin: 0 0 4px;
     font-size: 22px;
     font-weight: 700;
     line-height: 1.25;
@@ -1014,6 +1014,7 @@
     grid-template-columns: max-content minmax(0, 1fr);
     gap: 2px 12px;
     margin: 0;
+    line-height: 1.4;
 }
 
 .fund-flow [data-ff-view="submit"] .ff-cover-meta > div {
@@ -1036,13 +1037,17 @@
 
 .fund-flow [data-ff-view="submit"] .ff-cover-notice {
     display: inline-block;
-    margin-top: 8px;
+    margin-top: 6px;
     padding: 1px 6px;
     border: 1px solid var(--adm-bd2);
     background: var(--adm-qbox);
     font-size: 11px;
     font-weight: 700;
     color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .ff-cover + .ff-act-title {
+    margin-top: 12px;
 }
 
 .fund-flow [data-ff-view="submit"] .ff-act-title {
