@@ -9,11 +9,7 @@ public enum CheckMetric {
     TOP_ITEM("가장 큰 종목"),
     THEME("테마"),
     SECTOR("업종"),
-    SURVEY_PROFILE("설문 투자성향"),
-    TRADING_GRADE("거래에서 본 위험등급"),
-    TRADING_CONCENTRATION("거래에서 본 업종·테마"),
-    TRADING_ACTIVITY("거래 빈도"),
-    COMPARISON("두 결과의 차이");
+    SURVEY_PROFILE("설문 투자성향");
 
     private final String title;
 

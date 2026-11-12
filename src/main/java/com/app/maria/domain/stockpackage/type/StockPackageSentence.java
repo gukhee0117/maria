@@ -68,29 +68,6 @@ public enum StockPackageSentence {
     SURVEY_FACT("내 설문 투자성향은 {type}이고, 허용하는 가장 높은 위험은 {minGrade}등급이에요."),
     SURVEY_FACT_UNKNOWN("투자성향 진단이 없거나 만료되어 설문 투자성향은 확인할 수 없어요."),
 
-    // ───── 거래에서 본 경향 ─────
-    TRADING_DEFINITION("거래에서 본 경향은 RIA 계좌에서 체결된 국내 주식·펀드 주문으로 계산한 참고 정보예요. 공식 투자성향이 아니에요."),
-    TRADING_FACT_INSUFFICIENT("체결된 매수가 {minBuy}건보다 적어 거래에서 본 경향은 확인할 수 없어요."),
-    TRADING_GRADE_FACT("체결된 매수 금액 기준으로 위험등급 가중평균은 {tradeAvg}등급이에요."),
-    TRADING_GRADE_DISTRIBUTION("매수 금액을 등급별로 나누면 {distribution}예요."),
-    TRADING_GRADE_FACT_NONE("위험등급이 있는 종목의 매수가 없어 위험등급은 계산할 수 없어요."),
-    TRADING_CONCENTRATION_DEFINITION("업종과 테마는 매수 금액이 어디에 몰렸는지 보여주는 분류예요. 펀드는 업종이 없어 제외해요."),
-    TRADING_SECTOR_FACT("매수 금액이 가장 큰 업종은 {sector}로 전체의 {share}%예요."),
-    TRADING_THEME_FACT(
-            "매수 금액이 가장 큰 테마는 {theme}로 전체의 {share}%예요. 한 종목이 여러 테마에 속할 수 있어 테마별 합은 100%를 넘을 수 있어요."),
-    TRADING_ACTIVITY_DEFINITION("거래 빈도는 체결된 주문 수로 계산해요. 매도 비율은 체결된 주문 중 매도의 비율이에요."),
-    TRADING_ACTIVITY_FACT(
-            "체결된 주문은 모두 {orderCount}건이고 월 평균 {perMonth}건이에요. 이 중 매도는 {sellRatio}%예요."),
-
-    // ───── 두 결과의 차이 ─────
-    COMPARISON_DEFINITION("설문 투자성향과 거래에서 본 경향을 같은 위험등급 기준으로 놓고 차이를 사실로만 보여줘요."),
-    COMPARISON_RANGE_FACT(
-            "설문 투자성향이 허용하는 가장 높은 위험은 {minGrade}등급이고, 실제 매수의 위험등급 가중평균은 {tradeAvg}등급이에요."),
-    COMPARISON_IN("실제 매수의 가중평균은 설문 투자성향 범위 안에 있어요."),
-    COMPARISON_OUT("실제 매수의 가중평균은 설문 투자성향 범위를 벗어나 있어요."),
-    COMPARISON_OUT_SHARE("설문 투자성향 범위를 벗어난 등급의 종목에 쓴 매수 금액은 전체의 {share}%예요."),
-    COMPARISON_UNAVAILABLE("설문 투자성향이나 거래에서 본 경향 중 한쪽을 확인할 수 없어 비교하지 않아요."),
-
     // ───── 후보 보기 ─────
     CANDIDATE_COUNT("조건에 맞는 상품은 모두 {count}개예요."),
     CANDIDATE_COUNT_TRUNCATED("조건에 맞는 상품은 모두 {count}개이고, 앞의 {shown}개만 보여줘요."),
