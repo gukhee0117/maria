@@ -164,12 +164,12 @@
                     <span class="adm-summary-unit">%</span>
                 </div>
             </div>
-            <div class="ff-bar-item" id="ffEarlyDesc"></div>
+            <ul class="ff-notes"><li id="ffEarlyDesc"></li></ul>
             <table id="ffEarlyCause" style="margin:8px 0;border-collapse:collapse;font-size:13px" hidden>
                 <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">원인</th><th style="text-align:right;padding:4px 0">계좌 수</th></tr></thead>
                 <tbody></tbody>
             </table>
-            <div class="ff-bar-item" id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</div>
+            <ul class="ff-notes"><li id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</li></ul>
             <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <!-- 결과: 감면 성과(relief 응답, 잠정)와 상위 10% 점유율(concentration 응답). 감면 1원당 운용액과 로렌츠 곡선은 운영 상세에만 둔다 -->
@@ -193,9 +193,9 @@
                     <span class="adm-summary-unit">%</span>
                 </div>
             </div>
-            <div class="ff-bar-item" id="ffSubReliefDesc"></div>
+            <ul class="ff-notes"><li id="ffSubReliefDesc"></li></ul>
             <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            <div class="ff-bar-item" id="ffSubTop10Desc"></div>
+            <ul class="ff-notes"><li id="ffSubTop10Desc"></li></ul>
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <div class="ff-act-title" id="ffActOutlook">전망</div>
@@ -223,7 +223,7 @@
                     <tbody></tbody>
                 </table>
             </details>
-            <div class="ff-bar-item" id="ffMatNote" hidden></div>
+            <ul class="ff-notes"><li id="ffMatNote" hidden></li></ul>
             <!-- 만기 후 계좌에 남는 금액(가정): 1년 유지 중인 잔액(lockedAmount) × 50/70/90%. 차트 없이 숫자 3칸. lockedAmount 가 0이거나 없으면 블록 전체를 숨긴다 -->
             <div id="ffMatScen" hidden>
                 <div class="ff-sub-title">만기 후 계좌에 남는 금액(가정)</div>
@@ -244,7 +244,7 @@
                         <span class="adm-summary-unit">원</span>
                     </div>
                 </div>
-                <div class="ff-bar-item" id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</div>
+                <ul class="ff-notes"><li id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</li></ul>
                 <div class="ff-bar-item" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
             <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
@@ -280,8 +280,6 @@
             </div>
             <div class="ff-sub-title">한계</div>
             <ul class="ff-notes">
-                    <li>원인별 계좌 수에서 5건 미만 값은 표시하지 않지만, 전체에서 다른 원인을 빼면 알 수 있어요.</li>
-                    <li>화면에 보이지 않는 원인별·월별 금액은 응답 JSON에 남아 있어요.</li>
                     <li>월별 계좌 수는 같은 계좌가 여러 달에 걸칠 수 있어 월 간에 중복이 있을 수 있어요.</li>
                     <li>업무일 당일에 개설된 계좌는 포함하지 않아요.</li>
                     <li>관리자가 수동으로 개설한 계좌도 포함해요.</li>
