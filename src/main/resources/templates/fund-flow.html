@@ -82,9 +82,16 @@
 
     <!-- 제출용 보기 영역: 핵심 3칸은 기간 토글과 무관하게 출시 이후 누적(overviewAll). 나머지는 준비 중. 기본은 숨김 -->
     <div class="ff-view" data-ff-view="submit" hidden>
-        <!-- 제출용 전체 래퍼: ResizeObserver 는 이 하나에만 붙인다. 막 제목(과정·결과·전망)은 8단계에서 표지와 함께 다듬는다 -->
+        <!-- 제출용 전체 래퍼: ResizeObserver 는 이 하나에만 붙인다 -->
         <div id="ffSubBody">
-        <div class="ff-sub-title" id="ffActProcess">과정</div>
+        <!-- 표지: 제목 · 대상 · 기간(overviewAll 응답) · 합성 데이터 표기. 기관명·로고·보고서 표현은 쓰지 않는다 -->
+        <div class="ff-cover" id="ffCover">
+            <h2 class="ff-cover-title">RIA 자금 환류 현황</h2>
+            <div class="ff-cover-sub">리턴증권 고객 기준</div>
+            <div class="ff-cover-period" id="ffCoverPeriod">첫 계좌 개설일 - ~ 집계 기준일 -</div>
+            <div class="ff-cover-notice" id="ffCoverNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
+        </div>
+        <div class="ff-act-title" id="ffActProcess">과정</div>
         <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
         <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
             <div class="adm-card-head">
@@ -122,7 +129,7 @@
                 <div class="ff-bar-item" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
         </section>
-        <div class="ff-sub-title" id="ffActResult">결과</div>
+        <div class="ff-act-title" id="ffActResult">결과</div>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -189,7 +196,7 @@
             <div class="ff-bar-item" id="ffSubTop10Desc"></div>
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
-        <div class="ff-sub-title" id="ffActOutlook">전망</div>
+        <div class="ff-act-title" id="ffActOutlook">전망</div>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">
             <div class="adm-summary" id="ffMatSummary">

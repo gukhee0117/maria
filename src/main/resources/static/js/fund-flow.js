@@ -342,6 +342,16 @@ $(function () {
         if (view === "submit") drawMatChart();
     }
 
+    // 제출용 표지의 기간: overviewAll 응답의 첫 계좌 개설일 ~ 집계 기준일
+    function clearCover() {
+        $("#ffCoverPeriod").text("첫 계좌 개설일 - ~ 집계 기준일 -");
+    }
+
+    function renderCover() {
+        var d = state.overviewAll || {};
+        $("#ffCoverPeriod").text("첫 계좌 개설일 " + (d.firstOpenedDate || "-") + " ~ 집계 기준일 " + (d.asOfDate || "-"));
+    }
+
     // 제출용 과정 막: 자금 흐름 경로 · 월별 차트는 monthlyAll(출시 이후 고정)만 쓴다. 기간 토글의 state.monthly 는 쓰지 않는다
     function renderSubProcess() {
         var d = state.monthlyAll || {};
@@ -1763,6 +1773,7 @@ $(function () {
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
         if (api === "maturity") clearMaturity();
+        if (api === "overviewAll") clearCover();
         if (api === "earlyWithdrawal") clearEarly();
         if (api === "relief") clearSubRelief();
         if (api === "concentration") clearSubTop10();
@@ -1776,6 +1787,7 @@ $(function () {
                 if (state.monthly) sankeyOverviewNote($("#ffSankeyNotes"), totals(monthsOf()));
             } else if (api === "overviewAll") {
                 renderSubmitSummary();
+                renderCover();
             } else if (api === "earlyWithdrawal") {
                 renderEarlyWithdrawal();
             } else if (api === "maturity") {
@@ -1811,6 +1823,7 @@ $(function () {
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             if (api === "maturity") clearMaturity();
+            if (api === "overviewAll") clearCover();
             if (api === "earlyWithdrawal") clearEarly();
             if (api === "relief") clearSubRelief();
             if (api === "concentration") clearSubTop10();
