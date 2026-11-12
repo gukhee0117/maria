@@ -7,16 +7,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class NewsSelectionService {
-    public static final String RULE_VERSION = "theme-balanced-holding-history-first-v8";
+    public static final String RULE_VERSION = "theme-balanced-business-order-first-v9";
 
     private static final int LIMIT = 8;
 
     public List<Selected> select(Context context, List<NewsArticle> candidates) {
-        return select(context, candidates, context.themePriorities());
-    }
-
-    public List<Selected> select(
-            Context context, List<NewsArticle> candidates, Map<String, Long> themePriorities) {
+        var themePriorities = context.themePriorities();
         Comparator<Selected> newest =
                 Comparator.comparing(
                                 (Selected s) -> s.article().publishedAt(),

@@ -29,6 +29,8 @@ class NewsBriefingServiceTest {
                     () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
 
     NewsBriefingServiceTest() {
+        when(contexts.loadForSelection(anyLong()))
+                .thenAnswer(invocation -> contexts.load(invocation.getArgument(0)));
         doAnswer(invocation -> provider.articles()).when(provider).articles(any(Context.class));
         when(contexts.load(1L)).thenReturn(NewsSelectionServiceTest.context(InvestorType.STABLE));
         when(provider.id()).thenReturn("demo");
@@ -380,7 +382,8 @@ class NewsBriefingServiceTest {
                         baseline.personalizationStatus(),
                         baseline.stockNames(),
                         baseline.stockSectors(),
-                        Map.of("chip", 10L));
+                        Map.of("chip", 10L),
+                        10L);
         var newContext =
                 new Context(
                         baseline.customerId(),
@@ -389,7 +392,8 @@ class NewsBriefingServiceTest {
                         baseline.personalizationStatus(),
                         baseline.stockNames(),
                         baseline.stockSectors(),
-                        Map.of("chip", 10L, "telecom", 20L));
+                        Map.of("chip", 10L, "telecom", 20L),
+                        20L);
         when(contexts.load(1L)).thenReturn(oldContext);
         when(provider.articles()).thenReturn(List.of(chip));
         assertThat(service.briefing(1L).articles())
@@ -451,7 +455,8 @@ class NewsBriefingServiceTest {
                                         baseline.personalizationStatus(),
                                         baseline.stockNames(),
                                         baseline.stockSectors(),
-                                        newContext.themePriorities()));
+                                        newContext.themePriorities(),
+                                        newContext.orderRevision()));
         for (long customer = 2; customer <= 515; customer++) service.briefing(customer);
         assertThat(service.briefing(1L).articles())
                 .extracting(x -> x.article().id())
@@ -469,5 +474,72 @@ class NewsBriefingServiceTest {
         assertThat(restarted.briefing(1L).articles())
                 .extracting(x -> x.article().id())
                 .containsExactly("tel", "chip");
+    }
+
+    @Test
+    void summaryAndQuestionReuseSelectionWithoutReloadingWindowPriorities() {
+        var c = NewsSelectionServiceTest.context(InvestorType.STABLE);
+        var full =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of("chip", 1L),
+                        10L);
+        var basic =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of(),
+                        10L);
+        when(contexts.load(1L)).thenReturn(basic);
+        when(contexts.loadForSelection(1L)).thenReturn(full);
+        service.briefing(1L);
+        clearInvocations(contexts);
+        properties.setLiveQuestions(false);
+        service.summary(1L, "a", "v1");
+        service.question(1L, "a", new QuestionRequest("v1", "주의할 위험은 뭐야?", List.of()));
+        verify(contexts, never()).loadForSelection(anyLong());
+        var changed =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of(),
+                        11L);
+        var changedFull =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of("chip", 2L),
+                        11L);
+        when(contexts.load(1L)).thenReturn(changed);
+        when(contexts.loadForSelection(1L)).thenReturn(changedFull);
+        clearInvocations(contexts);
+        service.summary(1L, "a", "v1");
+        verify(contexts).loadForSelection(1L);
+    }
+
+    @Test
+    void portfolioChangeDuringCacheMissFailsBeforeGeneratingAi() {
+        var c = NewsSelectionServiceTest.context(InvestorType.STABLE);
+        when(contexts.loadForSelection(1L))
+                .thenReturn(new Context(1L, Set.of(), c.investorType(), c.personalizationStatus()));
+        assertThatThrownBy(() -> service.summary(1L, "a", "v1")).isInstanceOf(AppException.class);
+        verifyNoInteractions(ai);
     }
 }

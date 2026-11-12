@@ -36,7 +36,7 @@ class CustomerNewsThemeApiTest {
                         new CustomerPrincipal(7L, "user7", "고객"),
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER")));
-        when(contexts.load(7L))
+        when(contexts.loadHoldings(7L))
                 .thenReturn(
                         new Context(
                                 7L,
@@ -54,7 +54,7 @@ class CustomerNewsThemeApiTest {
                 .andExpect(jsonPath("$.data[0].ticker").value("005930"))
                 .andExpect(jsonPath("$.data[0].themes[0]").value("반도체"))
                 .andExpect(jsonPath("$.data[1].themes").isEmpty());
-        verify(contexts).load(7L);
+        verify(contexts).loadHoldings(7L);
         verify(contexts, never()).load(999L);
     }
 }

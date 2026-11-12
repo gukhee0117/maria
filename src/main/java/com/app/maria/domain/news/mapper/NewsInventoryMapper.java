@@ -12,5 +12,7 @@ public interface NewsInventoryMapper {
 
     List<NewsThemeLink> selectThemeLinks();
 
+    long selectLatestOrderId(@Param("customerId") Long customerId);
+
     List<NewsThemePriority> selectHoldingThemePriorities(@Param("customerId") Long customerId);
 }

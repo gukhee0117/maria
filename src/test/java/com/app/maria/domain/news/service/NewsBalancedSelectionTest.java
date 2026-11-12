@@ -264,7 +264,7 @@ class NewsBalancedSelectionTest {
             rows.add(article("tel-" + i, i, 0, "telecom"));
         }
         var result =
-                service.select(
+                selectWithPriorities(
                         NewsSelectionServiceTest.context(InvestorType.STABLE),
                         rows,
                         Map.of("telecom", 1L));
@@ -276,7 +276,7 @@ class NewsBalancedSelectionTest {
                         "tel-9", "tel-8", "tel-7", "tel-6", "chip-9", "chip-8", "chip-7", "chip-6");
         Collections.reverse(rows);
         assertThat(
-                        service.select(
+                        selectWithPriorities(
                                 NewsSelectionServiceTest.context(InvestorType.STABLE),
                                 rows,
                                 Map.of("telecom", 1L)))
@@ -286,7 +286,7 @@ class NewsBalancedSelectionTest {
     @Test
     void latestAcquisitionWinsAndSharedArticleIsNotDuplicated() {
         var result =
-                service.select(
+                selectWithPriorities(
                         NewsSelectionServiceTest.context(InvestorType.STABLE),
                         List.of(
                                 article("shared", 0, 0, "telecom", "bank"),
@@ -304,7 +304,7 @@ class NewsBalancedSelectionTest {
         for (int i = 0; i < 9; i++) rows.add(article("existing-" + i, 100 + i, 10, "theme-" + i));
         rows.add(article("new", 0, 0, "telecom"));
         var result =
-                service.select(
+                selectWithPriorities(
                         NewsSelectionServiceTest.context(InvestorType.STABLE),
                         rows,
                         Map.of("telecom", 1L));
@@ -314,5 +314,21 @@ class NewsBalancedSelectionTest {
                 .extracting(s -> s.article().id())
                 .doesNotHaveDuplicates()
                 .doesNotContain("existing-0", "existing-1");
+    }
+
+    private List<Selected> selectWithPriorities(
+            com.app.maria.domain.news.dto.NewsContract.Context c,
+            List<NewsArticle> rows,
+            Map<String, Long> priorities) {
+        return service.select(
+                new com.app.maria.domain.news.dto.NewsContract.Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        priorities),
+                rows);
     }
 }

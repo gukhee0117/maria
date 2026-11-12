@@ -22,7 +22,7 @@ public class CustomerNewsThemeApi {
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal,
             jakarta.servlet.http.HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
-        var c = contexts.load(principal.customerId());
+        var c = contexts.loadHoldings(principal.customerId());
         var mapping = themes.themes(c.tickers());
         return ApiResponseDTO.of(
                 "보유 종목 테마 조회 성공",
