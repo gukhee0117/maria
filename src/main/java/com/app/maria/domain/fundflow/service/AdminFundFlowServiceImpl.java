@@ -8,6 +8,9 @@ import com.app.maria.domain.fundflow.dto.FundFlowAgeMedianDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowAllocationDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowBucketDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowConcentrationDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowEarlyWithdrawalCauseDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowEarlyWithdrawalDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowEarlyWithdrawalSummaryRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
@@ -33,6 +36,7 @@ import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowReliefRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowEarlyWithdrawalResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMaturityResponseDTO;
@@ -43,6 +47,7 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowRetentionResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowSegmentResponseDTO;
 import com.app.maria.domain.fundflow.mapper.FundFlowMapper;
 import com.app.maria.domain.fundflow.type.AdjustRatioBin;
+import com.app.maria.domain.fundflow.type.EarlyWithdrawalCause;
 import com.app.maria.domain.fundflow.type.FundFlowPeriod;
 import com.app.maria.domain.fundflow.type.LeakageCategory;
 import com.app.maria.domain.fundflow.type.ReliefScope;
@@ -371,6 +376,52 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                         .excludedClosedPaidAmount(
                                 fundFlowMapper.selectClosedPaidAmount(filter.getClockDate()))
                         .months(months)
+                        .build());
+    }
+
+    /**
+     * 1년 미경과 원금 인출 비율. 분모는 FINALIZED 환전(해지 계좌 포함), 분자는 그 환전에서 나온 완료 인출의 1년 미경과 원금 배분이다. 분자는 인출액이고
+     * 분모는 확정 원금이다. 원인은 두 가지를 항상 고정 순서로 내고, 값이 없는 원인은 0으로 채운다.
+     */
+    @Override
+    public FundFlowEarlyWithdrawalResponseDTO getEarlyWithdrawal() {
+        FundFlowFilterDTO filter = FundFlowFilterDTO.from(businessClockService.now());
+        FundFlowEarlyWithdrawalSummaryRowDTO summary =
+                fundFlowMapper.selectEarlyWithdrawalSummary(filter.getClockDate());
+        Map<String, FundFlowEarlyWithdrawalCauseDTO> byCode =
+                fundFlowMapper.selectEarlyWithdrawalByCause(filter.getClockDate()).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        FundFlowEarlyWithdrawalCauseDTO::getCause, c -> c));
+
+        List<FundFlowEarlyWithdrawalCauseDTO> byCause = new ArrayList<>();
+        for (EarlyWithdrawalCause cause : EarlyWithdrawalCause.values()) {
+            FundFlowEarlyWithdrawalCauseDTO row = byCode.get(cause.name());
+            byCause.add(
+                    FundFlowEarlyWithdrawalCauseDTO.builder()
+                            .cause(cause.name())
+                            .label(cause.getLabel())
+                            .accounts(row == null ? 0L : row.getAccounts())
+                            .amount(row == null ? BigDecimal.ZERO : row.getAmount())
+                            .build());
+        }
+
+        return new FundFlowEarlyWithdrawalResponseDTO(
+                FundFlowEarlyWithdrawalDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .finalizedAccounts(summary.getFinalizedAccounts())
+                        .finalizedAmount(summary.getFinalizedAmount())
+                        .earlyAccounts(summary.getEarlyAccounts())
+                        .earlyWithdrawnAmount(summary.getEarlyWithdrawnAmount())
+                        .accountShare(
+                                ratio(
+                                        BigDecimal.valueOf(summary.getEarlyAccounts()),
+                                        BigDecimal.valueOf(summary.getFinalizedAccounts())))
+                        .amountShare(
+                                ratio(
+                                        summary.getEarlyWithdrawnAmount(),
+                                        summary.getFinalizedAmount()))
+                        .byCause(byCause)
                         .build());
     }
 

@@ -259,6 +259,31 @@
 - **검산 관계** (매퍼 테스트로 확인): ① `months[].paidAmount` 합 = 대상 건의 `final_amount` 합, ② `lockedAmount + maturedRemainingAmount` = `months[].remainingAmount` 합, ③ `lockedAccounts` ≤ 대상 계좌 수, ④ `months[].paidAmount` 합 + `excludedClosedPaidAmount` = `/overview`의 `inflowTotal`(기간 `ALL`).
 - 1년은 기존 코드처럼 `plusYears(1)` 기준이며 `tax_rule.HOLDING_PERIOD`를 읽지 않는다.
 
+### 2-11. `GET /api/admin/fund-flow/early-withdrawal` — 1년 미경과 원금 인출 비율
+
+계좌가 1년이 되기 전에 원금을 인출한 정도를 분모(확정 원금)와 분자(인출액)로 본다. 쿼리 파라미터는 없다(기간 선택 없음, 업무시계 기준 전체).
+
+```json
+"data": {
+  "asOfDate": "2026-11-17",
+  "finalizedAccounts": 0, "finalizedAmount": 0,
+  "earlyAccounts": 0, "earlyWithdrawnAmount": 0,
+  "accountShare": 0.0000, "amountShare": 0.0000,
+  "byCause": [
+    { "cause": "CLOSURE_FORCED", "label": "해지 강제 인출", "accounts": 0, "amount": 0 },
+    { "cause": "OTHER", "label": "그 밖의 인출", "accounts": 0, "amount": 0 }
+  ],
+  "basis": "..."
+}
+```
+- **분모**: `krw_exchange.settlement_status = 'FINALIZED'`, `final_at`이 있고 업무시계 날짜(`clockDate`) 미만인 환전의 계좌 수(`finalizedAccounts`)와 `final_amount` 합(`finalizedAmount`). **해지(CLOSED) 계좌도 포함**한다(1년 미경과 인출은 해지 강제 인출이 주원인일 수 있어서). 계좌·`left_amount` 조인이 없으므로 `/overview`의 `inflowTotal`(기간 `ALL`)과 같은 조건이다.
+- **분자**: **분모 대상 환전에서 나온 인출만** 센다. `withdrawal_allocation.type = 'IMMATURE_PRINCIPAL_INCLUDED'`이고 인출이 완료(`withdrawal.status = 'COMPLETED'`)이며 `withdrawal_at < clockDate`인 배분이다. 조인은 retention과 같은 경로(`withdrawal_allocation` → `left_amount` → `krw_exchange`)이고, 그 환전이 분모 조건(FINALIZED, `final_at < clockDate`)을 만족해야 한다. 그래서 `earlyAccounts ≤ finalizedAccounts`가 항상 성립한다.
+- **분자는 인출액이고 분모는 확정 원금**이다. `amountShare`는 "확정 원금 중 1년 전에 인출된 비중"으로 읽는다(수익금 배분은 제외).
+- **비율**: `accountShare = earlyAccounts ÷ finalizedAccounts`, `amountShare = earlyWithdrawnAmount ÷ finalizedAmount`. 기존 비율 필드와 같은 규칙(소수 4자리 HALF_UP, 분모가 0이면 `null`)이다.
+- **원인(`byCause`)**: 그 인출이 **완료된 해지 요청**(`account_closure_request.status = 'COMPLETED'`, `withdrawal_id`가 그 인출)에 연결돼 있으면 `CLOSURE_FORCED`, 아니면 `OTHER`. 두 원인을 항상 이 순서로 내고 값이 없는 원인은 0으로 채운다. 한 계좌가 두 원인에 걸칠 수 있어서 **원인별 `accounts`의 합은 `earlyAccounts`보다 클 수 있고**, `amount`의 합은 `earlyWithdrawnAmount`와 같다.
+- 취소(`CANCELLED`)·실패(`FAILED`)·요청 중(`REQUESTED`) 인출은 센다고 하지 않는다. 현재 코드에서는 이 상태의 인출에 배분 행이 만들어지지 않지만(`WithdrawalProcessor`는 한 트랜잭션에서 배분 후 `COMPLETED`로 바꾸고, 실패는 인출 행만 남긴다), 쿼리에서 상태를 명시해 거른다. 기존 `/retention` 쿼리는 상태를 거르지 않는다.
+- **검산 관계** (매퍼 테스트로 확인): ① `finalizedAmount` = `/overview`의 `inflowTotal`, ② `byCause[].amount` 합 = `earlyWithdrawnAmount`이고 `byCause[].accounts` 합 ≥ `earlyAccounts`, ③ `earlyAccounts` ≤ `finalizedAccounts`.
+
 ---
 
 ## 3. 고객: 자금 환류 현황

@@ -361,6 +361,51 @@
         AND a.status = 'CLOSED'
     </select>
 
+    <!-- 1년 미경과 원금 인출 분자: 완료(COMPLETED) 인출의 IMMATURE_PRINCIPAL_INCLUDED 배분.
+         조인은 retention 과 같은 경로(allocation → left_amount → krw_exchange)이고, 분모 대상 환전(FINALIZED,
+         확정일 < clockDate)에서 나온 것만 센다. 해지 계좌도 포함한다 -->
+    <sql id="earlyWithdrawalAllocations">
+        FROM withdrawal_allocation wa
+        JOIN withdrawal w ON w.withdrawal_id = wa.withdrawal_id AND w.status = 'COMPLETED'
+        JOIN left_amount la ON la.left_amount_id = wa.left_amount_id
+        JOIN krw_exchange k ON k.exchange_id = la.exchange_id
+        WHERE wa.type = 'IMMATURE_PRINCIPAL_INCLUDED'
+        AND wa.withdrawal_at &lt; #{clockDate}
+        AND k.settlement_status = 'FINALIZED'
+        AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}
+    </sql>
+
+    <!-- 분모는 overview 의 확정 유입과 같은 조건(FINALIZED, 확정일 < clockDate, 계좌·left_amount 조인 없음) -->
+    <select id="selectEarlyWithdrawalSummary" resultType="FundFlowEarlyWithdrawalSummaryRowDTO">
+        SELECT
+        (SELECT COUNT(DISTINCT k.account_id) FROM krw_exchange k
+        WHERE k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}) AS finalizedAccounts,
+        COALESCE((SELECT SUM(k.final_amount) FROM krw_exchange k
+        WHERE k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}), 0) AS finalizedAmount,
+        (SELECT COUNT(DISTINCT k.account_id) <include refid="earlyWithdrawalAllocations"/>) AS earlyAccounts,
+        COALESCE((SELECT SUM(wa.allocated_amount) <include refid="earlyWithdrawalAllocations"/>), 0)
+        AS earlyWithdrawnAmount
+    </select>
+
+    <!-- 원인: 그 인출이 완료된 해지 요청에 연결돼 있으면 CLOSURE_FORCED, 아니면 OTHER.
+         EXISTS 라서 해지 요청이 중복돼도 금액이 두 번 세어지지 않는다. EarlyWithdrawalCause 이름과 같아야 한다 -->
+    <select id="selectEarlyWithdrawalByCause" resultType="FundFlowEarlyWithdrawalCauseDTO">
+        SELECT t.cause AS cause, COUNT(DISTINCT t.account_id) AS accounts, SUM(t.amount) AS amount
+        FROM (
+        SELECT
+        CASE WHEN EXISTS (SELECT 1 FROM account_closure_request c
+        WHERE c.withdrawal_id = w.withdrawal_id AND c.status = 'COMPLETED')
+        THEN 'CLOSURE_FORCED' ELSE 'OTHER' END AS cause,
+        k.account_id AS account_id,
+        wa.allocated_amount AS amount
+        <include refid="earlyWithdrawalAllocations"/>
+        ) t
+        GROUP BY t.cause
+    </select>
+
     <!-- 매입금액 = 보유수량 × 평균 매입가 (현재가 평가액 아님) -->
     <select id="selectProductCosts" resultType="FundFlowProductCostDTO">
         SELECT

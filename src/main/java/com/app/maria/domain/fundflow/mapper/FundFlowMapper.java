@@ -3,6 +3,8 @@ package com.app.maria.domain.fundflow.mapper;
 import com.app.maria.domain.fundflow.dto.FundFlowAccountFlowRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerReliefDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowCustomerSummaryDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowEarlyWithdrawalCauseDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowEarlyWithdrawalSummaryRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelStageDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
@@ -74,6 +76,17 @@ public interface FundFlowMapper {
 
     /** 해지(CLOSED) 계좌라서 만기 집계에서 뺀 FINALIZED 환전의 확정 원금 합(확정일이 clockDate 이전). */
     BigDecimal selectClosedPaidAmount(@Param("clockDate") LocalDate clockDate);
+
+    /**
+     * 1년 미경과 원금 인출 비율의 분모(FINALIZED 환전, 해지 계좌 포함)와 분자(그 환전에서 나온 완료 인출 중 1년 미경과 원금 배분). 일자 조건은 모두
+     * clockDate 미만이다.
+     */
+    FundFlowEarlyWithdrawalSummaryRowDTO selectEarlyWithdrawalSummary(
+            @Param("clockDate") LocalDate clockDate);
+
+    /** 분자를 원인(CLOSURE_FORCED / OTHER)별로 나눈 계좌 수·금액. 값이 있는 원인만 낸다. */
+    List<FundFlowEarlyWithdrawalCauseDTO> selectEarlyWithdrawalByCause(
+            @Param("clockDate") LocalDate clockDate);
 
     List<FundFlowProductCostDTO> selectProductCosts();
 
