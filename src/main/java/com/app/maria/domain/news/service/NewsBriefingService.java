@@ -341,6 +341,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
     }
 
     private List<Selected> selected(Context context, NewsProvider.Snapshot snapshot) {
+        var priorities = context.themePriorities();
         String key =
                 context.customerId()
                         + ":"
@@ -348,7 +349,9 @@ public class NewsBriefingService implements NewsBriefingOperations {
                         + ":"
                         + snapshot.version()
                         + ":"
-                        + NewsSelectionService.RULE_VERSION;
+                        + NewsSelectionService.RULE_VERSION
+                        + ":"
+                        + new java.util.TreeMap<>(priorities);
         long now = System.nanoTime();
         synchronized (articleSessions) {
             var cached = articleSessions.get(key);
@@ -356,7 +359,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
             if (cached != null) articleSessions.remove(key);
         }
 
-        var result = selection.select(context, snapshot.articles().get());
+        var result = selection.select(context, snapshot.articles().get(), priorities);
         synchronized (articleSessions) {
             long insertedAt = System.nanoTime();
             articleSessions.put(

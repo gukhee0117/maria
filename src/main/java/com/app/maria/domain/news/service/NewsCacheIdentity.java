@@ -55,7 +55,9 @@ public final class NewsCacheIdentity {
                         + "|"
                         + new TreeMap<>(context.stockNames())
                         + "|"
-                        + new TreeMap<>(context.stockSectors()));
+                        + new TreeMap<>(context.stockSectors())
+                        + "|"
+                        + new TreeMap<>(context.themePriorities()));
     }
 
     public static String hash(String value) {

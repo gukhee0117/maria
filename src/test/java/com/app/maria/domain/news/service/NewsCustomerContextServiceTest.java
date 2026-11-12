@@ -20,8 +20,10 @@ class NewsCustomerContextServiceTest {
     AccountMapper accounts = mock(AccountMapper.class);
     DomesticStockBalanceMapper holdings = mock(DomesticStockBalanceMapper.class);
     InvestorAssessmentService assessment = mock(InvestorAssessmentService.class);
+    com.app.maria.domain.news.mapper.NewsInventoryMapper news =
+            mock(com.app.maria.domain.news.mapper.NewsInventoryMapper.class);
     NewsCustomerContextService service =
-            new NewsCustomerContextService(accounts, holdings, assessment);
+            new NewsCustomerContextService(accounts, holdings, assessment, news);
 
     DomesticHoldingDTO holding(String ticker, Type type, String qty, DomesticStockStatus state) {
         return DomesticHoldingDTO.builder()

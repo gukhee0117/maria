@@ -7,11 +7,14 @@ import com.app.maria.domain.domestic.type.DomesticStockStatus;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.domain.news.dto.NewsContract.*;
+import com.app.maria.domain.news.mapper.NewsInventoryMapper;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,9 @@ public class NewsCustomerContextService {
     private final DomesticStockBalanceMapper holdings;
     private final InvestorAssessmentService assessments;
 
+    private final NewsInventoryMapper newsInventory;
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Context load(Long customerId) {
         var activeHoldings =
                 accounts.selectByCustomerId(customerId)
@@ -81,6 +87,12 @@ public class NewsCustomerContextService {
                                 Collectors.toMap(
                                         h -> h.getTicker(),
                                         h -> h.getSectorName(),
-                                        (first, second) -> first)));
+                                        (first, second) -> first)),
+                newsInventory.selectHoldingThemePriorities(customerId).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        row -> row.getTheme(),
+                                        row -> row.getPriority(),
+                                        Long::max)));
     }
 }
