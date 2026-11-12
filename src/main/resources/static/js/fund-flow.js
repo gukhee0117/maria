@@ -1891,6 +1891,75 @@ $(function () {
         window.__ffPdfWindow = w;
     }
 
+    /* ---------- 제출용 PDF 로 저장 (새 창 A4 세로 인쇄) ---------- */
+    // 운영 상세 PDF(savePdf)와 따로 만든다. savePdf 는 바꾸지 않는다.
+    var SUBMIT_APIS = ["overviewAll", "monthlyAll", "earlyWithdrawal", "maturity", "leakage", "relief", "concentration"];
+
+    // 제출용이 쓰는 7개 API 가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
+    function submitDataReady() {
+        return SUBMIT_APIS.every(function (api) { return loadState[api] === "ok" && state[api]; });
+    }
+
+    function savePdfSubmit() {
+        if (!submitDataReady()) {
+            var notReady = "제출용 데이터를 모두 불러온 뒤 저장할 수 있어요.";
+            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError(notReady); else window.alert(notReady);
+            return;
+        }
+        var w = window.open("", "_blank");
+        if (!w) {
+            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError("팝업이 막혀서 PDF 창을 열지 못했어요. 팝업을 허용해 주세요.");
+            return;
+        }
+        var origin = location.origin;
+        var doc = w.document;
+
+        // 인쇄용 내용: 제출용 화면(표지·과정·결과·전망·부록)을 복제한다. 주석 노드는 인쇄물에 남기지 않는다
+        var $root = $('<div></div>').append($("#ffSubBody").clone());
+        $root.find("*").addBack().contents().filter(function () { return this.nodeType === 8; }).remove();
+        $root.find("[data-ff-retry]").removeAttr("data-ff-retry");
+        $root.find("[title]").removeAttr("title");
+        $root.find("[data-tip]").removeAttr("data-tip");
+        $root.find("details").attr("open", "open");
+        $root.find("canvas").remove();
+
+        var css = ["tokens", "components", "fund-flow"].map(function (n) {
+            return '<link rel="stylesheet" href="' + origin + '/css/admin/' + n + '.css">';
+        }).join("");
+        var printCss = "@page{size:A4 portrait;margin:14mm}" +
+            "html,body{margin:0;background:var(--adm-panel);color:var(--adm-text);-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+            ".ff-print{display:block;height:auto;max-width:182mm;margin:0 auto;font-size:11px}" +
+            ".ff-print .ff-card{break-inside:avoid;margin:0 0 8px;overflow:visible;display:block}" +
+            ".ff-print .adm-summary{flex-wrap:wrap;row-gap:4px;padding:4px}" +
+            ".ff-print .ff-bar-item{white-space:normal}" +
+            ".ff-print .ff-chart svg{width:100%;height:auto}" +
+            ".ff-print .ff-print-chart{width:100%;height:auto;display:block}" +
+            ".ff-print .ff-defs-row{break-inside:avoid;min-width:0;font-size:10px}" + ".ff-print .ff-defs{overflow:visible}" +
+            ".ff-print .ff-act-title{break-after:avoid}" +
+            ".ff-print #ffActResult,.ff-print #ffActOutlook,.ff-print #ffActAppendix{break-before:page}";
+        doc.open();
+        doc.write('<!DOCTYPE html><html lang="ko" data-theme="light"><head><meta charset="utf-8"><title>RIA 자금 환류 현황</title>' + css + '<style>' + printCss + '</style></head><body></body></html>');
+        doc.close();
+        var page = doc.createElement("div");
+        page.className = "adm-page fund-flow ff-print";
+        doc.body.appendChild(page);
+        // 제출용 한정 스타일(표지·막 제목)이 인쇄 창에서도 적용되도록 같은 속성으로 감싼다
+        var wrap = doc.createElement("div");
+        wrap.setAttribute("data-ff-view", "submit");
+        page.appendChild(wrap);
+        $root.children().each(function () { wrap.appendChild(doc.importNode(this, true)); });
+        var printed = false;
+        function doPrint() {
+            if (printed) return;
+            printed = true;
+            w.focus();
+            w.print();
+        }
+        w.addEventListener("load", function () { setTimeout(doPrint, 500); });
+        setTimeout(doPrint, 1800);
+        window.__ffPdfWindow = w;
+    }
+
     /* ---------- 불러오기 ---------- */
     var PANELS_OF = {
         monthly: ["#ffPanelSankey", "#ffPanelMonthly", "#ffPanelBridge"],
@@ -1929,10 +1998,12 @@ $(function () {
     }
 
     var loadSeq = {}; // API 별 요청 번호: 기간을 연달아 바꿀 때 늦게 온 옛 응답이 새 응답을 덮지 않게 한다
+    var loadState = {}; // API 별 상태: loading · ok · fail (제출용 PDF 는 7개가 모두 ok 일 때만 저장한다)
 
     function load(api) {
         var seq = (loadSeq[api] = (loadSeq[api] || 0) + 1);
         var panels = PANELS_OF[api] || [];
+        loadState[api] = "loading";
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
         clearConcl(api);
@@ -1983,8 +2054,10 @@ $(function () {
             }
             refreshInterp(api);
             renderDefs();
+            loadState[api] = "ok";
         }).fail(function () {
             if (seq !== loadSeq[api]) return;
+            loadState[api] = "fail";
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             clearConcl(api);
@@ -2040,7 +2113,9 @@ $(function () {
             refreshInterp("segments");
         }
     });
-    $("#ffPdfBtn").on("click", savePdf);
+    $("#ffPdfBtn").on("click", function () {
+        if (view === "submit") savePdfSubmit(); else savePdf();
+    });
 
     // 크기 · 테마가 바뀌면 SVG 와 차트를 다시 그린다
     var redrawTimer = null;
