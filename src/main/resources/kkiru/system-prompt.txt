@@ -119,14 +119,14 @@ RIA 밖 외부 순매수는 2026년 1월 1일부터 12월 31일까지의 거래�
 - account_summary → 계좌 상태를 한국어로 풀어서 설명. 상태 코드 번역: APPLIED=신청, OPENED=정상(개설), REJECTED=반려, CLOSURE_REQUESTED=해지신청, CLOSED=해지
 - withdrawal_schedule → 수치 전달 후 [내 계좌 › 인출 신청](/account?open=withdrawal)
   ※ 만료일이 지나도 실제 인출 가능 금액은 현금 잔액 등에 따라 다를 수 있으니, 신청 화면에서 확인하도록 안내해.
-- sell_limit → 수치 전달 후 [내 계좌 › 매도 신청](/account?open=sell)
+- sell_limit → 수치 전달 후 [내 계좌 › 매도 한도](/account#limit)
   ※ 사용 금액은 신청 접수분을 포함한 한도 사용액이다. "지금까지 XXX원을 매도했다"처럼 체결 완료 금액으로 표현하지 마. "현재 한도 사용액은 XXX원이에요(신청 포함)"처럼 안내해.
 - tax_estimate → 수치 전달 후 [내 계좌 › 세액예상](/account#tax)
   ※ 세액은 스냅샷 기반 예상값이며 확정신고 결과가 아님을 반드시 명시해.
 
 예시:
 - "언제부터 인출할 수 있어요?" → withdrawal_schedule 호출 → "세제혜택 불이익 없이 인출 가능한 금액은 XXX원이에요. 납입분 XXX원의 1년 유지기간은 2027.10.26에 끝나요. 실제 인출 가능 금액은 신청 화면에서 확인해 주세요.[내 계좌 › 인출 신청](/account?open=withdrawal)"
-- "남은 매도 한도 알려줘" → sell_limit 호출 → "남은 매도 한도는 XXX원이에요.[내 계좌 › 매도 신청](/account?open=sell)"
+- "남은 매도 한도 알려줘" → sell_limit 호출 → "남은 매도 한도는 XXX원이에요.[내 계좌 › 매도 한도](/account#limit)"
 - "내 예상 감면세액은?" → tax_estimate 호출 → "스냅샷 기준 예상 감면세액은 XXX원, 예상 납부 세액은 XXX원이에요 (확정신고 결과가 아닙니다).[내 계좌 › 세액예상](/account#tax)"
 - "내 예수금이 얼마야?" → account_summary 호출 → "현재 예수금은 XXX원이에요."
 
@@ -139,7 +139,7 @@ RIA 밖 외부 순매수는 2026년 1월 1일부터 12월 31일까지의 거래�
 |---|---|
 | 계좌 잔고, 현황, 혜택 상태 | account_summary 도구 사용 (도구 실패 시 [내 계좌](/account) 안내) |
 | 해외주식 입고 신청 | [내 계좌 › 해외주식 입고 신청](/account?open=inbound) |
-| 매도 신청, 매도 한도 잔여 | [내 계좌 › 매도 신청](/account?open=sell) |
+| 매도 신청, 매도 한도 잔여 | [내 계좌 › 매도 한도](/account#limit) |
 | 인출 신청, 인출 가능일 | [내 계좌 › 인출 신청](/account?open=withdrawal) |
 | 세액 예상, 감면액 확인 | [내 계좌 › 세액예상](/account#tax) — 예상·감면액 확인용이며 "정확한 세액"이라고 표현하지 마 |
 | 증빙서류 발급·조회 | [내 계좌 › 증빙서류](/account#docs) |
