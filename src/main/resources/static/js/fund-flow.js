@@ -31,6 +31,8 @@ $(function () {
         monthlyAll: { url: "/api/admin/fund-flow/monthly?period=ALL" },
         retentionAll: { url: "/api/admin/fund-flow/retention?period=ALL" },     // 제출용 결과 막: 출시 이후 누적, 기간 토글과 무관         // 제출용 과정 막: 기간 토글과 무관하게 출시 이후 누적
         overviewAll: { url: "/api/admin/fund-flow/overview?period=ALL" },       // 제출용 3칸: 기간 토글과 무관하게 출시 이후 누적
+        funnelAll: { url: "/api/admin/fund-flow/funnel?period=ALL" },           // 제출용 이용 단계: 기간 토글과 무관하게 출시 이후 누적
+        allocationAll: { url: "/api/admin/fund-flow/allocation?period=ALL" },   // 제출용 운용처: 기간 토글과 무관
         funnel: { url: "/api/admin/fund-flow/funnel", period: true },
         monthly: { url: "/api/admin/fund-flow/monthly", period: true },
         leakage: { url: "/api/admin/fund-flow/leakage" },       // 세액 스냅샷: 기간과 무관
@@ -516,6 +518,137 @@ $(function () {
         }).join("") + "</div>";
         $host.html(html);
         return true;
+    }
+
+    // 이용 단계(퍼널): 개설 → 해외 매도 있음 → 국내 매수 있음. 응답 stages 의 개설 · 첫 매도 · 첫 국내 매수 단계만 쓴다(원화 확정 단계는 응답에 없음)
+    var FUN_STAGES = [["개설", "개설"], ["첫 매도", "해외 매도 있음"], ["첫 국내 매수", "국내 매수 있음"]];
+
+    function funnelSteps() {
+        var st = (state.funnelAll && state.funnelAll.stages) || [];
+        return FUN_STAGES.map(function (p) {
+            var x = st.filter(function (q) { return q.stage === p[0]; })[0];
+            return x ? { name: p[1], n: num(x.customers) } : null;
+        }).filter(Boolean);
+    }
+
+    // 가로 막대 한 줄: 이름 · 막대 · 직접 라벨. 폭은 가장 큰 값 대비, 5건 미만은 폭을 고정한다
+    function hbarRow(name, frac, accent, valueHtml) {
+        return '<div class="fs-hrow"><span class="fs-hname">' + esc(name) + '</span><div class="fs-htrack"><span class="fs-hfill' + (accent ? " is-acc" : "") +
+            '" style="width:' + (Math.max(0, Math.min(1, frac)) * 100).toFixed(2) + '%"></span></div><span class="fs-hval">' + valueHtml + "</span></div>";
+    }
+
+    function renderSubFunnel() {
+        var $card = $("#ffSubPanelFunnel");
+        var steps = funnelSteps();
+        if (steps.length < 2) { $("#ffSubFunnel").empty(); showPanelEmpty($card); return; }
+        $("#ffSubFunnelCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (state.funnelAll.asOfDate || "-"));
+        setPanel($card, "ready");
+        var max = steps[0].n || 1;
+        $("#ffSubFunnel").html(steps.map(function (st, i) {
+            var small = st.n < 5;
+            var prev = i ? steps[i - 1].n : 0;
+            var sub = i ? "직전 대비 " + (small || prev < 5 ? "-" : pctS(st.n / prev)) : "기준";
+            return hbarRow(st.name, small ? 0.01 : st.n / max, i === steps.length - 1,
+                "<b>" + (small ? "5건 미만" : KRW.format(st.n) + "계좌") + "</b><em>" + sub + "</em>");
+        }).join(""));
+    }
+
+    // 운용처: 응답 buckets(업종별 + ETF·펀드)를 업종 상위 5 + ETF·펀드 + 기타(나머지 업종)로 묶는다. 금액은 현재 보유 종목 매입금액
+    function allocGroups() {
+        var d = state.allocationAll || {};
+        var buckets = d.buckets || [];
+        var ETF = "ETF·펀드";
+        var total = buckets.reduce(function (sum, x) { return sum + num(x.value); }, 0);
+        if (!buckets.length || !(total > 0)) return null;
+        var sectors = buckets.filter(function (x) { return x.label !== ETF; }).sort(function (x, y) { return num(y.value) - num(x.value); });
+        var etf = buckets.filter(function (x) { return x.label === ETF; })[0];
+        var groups = sectors.slice(0, 5).map(function (x) { return { name: x.label, value: num(x.value) }; });
+        if (etf) groups.push({ name: ETF, value: num(etf.value) });
+        groups.sort(function (x, y) { return y.value - x.value; });
+        var rest = sectors.slice(5);
+        if (rest.length) groups.push({ name: "기타(" + rest.length + "개 업종)", value: rest.reduce(function (sum, x) { return sum + num(x.value); }, 0) });
+        return { groups: groups, total: total, restCount: rest.length };
+    }
+
+    function renderSubAlloc() {
+        var $card = $("#ffSubPanelAlloc");
+        var g = allocGroups();
+        if (!g) { $("#ffSubAlloc").empty(); showPanelEmpty($card); return; }
+        $("#ffSubAllocCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (state.allocationAll.asOfDate || "-"));
+        setPanel($card, "ready");
+        var max = Math.max.apply(null, g.groups.map(function (x) { return x.value; })) || 1;
+        $("#ffSubAlloc").html(g.groups.map(function (x, i) {
+            return hbarRow(x.name, x.value / max, i === 0, "<b>" + fsEok1(x.value) + "억</b><em>" + pctS(x.value / g.total) + "</em>");
+        }).join(""));
+    }
+
+    // 혜택 집중도(로렌츠 곡선): 계좌 누적 비율(감면액 적은 순) 대비 감면액 누적 비율 + 균등 대각선. 감면 대상이 50계좌 미만이면 그리지 않는다
+    function lorenzOk() {
+        var d = state.concentration;
+        return !!d && num(d.accounts) >= 50 && (d.lorenz || []).length > 1;
+    }
+
+    function lorenzAt(pts, x) {
+        var p = pts.filter(function (q) { return Math.abs(num(q.populationShare) - x) < 1e-6; })[0];
+        return p ? num(p.valueShare) : null;
+    }
+
+    function buildLorenzFs($host, width) {
+        $host.empty();
+        if (!lorenzOk()) return false;
+        var d = state.concentration, pts = d.lorenz;
+        width = Math.max(320, Math.floor(width || $host.width() || 480));
+        var H = 250, L = 40, R = 16, T = 22, B = 36;
+        var w = width - L - R, hh = H - T - B;
+        function X(v) { return L + v * w; }
+        function Y(v) { return T + (1 - v) * hh; }
+        var halo = ";paint-order:stroke;stroke:var(--adm-panel);stroke-width:3px;stroke-linejoin:round";
+        var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + H, width: width, height: H, role: "img", "aria-label": "감면액 로렌츠 곡선: 계좌 누적 비율 대비 감면액 누적 비율" });
+        [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+            svgEl("line", { x1: L, x2: width - R, y1: Y(v), y2: Y(v), style: "stroke:var(--adm-line);stroke-width:1" }, svg);
+            svgText(svg, L - 6, Y(v) + 4, "end", "ff-t-sub", 12, Math.round(v * 100) + "%", "");
+        });
+        [0, 0.5, 1].forEach(function (v) {
+            svgText(svg, X(v), H - B + 16, v === 0 ? "start" : v === 1 ? "end" : "middle", "ff-t-sub", 12, Math.round(v * 100) + "%", "");
+        });
+        svgText(svg, (L + width - R) / 2, H - 4, "middle", "ff-t-sub", 12, "계좌 누적 비율(감면액 적은 순)", "");
+        svgText(svg, L, T - 8, "start", "ff-t-sub", 12, "감면액 누적 비율", "");
+        var curve = pts.map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.valueShare)).toFixed(1); });
+        var back = pts.slice().reverse().map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.populationShare)).toFixed(1); });
+        svgEl("polygon", { points: curve.concat(back).join(" "), style: "fill:var(--adm-chart-bar);fill-opacity:.12;stroke:none" }, svg);
+        svgEl("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), style: "stroke:var(--adm-sub);stroke-width:1;stroke-dasharray:4 3" }, svg);
+        svgEl("polyline", { points: curve.join(" "), style: "fill:none;stroke:var(--adm-chart-bar);stroke-width:2;stroke-linejoin:round" }, svg);
+        svgText(svg, X(0.46), Y(0.46) - 8, "end", "ff-t-sub", 12, "균등선", halo);
+        svgText(svg, X(0.84), Y(0.2), "middle", "ff-t-strong", 12, "감면액 누적(로렌츠 곡선)", halo + ";font-weight:700");
+        var v50 = lorenzAt(pts, 0.5);
+        if (v50 != null) {
+            svgEl("circle", { cx: X(0.5), cy: Y(v50), r: 3.5, style: "fill:var(--adm-chart-bar)" }, svg);
+            svgText(svg, X(0.5) + 8, Y(v50) + 16, "start", "ff-t-strong", 12, "하위 50% 계좌: 감면액의 " + pctS(v50), halo);
+        }
+        var v90 = lorenzAt(pts, 0.9);
+        if (v90 != null) {
+            svgEl("circle", { cx: X(0.9), cy: Y(v90), r: 3.5, style: "fill:var(--adm-chart-bar)" }, svg);
+            svgText(svg, X(0.9) - 8, Y(v90) - 8, "end", "ff-t-strong", 12, "상위 10% 계좌: 감면액의 " + pctS(1 - v90), halo);
+        }
+        $host.get(0).appendChild(svg);
+        return true;
+    }
+
+    function drawSubConc() {
+        if (!state.concentration || $("#ffSubPanelConc").attr("data-state") !== "ready") return;
+        if (lorenzOk()) buildLorenzFs($("#ffSubLorenz"));
+    }
+
+    function renderSubConc() {
+        var d = state.concentration || {};
+        var $card = $("#ffSubPanelConc");
+        $("#ffSubConcCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        setPanel($card, "ready");
+        if (!lorenzOk()) {
+            $("#ffSubLorenz").html('<div class="ff-bar-item">50계좌 미만이라 표시하지 않음</div>');
+            return;
+        }
+        if (view === "submit") drawSubConc();
     }
 
     // 남는 금액(가정): 줄마다 혜택 유지 잔액 전체 길이의 연회색 바탕 + 해당 금액만큼 강조색 + 끝에 금액 라벨
@@ -1892,11 +2025,16 @@ $(function () {
         return { inflow: num(o.inflowTotal), relief: num(r.reliefTotal), ratio: num(r.reliefTotal) / num(o.inflowTotal) };
     }
 
-    function titleProcess(m) {
+    function titleProcess(m, f) {
         var months = (m && m.months) || [];
         if (!months.length) return "";
         var t = totals(months);
         if (!(t.krw > 0)) return "";
+        var steps = funnelSteps();
+        if (steps.length === 3 && f) {
+            var buyAcc = steps[2].n < 5 ? "5건 미만" : KRW.format(steps[2].n) + "계좌";
+            return "개설 " + KRW.format(steps[0].n) + "계좌 중 " + buyAcc + " 국내 매수, 확정 원화 " + eok(t.krw) + " 원 중 " + pctS(t.buy / t.krw) + " 국내 주식 매수";
+        }
         return "확정 원화 " + eok(t.krw) + " 원 중 " + pctS(t.buy / t.krw) + " 국내 주식 매수, " + pctS(t.wd / t.krw) + " 인출";
     }
 
@@ -2084,14 +2222,51 @@ $(function () {
         } else {
             body += fsWait("relief", "감면 지표", 3);
         }
-        if (c) {
-            var enough = num(c.accounts) >= 50 && c.top10Share != null;
-            body += fsRow(["상위 10% 점유율", enough ? pctS(Number(c.top10Share)) : "미표시", enough ? KRW.format(num(c.accounts)) + "계좌 중" : "감면 대상 계좌 적음"]);
-            body += fsAsOf(c);
-        } else {
-            body += fsWait("concentration", "혜택 집중도", 3);
-        }
         fsPut("ffTblResult", head, body);
+    }
+
+    function renderTblFunnel() {
+        var head = "<tr><th>이용 단계</th><th>값</th><th>근거</th></tr>";
+        var steps = funnelSteps();
+        if (steps.length < 2) { fsPut("ffTblFunnel", head, fsWait("funnelAll", "이용 단계", 3)); return; }
+        var body = steps.map(function (st, i) {
+            var small = st.n < 5;
+            if (!i) return fsRow([esc(st.name), small ? "5건 미만" : KRW.format(st.n) + "계좌", "기준"]);
+            var prev = steps[i - 1].n;
+            return fsRow([esc(st.name), small || prev < 5 ? "5건 미만" : pctS(st.n / prev), small ? "" : KRW.format(st.n) + " / " + KRW.format(prev) + "계좌 (직전 단계 대비)"]);
+        }).join("");
+        var last = steps[steps.length - 1];
+        if (last.n >= 5 && steps[0].n >= 5) body += fsRow(["개설 대비 " + esc(last.name), pctS(last.n / steps[0].n), KRW.format(last.n) + " / " + KRW.format(steps[0].n) + "계좌"]);
+        body += fsNote("고객당 처음 도달 기준, 앞 단계를 모두 지난 고객만 집계. 계좌 수는 고객 1인 1계좌 기준", 3) + fsAsOf(state.funnelAll);
+        fsPut("ffTblFunnel", head, body);
+    }
+
+    function renderTblAlloc() {
+        var head = "<tr><th>운용처</th><th>비중</th><th>근거</th></tr>";
+        var g = allocGroups();
+        if (!g) { fsPut("ffTblAlloc", head, fsWait("allocationAll", "운용처", 3)); return; }
+        var body = g.groups.map(function (x) {
+            return fsRow([esc(x.name), pctS(x.value / g.total), eok(x.value) + " / " + eok(g.total)]);
+        }).join("") + fsNote("현재 보유 종목의 매입금액(보유수량 × 평균 매입가) 기준, 예수금 제외. 업종 상위 5 + ETF·펀드 + 기타로 묶음", 3) + fsAsOf(state.allocationAll);
+        fsPut("ffTblAlloc", head, body);
+    }
+
+    function renderTblConc() {
+        var c = state.concentration;
+        var head = "<tr><th>혜택 집중도</th><th>값</th><th>근거</th></tr>";
+        if (!c) { fsPut("ffTblConc", head, fsWait("concentration", "혜택 집중도", 3)); return; }
+        var n = num(c.accounts);
+        var body = fsRow(["감면 대상 계좌", n < 5 ? "5건 미만" : KRW.format(n) + "계좌", "감면액 > 0"]);
+        if (lorenzOk()) {
+            var v50 = lorenzAt(c.lorenz, 0.5);
+            if (c.gini != null) body += fsRow(["지니계수", Number(c.gini).toFixed(2), "0 균등 ~ 1 한 계좌 독점"]);
+            if (v50 != null) body += fsRow(["하위 50% 계좌 감면액 비중", pctS(v50), "감면액 적은 순 " + KRW.format(Math.round(n / 2)) + "계좌"]);
+            if (c.top10Share != null) body += fsRow(["상위 10% 점유율", pctS(Number(c.top10Share)), KRW.format(n) + "계좌 중 상위 10%"]);
+        } else {
+            body += fsRow(["지니계수 · 점유율", "미표시", "50계좌 미만"]);
+        }
+        body += fsAsOf(c);
+        fsPut("ffTblConc", head, body);
     }
 
     function renderTblOutlook() {
@@ -2127,6 +2302,9 @@ $(function () {
         renderTblLeak();
         renderTblMonthly();
         renderTblResult();
+        renderTblFunnel();
+        renderTblAlloc();
+        renderTblConc();
         renderTblOutlook();
     }
 
@@ -2136,7 +2314,7 @@ $(function () {
             renderSubKpis();
             renderSubTables();
             renderScenBar();
-            setConcl("ffTitleProcess", titleProcess(state.monthlyAll));
+            setConcl("ffTitleProcess", titleProcess(state.monthlyAll, state.funnelAll));
             setConcl("ffTitleResult", titleResult(state.earlyWithdrawal, state.retentionAll));
             setConcl("ffTitleOutlook", titleOutlook(state.maturity));
         } catch (err) {
@@ -2323,9 +2501,9 @@ $(function () {
 
     /* ---------- 제출용 PDF 로 저장 (새 창 A4 세로 인쇄) ---------- */
     // 운영 상세 PDF(savePdf)와 따로 만든다. savePdf 는 바꾸지 않는다.
-    var SUBMIT_APIS = ["overviewAll", "monthlyAll", "earlyWithdrawal", "maturity", "leakage", "relief", "concentration", "retentionAll"];
+    var SUBMIT_APIS = ["overviewAll", "monthlyAll", "earlyWithdrawal", "maturity", "leakage", "relief", "concentration", "retentionAll", "funnelAll", "allocationAll"];
 
-    // 제출용이 쓰는 7개 API 가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
+    // 제출용이 쓰는 10개 API 가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
     function submitDataReady() {
         return SUBMIT_APIS.every(function (api) { return loadState[api] === "ok" && state[api]; });
     }
@@ -2394,6 +2572,7 @@ $(function () {
             }
         }
         if (state.leakage && leakCats().cats.length) buildLeakBar($root.find("#ffSubLeakBar"), PW);
+        if (lorenzOk()) buildLorenzFs($root.find("#ffSubLorenz"), PW);
         if (retPoints.length >= 2) {
             var retUrl = chartImageUrl(function (canvas) { return buildRetentionChart(canvas, lightVar, retPoints, false); });
             if (retUrl) {
@@ -2450,14 +2629,16 @@ $(function () {
         allocation: ["#ffPanelAllocation"],
         segments: ["#ffPanelSegments"],
         retention: ["#ffPanelRetention"],
-        concentration: ["#ffPanelConc"]
+        concentration: ["#ffPanelConc", "#ffSubPanelConc"],
+        funnelAll: ["#ffSubPanelFunnel"],
+        allocationAll: ["#ffSubPanelAlloc"]
     };
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", retentionAll: "경과일별 원금 유지", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", retentionAll: "경과일별 원금 유지", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도", funnelAll: "이용 단계", allocationAll: "운용처" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -2520,6 +2701,11 @@ $(function () {
                 renderRetention();
             } else if (api === "concentration") {
                 renderConcentration();
+                renderSubConc();
+            } else if (api === "funnelAll") {
+                renderSubFunnel();
+            } else if (api === "allocationAll") {
+                renderSubAlloc();
             } else if (api === "retentionAll") {
                 renderSubRetention();
             }
@@ -2606,6 +2792,7 @@ $(function () {
                 drawSubProcess();
                 drawSubRetention();
                 drawSubLeak();
+                drawSubConc();
                 return;
             }
             if (view !== "ops") return;

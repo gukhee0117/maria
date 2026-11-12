@@ -1407,3 +1407,52 @@
 .fund-flow [data-ff-view="submit"] .fs-kpi .ff-badge {
     font-size: 12px;
 }
+
+/* 이용 단계 · 운용처: 가로 막대(이름 · 막대 · 직접 라벨). 강조 1색 + 회색 */
+.fund-flow [data-ff-view="submit"] .fs-hbars {
+    margin: 4px 0 8px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hrow {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) 156px;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hname {
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-htrack {
+    height: 18px;
+    background: var(--adm-line);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hfill {
+    display: block;
+    height: 100%;
+    background: var(--adm-chart-gray);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hfill.is-acc {
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval {
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval em {
+    font-style: normal;
+    color: var(--adm-sub);
+}
