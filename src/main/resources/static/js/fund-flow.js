@@ -274,6 +274,9 @@ $(function () {
         $("#ffMatTable tbody").empty();
         $("#ffMatNote").text("");
         $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+        $("#ffMatScen").prop("hidden", true);
+        [50, 70, 90].forEach(function (p) { $("#ffScen" + p + " [data-ff-value]").text("-"); });
+        $("#ffScenCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
     }
 
     // 막대 차트: 제출용이 보일 때만 그린다(숨겨진 동안은 크기가 0)
@@ -325,6 +328,16 @@ $(function () {
         } else {
             var amountText = num(d.canceledAccounts) < 5 ? "" : " " + krwShort(canceled) + "원";
             $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + "은 위 차트에 포함하지 않았어요.").prop("hidden", false);
+        }
+        // 만기 후 계좌에 남는 금액(가정): lockedAmount 만 쓴다(groupMonths · months · maturedRemainingAmount 는 쓰지 않는다). 0이거나 없으면 숨긴다
+        var locked = Number(d.lockedAmount);
+        var showScen = d.lockedAmount != null && isFinite(locked) && locked > 0;
+        $("#ffMatScen").prop("hidden", !showScen);
+        if (showScen) {
+            [50, 70, 90].forEach(function (p) {
+                summarySet("ffScen" + p, krwShort(Math.round(locked * p / 100)), "1년 유지 중인 잔액 합계 × " + p + "%(가정)예요.");
+            });
+            $("#ffScenCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         }
         if (view === "submit") drawMatChart();
     }

@@ -214,6 +214,29 @@
                 </table>
             </details>
             <div class="ff-bar-item" id="ffMatNote" hidden></div>
+            <!-- 만기 후 계좌에 남는 금액(가정): 1년 유지 중인 잔액(lockedAmount) × 50/70/90%. 차트 없이 숫자 3칸. lockedAmount 가 0이거나 없으면 블록 전체를 숨긴다 -->
+            <div id="ffMatScen" hidden>
+                <div class="ff-sub-title">만기 후 계좌에 남는 금액(가정)</div>
+                <div class="adm-summary" id="ffScenSummary">
+                    <div class="adm-summary-item" id="ffScen50">
+                        <span class="adm-summary-label">50% 남는 경우</span>
+                        <span class="adm-summary-value" data-ff-value>-</span>
+                        <span class="adm-summary-unit">원</span>
+                    </div>
+                    <div class="adm-summary-item" id="ffScen70">
+                        <span class="adm-summary-label">70% 남는 경우</span>
+                        <span class="adm-summary-value" data-ff-value>-</span>
+                        <span class="adm-summary-unit">원</span>
+                    </div>
+                    <div class="adm-summary-item" id="ffScen90">
+                        <span class="adm-summary-label">90% 남는 경우</span>
+                        <span class="adm-summary-value" data-ff-value>-</span>
+                        <span class="adm-summary-unit">원</span>
+                    </div>
+                </div>
+                <div class="ff-bar-item" id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</div>
+                <div class="ff-bar-item" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            </div>
             <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
