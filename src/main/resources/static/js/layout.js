@@ -679,11 +679,11 @@ $(function () {
             $("#adminRole").text(roleLabel).prop("hidden", false);
         }
 
-        var isAdmin = admin.role === "ADMIN";
+        var canChangeClock = admin.role === "ADMIN" || admin.role === "SETTLEMENT";
         $("#clockButton")
-            .prop("disabled", !isAdmin)
-            .toggleClass("is-editable", isAdmin)
-            .attr("title", isAdmin ? "시스템 업무시각 설정" : "업무시각 조회");
+            .prop("disabled", !canChangeClock)
+            .toggleClass("is-editable", canChangeClock)
+            .attr("title", canChangeClock ? "시스템 업무시각 설정" : "업무시각 조회");
 
         applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
         loadReferenceTime();
@@ -705,7 +705,7 @@ $(function () {
         }, 1000);
 
         $("#clockButton").on("click", function () {
-            if (!isAdmin || !currentBusinessTime) {
+            if (!canChangeClock || !currentBusinessTime) {
                 return;
             }
 

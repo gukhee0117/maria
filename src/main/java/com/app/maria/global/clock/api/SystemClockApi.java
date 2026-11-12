@@ -20,7 +20,7 @@ public class SystemClockApi {
     private final SystemClockManagementService systemClockManagementService;
     private final BusinessClockService businessClockService;
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SETTLEMENT')")
     @PatchMapping
     public ResponseEntity<?> changeSystemTime(
             @AuthenticationPrincipal Long adminId,
