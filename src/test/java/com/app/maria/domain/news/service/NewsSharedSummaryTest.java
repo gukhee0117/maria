@@ -21,6 +21,8 @@ class NewsSharedSummaryTest {
     @Test
     void differentCustomersShareSummaryTextWithoutAutomaticallyReceivingStockCards() {
         var contexts = mock(NewsCustomerContextService.class);
+        when(contexts.loadForSelection(anyLong()))
+                .thenAnswer(invocation -> contexts.load(invocation.getArgument(0)));
         var provider = mock(NewsProvider.class, CALLS_REAL_METHODS);
         var ai = mock(NewsAiService.class);
         var properties = new NewsProperties();

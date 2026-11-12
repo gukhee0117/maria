@@ -42,6 +42,8 @@ class NewsFreeIntegrationTest {
                         PersonalizationStatus.ACTIVE,
                         Map.of("005930", "삼성전자", "000660", "SK하이닉스"));
         var contexts = mock(NewsCustomerContextService.class);
+        when(contexts.loadForSelection(anyLong()))
+                .thenAnswer(invocation -> contexts.load(invocation.getArgument(0)));
         when(contexts.load(1L)).thenReturn(context);
         var model =
                 OpenAiChatModel.builder()

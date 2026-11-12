@@ -46,6 +46,10 @@ public final class NewsCacheIdentity {
     }
 
     public static String context(Context context) {
+        return hash(portfolio(context) + "|" + new TreeMap<>(context.themePriorities()));
+    }
+
+    public static String portfolio(Context context) {
         return hash(
                 context.investorType()
                         + "|"
@@ -55,7 +59,11 @@ public final class NewsCacheIdentity {
                         + "|"
                         + new TreeMap<>(context.stockNames())
                         + "|"
-                        + new TreeMap<>(context.stockSectors()));
+                        + new TreeMap<>(context.stockSectors())
+                        + "|"
+                        + context.orderRevision()
+                        + "|"
+                        + context.balanceRevision());
     }
 
     public static String hash(String value) {

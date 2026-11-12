@@ -37,11 +37,57 @@ public final class NewsContract {
             InvestorType investorType,
             PersonalizationStatus personalizationStatus,
             Map<String, String> stockNames,
-            Map<String, String> stockSectors) {
+            Map<String, String> stockSectors,
+            Map<String, Long> themePriorities,
+            long orderRevision,
+            String balanceRevision) {
         public Context {
             tickers = Set.copyOf(tickers);
             stockNames = Map.copyOf(stockNames);
             stockSectors = Map.copyOf(stockSectors);
+            themePriorities = Map.copyOf(themePriorities);
+        }
+
+        public Context(
+                Long customerId,
+                Set<String> tickers,
+                InvestorType type,
+                PersonalizationStatus status,
+                Map<String, String> stockNames,
+                Map<String, String> stockSectors,
+                Map<String, Long> themePriorities,
+                long orderRevision) {
+            this(
+                    customerId,
+                    tickers,
+                    type,
+                    status,
+                    stockNames,
+                    stockSectors,
+                    themePriorities,
+                    orderRevision,
+                    "");
+        }
+
+        public Context(
+                Long customerId,
+                Set<String> tickers,
+                InvestorType type,
+                PersonalizationStatus status,
+                Map<String, String> stockNames,
+                Map<String, String> stockSectors,
+                Map<String, Long> themePriorities) {
+            this(customerId, tickers, type, status, stockNames, stockSectors, themePriorities, 0L);
+        }
+
+        public Context(
+                Long customerId,
+                Set<String> tickers,
+                InvestorType type,
+                PersonalizationStatus status,
+                Map<String, String> stockNames,
+                Map<String, String> stockSectors) {
+            this(customerId, tickers, type, status, stockNames, stockSectors, Map.of());
         }
 
         public Context(

@@ -7,11 +7,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class NewsSelectionService {
-    public static final String RULE_VERSION = "theme-balanced-latest-first-v6-real-theme-quotas";
+    public static final String RULE_VERSION = "theme-balanced-business-order-first-v9";
 
     private static final int LIMIT = 8;
 
     public List<Selected> select(Context context, List<NewsArticle> candidates) {
+        var themePriorities = context.themePriorities();
         Comparator<Selected> newest =
                 Comparator.comparing(
                                 (Selected s) -> s.article().publishedAt(),
@@ -71,6 +72,18 @@ public class NewsSelectionService {
                             List.copyOf(themes));
             unique.put(merged.id(), new Selected(merged, score(context, merged)));
         }
+        Comparator<Selected> displayOrder =
+                Comparator.comparingLong(
+                                (Selected s) ->
+                                        s.article().selectionThemes().stream()
+                                                .mapToLong(
+                                                        theme ->
+                                                                themePriorities.getOrDefault(
+                                                                        theme, 0L))
+                                                .max()
+                                                .orElse(0))
+                        .reversed()
+                        .thenComparing(newest);
         var ranked = unique.values().stream().sorted(newest).toList();
         Map<String, List<Selected>> buckets = new TreeMap<>();
         ranked.stream()
@@ -88,6 +101,11 @@ public class NewsSelectionService {
                 buckets.entrySet().stream()
                         .sorted(
                                 (a, b) -> {
+                                    int priority =
+                                            Long.compare(
+                                                    themePriorities.getOrDefault(b.getKey(), 0L),
+                                                    themePriorities.getOrDefault(a.getKey(), 0L));
+                                    if (priority != 0) return priority;
                                     int comparison =
                                             newest.compare(
                                                     a.getValue().get(0), b.getValue().get(0));
@@ -98,7 +116,7 @@ public class NewsSelectionService {
                         .toList();
         Map<String, Selected> picked = new LinkedHashMap<>();
         int quota = Math.max(1, LIMIT / buckets.size());
-        // Fair base allocation. More than eight themes compete by their newest representative.
+        // Fair allocation; newly held themes win slots first when there are more than eight.
         for (int round = 0; round < quota && picked.size() < LIMIT; round++) {
             for (var bucket : ordered) {
                 if (picked.size() == LIMIT) break;
@@ -120,7 +138,7 @@ public class NewsSelectionService {
                 .filter(s -> !picked.containsKey(s.article().id()))
                 .limit(LIMIT - picked.size())
                 .forEach(s -> picked.put(s.article().id(), s));
-        return picked.values().stream().sorted(newest).toList();
+        return picked.values().stream().sorted(displayOrder).toList();
     }
 
     int score(Context c, NewsArticle a) {

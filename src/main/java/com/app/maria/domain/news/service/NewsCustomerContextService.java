@@ -7,11 +7,14 @@ import com.app.maria.domain.domestic.type.DomesticStockStatus;
 import com.app.maria.domain.domestic.type.Type;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.domain.news.dto.NewsContract.*;
+import com.app.maria.domain.news.mapper.NewsInventoryMapper;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -20,36 +23,58 @@ public class NewsCustomerContextService {
     private final DomesticStockBalanceMapper holdings;
     private final InvestorAssessmentService assessments;
 
+    private final NewsInventoryMapper newsInventory;
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Context load(Long customerId) {
-        var activeHoldings =
+        return read(customerId, false, true);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Context loadForSelection(Long customerId) {
+        return read(customerId, true, true);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Context loadHoldings(Long customerId) {
+        return read(customerId, false, false);
+    }
+
+    private Context read(Long customerId, boolean includePriorities, boolean includeRevision) {
+        var allHoldings =
                 accounts.selectByCustomerId(customerId)
-                        .map(
-                                a ->
-                                        holdings
-                                                .selectHoldingsByAccountId(a.getAccountId())
-                                                .stream()
-                                                .filter(
-                                                        h ->
-                                                                h.getType() == Type.STOCK
-                                                                        && h.getQty() != null
-                                                                        && h.getQty().signum() > 0)
-                                                .filter(
-                                                        h ->
-                                                                h.getStatus() != null
-                                                                        && h.getStatus()
-                                                                                != DomesticStockStatus
-                                                                                        .SOLD_OUT
-                                                                        && h.getStatus()
-                                                                                != DomesticStockStatus
-                                                                                        .TERMINATED)
-                                                .filter(
-                                                        h ->
-                                                                h.getTicker() != null
-                                                                        && h.getTicker()
-                                                                                .matches(
-                                                                                        "[0-9]{6}"))
-                                                .toList())
+                        .map(a -> holdings.selectHoldingsByAccountId(a.getAccountId()))
                         .orElse(java.util.List.of());
+        var activeHoldings =
+                allHoldings.stream()
+                        .filter(
+                                h ->
+                                        h.getType() == Type.STOCK
+                                                && h.getQty() != null
+                                                && h.getQty().signum() > 0)
+                        .filter(
+                                h ->
+                                        h.getStatus() != null
+                                                && h.getStatus() != DomesticStockStatus.SOLD_OUT
+                                                && h.getStatus() != DomesticStockStatus.TERMINATED)
+                        .filter(h -> h.getTicker() != null && h.getTicker().matches("[0-9]{6}"))
+                        .toList();
+        String balanceRevision =
+                NewsCacheIdentity.hash(
+                        allHoldings.stream()
+                                .map(
+                                        h ->
+                                                h.getDomesticProductId()
+                                                        + ":"
+                                                        + h.getTicker()
+                                                        + ":"
+                                                        + h.getType()
+                                                        + ":"
+                                                        + h.getQty()
+                                                        + ":"
+                                                        + h.getStatus())
+                                .sorted()
+                                .collect(Collectors.joining("|")));
         Set<String> tickers =
                 activeHoldings.stream().map(h -> h.getTicker()).collect(Collectors.toSet());
         Map<String, String> names =
@@ -81,6 +106,16 @@ public class NewsCustomerContextService {
                                 Collectors.toMap(
                                         h -> h.getTicker(),
                                         h -> h.getSectorName(),
-                                        (first, second) -> first)));
+                                        (first, second) -> first)),
+                includePriorities
+                        ? newsInventory.selectHoldingThemePriorities(customerId).stream()
+                                .collect(
+                                        Collectors.toMap(
+                                                row -> row.getTheme(),
+                                                row -> row.getPriority(),
+                                                Long::max))
+                        : Map.of(),
+                includeRevision ? newsInventory.selectLatestOrderId(customerId) : 0L,
+                balanceRevision);
     }
 }
