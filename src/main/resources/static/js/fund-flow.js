@@ -2150,6 +2150,11 @@ $(function () {
     });
 
     // 제출용 / 운영 상세 보기 전환: 영역 숨김만 바꾼다. 운영 상세로 돌아오면 숨겨 두는 동안 못 그린 차트를 다시 그린다
+    // 제출용 보기에서는 기간 버튼 그룹과 "출시 이후 누적 · 집계 기준일" 문구를 숨긴다(hidden 토글만 한다. 기간 토글 로직은 그대로)
+    function applyViewBar() {
+        $("#ffPeriodItem, #ffPeriodRange, #ffAsOf").prop("hidden", view === "submit");
+    }
+
     $("#ffView").on("click", "button", function () {
         var next = $(this).attr("data-view");
         if (next === view) return;
@@ -2159,8 +2164,10 @@ $(function () {
         $("[data-ff-view]").each(function () {
             $(this).prop("hidden", $(this).attr("data-ff-view") !== view);
         });
+        applyViewBar();
         redraw();
     });
+    applyViewBar(); // 첫 로드의 보기에 맞춘다
 
     $("#ffBridgeMonth").on("change", function () {
         renderBridge();

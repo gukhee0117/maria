@@ -67,7 +67,7 @@
                 <button type="button" data-view="ops" class="is-on">운영 상세</button>
             </div>
         </div>
-        <div class="ff-bar-item">기간
+        <div class="ff-bar-item" id="ffPeriodItem">기간
             <div class="adm-seg" id="ffPeriod" role="group" aria-label="조회 기간">
                 <button type="button" data-period="MONTH">이번 달</button>
                 <button type="button" data-period="QUARTER">분기</button>
@@ -87,8 +87,10 @@
         <!-- 표지: 제목 · 대상 · 기간(overviewAll 응답) · 합성 데이터 표기. 기관명·로고·보고서 표현은 쓰지 않는다 -->
         <div class="ff-cover" id="ffCover">
             <h2 class="ff-cover-title">RIA 자금 환류 현황</h2>
-            <div class="ff-cover-sub">리턴증권 고객 기준</div>
-            <div class="ff-cover-period" id="ffCoverPeriod">첫 계좌 개설일 - ~ 집계 기준일 -</div>
+            <dl class="ff-cover-meta">
+                <div><dt>대상</dt><dd>리턴증권 고객 기준</dd></div>
+                <div><dt>기간</dt><dd id="ffCoverPeriod">첫 계좌 개설일 - ~ 집계 기준일 -</dd></div>
+            </dl>
             <div class="ff-cover-notice" id="ffCoverNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
         <div class="ff-act-title" id="ffActProcess">과정</div>
