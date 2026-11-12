@@ -17,6 +17,8 @@
             <span class="adm-screen-path">자산 · 인출 &gt; 자금 환류 대시보드</span>
         </div>
 
+        <!-- 운영 상세 보기 영역(요약): 제출용/운영 상세 토글 대상. display: contents 라 레이아웃에는 끼지 않는다 -->
+        <div class="ff-view" data-ff-view="ops">
         <!-- ① 요약 6칸: 값은 모두 API 응답에서만 채운다 (개설 계좌 수·복귀 금액·재투자율 = overview, 감면 2칸 = relief, 혜택 상태 = leakage) -->
         <div class="adm-summary" id="ffSummary">
             <div class="adm-summary-item" id="ffSumOpened">
@@ -54,10 +56,17 @@
                 <span class="adm-summary-value ff-sum-stack" data-ff-value>-</span>
             </div>
         </div>
+        </div>
     </section>
 
     <!-- 조회조건 줄: 기간(이번 달 · 분기 · 출시 이후)은 흐름형 API 에 period 로 전달. 스냅샷형 패널은 기간과 무관 -->
     <section class="ff-bar">
+        <div class="ff-bar-item">보기
+            <div class="adm-seg" id="ffView" role="group" aria-label="보기 선택">
+                <button type="button" data-view="submit">제출용</button>
+                <button type="button" data-view="ops" class="is-on">운영 상세</button>
+            </div>
+        </div>
         <div class="ff-bar-item">기간
             <div class="adm-seg" id="ffPeriod" role="group" aria-label="조회 기간">
                 <button type="button" data-period="MONTH">이번 달</button>
@@ -71,6 +80,13 @@
         <button type="button" class="adm-btn adm-btn-primary adm-btn-md" id="ffPdfBtn" title="표지와 ①~⑪를 A4 세로로 인쇄해요(개인 식별 정보 없음)">PDF로 저장</button>
     </section>
 
+    <!-- 제출용 보기 영역: 아직 비어 있다(준비 중). 기본은 숨김 -->
+    <div class="ff-view" data-ff-view="submit" hidden>
+        <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
+    </div>
+
+    <!-- 운영 상세 보기 영역(패널 전체): 제출용/운영 상세 토글 대상 -->
+    <div class="ff-view" data-ff-view="ops">
     <div class="ff-scroll">
         <div class="ff-grid" id="ffGrid">
             <!-- ② 자금 흐름 경로 (Sankey) -->
@@ -248,6 +264,7 @@
                 </div>
             </section>
         </div>
+    </div>
     </div>
 
     <!-- 데이터 없음 그림 (패널이 비었을 때 복제해서 쓴다) -->

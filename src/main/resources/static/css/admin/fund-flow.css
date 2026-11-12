@@ -976,3 +976,21 @@
 .fund-flow.ff-print .ff-detail summary {
     cursor: default;
 }
+
+/* ---- 제출용 / 운영 상세 보기 토글 (2단계 껍데기) ---- */
+/* 래퍼는 레이아웃에 끼지 않는다: .adm-page 의 flex 열 구조와 .ff-scroll 의 남은 높이 채우기를 그대로 둔다 */
+.fund-flow .ff-view {
+    display: contents;
+}
+
+/* display: contents 가 hidden 속성의 기본 숨김을 이기므로 명시한다 */
+.fund-flow .ff-view[hidden] {
+    display: none;
+}
+
+.fund-flow .ff-submit-soon {
+    padding: 24px 8px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--adm-sub);
+}

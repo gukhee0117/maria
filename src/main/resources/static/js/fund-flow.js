@@ -10,6 +10,7 @@ $(function () {
     var chart = null;        // ③ Chart.js 인스턴스
     var segMetric = "reinvestRatio";
     var period = "ALL";      // 조회 기간: MONTH(이번 달) · QUARTER(분기) · ALL(출시 이후 누적)
+    var view = "ops";        // 보기: ops(운영 상세, 기본) · submit(제출용, 아직 준비 중). 저장하지 않는다
     var BOUNDARIES = ["05", "07"]; // 공제율 구간 경계: 5/31 · 7/31
     var LEAK_ORDER = ["NO_SELL", "NO_IMPACT", "PARTIAL_REDUCED", "BENEFIT_CANCELED", "EXTERNAL_BUY_OFFSET"];
     var LEAK_COLOR = {
@@ -1586,6 +1587,19 @@ $(function () {
         Object.keys(API).forEach(function (api) { if (API[api].period) load(api); });
     });
 
+    // 제출용 / 운영 상세 보기 전환: 영역 숨김만 바꾼다. 운영 상세로 돌아오면 숨겨 두는 동안 못 그린 차트를 다시 그린다
+    $("#ffView").on("click", "button", function () {
+        var next = $(this).attr("data-view");
+        if (next === view) return;
+        view = next;
+        $("#ffView button").removeClass("is-on");
+        $(this).addClass("is-on");
+        $("[data-ff-view]").each(function () {
+            $(this).prop("hidden", $(this).attr("data-ff-view") !== view);
+        });
+        if (view === "ops") redraw();
+    });
+
     $("#ffBridgeMonth").on("change", function () {
         renderBridge();
         refreshInterp("monthly");
@@ -1606,6 +1620,8 @@ $(function () {
     function redraw() {
         clearTimeout(redrawTimer);
         redrawTimer = setTimeout(function () {
+            // 제출용에 차트가 생기면(4단계) 보기별로 다시 그리도록 바꿀 것
+            if (view !== "ops") return; // 운영 상세가 숨겨진 동안(크기 0)에는 다시 그리지 않는다
             if (state.monthly && monthsOf().length && $("#ffPanelMonthly").attr("data-state") === "ready") {
                 renderSankey();
                 renderMonthly();
