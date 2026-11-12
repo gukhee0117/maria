@@ -32,17 +32,15 @@
 
 ### 1-2. DB 선행 조건 (중요)
 
-분석에 쓴 컬럼 일부는 `maria/db/01_ria_ddl.sql`에 아직 없고 **생성기의 확장 DDL**(`data-generator/src/main/resources/ddl-ext/maria_ext.sql`)로 추가된다. 이 API는 다음 확장에 의존한다.
+분석에 쓰는 컬럼은 모두 `maria/db/01_ria_ddl.sql`에 정의되어 있다. 다른 DB에서 이 API를 쓰려면 이 DDL로 만든 스키마인지 확인한다.
 
-| 확장 | 용도 |
-|---|---|
-| `domestic_order.fee_amount`, `tax_amount` | 매수·매도 체결금액 계산 |
-| `domestic_product.sector_name` | 운용처 업종 집중도 |
-| `fund_flow_monthly.cash_balance_begin`, `cash_balance_end` | 월초·월말 예수금 |
-| `customer_consent.consent_type = 'MYDATA_PROVISION'` | 퍼널 2단계 |
-| `tax_rule.rule_type IN ('BASIC_DEDUCTION','TAX_RATE')` | 감면액 계산 |
-
-→ 시연 DB가 시드 생성기로 채워진 DB인지 확인이 필요하다. 아니면 위 컬럼을 `maria` DDL에 반영해야 한다(또는 이 API 일부가 동작하지 않는다).
+| 컬럼 | 용도 | DDL 위치(`01_ria_ddl.sql`) |
+|---|---|---|
+| `domestic_order.fee_amount`, `tax_amount` | 매수·매도 체결금액 계산 | 557, 558행 |
+| `domestic_product.sector_name` | 운용처 업종 집중도 | 210행 |
+| `fund_flow_monthly.cash_balance_begin`, `cash_balance_end` | 월초·월말 예수금 | 885, 886행 |
+| `customer_consent.consent_type = 'MYDATA_PROVISION'` | 퍼널 2단계 | 815~822행(CHECK 목록) |
+| `tax_rule.rule_type IN ('BASIC_DEDUCTION','TAX_RATE')` | 감면액 계산 | 428, 435행. 기본값 행은 `db/customer_seed.sql`(189~190행) |
 
 ---
 
@@ -57,18 +55,18 @@
 {
   "message": "자금 환류 개요 조회 성공",
   "data": {
-    "asOfDate": "2026-11-17",
-    "openedAccounts": 75046,
+    "asOfDate": "2026-11-01",
+    "openedAccounts": 798,
     "firstOpenedDate": "2026-03-23",
-    "inflowTotal": 0,
-    "domesticBuyTotal": 0,
-    "reinvestRatio": 0.7069,
-    "netInvestRatio": 0.6333,
-    "basis": "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입"
+    "inflowTotal": 5941559992,
+    "domesticBuyTotal": 3981126657,
+    "reinvestRatio": 0.6700,
+    "netInvestRatio": 0.5975,
+    "basis": "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입. 첫 계좌 개설일 = 개설된 계좌(opened_at이 있고 업무시계 날짜 미만) 중 가장 이른 개설일, 기간과 무관"
   }
 }
 ```
-검증 기준값(seed-mariadb에서 MariaDB 쿼리로 재현 확인): 개설 75,046, 재투자율 0.7069(매수 4,260.2억 ÷ 유입 6,026.6억), 순투자율 0.6333. 테스트 기대값은 이 값으로 잡는다.
+검증 기준값(seed-mariadb, 업무시계 2026-11-02에서 MariaDB 쿼리로 확인): 개설 798계좌, 첫 계좌 개설일 2026-03-23, 확정 유입 5,941,559,992원, 재투자율 0.6700(매수 체결금액 3,981,126,657원 ÷ 유입), 순투자율 0.5975(매도 체결금액 431,333,284원 반영). 단위·서비스·API 테스트의 스텁 값은 이 값과 무관하다.
 
 ### 2-2. `GET /api/admin/fund-flow/funnel` — 가입→첫 매수 퍼널
 
