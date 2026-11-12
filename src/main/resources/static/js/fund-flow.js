@@ -35,7 +35,7 @@ $(function () {
         retention: { url: "/api/admin/fund-flow/retention", period: true },     // 기간 = 그 기간에 환전이 확정된 건의 코호트
         concentration: { url: "/api/admin/fund-flow/concentration" },          // 세액 스냅샷: 기간과 무관
         maturity: { url: "/api/admin/fund-flow/maturity" },                     // 업무시계 기준 전체: 기간과 무관. 아직 state 에만 저장(렌더 없음)
-        earlyWithdrawal: { url: "/api/admin/fund-flow/early-withdrawal" }       // 업무시계 기준 전체: 기간과 무관. 아직 state 에만 저장(렌더 없음)
+        earlyWithdrawal: { url: "/api/admin/fund-flow/early-withdrawal" }       // 업무시계 기준 전체: 기간과 무관(제출용 조기 인출 결과)
     };
 
     /* ---------- 표기 ---------- */
@@ -206,6 +206,23 @@ $(function () {
         summarySet("ffSubInflow", krwShort(d.inflowTotal), "확정된 원화 유입 합계 (가정산 제외)");
         summarySet("ffSubNet", d.netInvestRatio == null ? "-" : (d.netInvestRatio * 100).toFixed(1), "순투자율 = (국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 원화 유입 합계");
         $("#ffSubCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+    }
+
+    // 제출용 조기 인출 결과: 원인별은 계좌 수만 보이고, 5 미만이면 "5건 미만". 금액은 전체만 한 줄 설명에 쓴다
+    function renderEarlyWithdrawal() {
+        var d = state.earlyWithdrawal;
+        summarySet("ffEarlyAcct", d.accountShare == null ? "-" : (d.accountShare * 100).toFixed(1), "분모는 확정된 환전이 있는 계좌 수(해지 포함), 분자는 그중 1년이 지나기 전 원금이 인출된 계좌 수예요.");
+        summarySet("ffEarlyAmt", d.amountShare == null ? "-" : (d.amountShare * 100).toFixed(1), "분모는 확정 원금 합계, 분자는 1년이 지나기 전에 인출된 원금 합계예요.");
+        $("#ffEarlyDesc").text("확정 환전 " + KRW.format(d.finalizedAccounts || 0) + "계좌 · " + krwShort(d.finalizedAmount) + "원 중, 1년이 지나기 전 원금이 인출된 계좌 " + KRW.format(d.earlyAccounts || 0) + "개 · " + krwShort(d.earlyWithdrawnAmount) + "원");
+        var $tb = $("#ffEarlyCause tbody").empty();
+        (d.byCause || []).forEach(function (c) {
+            var cnt = c.accounts == null ? "-" : (c.accounts < 5 ? "5건 미만" : KRW.format(c.accounts));
+            $tb.append($("<tr>").append($("<td>").css("padding", "4px 12px 4px 0").text(c.label || ""), $("<td>").css({ "text-align": "right", padding: "4px 0" }).text(cnt)));
+        });
+        var has = (d.byCause || []).length > 0;
+        $("#ffEarlyCause").prop("hidden", !has);
+        $("#ffEarlyCauseNote").prop("hidden", !has);
+        $("#ffEarlyCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
     }
 
     function renderReliefSummary() {
@@ -1519,10 +1536,11 @@ $(function () {
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
         overviewAll: ["ffSubOpened", "ffSubInflow", "ffSubNet"],
+        earlyWithdrawal: ["ffEarlyAcct", "ffEarlyAmt"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", earlyWithdrawal: "조기 인출", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1555,6 +1573,8 @@ $(function () {
                 if (state.monthly) sankeyOverviewNote($("#ffSankeyNotes"), totals(monthsOf()));
             } else if (api === "overviewAll") {
                 renderSubmitSummary();
+            } else if (api === "earlyWithdrawal") {
+                renderEarlyWithdrawal();
             } else if (api === "relief") {
                 renderReliefSummary();
                 renderRelief();

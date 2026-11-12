@@ -100,6 +100,28 @@
             </div>
         </div>
         <div class="ff-bar-item" id="ffSubCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+        <!-- 결과: 조기 인출(early-withdrawal 응답, 기간과 무관한 누적). 원인별은 계좌 수만, 5 미만은 "5건 미만" -->
+        <div id="ffSubEarly">
+            <div class="adm-summary" id="ffEarlySummary">
+                <div class="adm-summary-item" id="ffEarlyAcct">
+                    <span class="adm-summary-label">조기 인출 비율(계좌 기준)</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">%</span>
+                </div>
+                <div class="adm-summary-item" id="ffEarlyAmt">
+                    <span class="adm-summary-label">조기 인출 비율(금액 기준)</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">%</span>
+                </div>
+            </div>
+            <div class="ff-bar-item" id="ffEarlyDesc"></div>
+            <table id="ffEarlyCause" style="margin:8px 0;border-collapse:collapse;font-size:13px" hidden>
+                <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">원인</th><th style="text-align:right;padding:4px 0">계좌 수</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <div class="ff-bar-item" id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</div>
+            <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+        </div>
         <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
     </div>
 
