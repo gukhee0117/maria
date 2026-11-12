@@ -163,6 +163,32 @@
             <div class="ff-bar-item" id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</div>
             <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
+        <!-- 결과: 감면 성과(relief 응답, 잠정)와 상위 10% 점유율(concentration 응답). 감면 1원당 운용액과 로렌츠 곡선은 운영 상세에만 둔다 -->
+        <div id="ffSubRelief">
+            <div class="adm-summary" id="ffSubReliefSummary">
+                <div class="adm-summary-item" id="ffSubRelAmt">
+                    <span class="adm-summary-label">예상 감면액(조세지출)</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">원</span>
+                    <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
+                </div>
+                <div class="adm-summary-item" id="ffSubRelRate">
+                    <span class="adm-summary-label">감면 비율</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">%</span>
+                    <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
+                </div>
+                <div class="adm-summary-item" id="ffSubTop10">
+                    <span class="adm-summary-label">상위 10% 점유율</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">%</span>
+                </div>
+            </div>
+            <div class="ff-bar-item" id="ffSubReliefDesc"></div>
+            <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item" id="ffSubTop10Desc"></div>
+            <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+        </div>
         <div class="ff-sub-title" id="ffActOutlook">전망</div>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">

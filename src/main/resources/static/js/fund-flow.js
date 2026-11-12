@@ -375,6 +375,39 @@ $(function () {
         setPanel($card, "ready");
     }
 
+    // 제출용 결과 막: 감면 성과(잠정)와 상위 10% 점유율. 감면 1원당 운용액은 쓰지 않는다
+    function clearSubRelief() {
+        $("#ffSubReliefDesc").text("");
+        $("#ffSubReliefCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
+    function renderSubRelief() {
+        var d = state.relief || {};
+        summarySet("ffSubRelAmt", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계예요(예상값, 잠정 정의).");
+        summarySet("ffSubRelRate", num(d.generalTaxTotal) > 0 && d.reliefTotal != null ? (num(d.reliefTotal) / num(d.generalTaxTotal) * 100).toFixed(1) : "-", "감면 비율은 감면액 합계 ÷ 일반 과세 세액 합계예요(예상값, 잠정 정의).");
+        $("#ffSubReliefDesc").text("일반 과세 세액 합계 " + krwShort(d.generalTaxTotal) + "원 · 최종 세액 합계 " + krwShort(d.finalTaxTotal) + "원 · 감면액 합계 " + krwShort(d.reliefTotal) + "원 (" + (d.definitionVersion || "잠정") + " 정의, 예상값)");
+        $("#ffSubReliefCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+    }
+
+    function clearSubTop10() {
+        $("#ffSubTop10Desc").text("");
+        $("#ffSubTop10Caption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
+    // 감면이 양수인 계좌가 50 미만이면 상위 10%가 5계좌 미만이 되므로 표시하지 않는다
+    function renderSubTop10() {
+        var d = state.concentration || {};
+        var tip = "분모는 감면액 합계, 분자는 감면액이 큰 상위 10% 계좌의 감면액 합이에요(감면액이 있는 계좌만 대상).";
+        if (num(d.accounts) < 50 || d.top10Share == null) {
+            summarySet("ffSubTop10", "-", tip);
+            $("#ffSubTop10Desc").text("감면 대상 계좌가 적어 표시하지 않아요");
+        } else {
+            summarySet("ffSubTop10", (Number(d.top10Share) * 100).toFixed(1), tip);
+            $("#ffSubTop10Desc").text("감면액이 있는 " + KRW.format(num(d.accounts)) + "계좌 중 감면액 상위 10% 계좌가 감면액 합계 " + krwShort(d.reliefTotal) + "원에서 차지하는 비중");
+        }
+        $("#ffSubTop10Caption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+    }
+
     function renderReliefSummary() {
         var d = state.relief;
         summarySet("ffSumRelief", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계 (예상값) · 기간과 무관한 기준일 스냅샷");
@@ -1689,7 +1722,8 @@ $(function () {
         overviewAll: ["ffSubOpened", "ffSubInflow", "ffSubNet"],
         earlyWithdrawal: ["ffEarlyAcct", "ffEarlyAmt"],
         maturity: ["ffMatLocked", "ffMatFirst"],
-        relief: ["ffSumRelief", "ffSumPerRelief"],
+        relief: ["ffSumRelief", "ffSumPerRelief", "ffSubRelAmt", "ffSubRelRate"],
+        concentration: ["ffSubTop10"],
         leakage: ["ffSumBenefit"]
     };
     var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
@@ -1717,6 +1751,8 @@ $(function () {
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
         if (api === "maturity") clearMaturity();
         if (api === "earlyWithdrawal") clearEarly();
+        if (api === "relief") clearSubRelief();
+        if (api === "concentration") clearSubTop10();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -1735,6 +1771,7 @@ $(function () {
                 renderSubProcess();
             } else if (api === "relief") {
                 renderReliefSummary();
+                renderSubRelief();
                 renderRelief();
             } else if (api === "leakage") {
                 renderLeakageSummary();
@@ -1752,6 +1789,7 @@ $(function () {
                 renderRetention();
             } else if (api === "concentration") {
                 renderConcentration();
+                renderSubTop10();
             }
             refreshInterp(api);
             renderDefs();
@@ -1761,6 +1799,8 @@ $(function () {
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             if (api === "maturity") clearMaturity();
             if (api === "earlyWithdrawal") clearEarly();
+            if (api === "relief") clearSubRelief();
+            if (api === "concentration") clearSubTop10();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
         });
