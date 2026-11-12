@@ -13,6 +13,9 @@ import com.app.maria.domain.fundflow.dto.FundFlowFunnelDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLorenzPointDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMaturityDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMaturityMonthDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMaturitySummaryRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthlyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowOverviewDTO;
@@ -32,6 +35,7 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowMaturityResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowOverviewResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowReliefResponseDTO;
@@ -46,6 +50,7 @@ import com.app.maria.global.clock.service.BusinessClockService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -321,6 +326,51 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                         .maxObservedDays(result.grid()[result.grid().length - 1])
                         .bootstrapReplicates(n == 0 ? 0 : FundFlowKaplanMeier.REPLICATES)
                         .points(points)
+                        .build());
+    }
+
+    /**
+     * 1년 묶임 스케줄. 대상 건의 상한은 다른 관리자 API 처럼 업무시계 날짜(clockDate) 미만이고, 묶임·만기 분류만 업무시각 기준이다. 묶임은 기존
+     * {@code finalAt.plusYears(1).isAfter(now)} 와 같은 뜻의 {@code finalAt > now - 1년} 으로 SQL 에서 판정한다.
+     * 달력상 2/29 에 확정된 건만 {@code plusYears(1)}(다음 해 2/28)과 {@code minusYears(1)}(2/29 → 2/28)의 기준일이
+     * 달라 하루 어긋날 수 있다.
+     */
+    @Override
+    public FundFlowMaturityResponseDTO getMaturity() {
+        LocalDateTime now = businessClockService.now();
+        FundFlowFilterDTO filter = FundFlowFilterDTO.from(now);
+        LocalDateTime lockBoundary = now.minusYears(1);
+
+        List<FundFlowMaturityMonthDTO> months =
+                fundFlowMapper.selectMaturityMonths(filter.getClockDate()).stream()
+                        .map(
+                                row ->
+                                        FundFlowMaturityMonthDTO.builder()
+                                                .maturityMonth(
+                                                        LocalDate.of(
+                                                                row.getMaturityYear(),
+                                                                row.getMaturityMonth(),
+                                                                1))
+                                                .lots(row.getLots())
+                                                .accounts(row.getAccounts())
+                                                .paidAmount(row.getPaidAmount())
+                                                .remainingAmount(row.getRemainingAmount())
+                                                .build())
+                        .toList();
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(filter.getClockDate(), lockBoundary);
+
+        return new FundFlowMaturityResponseDTO(
+                FundFlowMaturityDTO.builder()
+                        .asOfDate(filter.getAsOfDate())
+                        .firstMaturityMonth(
+                                months.isEmpty() ? null : months.get(0).getMaturityMonth())
+                        .lockedAmount(summary.getLockedAmount())
+                        .lockedAccounts(summary.getLockedAccounts())
+                        .maturedRemainingAmount(summary.getMaturedRemainingAmount())
+                        .excludedClosedPaidAmount(
+                                fundFlowMapper.selectClosedPaidAmount(filter.getClockDate()))
+                        .months(months)
                         .build());
     }
 

@@ -7,6 +7,7 @@ import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowMaturityResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowOverviewResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowReliefResponseDTO;
@@ -32,4 +33,6 @@ public interface AdminFundFlowService {
     FundFlowConcentrationResponseDTO getConcentration();
 
     FundFlowRetentionResponseDTO getRetention(FundFlowPeriodRequestDTO request);
+
+    FundFlowMaturityResponseDTO getMaturity();
 }

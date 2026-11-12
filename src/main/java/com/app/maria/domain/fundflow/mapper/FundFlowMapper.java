@@ -6,6 +6,8 @@ import com.app.maria.domain.fundflow.dto.FundFlowCustomerSummaryDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFilterDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowFunnelStageDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowLeakageCategoryDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMaturityMonthRowDTO;
+import com.app.maria.domain.fundflow.dto.FundFlowMaturitySummaryRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowMonthDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowNetBuyDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowOverviewDTO;
@@ -16,6 +18,7 @@ import com.app.maria.domain.fundflow.dto.FundFlowRetentionLotRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowSegmentRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowTransactionRowDTO;
 import com.app.maria.domain.fundflow.dto.FundFlowWithdrawalLotRowDTO;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +57,23 @@ public interface FundFlowMapper {
 
     /** 확정된 환전 건별 경과일과 사건(1년 미경과 원금 인출) 여부, 계좌 순. */
     List<FundFlowRetentionLotRowDTO> selectRetentionLots(FundFlowFilterDTO filter);
+
+    /**
+     * 만기월(확정일 + 1년의 월)별 환전 건 수·계좌 수·확정 원금·남은 원금. 확정일이 clockDate 이전인 FINALIZED 건만, 해지(CLOSED) 계좌는
+     * 뺀다. 전량 인출된 건도 포함한다. 만기월 오름차순.
+     */
+    List<FundFlowMaturityMonthRowDTO> selectMaturityMonths(@Param("clockDate") LocalDate clockDate);
+
+    /**
+     * 같은 대상 건을 묶임(확정일 > lockBoundary)과 만기(확정일 <= lockBoundary)로 나눈 남은 원금 합과 묶인 잔액이 있는 계좌 수.
+     * lockBoundary 는 업무시각 - 1년이다.
+     */
+    FundFlowMaturitySummaryRowDTO selectMaturitySummary(
+            @Param("clockDate") LocalDate clockDate,
+            @Param("lockBoundary") LocalDateTime lockBoundary);
+
+    /** 해지(CLOSED) 계좌라서 만기 집계에서 뺀 FINALIZED 환전의 확정 원금 합(확정일이 clockDate 이전). */
+    BigDecimal selectClosedPaidAmount(@Param("clockDate") LocalDate clockDate);
 
     List<FundFlowProductCostDTO> selectProductCosts();
 
