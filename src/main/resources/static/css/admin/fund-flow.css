@@ -1075,3 +1075,83 @@
     word-break: keep-all;
     white-space: normal;
 }
+
+/* ---- 제출용 전망 막: 큰 숫자 카드 · 차트 높이/여백 · 막 끝 여백 (제출용 영역에만 적용한다) ---- */
+.fund-flow [data-ff-view="submit"] .ff-kpi {
+    gap: 12px;
+    margin: 10px 0 14px;
+    padding: 0;
+    align-items: stretch;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-item,
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-item:first-child {
+    flex: 1 1 0;
+    min-width: 200px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+        "lab lab"
+        "val unit";
+    align-items: baseline;
+    column-gap: 6px;
+    row-gap: 6px;
+    padding: 14px 18px;
+    border: 1px solid var(--adm-line);
+    border-radius: 6px;
+    background: var(--adm-panel);
+    line-height: 1.2;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-label {
+    grid-area: lab;
+    font-size: 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-value {
+    grid-area: val;
+    font-size: 26px;
+    line-height: 1.15;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-unit {
+    grid-area: unit;
+    font-size: 12px;
+}
+
+/* 만기 막대 차트: 높이를 고정하고 위아래 여백을 두며, 넘치는 그림은 상자 안에서 자른다 */
+.fund-flow [data-ff-view="submit"] #ffMatChartTitle {
+    margin: 16px 0 0;
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] #ffMatChartBox {
+    height: 220px;
+    margin: 8px 0 16px;
+    overflow: hidden;
+}
+
+.fund-flow [data-ff-view="submit"] #ffSubMaturity {
+    padding-bottom: 28px;
+}
+
+/* 부록: 시작 전 구분선, 줄 간격, 스크롤 끝 여백 */
+.fund-flow [data-ff-view="submit"] #ffActAppendix {
+    margin-top: 36px;
+    padding-top: 22px;
+    border-top: 1px solid var(--adm-bd2);
+}
+
+.fund-flow [data-ff-view="submit"] #ffSubAppendix {
+    padding-bottom: 48px;
+}
+
+.fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-defs-row > * {
+    padding: 7px 8px;
+}
+
+.fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-notes {
+    gap: 3px;
+    line-height: 1.7;
+}

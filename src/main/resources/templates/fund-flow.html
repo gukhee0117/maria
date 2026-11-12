@@ -204,7 +204,7 @@
         <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span> <span id="ffConclScen" data-concl="maturity"></span></p>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">
-            <div class="adm-summary" id="ffMatSummary">
+            <div class="adm-summary ff-kpi" id="ffMatSummary">
                 <div class="adm-summary-item" id="ffMatLocked">
                     <span class="adm-summary-label">1년 유지 중인 잔액</span>
                     <span class="adm-summary-value" data-ff-value>-</span>
@@ -229,7 +229,7 @@
             <!-- 만기 후 계좌에 남는 금액(가정): 1년 유지 중인 잔액(lockedAmount) × 50/70/90%. 차트 없이 숫자 3칸. lockedAmount 가 0이거나 없으면 블록 전체를 숨긴다 -->
             <div id="ffMatScen" hidden>
                 <div class="ff-sub-title">만기 후 계좌에 남는 금액(가정)</div>
-                <div class="adm-summary" id="ffScenSummary">
+                <div class="adm-summary ff-kpi" id="ffScenSummary">
                     <div class="adm-summary-item" id="ffScen50">
                         <span class="adm-summary-label">50% 남는 경우</span>
                         <span class="adm-summary-value" data-ff-value>-</span>
