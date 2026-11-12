@@ -1049,3 +1049,12 @@
 .fund-flow [data-ff-view="submit"] .ff-cap-dup {
     display: none;
 }
+
+/* 제출용: 막별 요약 문장은 줄바꿈이 되게 하고 읽기 편한 크기로 둔다 */
+.fund-flow [data-ff-view="submit"] .ff-concl {
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+    white-space: normal;
+}
