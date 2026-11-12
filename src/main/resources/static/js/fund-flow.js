@@ -365,6 +365,7 @@ $(function () {
         $("#ffSubFlowCaption, #ffSubMonthlyCaption").text(cap);
         setPanel($("#ffSubPanelFlow"), "ready");
         setPanel($("#ffSubPanelMonthly"), "ready");
+        renderSubWithdraw();
         if (view === "submit") drawSubProcess();
     }
 
@@ -375,6 +376,7 @@ $(function () {
         if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
         if (!buildSankey($("#ffSubSankey"), $("<ul>"), undefined, months)) showPanelEmpty($("#ffSubPanelFlow"));
         if (window.Chart) subMonthlyChart = buildMonthlyChart(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
+        drawSubWithdraw();
     }
 
     // 제출용 혜택 누수 축약판: 5분류를 각각 한 줄로(합치지 않는다). 계좌 수가 5 미만이면 수와 비중을 "5건 미만"으로 가린다
@@ -489,6 +491,61 @@ $(function () {
         $("#ffRetFacts").text(has ? "실선은 유지 비율, 점선은 95% 구간이에요. 가장 오래 관찰된 건이 " + KRW.format(num(d.maxObservedDays)) + "일이라 1년 시점의 값은 정의하지 않아요." : "").prop("hidden", !has);
         $("#ffRetCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         if (view === "submit") drawSubRetention();
+    }
+
+    // 제출용: 월별 인출액 막대(monthlyAll 의 months[].withdrawalAmount). 금액만 쓴다
+    var wdChart = null;
+    var wdMonths = [];
+
+    function clearWithdraw() {
+        if (wdChart) { wdChart.destroy(); wdChart = null; }
+        wdMonths = [];
+        $("#ffWdBox").prop("hidden", true);
+        $("#ffWdFacts").prop("hidden", true).text("");
+        $("#ffWdChart").attr("aria-label", "");
+    }
+
+    function wdLabel(m) {
+        return String(m.flowMonth || "").slice(0, 7) + (m.partial ? "(진행 중)" : "");
+    }
+
+    // 인쇄용으로도 쓰는 막대 차트
+    function buildWithdrawChart(canvas, varFn, months, responsive) {
+        var sub = varFn("--adm-sub");
+        return new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: months.map(wdLabel),
+                datasets: [{ data: months.map(function (m) { return num(m.withdrawalAmount); }), backgroundColor: varFn("--adm-chart-gold") }]
+            },
+            options: {
+                responsive: !!responsive,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return krwShort(c.parsed.y) + "원"; } } } },
+                scales: {
+                    x: { ticks: { color: sub }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: sub, callback: function (v) { return KRW.format(Math.round(v / 1e4)) + "만"; } }, grid: { color: varFn("--adm-bd2") } }
+                }
+            }
+        });
+    }
+
+    function drawSubWithdraw() {
+        if (wdChart) { wdChart.destroy(); wdChart = null; }
+        if (!window.Chart || !wdMonths.length) return;
+        wdChart = buildWithdrawChart(document.getElementById("ffWdChart"), cssVar, wdMonths, true);
+    }
+
+    function renderSubWithdraw() {
+        var d = state.monthlyAll || {};
+        wdMonths = d.months || [];
+        var has = wdMonths.length > 0;
+        $("#ffWdBox").prop("hidden", !has);
+        $("#ffWdChart").attr("aria-label", has ? "월별 인출액: " + wdMonths.map(function (m) { return wdLabel(m) + " " + krwShort(m.withdrawalAmount) + "원"; }).join(", ") : "");
+        var total = wdMonths.reduce(function (sum, m) { return sum + num(m.withdrawalAmount); }, 0);
+        $("#ffWdFacts").text(has ? "출시 이후 인출액 합계는 " + krwShort(total) + "원이에요. 진행 중인 달은 집계 기준일까지예요." : "").prop("hidden", !has);
+        if (view === "submit") drawSubWithdraw();
     }
 
     function renderReliefSummary() {
@@ -1763,6 +1820,16 @@ $(function () {
         return "복귀 확정액 " + krwShort(v.inflow) + "원 · 감면 예상액 " + krwShort(v.relief) + "원(잠정) · 감면 예상액 ÷ 복귀 확정액 = " + pct1(v.ratio);
     }
 
+    // 월별 인출액: 진행 중인 달을 뺀 달별 값의 범위와 출시 이후 합계(금액만, 계좌 수는 쓰지 않는다)
+    function conclWithdraw(d) {
+        var months = (d && d.months) || [];
+        var full = months.filter(function (m) { return !m.partial; });
+        if (!full.length) return "";
+        var vals = full.map(function (m) { return num(m.withdrawalAmount); });
+        var total = months.reduce(function (sum, m) { return sum + num(m.withdrawalAmount); }, 0);
+        return "월별 인출액은 " + krwShort(Math.min.apply(null, vals)) + "원~" + krwShort(Math.max.apply(null, vals)) + "원 범위이고(진행 중인 달 제외), 출시 이후 합계는 " + krwShort(total) + "원이에요.";
+    }
+
     function conclScen(d) {
         if (!d || !(Number(d.lockedAmount) > 0)) return "";
         return "만기 후 계좌에 남는 금액은 " + [50, 70, 90].join("%, ") + "%를 가정해 계산한 값이며 예측값이 아니에요.";
@@ -1788,6 +1855,7 @@ $(function () {
     INTERP.subProcess = function () {
         setConcl("ffConclFlow", conclFlow(state.monthlyAll));
         setConcl("ffConclLeak", conclLeak(state.leakage));
+        setConcl("ffConclWithdraw", conclWithdraw(state.monthlyAll));
         updateConclBoxes();
     };
     INTERP.subResult = function () {
@@ -2077,6 +2145,13 @@ $(function () {
                     .append($('<img class="ff-print-chart">').attr({ src: matUrl, alt: $("#ffMatChart").attr("aria-label") || "만기월별 잔액" }));
             }
         }
+        if (wdMonths.length) {
+            var wdUrl = chartImageUrl(function (canvas) { return buildWithdrawChart(canvas, lightVar, wdMonths, false); });
+            if (wdUrl) {
+                $root.find("#ffWdBox").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart">').attr({ src: wdUrl, alt: $("#ffWdChart").attr("aria-label") || "월별 인출액" }));
+            }
+        }
         if (retPoints.length >= 2) {
             var retUrl = chartImageUrl(function (canvas) { return buildRetentionChart(canvas, lightVar, retPoints, false); });
             if (retUrl) {
@@ -2178,6 +2253,7 @@ $(function () {
         if (api === "relief") clearSubRelief();
         if (api === "concentration") clearSubTop10();
         if (api === "retentionAll") clearRetention();
+        if (api === "monthlyAll") clearWithdraw();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -2235,6 +2311,7 @@ $(function () {
             if (api === "relief") clearSubRelief();
             if (api === "concentration") clearSubTop10();
             if (api === "retentionAll") clearRetention();
+            if (api === "monthlyAll") clearWithdraw();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
         });

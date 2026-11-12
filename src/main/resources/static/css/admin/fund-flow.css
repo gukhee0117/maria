@@ -1125,7 +1125,8 @@
 }
 
 .fund-flow [data-ff-view="submit"] #ffMatChartBox,
-.fund-flow [data-ff-view="submit"] #ffRetBox {
+.fund-flow [data-ff-view="submit"] #ffRetBox,
+.fund-flow [data-ff-view="submit"] #ffWdBox {
     height: 180px;
     margin: 4px 0 8px;
     overflow: hidden;

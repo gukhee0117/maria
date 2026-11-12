@@ -94,7 +94,7 @@
             <div class="ff-cover-notice" id="ffCoverNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
         <div class="ff-act-title" id="ffActProcess">과정</div>
-        <p class="ff-insight ff-concl" id="ffConclProcess" hidden><b>요약</b><span id="ffConclFlow" data-concl="monthlyAll"></span> <span id="ffConclLeak" data-concl="leakage"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclProcess" hidden><b>요약</b><span id="ffConclFlow" data-concl="monthlyAll"></span> <span id="ffConclWithdraw" data-concl="monthlyAll"></span> <span id="ffConclLeak" data-concl="leakage"></span></p>
         <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
         <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
             <div class="adm-card-head">
@@ -120,6 +120,12 @@
                 <div class="ff-bar-item" id="ffSubMonthlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
         </section>
+        <!-- 과정: 월별 인출액(monthlyAll 응답의 months[].withdrawalAmount). 금액만 쓰고 계좌 수는 쓰지 않는다 -->
+        <div id="ffSubWithdraw">
+            <div class="ff-sub-title">월별 인출액</div>
+            <div class="ff-chart ff-chart-canvas" id="ffWdBox" hidden><canvas id="ffWdChart" role="img" aria-label=""></canvas></div>
+            <ul class="ff-notes"><li id="ffWdFacts" hidden></li></ul>
+        </div>
         <section class="adm-card ff-card" id="ffSubPanelLeak" data-state="loading">
             <div class="adm-card-head">
                 <span class="adm-card-title">혜택 누수 <span class="adm-card-sub">5분류 · 전체 계좌 기준</span></span>
@@ -296,6 +302,7 @@
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>순투자율</b><span>(국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 복귀 금액이에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>조기 인출 비율</b><span>분모는 확정된 환전이 있는 계좌 수(계좌 기준)와 확정 원금 합계(금액 기준), 분자는 1년이 지나기 전 원금이 인출된 계좌 수와 인출액이에요(해지 계좌 포함).</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>원인별 구분</b><span>1년이 지나기 전 원금 인출을 완료된 해지 요청에 연결된 인출과 그 밖의 인출로 나눠요. 한 계좌가 두 원인에 걸칠 수 있어요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>월별 인출액</b><span>그 달에 완료된 인출 요청 금액의 합계예요. 진행 중인 달은 집계 기준일까지이고, 출시 이후 누적 구간의 월별 값이에요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>경과일별 원금 유지 비율</b><span>분자는 확정 후 그 경과일까지 1년이 지나기 전 원금 인출이 없는 환전 건, 분모는 그 경과일 이상 관찰된 환전 건(위험집합)이에요. 출시 이후 누적이고 95% 구간은 계좌 단위 부트스트랩이며, 위험집합이 5건 미만인 구간은 표시하지 않아요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>1년 유지 중인 잔액 · 만기월</b><span>혜택이 유지 중인 계좌 중 확정 후 1년이 지나지 않은 잔액 합계와, 확정일 + 1년이 속한 달(만기월)이에요. 해지 계좌는 제외해요.</span></div>
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>시나리오(50·70·90% 가정)</b><span>1년 유지 중인 잔액 합계의 50%, 70%, 90%가 만기 후 계좌에 남는다고 가정해 계산한 값이에요. 예측값이 아니에요.</span></div>
