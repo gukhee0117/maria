@@ -2593,9 +2593,7 @@ $(function () {
             ".ff-print .ff-bar-item{white-space:normal}" +
             ".ff-print .ff-chart svg{width:100%;height:auto}" +
             ".ff-print .ff-print-chart{width:100%;height:auto;display:block}" +
-            ".ff-print .ff-defs-row{break-inside:avoid;min-width:0;font-size:10px}" + ".ff-print .ff-defs{overflow:visible}" +
-            ".ff-print .fs-act-title{break-after:avoid}" +
-            ".ff-print #ffActResult,.ff-print #ffActOutlook,.ff-print #ffActAppendix{break-before:page}";
+            ".ff-print .ff-defs-row{break-inside:avoid;min-width:0;font-size:10px}" + ".ff-print .ff-defs{overflow:visible}";
         doc.open();
         doc.write('<!DOCTYPE html><html lang="ko" data-theme="light"><head><meta charset="utf-8"><title>RIA 자금 환류 현황</title>' + css + '<style>' + printCss + '</style></head><body></body></html>');
         doc.close();

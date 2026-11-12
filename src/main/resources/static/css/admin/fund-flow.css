@@ -1456,3 +1456,39 @@
     font-style: normal;
     color: var(--adm-sub);
 }
+
+/* 제출용 인쇄(PDF 복제본): A4 세로 1단. 막마다 새 페이지(첫 막 제외), 차트 · 표 · 카드는 쪽 중간에서 자르지 않는다 */
+@media print {
+    .fund-flow [data-ff-view="submit"] .fs-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+        margin-bottom: 8px;
+        break-inside: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-main > .adm-card,
+    .fund-flow [data-ff-view="submit"] .fs-table,
+    .fund-flow [data-ff-view="submit"] .fs-kpis,
+    .fund-flow [data-ff-view="submit"] .fs-kpi,
+    .fund-flow [data-ff-view="submit"] .fs-cover,
+    .fund-flow [data-ff-view="submit"] #ffSubRetention,
+    .fund-flow [data-ff-view="submit"] #ffSubScen {
+        break-inside: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-act-title {
+        break-after: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffActResult,
+    .fund-flow [data-ff-view="submit"] #ffActOutlook,
+    .fund-flow [data-ff-view="submit"] #ffActAppendix {
+        break-before: page;
+    }
+
+    .fund-flow [data-ff-view="submit"] .ff-print-chart,
+    .fund-flow [data-ff-view="submit"] .ff-chart svg {
+        width: 100%;
+        height: auto;
+    }
+}
