@@ -1614,15 +1614,118 @@ $(function () {
         }
     };
 
+    /* ---------- 제출용 막별 요약 문장 ---------- */
+    // 숫자는 모두 응답 값이다. 인과 표현은 쓰지 않고, 전망은 서술만 한다. 계좌 수가 5 미만인 값은 문장에 넣지 않는다.
+    // 문장 하나는 API 하나의 데이터만 쓰고(span[data-concl]), 로딩 시작과 실패 때 그 API 의 문장을 비운다.
+    /* CONCL-BEGIN */
+    function conclFlow(d) {
+        var months = (d && d.months) || [];
+        if (!months.length) return "";
+        var t = totals(months);
+        // 해외 매도(체결일·기준가 기준)와 확정 원화 유입(확정일·확정 금액 기준)은 집계 기준이 달라 "X 중 Y"로 잇지 않는다
+        return "해외 매도 " + krwShort(t.sell) + "원, 확정 원화 유입 " + krwShort(t.krw) + "원이에요. 국내 매수 " + krwShort(t.buy) +
+            "원, 국내 매도 회수 " + krwShort(t.dsell) + "원, 인출 " + krwShort(t.wd) + "원이 있었어요.";
+    }
+
+    function conclLeak(d) {
+        var total = num(d && d.total);
+        if (!total) return "";
+        var shown = [];
+        var omitted = false;
+        LEAK_ORDER.forEach(function (code) {
+            var c = ((d.categories) || []).filter(function (x) { return x.code === code; })[0];
+            if (!c) return;
+            if (num(c.accounts) < 5) { omitted = true; return; }
+            shown.push(c.label + " " + pct1(c.share == null ? num(c.accounts) / total : Number(c.share)));
+        });
+        if (!shown.length) return "";
+        return "전체 " + KRW.format(total) + "계좌 중 " + shown.join(", ") + "예요." + (omitted ? " 5건 미만 분류는 표시하지 않아요." : "");
+    }
+
+    function conclOverview(d) {
+        if (!d || d.openedAccounts == null) return "";
+        var s = "개설 " + KRW.format(num(d.openedAccounts)) + "계좌이고, 확정된 원화 유입은 " + krwShort(d.inflowTotal) + "원";
+        return d.netInvestRatio == null ? s + "이에요." : s + ", 순투자율은 " + pct1(Number(d.netInvestRatio)) + "예요.";
+    }
+
+    function conclEarly(d) {
+        if (!d || d.accountShare == null || d.amountShare == null || num(d.earlyAccounts) < 5) return "";
+        return "확정된 환전 원금 중 1년이 지나기 전에 인출된 비중은 계좌 기준 " + pct1(Number(d.accountShare)) + ", 금액 기준 " + pct1(Number(d.amountShare)) + "예요.";
+    }
+
+    function conclRelief(d) {
+        if (!d || d.reliefTotal == null) return "";
+        var s = "예상 감면액은 " + krwShort(d.reliefTotal) + "원(잠정 정의)";
+        return num(d.generalTaxTotal) > 0 ? s + "이고, 감면 비율은 " + pct1(num(d.reliefTotal) / num(d.generalTaxTotal)) + "예요." : s + "이에요.";
+    }
+
+    function conclTop10(d) {
+        if (!d || d.top10Share == null || num(d.accounts) < 50) return "";
+        return "감면액이 있는 계좌 중 상위 10%가 감면액 합계의 " + pct1(Number(d.top10Share)) + "를 차지해요.";
+    }
+
+    function conclLocked(d) {
+        if (!d || !(Number(d.lockedAmount) > 0)) return "";
+        var months = (d.months || []).filter(function (m) { return num(m.remainingAmount) > 0; });
+        var first = d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "";
+        var last = months.length ? String(months[months.length - 1].maturityMonth || "").slice(0, 7) : "";
+        var s = "혜택이 유지 중인 계좌의 1년 유지 잔액은 " + krwShort(d.lockedAmount) + "원";
+        return first && last ? s + "이고, 만기월은 " + first + "부터 " + last + "까지 이어져요." : s + "이에요.";
+    }
+
+    function conclScen(d) {
+        if (!d || !(Number(d.lockedAmount) > 0)) return "";
+        return "만기 후 계좌에 남는 금액은 " + [50, 70, 90].join("%, ") + "%를 가정해 계산한 값이며 예측값이 아니에요.";
+    }
+    /* CONCL-END */
+
+    function updateConclBoxes() {
+        $(".ff-concl").each(function () {
+            var any = $(this).find("[data-concl]").filter(function () { return $(this).text() !== ""; }).length > 0;
+            $(this).prop("hidden", !any);
+        });
+    }
+
+    function setConcl(id, text) {
+        $("#" + id).text(text || "");
+    }
+
+    function clearConcl(api) {
+        $('[data-concl="' + api + '"]').text("");
+        updateConclBoxes();
+    }
+
+    INTERP.subProcess = function () {
+        setConcl("ffConclFlow", conclFlow(state.monthlyAll));
+        setConcl("ffConclLeak", conclLeak(state.leakage));
+        updateConclBoxes();
+    };
+    INTERP.subResult = function () {
+        setConcl("ffConclOverview", conclOverview(state.overviewAll));
+        setConcl("ffConclEarly", conclEarly(state.earlyWithdrawal));
+        setConcl("ffConclRelief", conclRelief(state.relief));
+        setConcl("ffConclTop10", conclTop10(state.concentration));
+        updateConclBoxes();
+    };
+    INTERP.subOutlook = function () {
+        setConcl("ffConclLocked", conclLocked(state.maturity));
+        setConcl("ffConclScen", conclScen(state.maturity));
+        updateConclBoxes();
+    };
+
     var INTERP_OF = {
         monthly: ["sankey", "monthly", "bridge"],
+        monthlyAll: ["subProcess"],
+        overviewAll: ["subResult"],
+        earlyWithdrawal: ["subResult"],
+        maturity: ["subOutlook"],
         funnel: ["funnel"],
-        leakage: ["leakage"],
-        relief: ["relief"],
+        leakage: ["leakage", "subProcess"],
+        relief: ["relief", "subResult"],
         allocation: ["allocation"],
         segments: ["segments"],
         retention: ["retention"],
-        concentration: ["concentration"]
+        concentration: ["concentration", "subResult"]
     };
 
     function refreshInterp(api) {
@@ -1772,6 +1875,7 @@ $(function () {
         var panels = PANELS_OF[api] || [];
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
+        clearConcl(api);
         if (api === "maturity") clearMaturity();
         if (api === "overviewAll") clearCover();
         if (api === "earlyWithdrawal") clearEarly();
@@ -1822,6 +1926,7 @@ $(function () {
             if (seq !== loadSeq[api]) return;
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
+            clearConcl(api);
             if (api === "maturity") clearMaturity();
             if (api === "overviewAll") clearCover();
             if (api === "earlyWithdrawal") clearEarly();

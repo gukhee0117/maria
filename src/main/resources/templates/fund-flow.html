@@ -92,6 +92,7 @@
             <div class="ff-cover-notice" id="ffCoverNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
         <div class="ff-act-title" id="ffActProcess">과정</div>
+        <p class="ff-insight ff-concl" id="ffConclProcess" hidden><b>요약</b><span id="ffConclFlow" data-concl="monthlyAll"></span> <span id="ffConclLeak" data-concl="leakage"></span></p>
         <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
         <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
             <div class="adm-card-head">
@@ -130,6 +131,7 @@
             </div>
         </section>
         <div class="ff-act-title" id="ffActResult">결과</div>
+        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span></p>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -197,6 +199,7 @@
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <div class="ff-act-title" id="ffActOutlook">전망</div>
+        <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span> <span id="ffConclScen" data-concl="maturity"></span></p>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">
             <div class="adm-summary" id="ffMatSummary">
