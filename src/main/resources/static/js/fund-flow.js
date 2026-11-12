@@ -31,7 +31,9 @@ $(function () {
         relief: { url: "/api/admin/fund-flow/relief" },         // 세액 스냅샷: 기간과 무관
         allocation: { url: "/api/admin/fund-flow/allocation", period: true }, // 구성은 현재 보유(무관), 순매수 Top 10 만 기간 적용
         retention: { url: "/api/admin/fund-flow/retention", period: true },     // 기간 = 그 기간에 환전이 확정된 건의 코호트
-        concentration: { url: "/api/admin/fund-flow/concentration" }           // 세액 스냅샷: 기간과 무관
+        concentration: { url: "/api/admin/fund-flow/concentration" },          // 세액 스냅샷: 기간과 무관
+        maturity: { url: "/api/admin/fund-flow/maturity" },                     // 업무시계 기준 전체: 기간과 무관. 아직 state 에만 저장(렌더 없음)
+        earlyWithdrawal: { url: "/api/admin/fund-flow/early-withdrawal" }       // 업무시계 기준 전체: 기간과 무관. 아직 state 에만 저장(렌더 없음)
     };
 
     /* ---------- 표기 ---------- */
