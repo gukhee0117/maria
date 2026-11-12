@@ -16,6 +16,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
 
 @Configuration
 @RequiredArgsConstructor
@@ -25,11 +26,17 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
 
     // ─── Order(1): 관리자 API — JWT 필수 ──────────────────────────────────────
+    // 관리자 체인은 세션을 쓰지 않는다. 기본 세션 고정 방어(세션 ID 교체)가 돌면, 같은 호스트에서 고객이 로그인해 둔 JSESSIONID를 관리자 요청이 바꿔 고객이
+    // 로그아웃되므로 NullAuthenticatedSessionStrategy로 끈다.
     @Bean
     @Order(1)
     public SecurityFilterChain adminApiChain(HttpSecurity http) throws Exception {
         http.securityMatcher("/api/admin/**")
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(
+                        s ->
+                                s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                                        .sessionAuthenticationStrategy(
+                                                new NullAuthenticatedSessionStrategy()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
