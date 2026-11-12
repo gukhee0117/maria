@@ -1177,4 +1177,13 @@
     height: 180px;
     margin: 4px 0 8px;
     overflow: hidden;
+    contain: paint;
+    isolation: isolate;
+}
+
+/* 숫자 칸은 차트보다 위에 그린다(차트 캔버스가 상자를 넘쳐도 칸을 덮지 않게) */
+.fund-flow [data-ff-view="submit"] .ff-kpi {
+    position: relative;
+    z-index: 1;
+    background: var(--adm-panel);
 }
