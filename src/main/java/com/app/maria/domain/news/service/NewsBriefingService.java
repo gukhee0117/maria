@@ -45,7 +45,7 @@ public class NewsBriefingService implements NewsBriefingOperations {
     private final Map<Long, QuestionWindow> questionWindows = new LinkedHashMap<>(16, 0.75f, true);
 
     public Briefing briefing(Long customerId) {
-        var c = contexts.load(customerId);
+        var c = contexts.loadForSelection(customerId);
         var snapshot = provider.snapshot(c);
         var selected = selected(c, snapshot);
         Answer first = null;
@@ -336,26 +336,40 @@ public class NewsBriefingService implements NewsBriefingOperations {
         return article;
     }
 
-    private List<Selected> selected(Context context) {
-        return selected(context, provider.snapshot(context));
+    private String selectionKey(Context context, NewsProvider.Snapshot snapshot) {
+        return context.customerId()
+                + ":"
+                + NewsCacheIdentity.portfolio(context)
+                + ":"
+                + snapshot.version()
+                + ":"
+                + NewsSelectionService.RULE_VERSION;
     }
 
-    private List<Selected> selected(Context context, NewsProvider.Snapshot snapshot) {
-        String key =
-                context.customerId()
-                        + ":"
-                        + NewsCacheIdentity.context(context)
-                        + ":"
-                        + snapshot.version()
-                        + ":"
-                        + NewsSelectionService.RULE_VERSION;
+    private List<Selected> cachedSelection(String key) {
         long now = System.nanoTime();
         synchronized (articleSessions) {
             var cached = articleSessions.get(key);
             if (cached != null && cached.expiresAtNanos() - now > 0) return cached.selected();
             if (cached != null) articleSessions.remove(key);
         }
+        return null;
+    }
 
+    private List<Selected> selected(Context context) {
+        var snapshot = provider.snapshot(context);
+        var cached = cachedSelection(selectionKey(context, snapshot));
+        if (cached != null) return cached;
+        var full = contexts.loadForSelection(context.customerId());
+        if (!NewsCacheIdentity.portfolio(full).equals(NewsCacheIdentity.portfolio(context)))
+            throw new AppException(ErrorType.NEWS_ARTICLE_UNAVAILABLE);
+        return selected(full, provider.snapshot(full));
+    }
+
+    private List<Selected> selected(Context context, NewsProvider.Snapshot snapshot) {
+        String key = selectionKey(context, snapshot);
+        var cached = cachedSelection(key);
+        if (cached != null) return cached;
         var result = selection.select(context, snapshot.articles().get());
         synchronized (articleSessions) {
             long insertedAt = System.nanoTime();

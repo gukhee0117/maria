@@ -16,4 +16,69 @@
         LEFT JOIN stock_theme st ON st.stock_theme_id = dpt.stock_theme_id
         WHERE dp.type = 'STOCK' ORDER BY dp.ticker, st.name
     </select>
+    <select id="selectLatestOrderId" resultType="long">
+        SELECT COALESCE(MAX(o.domestic_order_id), 0)
+        FROM account a JOIN domestic_order o ON o.account_id = a.account_id
+        WHERE a.customer_id = #{customerId} AND o.status = 'EXECUTED'
+    </select>
+    <!-- Current theme entry is the latest zero-to-positive balance transition, not the last buy.
+         Recover an opening balance from current holdings minus recorded net orders for legacy seeds.
+         If those records are inconsistent, keep the theme at baseline rather than invent recency. -->
+    <select id="selectHoldingThemePriorities" resultType="com.app.maria.domain.news.dto.NewsThemePriority">
+        WITH customer_orders AS (
+            SELECT o.domestic_product_id, o.account_id, o.domestic_order_id, o.side, o.qty,
+                   ROW_NUMBER() OVER (ORDER BY o.processed_at, o.domestic_order_id) AS event_order
+            FROM account a JOIN domestic_order o ON o.account_id = a.account_id
+            WHERE a.customer_id = #{customerId} AND o.status = 'EXECUTED'
+              AND NOT EXISTS (SELECT 1 FROM domestic_stock_balance ended
+                  WHERE ended.account_id = o.account_id
+                    AND ended.domestic_product_id = o.domestic_product_id
+                    AND ended.status = 'TERMINATED')
+        ), customer_products AS (
+            SELECT b.domestic_product_id
+            FROM account a JOIN domestic_stock_balance b ON b.account_id = a.account_id
+            WHERE a.customer_id = #{customerId} AND b.qty &gt; 0
+              AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
+            UNION SELECT domestic_product_id FROM customer_orders
+        ), eligible_products AS (
+            SELECT DISTINCT dp.domestic_product_id, st.name AS theme
+            FROM customer_products cp
+            JOIN domestic_product dp ON dp.domestic_product_id = cp.domestic_product_id
+            JOIN domestic_product_theme dpt ON dpt.domestic_product_id = dp.domestic_product_id
+            JOIN stock_theme st ON st.stock_theme_id = dpt.stock_theme_id
+            WHERE dp.type = 'STOCK' AND dp.ticker REGEXP '^[0-9]{6}$'
+              AND st.name IS NOT NULL AND TRIM(st.name) != ''
+        ), current_themes AS (
+            SELECT ep.theme, SUM(b.qty) AS current_qty
+            FROM account a
+            JOIN domestic_stock_balance b ON b.account_id = a.account_id
+            JOIN eligible_products ep ON ep.domestic_product_id = b.domestic_product_id
+            WHERE a.customer_id = #{customerId} AND b.qty &gt; 0
+              AND b.status NOT IN ('SOLD_OUT', 'TERMINATED')
+            GROUP BY ep.theme
+        ), theme_orders AS (
+            SELECT ep.theme, o.event_order,
+                   CASE WHEN o.side = 'BUY' THEN o.qty ELSE -o.qty END AS delta
+            FROM customer_orders o
+            JOIN eligible_products ep ON ep.domestic_product_id = o.domestic_product_id
+        ), balances AS (
+            SELECT theme, event_order, delta,
+                   SUM(delta) OVER (PARTITION BY theme ORDER BY event_order
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_qty,
+                   SUM(delta) OVER (PARTITION BY theme) AS net_qty
+            FROM theme_orders
+        ), history_bounds AS (
+            SELECT theme, MIN(running_qty) AS min_running FROM balances GROUP BY theme
+        )
+        SELECT ct.theme, COALESCE(MAX(CASE
+                   WHEN ct.current_qty - b.net_qty &gt;= 0
+                    AND ct.current_qty - b.net_qty + hb.min_running &gt;= 0
+                    AND ct.current_qty - b.net_qty + b.running_qty &gt; 0
+                    AND ct.current_qty - b.net_qty + b.running_qty - b.delta = 0
+                   THEN b.event_order ELSE 0 END), 0) AS priority
+        FROM current_themes ct LEFT JOIN balances b ON b.theme = ct.theme
+        LEFT JOIN history_bounds hb ON hb.theme = ct.theme
+        GROUP BY ct.theme
+        ORDER BY ct.theme
+    </select>
 </mapper>

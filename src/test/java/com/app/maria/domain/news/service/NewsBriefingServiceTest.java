@@ -29,6 +29,8 @@ class NewsBriefingServiceTest {
                     () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
 
     NewsBriefingServiceTest() {
+        when(contexts.loadForSelection(anyLong()))
+                .thenAnswer(invocation -> contexts.load(invocation.getArgument(0)));
         doAnswer(invocation -> provider.articles()).when(provider).articles(any(Context.class));
         when(contexts.load(1L)).thenReturn(NewsSelectionServiceTest.context(InvestorType.STABLE));
         when(provider.id()).thenReturn("demo");
@@ -329,6 +331,215 @@ class NewsBriefingServiceTest {
         assertThatThrownBy(() -> service.summary(2L, "a", "v1")).isInstanceOf(AppException.class);
         assertThatThrownBy(() -> service.summary(1L, "naver-id", "v1"))
                 .isInstanceOf(AppException.class);
+        verifyNoInteractions(ai);
+    }
+
+    @Test
+    void addedThemeRefreshesCachedSelectionAndKeepsPriority() throws Exception {
+        var a = NewsSelectionServiceTest.article("chip", 5, 5);
+        var chip =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        a.id(),
+                        a.version(),
+                        a.title(),
+                        a.body(),
+                        a.source(),
+                        a.url(),
+                        a.publishedAt(),
+                        a.tickers(),
+                        a.facts(),
+                        a.risks(),
+                        5,
+                        5,
+                        5,
+                        true,
+                        List.of(),
+                        List.of("chip"));
+        var tel =
+                new com.app.maria.domain.news.dto.NewsArticle(
+                        "tel",
+                        a.version(),
+                        a.title(),
+                        a.body(),
+                        a.source(),
+                        a.url(),
+                        a.publishedAt().minusDays(1),
+                        a.tickers(),
+                        a.facts(),
+                        a.risks(),
+                        5,
+                        5,
+                        5,
+                        true,
+                        List.of(),
+                        List.of("telecom"));
+        var baseline = NewsSelectionServiceTest.context(InvestorType.STABLE);
+        var oldContext =
+                new Context(
+                        baseline.customerId(),
+                        baseline.tickers(),
+                        baseline.investorType(),
+                        baseline.personalizationStatus(),
+                        baseline.stockNames(),
+                        baseline.stockSectors(),
+                        Map.of("chip", 10L),
+                        10L);
+        var newContext =
+                new Context(
+                        baseline.customerId(),
+                        baseline.tickers(),
+                        baseline.investorType(),
+                        baseline.personalizationStatus(),
+                        baseline.stockNames(),
+                        baseline.stockSectors(),
+                        Map.of("chip", 10L, "telecom", 20L),
+                        20L);
+        when(contexts.load(1L)).thenReturn(oldContext);
+        when(provider.articles()).thenReturn(List.of(chip));
+        assertThat(service.briefing(1L).articles())
+                .extracting(s -> s.article().id())
+                .containsExactly("chip");
+        when(contexts.load(1L)).thenReturn(newContext);
+        when(provider.articles()).thenReturn(List.of(chip, tel));
+        assertThat(service.briefing(1L).articles())
+                .extracting(s -> s.article().id())
+                .containsExactly("tel", "chip");
+        assertThat(service.briefing(1L).articles())
+                .extracting(s -> s.article().id())
+                .containsExactly("tel", "chip");
+        // A delayed older read cannot overwrite newer ordering, even after another customer's
+        // request.
+        when(contexts.load(1L)).thenReturn(oldContext);
+        service.briefing(1L);
+        when(contexts.load(1L)).thenReturn(newContext);
+        assertThat(service.briefing(1L).articles())
+                .extracting(x -> x.article().id())
+                .containsExactly("tel", "chip");
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(contexts.load(1L))
+                .thenAnswer(
+                        invocation -> {
+                            if (calls.getAndIncrement() == 0) {
+                                entered.countDown();
+                                if (!release.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                                    throw new IllegalStateException("request was not released");
+                                return oldContext;
+                            }
+                            return newContext;
+                        });
+        var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var delayed = executor.submit(() -> service.briefing(1L));
+            assertThat(entered.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(service.briefing(1L).articles())
+                    .extracting(x -> x.article().id())
+                    .containsExactly("tel", "chip");
+            release.countDown();
+            delayed.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(service.briefing(1L).articles())
+                    .extracting(x -> x.article().id())
+                    .containsExactly("tel", "chip");
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+        when(contexts.load(anyLong()))
+                .thenAnswer(
+                        invocation ->
+                                new Context(
+                                        invocation.getArgument(0),
+                                        baseline.tickers(),
+                                        baseline.investorType(),
+                                        baseline.personalizationStatus(),
+                                        baseline.stockNames(),
+                                        baseline.stockSectors(),
+                                        newContext.themePriorities(),
+                                        newContext.orderRevision()));
+        for (long customer = 2; customer <= 515; customer++) service.briefing(customer);
+        assertThat(service.briefing(1L).articles())
+                .extracting(x -> x.article().id())
+                .containsExactly("tel", "chip");
+        var restarted =
+                new NewsBriefingService(
+                        contexts,
+                        new NewsSelectionService(),
+                        provider,
+                        ai,
+                        new PreparedNewsResponses(),
+                        new NewsSummaryCache(),
+                        properties,
+                        () -> java.time.LocalDateTime.of(2026, 11, 6, 12, 0));
+        assertThat(restarted.briefing(1L).articles())
+                .extracting(x -> x.article().id())
+                .containsExactly("tel", "chip");
+    }
+
+    @Test
+    void summaryAndQuestionReuseSelectionWithoutReloadingWindowPriorities() {
+        var c = NewsSelectionServiceTest.context(InvestorType.STABLE);
+        var full =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of("chip", 1L),
+                        10L);
+        var basic =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of(),
+                        10L);
+        when(contexts.load(1L)).thenReturn(basic);
+        when(contexts.loadForSelection(1L)).thenReturn(full);
+        service.briefing(1L);
+        clearInvocations(contexts);
+        properties.setLiveQuestions(false);
+        service.summary(1L, "a", "v1");
+        service.question(1L, "a", new QuestionRequest("v1", "주의할 위험은 뭐야?", List.of()));
+        verify(contexts, never()).loadForSelection(anyLong());
+        var changed =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of(),
+                        11L);
+        var changedFull =
+                new Context(
+                        c.customerId(),
+                        c.tickers(),
+                        c.investorType(),
+                        c.personalizationStatus(),
+                        c.stockNames(),
+                        c.stockSectors(),
+                        Map.of("chip", 2L),
+                        11L);
+        when(contexts.load(1L)).thenReturn(changed);
+        when(contexts.loadForSelection(1L)).thenReturn(changedFull);
+        clearInvocations(contexts);
+        service.summary(1L, "a", "v1");
+        verify(contexts).loadForSelection(1L);
+    }
+
+    @Test
+    void portfolioChangeDuringCacheMissFailsBeforeGeneratingAi() {
+        var c = NewsSelectionServiceTest.context(InvestorType.STABLE);
+        when(contexts.loadForSelection(1L))
+                .thenReturn(new Context(1L, Set.of(), c.investorType(), c.personalizationStatus()));
+        assertThatThrownBy(() -> service.summary(1L, "a", "v1")).isInstanceOf(AppException.class);
         verifyNoInteractions(ai);
     }
 }
