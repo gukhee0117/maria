@@ -26,5 +26,10 @@ public class FundFlowMaturityMonthRowDTO {
     private Long lots;
     private Long accounts;
     private BigDecimal paidAmount;
+
+    /** 혜택이 취소되지 않은 계좌의 남은 원금 합 */
     private BigDecimal remainingAmount;
+
+    /** 혜택이 취소된(benefit = IMPOSSIBLE) 계좌의 남은 원금 합 */
+    private BigDecimal canceledRemainingAmount;
 }

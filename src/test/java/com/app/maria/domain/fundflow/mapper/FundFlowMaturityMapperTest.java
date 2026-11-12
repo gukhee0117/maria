@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
@@ -155,6 +156,10 @@ class FundFlowMaturityMapperTest {
         // 계좌 1(2천만), 2(7백만·2백만), 3(3백만) 모두 묶인 잔액이 있다
         assertThat(summary.getLockedAccounts()).isEqualTo(3L);
         assertThat(summary.getMaturedRemainingAmount()).isEqualByComparingTo("4000000");
+        // benefit 이 NULL 인 계좌뿐이라 취소 잔액은 없고, left_amount 없는 건도 없다
+        assertThat(summary.getCanceledRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(summary.getCanceledAccounts()).isZero();
+        assertThat(summary.getLotsWithoutLeftAmount()).isZero();
     }
 
     @Test
@@ -214,6 +219,9 @@ class FundFlowMaturityMapperTest {
         assertThat(summary.getLockedAmount()).isEqualByComparingTo("0");
         assertThat(summary.getLockedAccounts()).isZero();
         assertThat(summary.getMaturedRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(summary.getCanceledRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(summary.getCanceledAccounts()).isZero();
+        assertThat(summary.getLotsWithoutLeftAmount()).isZero();
         assertThat(fundFlowMapper.selectClosedPaidAmount(CLOCK_DATE)).isEqualByComparingTo("0");
     }
 
@@ -281,10 +289,241 @@ class FundFlowMaturityMapperTest {
         assertThat(overview.getInflowTotal()).isEqualByComparingTo("64000000");
     }
 
+    /** 혜택 취소 계좌(5): 묶임·만기·전량 인출 건. REDUCED 계좌(6): 묶임 건(취소가 아니다). seedMixedLots 위에 얹는다. */
+    private void seedCanceledLots() throws SQLException {
+        insertAccount(5L, "OPENED", "IMPOSSIBLE");
+        insertAccount(6L, "OPENED", "REDUCED");
+        insertLot(
+                5L,
+                "FINALIZED",
+                "6000000",
+                "2026-04-10 10:00:00",
+                "6000000"); // 취소 계좌의 묶임 건(2027-04)
+        insertLot(
+                5L,
+                "FINALIZED",
+                "4000000",
+                "2025-03-25 10:00:00",
+                "1000000"); // 취소 계좌의 만기 건(2026-03)
+        insertLot(5L, "FINALIZED", "2000000", "2026-04-20 10:00:00", "0"); // 취소 계좌의 전량 인출(2027-04)
+        insertLot(
+                6L,
+                "FINALIZED",
+                "1000000",
+                "2026-06-01 10:00:00",
+                "1000000"); // REDUCED 는 취소가 아니다(2027-06)
+    }
+
+    @Test
+    @DisplayName("혜택 취소(IMPOSSIBLE) 계좌의 잔액은 월별 remainingAmount·묶임·만기에서 빼고 canceled 로 따로 센다")
+    void canceledAccountBalanceIsSeparatedFromLockedAndMatured() throws SQLException {
+        seedMixedLots();
+        seedCanceledLots();
+
+        List<FundFlowMaturityMonthRowDTO> months = fundFlowMapper.selectMaturityMonths(CLOCK_DATE);
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+
+        assertThat(months)
+                .extracting(
+                        FundFlowMaturityMonthRowDTO::getMaturityYear,
+                        FundFlowMaturityMonthRowDTO::getMaturityMonth,
+                        FundFlowMaturityMonthRowDTO::getLots,
+                        FundFlowMaturityMonthRowDTO::getAccounts)
+                .containsExactly(
+                        tuple(2026, 3, 2L, 2L),
+                        tuple(2027, 3, 3L, 2L),
+                        tuple(2027, 4, 2L, 1L),
+                        tuple(2027, 5, 2L, 2L),
+                        tuple(2027, 6, 1L, 1L),
+                        tuple(2027, 11, 1L, 1L));
+        String[] paid = {"14000000", "33000000", "8000000", "10000000", "1000000", "2000000"};
+        String[] remaining = {"4000000", "20000000", "0", "10000000", "1000000", "2000000"};
+        String[] canceled = {"1000000", "0", "6000000", "0", "0", "0"};
+        for (int i = 0; i < months.size(); i++) {
+            assertThat(months.get(i).getPaidAmount())
+                    .as("paid[%d]", i)
+                    .isEqualByComparingTo(paid[i]);
+            assertThat(months.get(i).getRemainingAmount())
+                    .as("remaining[%d]", i)
+                    .isEqualByComparingTo(remaining[i]);
+            assertThat(months.get(i).getCanceledRemainingAmount())
+                    .as("canceled[%d]", i)
+                    .isEqualByComparingTo(canceled[i]);
+        }
+        // 묶임: 기존 32,000,000 + REDUCED 계좌 1,000,000 (취소 계좌의 6,000,000 은 뺀다)
+        assertThat(summary.getLockedAmount()).isEqualByComparingTo("33000000");
+        assertThat(summary.getLockedAccounts()).isEqualTo(4L); // 계좌 1, 2, 3, 6 (취소 계좌 5 제외)
+        // 만기: 기존 4,000,000 (취소 계좌의 만기 건 1,000,000 은 뺀다)
+        assertThat(summary.getMaturedRemainingAmount()).isEqualByComparingTo("4000000");
+        // 취소 계좌의 잔액은 묶임·만기와 상관없이 전부: 6,000,000 + 1,000,000 + 0
+        assertThat(summary.getCanceledRemainingAmount()).isEqualByComparingTo("7000000");
+        assertThat(summary.getCanceledAccounts()).isEqualTo(1L);
+        assertThat(summary.getLotsWithoutLeftAmount()).isZero();
+    }
+
+    @Test
+    @DisplayName("benefit 이 NULL 인 계좌는 혜택 취소로 보지 않고 묶임에 센다")
+    void nullBenefitAccountIsNotCanceled() throws SQLException {
+        insertAccount(1L, "OPENED"); // benefit NULL
+        insertLot(1L, "FINALIZED", "7000000", "2026-05-02 10:00:00", "7000000");
+
+        List<FundFlowMaturityMonthRowDTO> months = fundFlowMapper.selectMaturityMonths(CLOCK_DATE);
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+
+        assertThat(months).hasSize(1);
+        assertThat(months.get(0).getRemainingAmount()).isEqualByComparingTo("7000000");
+        assertThat(months.get(0).getCanceledRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(summary.getLockedAmount()).isEqualByComparingTo("7000000");
+        assertThat(summary.getLockedAccounts()).isEqualTo(1L);
+        assertThat(summary.getCanceledRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(summary.getCanceledAccounts()).isZero();
+    }
+
+    @Test
+    @DisplayName("left_amount 가 없는 대상 건도 확정 원금에 넣고 lotsWithoutLeftAmount 로 센다(검산 ④ 성립)")
+    void lotWithoutLeftAmountIsKeptInPaidAmountAndCounted() throws SQLException {
+        insertAccount(1L, "OPENED");
+        insertAccount(2L, "CLOSED");
+        insertLot(1L, "FINALIZED", "5000000", "2026-04-10 10:00:00", "3000000");
+        insertLotWithoutLeftAmount(1L, "2000000", "2026-04-20 10:00:00"); // 대상, left_amount 없음
+        insertLotWithoutLeftAmount(2L, "4000000", "2026-04-15 10:00:00"); // 해지 계좌: 대상 밖(해지 제외분에만)
+
+        List<FundFlowMaturityMonthRowDTO> months = fundFlowMapper.selectMaturityMonths(CLOCK_DATE);
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+        BigDecimal closedPaid = fundFlowMapper.selectClosedPaidAmount(CLOCK_DATE);
+
+        assertThat(months).hasSize(1);
+        assertThat(months.get(0).getLots()).isEqualTo(2L);
+        assertThat(months.get(0).getAccounts()).isEqualTo(1L);
+        assertThat(months.get(0).getPaidAmount()).isEqualByComparingTo("7000000");
+        assertThat(months.get(0).getRemainingAmount()).isEqualByComparingTo("3000000");
+        assertThat(summary.getLockedAmount()).isEqualByComparingTo("3000000");
+        assertThat(summary.getLockedAccounts()).isEqualTo(1L);
+        assertThat(summary.getLotsWithoutLeftAmount()).isEqualTo(1L); // 해지 계좌의 건은 세지 않는다
+        assertThat(closedPaid).isEqualByComparingTo("4000000");
+
+        FundFlowOverviewDTO overview =
+                fundFlowMapper.selectOverview(
+                        FundFlowFilterDTO.builder()
+                                .asOfDate(CLOCK_DATE.minusDays(1))
+                                .clockDate(CLOCK_DATE)
+                                .build());
+        // 불변식 ④: left_amount 가 없어도 months 합 + 해지 제외분 = inflowTotal
+        assertThat(months.get(0).getPaidAmount().add(closedPaid))
+                .isEqualByComparingTo(overview.getInflowTotal());
+        assertThat(overview.getInflowTotal()).isEqualByComparingTo("11000000");
+    }
+
+    @Test
+    @DisplayName("불변식 ① ② ④: 혜택 취소 계좌가 섞여도 확정 원금 합과 묶임·만기 합이 맞는다")
+    void invariantsHoldWithCanceledLots() throws SQLException {
+        seedMixedLots();
+        seedCanceledLots();
+
+        List<FundFlowMaturityMonthRowDTO> months = fundFlowMapper.selectMaturityMonths(CLOCK_DATE);
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+        BigDecimal paidSum =
+                months.stream()
+                        .map(FundFlowMaturityMonthRowDTO::getPaidAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainingSum =
+                months.stream()
+                        .map(FundFlowMaturityMonthRowDTO::getRemainingAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        FundFlowOverviewDTO overview =
+                fundFlowMapper.selectOverview(
+                        FundFlowFilterDTO.builder()
+                                .asOfDate(CLOCK_DATE.minusDays(1))
+                                .clockDate(CLOCK_DATE)
+                                .build());
+
+        assertThat(paidSum).isEqualByComparingTo("68000000"); // ①: 55,000,000 + 13,000,000
+        assertThat(summary.getLockedAmount().add(summary.getMaturedRemainingAmount()))
+                .isEqualByComparingTo(remainingSum); // ②
+        assertThat(remainingSum).isEqualByComparingTo("37000000");
+        assertThat(paidSum.add(fundFlowMapper.selectClosedPaidAmount(CLOCK_DATE)))
+                .isEqualByComparingTo(overview.getInflowTotal()); // ④
+        assertThat(overview.getInflowTotal()).isEqualByComparingTo("77000000");
+    }
+
+    @Test
+    @DisplayName("불변식 ⑤: 요약 canceledRemainingAmount = months[].canceledRemainingAmount 합")
+    void invariantCanceledSummaryEqualsMonthsSum() throws SQLException {
+        seedMixedLots();
+        seedCanceledLots();
+
+        BigDecimal canceledSum =
+                fundFlowMapper.selectMaturityMonths(CLOCK_DATE).stream()
+                        .map(FundFlowMaturityMonthRowDTO::getCanceledRemainingAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+
+        assertThat(summary.getCanceledRemainingAmount()).isEqualByComparingTo(canceledSum);
+        assertThat(canceledSum).isEqualByComparingTo("7000000");
+    }
+
+    @Test
+    @DisplayName(
+            "불변식 ⑥: lockedAmount + maturedRemainingAmount + canceledRemainingAmount = 대상 건 cur_amount 합")
+    void invariantLockedMaturedCanceledEqualsTargetRemaining() throws SQLException {
+        seedMixedLots();
+        seedCanceledLots();
+
+        FundFlowMaturitySummaryRowDTO summary =
+                fundFlowMapper.selectMaturitySummary(CLOCK_DATE, LOCK_BOUNDARY);
+        // 테스트가 직접 쓴 SQL: 운영 쿼리와 별개로 대상 건(FINALIZED, 확정일 < clockDate, 비해지)의 남은 원금을 더한다
+        BigDecimal targetRemaining =
+                queryDecimal(
+                        "SELECT COALESCE(SUM(la.cur_amount), 0) FROM krw_exchange k"
+                                + " JOIN left_amount la ON la.exchange_id = k.exchange_id"
+                                + " JOIN account a ON a.account_id = k.account_id"
+                                + " WHERE k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL"
+                                + " AND k.final_at < '2026-11-18' AND a.status <> 'CLOSED'");
+
+        assertThat(
+                        summary.getLockedAmount()
+                                .add(summary.getMaturedRemainingAmount())
+                                .add(summary.getCanceledRemainingAmount()))
+                .isEqualByComparingTo(targetRemaining);
+        assertThat(targetRemaining).isEqualByComparingTo("44000000"); // 36,000,000 + 8,000,000
+    }
+
+    /** benefit 이 NULL 인 계좌(혜택 취소가 아닌 것으로 센다). */
     private void insertAccount(Long accountId, String status) throws SQLException {
+        insertAccount(accountId, status, null);
+    }
+
+    private void insertAccount(Long accountId, String status, String benefit) throws SQLException {
         execute(
-                "INSERT INTO account (account_id, customer_id, created_at, opened_at, status) VALUES (%d, %d, '2026-03-01 09:00:00', '2026-03-02 09:00:00', '%s')"
-                        .formatted(accountId, accountId, status));
+                "INSERT INTO account (account_id, customer_id, created_at, opened_at, status, benefit) VALUES (%d, %d, '2026-03-01 09:00:00', '2026-03-02 09:00:00', '%s', %s)"
+                        .formatted(
+                                accountId,
+                                accountId,
+                                status,
+                                benefit == null ? "NULL" : "'" + benefit + "'"));
+    }
+
+    /** left_amount 없이 환전만 넣는다(생성이 실패한 건을 흉내 낸다). */
+    private void insertLotWithoutLeftAmount(Long accountId, String finalAmount, String finalAt)
+            throws SQLException {
+        long exchangeId = nextExchangeId++;
+        execute(
+                "INSERT INTO krw_exchange (exchange_id, account_id, settlement_status, final_amount, final_at) VALUES (%d, %d, 'FINALIZED', %s, '%s')"
+                        .formatted(exchangeId, accountId, finalAmount, finalAt));
+    }
+
+    private BigDecimal queryDecimal(String sql) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getBigDecimal(1);
+        }
     }
 
     /** 환전 한 건과 그 left_amount 를 넣는다. finalAmount·finalAt 이 null 이면 SQL NULL. */
@@ -327,7 +566,8 @@ class FundFlowMaturityMapperTest {
                         customer_id BIGINT NOT NULL,
                         created_at DATETIME NOT NULL,
                         opened_at DATETIME NULL,
-                        status VARCHAR(20) NOT NULL
+                        status VARCHAR(20) NOT NULL,
+                        benefit VARCHAR(12) NULL
                     )
                     """);
             statement.execute(

@@ -242,21 +242,26 @@
   "firstMaturityMonth": "2027-03-01",
   "lockedAmount": 0, "lockedAccounts": 0,
   "maturedRemainingAmount": 0,
+  "canceledRemainingAmount": 0, "canceledAccounts": 0,
+  "lotsWithoutLeftAmount": 0,
   "excludedClosedPaidAmount": 0,
   "months": [
-    { "maturityMonth": "2027-03-01", "lots": 0, "accounts": 0, "paidAmount": 0, "remainingAmount": 0 }
+    { "maturityMonth": "2027-03-01", "lots": 0, "accounts": 0, "paidAmount": 0, "remainingAmount": 0, "canceledRemainingAmount": 0 }
   ],
   "basis": "..."
 }
 ```
-- **대상**: `krw_exchange.settlement_status = 'FINALIZED'`, `final_at`이 있고 **업무시계 날짜(`clockDate`) 미만**, `left_amount`가 있는 건. 다른 관리자 API와 같은 날짜 단위 상한이다.
+- **대상**: `krw_exchange.settlement_status = 'FINALIZED'`, `final_at`이 있고 **업무시계 날짜(`clockDate`) 미만**인 건. 다른 관리자 API와 같은 날짜 단위 상한이다. `left_amount`는 `LEFT JOIN`이라, 정상 흐름에서는 확정산 때 함께 생기지만 없는 건이 있어도 확정 원금이 빠지지 않는다(남은 원금은 0으로 센다. 개수는 `lotsWithoutLeftAmount`).
 - **해지 계좌 제외**: `account.status <> 'CLOSED'`. `CLOSURE_REQUESTED`(해지 신청 중)는 잔액이 아직 묶여 있어 포함한다. 제외한 계좌의 확정 원금 합은 `excludedClosedPaidAmount`로 따로 낸다.
 - **만기월** = `final_at` + 1년의 월(`YEAR(final_at) + 1`, `MONTH(final_at)`)의 1일. `months`는 만기월 오름차순이고 `firstMaturityMonth`는 첫 원소다(대상이 없으면 `null`, `months`는 `[]`).
 - **묶임·만기 분류**는 업무시각 기준이다. 서비스가 `lockBoundary = 업무시각 - 1년`을 넘기고, 묶임 = `final_at > lockBoundary`, 만기 = `final_at <= lockBoundary`이다. 기존 인출 판정(`final_at.plusYears(1).isAfter(now)`)과 같은 뜻이다. **2/29에 확정된 건만** 기준일 계산(다음 해 2/28 vs `minusYears(1)`)이 달라 하루 어긋날 수 있다.
-- `lockedAmount` = 묶인 건의 `left_amount.cur_amount` 합, `lockedAccounts` = 묶인 잔액이 **남아 있는** 계좌 수, `maturedRemainingAmount` = 이미 만기가 지났지만 아직 남은 잔액.
-- `lots`, `accounts`, `paidAmount`는 **전량 인출된 건(`cur_amount = 0`)도 포함**한다. `paidAmount`는 `final_amount` 합, `remainingAmount`는 `cur_amount` 합이다.
+- **혜택이 취소된 계좌는 따로 센다**(`account.benefit = 'IMPOSSIBLE'`): 혜택이 취소된 계좌의 잔액은 1년 유지 조건과 무관해서 묶임·만기 집계에서 뺀다. `benefit`이 `NULL`이면 취소가 아닌 것으로 본다.
+  - `lockedAmount` = **혜택이 살아 있는** 계좌 중 묶인 건의 `left_amount.cur_amount` 합, `lockedAccounts` = 그런 계좌 중 묶인 잔액이 **남아 있는** 계좌 수, `maturedRemainingAmount` = 혜택이 살아 있는 계좌 중 이미 만기가 지났지만 아직 남은 잔액.
+  - `canceledRemainingAmount` = 혜택이 취소된 계좌의 남은 원금 합(**묶임·만기와 상관없이 전부**), `canceledAccounts` = 남은 원금이 있는 혜택 취소 계좌 수.
+- `lots`, `accounts`, `paidAmount`는 **전량 인출된 건(`cur_amount = 0`)과 혜택 취소 계좌의 건도 포함**한다. `paidAmount`는 `final_amount` 합(전체)이다. `remainingAmount`는 **혜택이 취소되지 않은** 계좌의 `cur_amount` 합, `canceledRemainingAmount`는 **혜택이 취소된** 계좌의 `cur_amount` 합이다.
+- `lotsWithoutLeftAmount` = `left_amount`가 없는 대상 건 수(해지 계좌의 건은 제외). 정상이면 0이다. 0이 아니면 데이터를 확인해야 한다.
 - 소규모 칸 마스킹(§1)은 적용하지 않는다. 월·건 단위 집계이고 개인 속성이 없으며, 마스킹하면 합계 검산이 깨진다.
-- **검산 관계** (매퍼 테스트로 확인): ① `months[].paidAmount` 합 = 대상 건의 `final_amount` 합, ② `lockedAmount + maturedRemainingAmount` = `months[].remainingAmount` 합, ③ `lockedAccounts` ≤ 대상 계좌 수, ④ `months[].paidAmount` 합 + `excludedClosedPaidAmount` = `/overview`의 `inflowTotal`(기간 `ALL`).
+- **검산 관계** (매퍼 테스트로 확인): ① `months[].paidAmount` 합 = 대상 건의 `final_amount` 합, ② `lockedAmount + maturedRemainingAmount` = `months[].remainingAmount` 합, ③ `lockedAccounts` ≤ 대상 계좌 수, ④ `months[].paidAmount` 합 + `excludedClosedPaidAmount` = `/overview`의 `inflowTotal`(기간 `ALL`, `left_amount`가 없는 건이 있어도 성립), ⑤ `canceledRemainingAmount` = `months[].canceledRemainingAmount` 합, ⑥ `lockedAmount + maturedRemainingAmount + canceledRemainingAmount` = 대상 건의 `cur_amount` 합.
 - 1년은 기존 코드처럼 `plusYears(1)` 기준이며 `tax_rule.HOLDING_PERIOD`를 읽지 않는다.
 
 ### 2-11. `GET /api/admin/fund-flow/early-withdrawal` — 1년 미경과 원금 인출 비율

@@ -338,7 +338,8 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
      * 1년 묶임 스케줄. 대상 건의 상한은 다른 관리자 API 처럼 업무시계 날짜(clockDate) 미만이고, 묶임·만기 분류만 업무시각 기준이다. 묶임은 기존
      * {@code finalAt.plusYears(1).isAfter(now)} 와 같은 뜻의 {@code finalAt > now - 1년} 으로 SQL 에서 판정한다.
      * 달력상 2/29 에 확정된 건만 {@code plusYears(1)}(다음 해 2/28)과 {@code minusYears(1)}(2/29 → 2/28)의 기준일이
-     * 달라 하루 어긋날 수 있다.
+     * 달라 하루 어긋날 수 있다. 혜택이 취소된(benefit = IMPOSSIBLE) 계좌의 잔액은 1년 유지 조건과 무관해 묶임·만기와 월별 남은 원금에서 빼고
+     * canceledRemainingAmount 로 따로 낸다.
      */
     @Override
     public FundFlowMaturityResponseDTO getMaturity() {
@@ -360,6 +361,8 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                                                 .accounts(row.getAccounts())
                                                 .paidAmount(row.getPaidAmount())
                                                 .remainingAmount(row.getRemainingAmount())
+                                                .canceledRemainingAmount(
+                                                        row.getCanceledRemainingAmount())
                                                 .build())
                         .toList();
         FundFlowMaturitySummaryRowDTO summary =
@@ -373,6 +376,9 @@ public class AdminFundFlowServiceImpl implements AdminFundFlowService {
                         .lockedAmount(summary.getLockedAmount())
                         .lockedAccounts(summary.getLockedAccounts())
                         .maturedRemainingAmount(summary.getMaturedRemainingAmount())
+                        .canceledRemainingAmount(summary.getCanceledRemainingAmount())
+                        .canceledAccounts(summary.getCanceledAccounts())
+                        .lotsWithoutLeftAmount(summary.getLotsWithoutLeftAmount())
                         .excludedClosedPaidAmount(
                                 fundFlowMapper.selectClosedPaidAmount(filter.getClockDate()))
                         .months(months)

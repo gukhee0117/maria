@@ -46,6 +46,9 @@ class AdminFundFlowMaturityApiTest {
                                         .lockedAmount(new BigDecimal("30000000"))
                                         .lockedAccounts(3L)
                                         .maturedRemainingAmount(BigDecimal.ZERO)
+                                        .canceledRemainingAmount(new BigDecimal("5601101"))
+                                        .canceledAccounts(1L)
+                                        .lotsWithoutLeftAmount(0L)
                                         .excludedClosedPaidAmount(new BigDecimal("9000000"))
                                         .months(
                                                 List.of(
@@ -58,6 +61,8 @@ class AdminFundFlowMaturityApiTest {
                                                                         new BigDecimal("33000000"))
                                                                 .remainingAmount(
                                                                         new BigDecimal("20000000"))
+                                                                .canceledRemainingAmount(
+                                                                        new BigDecimal("5601101"))
                                                                 .build()))
                                         .build()));
 
@@ -68,11 +73,15 @@ class AdminFundFlowMaturityApiTest {
                 .andExpect(jsonPath("$.data.firstMaturityMonth").value("2027-03-01"))
                 .andExpect(jsonPath("$.data.lockedAmount").value(30000000))
                 .andExpect(jsonPath("$.data.lockedAccounts").value(3))
+                .andExpect(jsonPath("$.data.canceledRemainingAmount").value(5601101))
+                .andExpect(jsonPath("$.data.canceledAccounts").value(1))
+                .andExpect(jsonPath("$.data.lotsWithoutLeftAmount").value(0))
                 .andExpect(jsonPath("$.data.excludedClosedPaidAmount").value(9000000))
                 .andExpect(jsonPath("$.data.months[0].maturityMonth").value("2027-03-01"))
                 .andExpect(jsonPath("$.data.months[0].lots").value(3))
                 .andExpect(jsonPath("$.data.months[0].paidAmount").value(33000000))
                 .andExpect(jsonPath("$.data.months[0].remainingAmount").value(20000000))
+                .andExpect(jsonPath("$.data.months[0].canceledRemainingAmount").value(5601101))
                 .andExpect(jsonPath("$.data.basis").isNotEmpty());
     }
 

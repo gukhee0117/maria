@@ -28,6 +28,9 @@ public class FundFlowMaturityMonthDTO {
     /** 확정 원금 합(krw_exchange.final_amount) */
     private BigDecimal paidAmount;
 
-    /** 현재 남은 원금 합(left_amount.cur_amount) */
+    /** 혜택이 취소되지 않은 계좌의 현재 남은 원금 합(left_amount.cur_amount) */
     private BigDecimal remainingAmount;
+
+    /** 혜택이 취소된 계좌의 현재 남은 원금 합 */
+    private BigDecimal canceledRemainingAmount;
 }

@@ -35,6 +35,17 @@ class AdminFundFlowMaturityServiceTest {
 
     private static FundFlowMaturityMonthRowDTO monthRow(
             int year, int month, long lots, long accounts, String paid, String remaining) {
+        return monthRow(year, month, lots, accounts, paid, remaining, "0");
+    }
+
+    private static FundFlowMaturityMonthRowDTO monthRow(
+            int year,
+            int month,
+            long lots,
+            long accounts,
+            String paid,
+            String remaining,
+            String canceled) {
         return FundFlowMaturityMonthRowDTO.builder()
                 .maturityYear(year)
                 .maturityMonth(month)
@@ -42,15 +53,29 @@ class AdminFundFlowMaturityServiceTest {
                 .accounts(accounts)
                 .paidAmount(new BigDecimal(paid))
                 .remainingAmount(new BigDecimal(remaining))
+                .canceledRemainingAmount(new BigDecimal(canceled))
                 .build();
     }
 
     private static FundFlowMaturitySummaryRowDTO summary(
             String locked, long accounts, String matured) {
+        return summary(locked, accounts, matured, "0", 0L, 0L);
+    }
+
+    private static FundFlowMaturitySummaryRowDTO summary(
+            String locked,
+            long accounts,
+            String matured,
+            String canceled,
+            long canceledAccounts,
+            long lotsWithoutLeftAmount) {
         return FundFlowMaturitySummaryRowDTO.builder()
                 .lockedAmount(new BigDecimal(locked))
                 .lockedAccounts(accounts)
                 .maturedRemainingAmount(new BigDecimal(matured))
+                .canceledRemainingAmount(new BigDecimal(canceled))
+                .canceledAccounts(canceledAccounts)
+                .lotsWithoutLeftAmount(lotsWithoutLeftAmount)
                 .build();
     }
 
@@ -127,8 +152,42 @@ class AdminFundFlowMaturityServiceTest {
         assertThat(result.getLockedAmount()).isEqualByComparingTo("0");
         assertThat(result.getLockedAccounts()).isZero();
         assertThat(result.getMaturedRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(result.getCanceledRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(result.getCanceledAccounts()).isZero();
+        assertThat(result.getLotsWithoutLeftAmount()).isZero();
         assertThat(result.getExcludedClosedPaidAmount()).isEqualByComparingTo("0");
         assertThat(result.getBasis()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("혜택 취소 잔액·취소 계좌 수·left_amount 없는 건 수를 요약과 월별에 그대로 담고 basis 에 정의를 적는다")
+    void getMaturityMapsCanceledAndMissingLeftAmountFields() {
+        when(businessClockService.now()).thenReturn(NOW);
+        when(fundFlowMapper.selectMaturityMonths(any()))
+                .thenReturn(
+                        List.of(
+                                monthRow(2027, 3, 3, 2, "33000000", "20000000", "0"),
+                                monthRow(2027, 4, 2, 1, "8000000", "0", "6000000")));
+        when(fundFlowMapper.selectMaturitySummary(any(), any()))
+                .thenReturn(summary("20000000", 2L, "0", "6000000", 1L, 1L));
+        when(fundFlowMapper.selectClosedPaidAmount(any())).thenReturn(BigDecimal.ZERO);
+
+        FundFlowMaturityResponseDTO result = adminFundFlowService.getMaturity();
+
+        assertThat(result.getLockedAmount()).isEqualByComparingTo("20000000");
+        assertThat(result.getLockedAccounts()).isEqualTo(2L);
+        assertThat(result.getCanceledRemainingAmount()).isEqualByComparingTo("6000000");
+        assertThat(result.getCanceledAccounts()).isEqualTo(1L);
+        assertThat(result.getLotsWithoutLeftAmount()).isEqualTo(1L);
+        assertThat(result.getMonths().get(0).getCanceledRemainingAmount())
+                .isEqualByComparingTo("0");
+        assertThat(result.getMonths().get(1).getRemainingAmount()).isEqualByComparingTo("0");
+        assertThat(result.getMonths().get(1).getCanceledRemainingAmount())
+                .isEqualByComparingTo("6000000");
+        assertThat(result.getBasis())
+                .contains("혜택이 취소된")
+                .contains("canceledRemainingAmount")
+                .contains("lotsWithoutLeftAmount");
     }
 
     @Test
