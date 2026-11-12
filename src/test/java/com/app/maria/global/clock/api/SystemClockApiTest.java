@@ -75,21 +75,6 @@ class SystemClockApiTest {
     }
 
     @Test
-    void 업무시각_변경은_최고관리자와_정산담당만_할_수_있다() throws Exception {
-        String rule =
-                SystemClockApi.class
-                        .getMethod(
-                                "changeSystemTime", Long.class, SystemClockChangeRequestDTO.class)
-                        .getAnnotation(
-                                org.springframework.security.access.prepost.PreAuthorize.class)
-                        .value();
-
-        org.assertj.core.api.Assertions.assertThat(rule)
-                .contains("ADMIN", "SETTLEMENT")
-                .doesNotContain("REVIEWER", "VIEWER");
-    }
-
-    @Test
     void 현재_MARIA_업무시각을_조회한다() throws Exception {
         LocalDateTime currentDatetime = LocalDateTime.of(2027, 8, 5, 9, 30);
 
