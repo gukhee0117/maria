@@ -287,8 +287,9 @@ $(function () {
     }
 
     // 월별 확정 원화 유입(회색) vs 국내 매수(강조색) 묶음 막대. 재투자율 선은 그리지 않고 근거 표에 월별 값으로 둔다
-    function buildMonthlyBars(canvas, varFn, responsive, months) {
+    function buildMonthlyBars(canvas, varFn, responsive, allMonths) {
         var C = fsColors(varFn);
+        var months = allMonths.filter(function (m) { return !m.partial; }); // 진행 중인 달은 막대에서 제외(표에는 "진행 중"으로 둔다)
         return fsBar(canvas, varFn, responsive, {
             labels: monthLabels(months),
             series: [
@@ -296,20 +297,6 @@ $(function () {
                 { name: "국내 매수", data: months.map(function (m) { return num(m.domesticBuyAmount); }), color: C.acc }
             ],
             names: ["유입", "매수"]
-        });
-    }
-
-    // 월별 인출액: 최대 월만 강조색, 나머지는 회색. 세로축 없이 값만 쓴다
-    function buildWithdrawChart(canvas, varFn, months, responsive) {
-        var C = fsColors(varFn);
-        var vals = months.map(function (m) { return num(m.withdrawalAmount); });
-        var max = Math.max.apply(null, vals);
-        return fsBar(canvas, varFn, responsive, {
-            labels: monthLabels(months),
-            series: [{ name: "인출", data: vals, color: vals.map(function (v) { return v === max && v > 0 ? C.acc : C.gray; }) }],
-            fmt: function (v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : fsEok1(v); },
-            showY: false,
-            padTop: 18
         });
     }
 
@@ -531,19 +518,18 @@ $(function () {
         return true;
     }
 
-    // 남는 금액(가정): 혜택 유지 잔액 전체를 회색 바탕으로, 50% · 70% · 90% 지점에 표시와 금액 라벨
+    // 남는 금액(가정): 줄마다 혜택 유지 잔액 전체 길이의 연회색 바탕 + 해당 금액만큼 강조색 + 끝에 금액 라벨
     function renderScenBar() {
         var d = state.maturity;
         var locked = d ? Number(d.lockedAmount) : 0;
         var show = d && d.lockedAmount != null && isFinite(locked) && locked > 0;
         $("#ffSubScen").prop("hidden", !show);
         if (!show) { $("#ffScenBar").empty(); return; }
-        var marks = [50, 70, 90].map(function (p) {
-            return '<i class="fs-scen-tick" style="left:' + p + '%"></i>' +
-                '<span class="fs-scen-lab" style="left:' + p + '%"><b>' + p + "%</b><em>" + eok(Math.round(locked * p / 100)) + "</em></span>";
-        }).join("");
-        $("#ffScenBar").html('<div class="fs-scen-track"><span class="fs-scen-band" style="left:50%;width:40%"></span>' + marks +
-            '<span class="fs-scen-end">혜택 유지 잔액 ' + eok(locked) + "</span></div>");
+        $("#ffScenBar").html([50, 70, 90].map(function (p) {
+            return '<div class="fs-scen-row"><span class="fs-scen-name">' + p + '% 남는 경우</span>' +
+                '<div class="fs-scen-track"><span class="fs-scen-fill" style="width:' + p + '%"></span>' +
+                '<b class="fs-scen-val" style="left:' + p + '%">' + eok(Math.round(locked * p / 100)) + "</b></div></div>";
+        }).join("") + '<div class="fs-scen-basis">바탕 전체 = 혜택 유지 잔액 ' + eok(locked) + "</div>");
     }
 
     // 제출용 만기 도래: 월별 accounts 가 5 미만인 월은 인접 월과 합쳐 보인다(앞에서부터 합치고, 마지막이 모자라면 앞 묶음에 합친다).
@@ -637,7 +623,6 @@ $(function () {
         $("#ffSubFlowCaption, #ffSubMonthlyCaption").text(cap);
         setPanel($("#ffSubPanelFlow"), "ready");
         setPanel($("#ffSubPanelMonthly"), "ready");
-        renderSubWithdraw();
         if (view === "submit") drawSubProcess();
     }
 
@@ -648,7 +633,6 @@ $(function () {
         if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
         if (!buildSankeyFs($("#ffSubSankey"), undefined, months)) showPanelEmpty($("#ffSubPanelFlow"));
         if (window.Chart) subMonthlyChart = buildMonthlyBars(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
-        drawSubWithdraw();
     }
 
     // 제출용 혜택 누수: 100% 누적 막대(직접 라벨). 근거 표는 renderTblLeak. 계좌 수가 5 미만이면 "5건 미만"
@@ -695,36 +679,6 @@ $(function () {
         $("#ffRetFacts").text(has ? "실선 유지 비율, 연한 면 95% 구간 · 세로축 " + Math.round(yMin * 100) + "~100% 구간 표시" : "").prop("hidden", !has);
         $("#ffRetCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         if (view === "submit") drawSubRetention();
-    }
-
-    // 제출용: 월별 인출액 막대(monthlyAll 의 months[].withdrawalAmount). 금액만 쓴다
-    var wdChart = null;
-    var wdMonths = [];
-
-    function clearWithdraw() {
-        if (wdChart) { wdChart.destroy(); wdChart = null; }
-        wdMonths = [];
-        $("#ffWdBox").prop("hidden", true);
-        $("#ffWdChart").attr("aria-label", "");
-    }
-
-    function wdLabel(m) {
-        return String(m.flowMonth || "").slice(0, 7) + (m.partial ? "(진행 중)" : "");
-    }
-
-    function drawSubWithdraw() {
-        if (wdChart) { wdChart.destroy(); wdChart = null; }
-        if (!window.Chart || !wdMonths.length) return;
-        wdChart = buildWithdrawChart(document.getElementById("ffWdChart"), cssVar, wdMonths, true);
-    }
-
-    function renderSubWithdraw() {
-        var d = state.monthlyAll || {};
-        wdMonths = d.months || [];
-        var has = wdMonths.length > 0;
-        $("#ffWdBox").prop("hidden", !has);
-        $("#ffWdChart").attr("aria-label", has ? "월별 인출액: " + wdMonths.map(function (m) { return wdLabel(m) + " " + krwShort(m.withdrawalAmount) + "원"; }).join(", ") : "");
-        if (view === "submit") drawSubWithdraw();
     }
 
     function renderReliefSummary() {
@@ -2085,7 +2039,7 @@ $(function () {
             var key = monthKey(x);
             var rate = num(x.krwInflowAmount) > 0 ? pctS(num(x.domesticBuyAmount) / num(x.krwInflowAmount)) : "-";
             return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), e1(x.krwInflowAmount), e1(x.domesticBuyAmount), rate, (num(x.withdrawalAmount) / 1e8).toFixed(2)]);
-        }).join("") + fsNote("단위: 억 원. 재투자율 = 국내 매수 ÷ 확정 원화 유입(월별)", 5);
+        }).join("") + fsNote("단위: 억 원. 재투자율은 해당 월 국내 매수 ÷ 해당 월 확정 원화 유입이며, 이전 월에 계좌에 남은 금액으로 매수한 경우 100%를 넘을 수 있음", 5);
         fsPut("ffTblMonthly", head, body);
     }
 
@@ -2096,8 +2050,6 @@ $(function () {
         var body = "";
         if (o) {
             body += fsGroup("규모", 3);
-            if (o.openedAccounts != null) body += fsRow(["개설 계좌", KRW.format(num(o.openedAccounts)) + "계좌", "해지 포함"]);
-            if (o.inflowTotal != null) body += fsRow(["확정 복귀 금액", eok(o.inflowTotal), ""]);
             if (o.netInvestRatio != null) body += fsRow(["순투자율", pctS(Number(o.netInvestRatio)), t && t.krw > 0 ? eok(t.buy - t.dsell) + " / " + eok(t.krw) : ""]);
         } else {
             body += fsWait("overviewAll", "핵심 지표", 3);
@@ -2105,7 +2057,6 @@ $(function () {
         body += fsGroup("1년 전 원금 인출", 3);
         if (e) {
             var few = num(e.earlyAccounts) < 5;
-            body += fsRow(["계좌 기준", few ? "5건 미만" : pctS(Number(e.accountShare)), few ? KRW.format(num(e.finalizedAccounts)) + "계좌 중" : KRW.format(num(e.earlyAccounts)) + " / " + KRW.format(num(e.finalizedAccounts)) + "계좌"]);
             body += fsRow(["금액 기준", few ? "5건 미만" : pctS(Number(e.amountShare)), few ? "" : eok(e.earlyWithdrawnAmount) + " / " + eok(e.finalizedAmount)]);
             (e.byCause || []).forEach(function (cz) {
                 body += fsRow(["원인: " + esc(cz.label || ""), cz.accounts == null ? "-" : (num(cz.accounts) < 5 ? "5건 미만" : KRW.format(num(cz.accounts)) + "계좌"), ""]);
@@ -2127,7 +2078,6 @@ $(function () {
         body += fsGroup("감면(잠정)", 3);
         if (r) {
             var v = reliefVs(o, r);
-            body += fsRow(["예상 감면액", eok(r.reliefTotal), "잠정 정의의 예상값"]);
             if (num(r.generalTaxTotal) > 0) body += fsRow(["감면 비율", pctS(num(r.reliefTotal) / num(r.generalTaxTotal)), eok(r.reliefTotal) + " / " + eok(r.generalTaxTotal)]);
             if (v) body += fsRow(["복귀 확정액 대비", pctS(v.ratio), eok(v.relief) + " / " + eok(v.inflow)]);
             body += fsAsOf(r);
@@ -2444,13 +2394,6 @@ $(function () {
             }
         }
         if (state.leakage && leakCats().cats.length) buildLeakBar($root.find("#ffSubLeakBar"), PW);
-        if (wdMonths.length) {
-            var wdUrl = chartImageUrl(function (canvas) { return buildWithdrawChart(canvas, lightVar, wdMonths, false); }, 130);
-            if (wdUrl) {
-                $root.find("#ffWdBox").empty().css("height", "auto")
-                    .append($('<img class="ff-print-chart">').attr({ src: wdUrl, alt: $("#ffWdChart").attr("aria-label") || "월별 인출액" }));
-            }
-        }
         if (retPoints.length >= 2) {
             var retUrl = chartImageUrl(function (canvas) { return buildRetentionChart(canvas, lightVar, retPoints, false); });
             if (retUrl) {
@@ -2544,7 +2487,6 @@ $(function () {
         if (api === "maturity") clearMaturity();
         if (api === "overviewAll") clearCover();
         if (api === "retentionAll") clearRetention();
-        if (api === "monthlyAll") clearWithdraw();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -2595,8 +2537,7 @@ $(function () {
             if (api === "maturity") clearMaturity();
             if (api === "overviewAll") clearCover();
             if (api === "retentionAll") clearRetention();
-            if (api === "monthlyAll") clearWithdraw();
-            panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
+                panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
             renderSubmitAll();
         });

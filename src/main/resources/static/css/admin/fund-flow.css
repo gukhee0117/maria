@@ -1118,7 +1118,8 @@
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 12px 16px;
-    align-items: start;
+    align-items: stretch;
+    margin-bottom: 12px;
 }
 
 .fund-flow [data-ff-view="submit"] .fs-main,
@@ -1284,8 +1285,7 @@
 }
 
 .fund-flow [data-ff-view="submit"] #ffMatChartBox,
-.fund-flow [data-ff-view="submit"] #ffRetBox,
-.fund-flow [data-ff-view="submit"] #ffWdBox {
+.fund-flow [data-ff-view="submit"] #ffRetBox {
     height: 190px;
     margin: 4px 0 8px;
     overflow: hidden;
@@ -1304,10 +1304,6 @@
 .fund-flow [data-ff-view="submit"] #ffSubPanelMonthly .ff-chart-canvas {
     height: 210px;
     margin-bottom: 8px;
-}
-
-.fund-flow [data-ff-view="submit"] #ffWdBox {
-    height: 110px;
 }
 
 /* 혜택 누수: 100% 가로 누적 막대 + 직접 라벨 */
@@ -1363,61 +1359,49 @@
     color: var(--adm-sub);
 }
 
-/* 남는 금액(가정): 혜택 유지 잔액 전체를 회색 바탕으로 50% · 70% · 90% 지점 표시 */
-.fund-flow [data-ff-view="submit"] .fs-scen-track {
-    position: relative;
-    height: 14px;
-    margin: 26px 12px 40px 0;
-    background: var(--adm-chart-gray);
+/* 남는 금액(가정): 3줄 가로 막대. 바탕은 혜택 유지 잔액 전체, 강조색은 해당 금액, 끝에 금액 라벨 */
+.fund-flow [data-ff-view="submit"] .fs-scen-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 12px;
 }
 
-.fund-flow [data-ff-view="submit"] .fs-scen-band {
+.fund-flow [data-ff-view="submit"] .fs-scen-name {
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-track {
+    position: relative;
+    height: 16px;
+    margin-right: 64px;
+    background: var(--adm-line);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-fill {
     position: absolute;
     top: 0;
     bottom: 0;
-    background: var(--adm-chart-bar);
-    opacity: 0.28;
-}
-
-.fund-flow [data-ff-view="submit"] .fs-scen-tick {
-    position: absolute;
-    top: -3px;
-    bottom: -3px;
-    width: 2px;
-    margin-left: -1px;
+    left: 0;
     background: var(--adm-chart-bar);
 }
 
-.fund-flow [data-ff-view="submit"] .fs-scen-lab {
+.fund-flow [data-ff-view="submit"] .fs-scen-val {
     position: absolute;
-    top: 20px;
-    display: flex;
-    flex-direction: column;
-    transform: translateX(-50%);
-    font-size: 12px;
-    line-height: 1.35;
-    text-align: center;
-    white-space: nowrap;
-}
-
-.fund-flow [data-ff-view="submit"] .fs-scen-lab b {
+    top: 0;
+    line-height: 16px;
+    margin-left: 6px;
     font-weight: 700;
     color: var(--adm-text);
-}
-
-.fund-flow [data-ff-view="submit"] .fs-scen-lab em {
-    font-style: normal;
-    color: var(--adm-sub);
-}
-
-.fund-flow [data-ff-view="submit"] .fs-scen-end {
-    position: absolute;
-    right: 0;
-    bottom: 18px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--adm-sub);
     white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-basis {
+    margin: 4px 0 8px;
+    font-size: 12px;
+    color: var(--adm-sub);
 }
 
 .fund-flow [data-ff-view="submit"] .fs-kpi .ff-badge {
