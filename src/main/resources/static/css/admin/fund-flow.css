@@ -1044,3 +1044,8 @@
     min-height: 0;
     overflow: auto;
 }
+
+/* 제출용: 막 안에서 반복되는 "리턴증권 고객 기준 · 누적 · 집계 기준일" 줄은 숨긴다(표지에 한 번 있다). 차트 아래의 개별 기준일 줄은 남긴다 */
+.fund-flow [data-ff-view="submit"] .ff-cap-dup {
+    display: none;
+}

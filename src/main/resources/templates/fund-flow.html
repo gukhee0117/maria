@@ -127,7 +127,7 @@
             <div class="ff-state ff-state-empty"></div>
             <div class="ff-body">
                 <div class="ff-leak" id="ffSubLeakRows"></div>
-                <div class="ff-bar-item" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+                <div class="ff-bar-item ff-cap-dup" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
         </section>
         <div class="ff-act-title" id="ffActResult">결과</div>
@@ -149,7 +149,7 @@
                 <span class="adm-summary-unit">%</span>
             </div>
         </div>
-        <div class="ff-bar-item" id="ffSubCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+        <div class="ff-bar-item ff-cap-dup" id="ffSubCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         <!-- 결과: 조기 인출(early-withdrawal 응답, 기간과 무관한 누적). 원인별은 계좌 수만, 5 미만은 "5건 미만" -->
         <div id="ffSubEarly">
             <div class="adm-summary" id="ffEarlySummary">
@@ -170,7 +170,7 @@
                 <tbody></tbody>
             </table>
             <ul class="ff-notes"><li id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</li></ul>
-            <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item ff-cap-dup" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <!-- 결과: 감면 성과(relief 응답, 잠정)와 상위 10% 점유율(concentration 응답). 감면 1원당 운용액과 로렌츠 곡선은 운영 상세에만 둔다 -->
         <div id="ffSubRelief">
@@ -194,9 +194,9 @@
                 </div>
             </div>
             <ul class="ff-notes"><li id="ffSubReliefDesc"></li></ul>
-            <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item ff-cap-dup" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             <ul class="ff-notes"><li id="ffSubTop10Desc"></li></ul>
-            <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item ff-cap-dup" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <div class="ff-act-title" id="ffActOutlook">전망</div>
         <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span> <span id="ffConclScen" data-concl="maturity"></span></p>
@@ -245,7 +245,7 @@
                     </div>
                 </div>
                 <ul class="ff-notes"><li id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</li></ul>
-                <div class="ff-bar-item" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+                <div class="ff-bar-item ff-cap-dup" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
             <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             <!-- 리턴증권의 대응: 실제로 구현된 기능만 적는다. 목적·효과 표현은 쓰지 않는다 -->
