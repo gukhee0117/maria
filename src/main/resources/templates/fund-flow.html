@@ -122,6 +122,33 @@
             <div class="ff-bar-item" id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</div>
             <div class="ff-bar-item" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
+        <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
+        <div id="ffSubMaturity">
+            <div class="adm-summary" id="ffMatSummary">
+                <div class="adm-summary-item" id="ffMatLocked">
+                    <span class="adm-summary-label">1년 유지 중인 잔액</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                    <span class="adm-summary-unit">원</span>
+                </div>
+                <div class="adm-summary-item" id="ffMatFirst">
+                    <span class="adm-summary-label">첫 만기월</span>
+                    <span class="adm-summary-value" data-ff-value>-</span>
+                </div>
+            </div>
+            <div class="ff-bar-item" id="ffMatChartTitle" hidden>만기월별 잔액(혜택이 유지 중인 계좌)</div>
+            <div class="ff-chart ff-chart-canvas" id="ffMatChartBox" hidden><canvas id="ffMatChart" role="img" aria-label=""></canvas></div>
+            <div class="ff-bar-item" id="ffMatEmpty" hidden>만기 예정 잔액이 없어요</div>
+            <details id="ffMatTableBox" hidden>
+                <summary>값 표로 보기</summary>
+                <table id="ffMatTable" style="margin:8px 0;border-collapse:collapse;font-size:13px">
+                    <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">만기월</th><th style="text-align:right;padding:4px 0">잔액(원)</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </details>
+            <div class="ff-bar-item" id="ffMatNote" hidden></div>
+            <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
+        </div>
         <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
     </div>
 

@@ -8,6 +8,8 @@ $(function () {
     var KRW = new Intl.NumberFormat("ko-KR");
     var state = {};          // API 이름 → 응답 data
     var chart = null;        // ③ Chart.js 인스턴스
+    var matChart = null;     // 제출용 만기 도래 막대 Chart.js 인스턴스
+    var matGroups = [];      // 제출용 만기 도래 막대 데이터(5 미만 월을 합친 결과)
     var segMetric = "reinvestRatio";
     var period = "ALL";      // 조회 기간: MONTH(이번 달) · QUARTER(분기) · ALL(출시 이후 누적)
     var view = "ops";        // 보기: ops(운영 상세, 기본) · submit(제출용, 아직 준비 중). 저장하지 않는다
@@ -34,7 +36,7 @@ $(function () {
         allocation: { url: "/api/admin/fund-flow/allocation", period: true }, // 구성은 현재 보유(무관), 순매수 Top 10 만 기간 적용
         retention: { url: "/api/admin/fund-flow/retention", period: true },     // 기간 = 그 기간에 환전이 확정된 건의 코호트
         concentration: { url: "/api/admin/fund-flow/concentration" },          // 세액 스냅샷: 기간과 무관
-        maturity: { url: "/api/admin/fund-flow/maturity" },                     // 업무시계 기준 전체: 기간과 무관. 아직 state 에만 저장(렌더 없음)
+        maturity: { url: "/api/admin/fund-flow/maturity" },                     // 업무시계 기준 전체: 기간과 무관(제출용 만기 도래 전망)
         earlyWithdrawal: { url: "/api/admin/fund-flow/early-withdrawal" }       // 업무시계 기준 전체: 기간과 무관(제출용 조기 인출 결과)
     };
 
@@ -223,6 +225,98 @@ $(function () {
         $("#ffEarlyCause").prop("hidden", !has);
         $("#ffEarlyCauseNote").prop("hidden", !has);
         $("#ffEarlyCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+    }
+
+    // 제출용 만기 도래: 월별 accounts 가 5 미만인 월은 인접 월과 합쳐 보인다(앞에서부터 합치고, 마지막이 모자라면 앞 묶음에 합친다).
+    // 한계: 월별 accounts 는 월 간에 같은 계좌가 겹칠 수 있어 합친 값이 실제 계좌 수보다 클 수 있다(5 이상 판정이 보수적이지 않다).
+    function groupMonths(months) {
+        var groups = [];
+        var cur = null;
+        function ym(m) { return String(m.maturityMonth || "").slice(0, 7); }
+        months.forEach(function (m) {
+            if (!cur) cur = { from: ym(m), to: ym(m), accounts: 0, amount: 0 };
+            cur.to = ym(m);
+            cur.accounts += num(m.accounts);
+            cur.amount += num(m.remainingAmount);
+            if (cur.accounts >= 5) { groups.push(cur); cur = null; }
+        });
+        if (cur) {
+            if (groups.length) {
+                var last = groups[groups.length - 1];
+                last.to = cur.to;
+                last.accounts += cur.accounts;
+                last.amount += cur.amount;
+            } else {
+                groups.push(cur);
+            }
+        }
+        return groups.map(function (g) {
+            var label = g.from === g.to ? g.from : g.from + "~" + (g.from.slice(0, 4) === g.to.slice(0, 4) ? g.to.slice(5) : g.to);
+            return { label: label, amount: g.amount };
+        });
+    }
+
+    function clearMaturity() {
+        if (matChart) { matChart.destroy(); matChart = null; }
+        matGroups = [];
+        $("#ffMatChart").attr("aria-label", "");
+        $("#ffMatChartBox, #ffMatChartTitle, #ffMatEmpty, #ffMatTableBox, #ffMatNote").prop("hidden", true);
+        $("#ffMatTable tbody").empty();
+        $("#ffMatNote").text("");
+        $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
+    // 막대 차트: 제출용이 보일 때만 그린다(숨겨진 동안은 크기가 0)
+    function drawMatChart() {
+        if (matChart) { matChart.destroy(); matChart = null; }
+        if (!window.Chart || !matGroups.length) return;
+        var canvas = document.getElementById("ffMatChart");
+        var sub = cssVar("--adm-sub");
+        matChart = new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: matGroups.map(function (g) { return g.label; }),
+                datasets: [{ data: matGroups.map(function (g) { return g.amount; }), backgroundColor: cssVar("--adm-chart-bar") }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function (c) { return krwShort(c.parsed.y) + "원"; } } }
+                },
+                scales: {
+                    x: { ticks: { color: sub }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: sub, callback: function (v) { return KRW.format(Math.round(v / 1e8)) + "억"; } }, grid: { color: cssVar("--adm-bd2") } }
+                }
+            }
+        });
+    }
+
+    function renderMaturity() {
+        var d = state.maturity;
+        summarySet("ffMatLocked", krwShort(d.lockedAmount), "혜택이 유지 중인 계좌 중, 확정 후 1년이 지나지 않은 잔액 합계예요.");
+        summarySet("ffMatFirst", d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "-");
+        $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        matGroups = groupMonths(d.months || []);
+        var has = matGroups.length > 0;
+        $("#ffMatEmpty").prop("hidden", has);
+        $("#ffMatChartTitle, #ffMatChartBox, #ffMatTableBox").prop("hidden", !has);
+        var $tb = $("#ffMatTable tbody").empty();
+        matGroups.forEach(function (g) {
+            $tb.append($("<tr>").append($("<td>").css("padding", "4px 12px 4px 0").text(g.label), $("<td>").css({ "text-align": "right", padding: "4px 0" }).text(KRW.format(Math.round(g.amount)))));
+        });
+        $("#ffMatChart").attr("aria-label", has ? "만기월별 잔액: " + matGroups.map(function (g) { return g.label + " " + krwShort(g.amount) + "원"; }).join(", ") : "");
+        // 혜택 취소 잔액: 차트에 넣지 않고 각주로만. 계좌 수는 화면에 쓰지 않고 5 미만 판정에만 쓴다
+        var canceled = num(d.canceledRemainingAmount);
+        if (!canceled) {
+            $("#ffMatNote").prop("hidden", true).text("");
+        } else {
+            var amountText = num(d.canceledAccounts) < 5 ? "" : " " + krwShort(canceled) + "원";
+            $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + "은 위 차트에 포함하지 않았어요.").prop("hidden", false);
+        }
+        if (view === "submit") drawMatChart();
     }
 
     function renderReliefSummary() {
@@ -1537,10 +1631,11 @@ $(function () {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
         overviewAll: ["ffSubOpened", "ffSubInflow", "ffSubNet"],
         earlyWithdrawal: ["ffEarlyAcct", "ffEarlyAmt"],
+        maturity: ["ffMatLocked", "ffMatFirst"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", earlyWithdrawal: "조기 인출", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1563,6 +1658,7 @@ $(function () {
         var panels = PANELS_OF[api] || [];
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
+        if (api === "maturity") clearMaturity();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -1575,6 +1671,8 @@ $(function () {
                 renderSubmitSummary();
             } else if (api === "earlyWithdrawal") {
                 renderEarlyWithdrawal();
+            } else if (api === "maturity") {
+                renderMaturity();
             } else if (api === "relief") {
                 renderReliefSummary();
                 renderRelief();
@@ -1600,6 +1698,7 @@ $(function () {
             if (seq !== loadSeq[api]) return;
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
+            if (api === "maturity") clearMaturity();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
         });
@@ -1630,7 +1729,7 @@ $(function () {
         $("[data-ff-view]").each(function () {
             $(this).prop("hidden", $(this).attr("data-ff-view") !== view);
         });
-        if (view === "ops") redraw();
+        redraw();
     });
 
     $("#ffBridgeMonth").on("change", function () {
@@ -1653,8 +1752,12 @@ $(function () {
     function redraw() {
         clearTimeout(redrawTimer);
         redrawTimer = setTimeout(function () {
-            // 제출용에 차트가 생기면(4단계) 보기별로 다시 그리도록 바꿀 것
-            if (view !== "ops") return; // 운영 상세가 숨겨진 동안(크기 0)에는 다시 그리지 않는다
+            // 보기별로 보이는 쪽만 다시 그린다(숨겨진 동안은 크기 0)
+            if (view === "submit") {
+                if (state.maturity && matGroups.length) drawMatChart();
+                return;
+            }
+            if (view !== "ops") return;
             if (state.monthly && monthsOf().length && $("#ffPanelMonthly").attr("data-state") === "ready") {
                 renderSankey();
                 renderMonthly();
@@ -1666,6 +1769,9 @@ $(function () {
     $(window).on("resize", redraw);
     if (window.ResizeObserver) {
         new ResizeObserver(redraw).observe(document.querySelector(".ff-scroll"));
+        // 제출용: 한 번만 연결한다(보기 전환 때 해제·재연결하지 않아 중복이 생기지 않는다). display: contents 인 ff-view 는 크기가 없어 안쪽 블록을 본다
+        var subBlock = document.getElementById("ffSubMaturity");
+        if (subBlock) new ResizeObserver(redraw).observe(subBlock);
     }
     if (window.MutationObserver) {
         new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
