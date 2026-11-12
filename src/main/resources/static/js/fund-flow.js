@@ -1900,6 +1900,48 @@ $(function () {
         return SUBMIT_APIS.every(function (api) { return loadState[api] === "ok" && state[api]; });
     }
 
+    // 인쇄용 막대 차트: drawMatChart 와 같은 설정을 라이트 색(varFn)·고정 크기로 복사했다(화면용 코드는 바꾸지 않는다)
+    function buildMatChartPrint(canvas, varFn, groups) {
+        var sub = varFn("--adm-sub");
+        return new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: groups.map(function (g) { return g.label; }),
+                datasets: [{ data: groups.map(function (g) { return g.amount; }), backgroundColor: varFn("--adm-chart-bar") }]
+            },
+            options: {
+                responsive: false,
+                animation: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: sub }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { color: sub, callback: function (v) { return KRW.format(Math.round(v / 1e8)) + "억"; } }, grid: { color: varFn("--adm-bd2") } }
+                }
+            }
+        });
+    }
+
+    // 화면 밖 캔버스(660×250)에 차트를 그려 PNG 데이터 주소로 돌려준다. Chart.js 가 없으면 빈 문자열
+    function chartImageUrl(make) {
+        if (!window.Chart) return "";
+        var off = document.createElement("canvas");
+        off.width = 660;
+        off.height = 250;
+        var holder = document.createElement("div");
+        holder.style.cssText = "position:fixed;left:-9999px;top:0;width:660px;height:250px";
+        holder.appendChild(off);
+        document.body.appendChild(holder);
+        var url = "";
+        try {
+            var c = make(off);
+            url = c.toBase64Image("image/png", 1);
+            c.destroy();
+        } finally {
+            document.body.removeChild(holder);
+        }
+        return url;
+    }
+
     function savePdfSubmit() {
         if (!submitDataReady()) {
             var notReady = "제출용 데이터를 모두 불러온 뒤 저장할 수 있어요.";
@@ -1921,6 +1963,25 @@ $(function () {
         $root.find("[title]").removeAttr("title");
         $root.find("[data-tip]").removeAttr("data-tip");
         $root.find("details").attr("open", "open");
+
+        // 차트: 라이트 색으로 인쇄 폭(660px)에 다시 그린다. Sankey 는 SVG 로, 월별·만기 막대(Chart.js)는 이미지로 바꾼다
+        var PW = 660;
+        var subMonths = (state.monthlyAll && state.monthlyAll.months) || [];
+        if (subMonths.length) {
+            buildSankey($root.find("#ffSubSankey"), $("<ul>"), PW, subMonths);
+            var monthlyUrl = chartImageUrl(function (canvas) { return buildMonthlyChart(canvas, lightVar, false, subMonths); });
+            if (monthlyUrl) {
+                $root.find("#ffSubMonthlyChart").closest(".ff-chart-canvas").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart" alt="월별 확정 원화 유입, 국내 매수, 월 재투자율">').attr("src", monthlyUrl));
+            }
+        }
+        if (matGroups.length) {
+            var matUrl = chartImageUrl(function (canvas) { return buildMatChartPrint(canvas, lightVar, matGroups); });
+            if (matUrl) {
+                $root.find("#ffMatChartBox").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart">').attr({ src: matUrl, alt: $("#ffMatChart").attr("aria-label") || "만기월별 잔액" }));
+            }
+        }
         $root.find("canvas").remove();
 
         var css = ["tokens", "components", "fund-flow"].map(function (n) {
