@@ -6,7 +6,14 @@ import com.app.maria.domain.chat.tool.AccountChatTool;
 import com.app.maria.domain.chat.tool.SellLimitChatTool;
 import com.app.maria.domain.chat.tool.TaxChatTool;
 import com.app.maria.domain.chat.tool.WithdrawalChatTool;
+import com.app.maria.domain.tax.dto.TaxRuleDTO;
+import com.app.maria.domain.tax.mapper.TaxMapper;
+import com.app.maria.domain.tax.service.TaxCalculations;
+import com.app.maria.domain.tax.type.TaxRuleType;
 import com.app.maria.global.clock.service.BusinessClockService;
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +32,7 @@ public class KkiruChatServiceImpl implements KkiruChatService {
 
     private final ChatClient chatClient;
     private final BusinessClockService businessClockService;
+    private final TaxMapper taxMapper;
     private final AccountChatTool accountChatTool;
     private final WithdrawalChatTool withdrawalChatTool;
     private final SellLimitChatTool sellLimitChatTool;
@@ -33,12 +41,14 @@ public class KkiruChatServiceImpl implements KkiruChatService {
     public KkiruChatServiceImpl(
             @Qualifier("kkiruChatClient") ChatClient chatClient,
             BusinessClockService businessClockService,
+            TaxMapper taxMapper,
             AccountChatTool accountChatTool,
             WithdrawalChatTool withdrawalChatTool,
             SellLimitChatTool sellLimitChatTool,
             TaxChatTool taxChatTool) {
         this.chatClient = chatClient;
         this.businessClockService = businessClockService;
+        this.taxMapper = taxMapper;
         this.accountChatTool = accountChatTool;
         this.withdrawalChatTool = withdrawalChatTool;
         this.sellLimitChatTool = sellLimitChatTool;
@@ -47,8 +57,11 @@ public class KkiruChatServiceImpl implements KkiruChatService {
 
     @Override
     public Flux<String> stream(ChatRequestDTO request, Long customerId) {
+        LocalDate today = businessClockService.now().toLocalDate();
+        String bandLabel = currentBandLabel(today);
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage("오늘 날짜: " + businessClockService.now().toLocalDate()));
+        messages.add(
+                new SystemMessage("오늘 날짜: " + today + ", 지금 매도 시 결제일 기준 공제율 구간: " + bandLabel));
         request.getMessages().stream().map(this::toMessage).forEach(messages::add);
 
         return chatClient
@@ -59,6 +72,45 @@ public class KkiruChatServiceImpl implements KkiruChatService {
                 .toolContext(buildCtx(customerId))
                 .stream()
                 .content();
+    }
+
+    /** T+2 영업일 기준 현재 공제율 구간 문자열 반환. 예: "8~12월 50%" */
+    private String currentBandLabel(LocalDate today) {
+        LocalDate settlement = computeT2(today);
+        List<TaxRuleDTO> rules = taxMapper.selectTaxRules();
+        return rules.stream()
+                .filter(r -> r.getRuleType() == TaxRuleType.RELIEF_RATE)
+                .filter(
+                        r ->
+                                !settlement.isBefore(r.getValidFrom())
+                                        && !settlement.isAfter(r.getValidTo()))
+                .findFirst()
+                .map(
+                        r -> {
+                            String pct =
+                                    TaxCalculations.weightOf(r.getRuleValue())
+                                            .multiply(BigDecimal.valueOf(100))
+                                            .stripTrailingZeros()
+                                            .toPlainString();
+                            return r.getValidFrom().getMonthValue()
+                                    + "~"
+                                    + r.getValidTo().getMonthValue()
+                                    + "월 "
+                                    + pct
+                                    + "%";
+                        })
+                .orElse("구간 정보 없음");
+    }
+
+    /** 주말 제외 T+2 영업일 추정 (공휴일 미고려). */
+    private static LocalDate computeT2(LocalDate today) {
+        LocalDate d = today;
+        int n = 0;
+        while (n < 2) {
+            d = d.plusDays(1);
+            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) n++;
+        }
+        return d;
     }
 
     /** Map.of()는 null 값을 허용하지 않으므로 HashMap 사용 (비로그인 시 customerId = null). */
