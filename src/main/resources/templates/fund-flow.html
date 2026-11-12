@@ -94,7 +94,7 @@
             <div class="ff-cover-notice" id="ffCoverNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
         <div class="ff-act-title" id="ffActProcess">과정</div>
-        <p class="ff-insight ff-concl" id="ffConclProcess" hidden><b>요약</b><span id="ffConclFlow" data-concl="monthlyAll"></span> <span id="ffConclWithdraw" data-concl="monthlyAll"></span> <span id="ffConclLeak" data-concl="leakage"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclProcess" hidden><b>요약</b><span id="ffConclFlow" data-concl="monthlyAll"></span><span id="ffConclWithdraw" data-concl="monthlyAll"></span></p>
         <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
         <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
             <div class="adm-card-head">
@@ -124,7 +124,7 @@
         <div id="ffSubWithdraw">
             <div class="ff-sub-title">월별 인출액</div>
             <div class="ff-chart ff-chart-canvas" id="ffWdBox" hidden><canvas id="ffWdChart" role="img" aria-label=""></canvas></div>
-            <ul class="ff-notes"><li id="ffWdFacts" hidden></li></ul>
+            <ul class="ff-notes ff-fold"><li id="ffWdFacts" hidden></li></ul>
         </div>
         <section class="adm-card ff-card" id="ffSubPanelLeak" data-state="loading">
             <div class="adm-card-head">
@@ -139,7 +139,7 @@
             </div>
         </section>
         <div class="ff-act-title" id="ffActResult">결과</div>
-        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclOverview" data-concl="overviewAll"></span> <span id="ffConclEarly" data-concl="earlyWithdrawal"></span> <span id="ffConclRelief" data-concl="relief"></span> <span id="ffConclTop10" data-concl="concentration"></span> <span id="ffConclReliefVs" data-concl="overviewAll relief"></span> <span id="ffConclRetention" data-concl="retentionAll"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclResult" hidden><b>요약</b><span id="ffConclReliefVs" data-concl="overviewAll relief"></span><span id="ffConclRetention" data-concl="retentionAll"></span></p>
         <div class="adm-summary" id="ffSubSummary">
             <div class="adm-summary-item" id="ffSubOpened">
                 <span class="adm-summary-label">개설 계좌</span>
@@ -177,7 +177,7 @@
                 <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">원인</th><th style="text-align:right;padding:4px 0">계좌 수</th></tr></thead>
                 <tbody></tbody>
             </table>
-            <ul class="ff-notes"><li id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</li></ul>
+            <ul class="ff-notes ff-fold"><li id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있어요. 5건 미만은 개별 값을 표시하지 않아요.</li></ul>
             <div class="ff-bar-item ff-cap-dup" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <!-- 결과: 감면 성과(relief 응답, 잠정)와 상위 10% 점유율(concentration 응답). 감면 1원당 운용액과 로렌츠 곡선은 운영 상세에만 둔다 -->
@@ -201,13 +201,13 @@
                     <span class="adm-summary-unit">%</span>
                 </div>
             </div>
-            <ul class="ff-notes"><li id="ffSubReliefDesc"></li></ul>
+            <ul class="ff-notes ff-fold"><li id="ffSubReliefDesc"></li></ul>
             <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            <ul class="ff-notes"><li id="ffSubTop10Desc"></li></ul>
+            <ul class="ff-notes ff-fold"><li id="ffSubTop10Desc"></li></ul>
             <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <!-- 결과: 복귀 확정액과 감면 예상액을 나란히 두고 비율만 적는다(프론트 나눗셈). 효율·인과를 말하지 않는다 -->
-        <ul class="ff-notes"><li id="ffReliefVs" data-concl="overviewAll relief"></li></ul>
+        <ul class="ff-notes ff-fold"><li id="ffReliefVs" data-concl="overviewAll relief"></li></ul>
         <!-- 결과: 확정 후 경과일별 원금 유지 비율(retention 응답, 출시 이후 고정). 위험집합이 5건 미만인 구간은 그리지 않는다 -->
         <div id="ffSubRetention">
             <div class="ff-sub-title">확정 후 경과일별 원금 유지 비율</div>
@@ -225,10 +225,10 @@
             </div>
             <div class="ff-chart ff-chart-canvas" id="ffRetBox" hidden><canvas id="ffRetChart" role="img" aria-label=""></canvas></div>
             <ul class="ff-notes"><li id="ffRetFacts" hidden></li></ul>
-            <div class="ff-bar-item" id="ffRetCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <div class="ff-bar-item ff-cap-dup" id="ffRetCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         </div>
         <div class="ff-act-title" id="ffActOutlook">전망</div>
-        <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span> <span id="ffConclScen" data-concl="maturity"></span></p>
+        <p class="ff-insight ff-concl" id="ffConclOutlook" hidden><b>요약</b><span id="ffConclLocked" data-concl="maturity"></span><span id="ffConclScen" data-concl="maturity"></span></p>
         <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
         <div id="ffSubMaturity">
             <div class="adm-summary ff-kpi" id="ffMatSummary">
@@ -252,7 +252,7 @@
                     <tbody></tbody>
                 </table>
             </details>
-            <ul class="ff-notes"><li id="ffMatNote" hidden></li></ul>
+            <ul class="ff-notes ff-fold"><li id="ffMatNote" hidden></li></ul>
             <!-- 만기 후 계좌에 남는 금액(가정): 1년 유지 중인 잔액(lockedAmount) × 50/70/90%. 차트 없이 숫자 3칸. lockedAmount 가 0이거나 없으면 블록 전체를 숨긴다 -->
             <div id="ffMatScen" hidden>
                 <div class="ff-sub-title">만기 후 계좌에 남는 금액(가정)</div>
@@ -273,25 +273,16 @@
                         <span class="adm-summary-unit">원</span>
                     </div>
                 </div>
-                <ul class="ff-notes"><li id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</li></ul>
+                <ul class="ff-notes ff-fold"><li id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤, 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이에요. 예측값이 아니에요.</li></ul>
                 <div class="ff-bar-item ff-cap-dup" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
             </div>
             <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            <!-- 리턴증권의 대응: 실제로 구현된 기능만 적는다. 목적·효과 표현은 쓰지 않는다 -->
-            <div id="ffMatResponse">
-                <div class="ff-sub-title">리턴증권의 대응</div>
-                <ul class="ff-notes">
-                    <li>인출을 신청할 때 1년이 지나지 않은 납입금이 포함되면, 해당 계좌의 세제 혜택이 모두 취소된다는 안내를 보여 주고 이해했는지 확인해요.</li>
-                    <li>혜택이 취소된 계좌는 고객 화면에 취소 상태를 표시하고, 세액을 일반 과세 기준으로 계산해 보여 줘요.</li>
-                    <li>고객 화면에서 지금 인출할 수 있는 금액, 1년 유지 중인 납입금, 다음 인출 가능일을 보여 줘요.</li>
-                    <li>고객이 자신의 자금 흐름(확정 원화, 국내 매수, 예수금, 인출)을 화면에서 직접 확인할 수 있어요.</li>
-                    <li>관리자 화면에서 혜택 누수 현황을 5개 분류로 나눠 확인할 수 있어요.</li>
-                </ul>
-            </div>
             <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
         <!-- 부록: 지표 정의 · 한계 · 검산. 정의와 한계는 정적 문장이고, 검산은 응답 값으로 계산해 ✓/✗만 보인다(숫자 없음) -->
         <div class="ff-act-title" id="ffActAppendix">부록</div>
+        <details id="ffSubAppendixBox">
+        <summary>지표 정의 · 한계 · 지표 해석 유의사항 · 검산</summary>
         <div id="ffSubAppendix">
             <div class="ff-sub-title">지표 정의</div>
             <div class="ff-bar-item">모든 지표는 리턴증권 고객 기준 · 누적이에요.</div>
@@ -316,7 +307,22 @@
                     <li>비교군이 없고, 이 지표들은 정책 효과(인과)를 추정한 값이 아니에요. 이 화면은 시연용 가상 데이터예요.</li>
                     <li>월별 계좌 수는 같은 계좌가 여러 달에 걸칠 수 있어 월 간에 중복이 있을 수 있어요.</li>
                     <li>업무일 당일에 개설된 계좌는 포함하지 않고, 관리자가 수동으로 개설한 계좌는 포함해요.</li>
+                    <li>계좌 수나 건 수가 5건 미만인 값은 개별로 표시하지 않아요. 혜택 누수 분류와 조기 인출 원인별은 숫자 대신 '5건 미만'으로 보이고, 만기월별 막대는 5건 미만인 달을 인접 월과 합쳐요.</li>
+                    <li>혜택이 취소된 계좌의 잔액은 만기월별 막대에 포함하지 않아요.</li>
+                    <li>경과일별 원금 유지 비율은 가장 오래 관찰된 건의 경과일까지만 그리며, 1년 시점의 값은 정의하지 않아요.</li>
+                    <li>예상 감면액·감면 비율의 '잠정' 표시는 잠정 정의로 계산한 예상값이라는 뜻이에요.</li>
             </ul>
+            <!-- 리턴증권의 대응: 실제로 구현된 기능만 적는다. 목적·효과 표현은 쓰지 않는다 -->
+            <div id="ffMatResponse">
+                <div class="ff-sub-title">지표 해석에 참고할 리턴증권 화면 기능</div>
+                <ul class="ff-notes">
+                    <li>인출을 신청할 때 1년이 지나지 않은 납입금이 포함되면, 해당 계좌의 세제 혜택이 모두 취소된다는 안내를 보여 주고 이해했는지 확인해요.</li>
+                    <li>혜택이 취소된 계좌는 고객 화면에 취소 상태를 표시하고, 세액을 일반 과세 기준으로 계산해 보여 줘요.</li>
+                    <li>고객 화면에서 지금 인출할 수 있는 금액, 1년 유지 중인 납입금, 다음 인출 가능일을 보여 줘요.</li>
+                    <li>고객이 자신의 자금 흐름(확정 원화, 국내 매수, 예수금, 인출)을 화면에서 직접 확인할 수 있어요.</li>
+                    <li>관리자 화면에서 혜택 누수 현황을 5개 분류로 나눠 확인할 수 있어요.</li>
+                </ul>
+            </div>
             <div class="ff-sub-title">검산</div>
             <div class="ff-defs" role="table">
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>조기 인출 계좌 수 ≤ 확정된 환전 계좌 수</span><b id="ffChk1" data-chk="earlyWithdrawal">-</b></div>
@@ -326,6 +332,7 @@
                 <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>만기월별 확정 원금 합 + 해지 계좌 확정 원금 = 확정 복귀 금액</span><b id="ffChk5" data-chk="maturity overviewAll">-</b></div>
             </div>
         </div>
+        </details>
         </div>
     </div>
 

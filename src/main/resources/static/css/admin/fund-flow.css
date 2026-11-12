@@ -1072,14 +1072,56 @@
     display: none;
 }
 
-/* 제출용: 막별 요약 문장은 줄바꿈이 되게 한다 */
+/* 제출용: 막별 요약은 "요약" 라벨 옆에 문장마다 한 줄로 쌓는다 */
 .fund-flow [data-ff-view="submit"] .ff-concl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 8px;
     margin: 0 0 6px;
     font-size: 13px;
     line-height: 1.5;
     overflow-wrap: anywhere;
     word-break: keep-all;
     white-space: normal;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-concl[hidden] {
+    display: none;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-concl > b {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-concl > span {
+    grid-column: 2;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-concl > span:empty {
+    display: none;
+}
+
+/* 제출용: 본문에서 접는 작은 주석(정의·가림 규칙·한계는 부록에 한 번만 둔다) */
+.fund-flow [data-ff-view="submit"] .ff-fold {
+    display: none;
+}
+
+/* 제출용 본문의 글자는 12px 이상으로 둔다(숫자 칸 단위·배지·차트 안 글자는 공용 규격이라 그대로) */
+.fund-flow [data-ff-view="submit"] .ff-notes,
+.fund-flow [data-ff-view="submit"] .adm-card-sub,
+.fund-flow [data-ff-view="submit"] .ff-cover-notice,
+.fund-flow [data-ff-view="submit"] .ff-leak-row.is-head {
+    font-size: 12px;
+}
+
+/* 제출용 부록: 접을 수 있는 상자(인쇄 복제본에서는 펼친다) */
+.fund-flow [data-ff-view="submit"] #ffSubAppendixBox > summary {
+    padding: 4px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--adm-text);
+    cursor: pointer;
 }
 
 /* 전망 막 숫자 칸: 운영 상세 패널 모양(1px 테두리, 작은 padding, 굵은 숫자) */
