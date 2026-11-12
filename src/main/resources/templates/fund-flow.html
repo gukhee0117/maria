@@ -261,8 +261,41 @@
             </div>
             <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         </div>
+        <!-- 부록: 지표 정의 · 한계 · 검산. 정의와 한계는 정적 문장이고, 검산은 응답 값으로 계산해 ✓/✗만 보인다(숫자 없음) -->
+        <div class="ff-act-title" id="ffActAppendix">부록</div>
+        <div id="ffSubAppendix">
+            <div class="ff-sub-title">지표 정의</div>
+            <div class="ff-bar-item">모든 지표는 리턴증권 고객 기준 · 누적이에요.</div>
+            <div class="ff-defs" role="table">
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>첫 계좌 개설일</b><span>개설된 계좌(개설 시각이 있고 업무일 이전) 중 가장 이른 개설일이에요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>개설 계좌</b><span>개설된 계좌 수예요. 이후 해지(해지 신청 포함)된 계좌도 포함하고, 신청 중·반려 계좌는 제외해요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>확정 복귀 금액</b><span>환전이 확정된 원화 금액의 합계예요(가정산 제외).</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>순투자율</b><span>(국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 복귀 금액이에요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>조기 인출 비율</b><span>분모는 확정된 환전이 있는 계좌 수(계좌 기준)와 확정 원금 합계(금액 기준), 분자는 1년이 지나기 전 원금이 인출된 계좌 수와 인출액이에요(해지 계좌 포함).</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>원인별 구분</b><span>1년이 지나기 전 원금 인출을 완료된 해지 요청에 연결된 인출과 그 밖의 인출로 나눠요. 한 계좌가 두 원인에 걸칠 수 있어요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>1년 유지 중인 잔액 · 만기월</b><span>혜택이 유지 중인 계좌 중 확정 후 1년이 지나지 않은 잔액 합계와, 확정일 + 1년이 속한 달(만기월)이에요. 해지 계좌는 제외해요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>시나리오(50·70·90% 가정)</b><span>1년 유지 중인 잔액 합계의 50%, 70%, 90%가 만기 후 계좌에 남는다고 가정해 계산한 값이에요. 예측값이 아니에요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>예상 감면액(잠정) · 감면 비율</b><span>예상 감면액은 일반 과세 세액 − 최종 세액의 합계(잠정 정의의 예상값)이고, 감면 비율은 예상 감면액 ÷ 일반 과세 세액 합계예요.</span></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><b>상위 10% 점유율</b><span>감면액이 있는 계좌 중 감면액이 큰 상위 10% 계좌의 감면액 합 ÷ 감면액 합계예요(감면액이 있는 계좌가 50개 이상일 때만 표시해요).</span></div>
+            </div>
+            <div class="ff-sub-title">한계</div>
+            <ul class="ff-notes">
+                    <li>원인별 계좌 수에서 5건 미만 값은 표시하지 않지만, 전체에서 다른 원인을 빼면 알 수 있어요.</li>
+                    <li>화면에 보이지 않는 원인별·월별 금액은 응답 JSON에 남아 있어요.</li>
+                    <li>월별 계좌 수는 같은 계좌가 여러 달에 걸칠 수 있어 월 간에 중복이 있을 수 있어요.</li>
+                    <li>업무일 당일에 개설된 계좌는 포함하지 않아요.</li>
+                    <li>관리자가 수동으로 개설한 계좌도 포함해요.</li>
+            </ul>
+            <div class="ff-sub-title">검산</div>
+            <div class="ff-defs" role="table">
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>조기 인출 계좌 수 ≤ 확정된 환전 계좌 수</span><b id="ffChk1" data-chk="earlyWithdrawal">-</b></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>확정된 환전 원금 합계 = 확정 복귀 금액</span><b id="ffChk2" data-chk="earlyWithdrawal overviewAll">-</b></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>원인별 인출액 합 = 조기 인출액</span><b id="ffChk3" data-chk="earlyWithdrawal">-</b></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>만기월별 잔액 합 = 1년 유지 중인 잔액 + 만기가 지난 잔액</span><b id="ffChk4" data-chk="maturity">-</b></div>
+                <div class="ff-defs-row" role="row" style="grid-template-columns:minmax(130px,1.2fr) minmax(0,4fr)"><span>만기월별 확정 원금 합 + 해지 계좌 확정 원금 = 확정 복귀 금액</span><b id="ffChk5" data-chk="maturity overviewAll">-</b></div>
+            </div>
         </div>
-        <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
+        </div>
     </div>
 
     <!-- 운영 상세 보기 영역(패널 전체): 제출용/운영 상세 토글 대상 -->

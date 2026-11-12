@@ -1713,12 +1713,72 @@ $(function () {
         updateConclBoxes();
     };
 
+    /* ---------- 제출용 부록: 검산(✓/✗, 숫자 없음) ---------- */
+    // 매퍼 테스트로 항상 성립함이 확인된 관계만 쓴다(docs/fund-flow-api.md §2-10, §2-11). 응답이 없으면 null(표시는 "-")
+    /* CHK-BEGIN */
+    function chkSum(list, key) {
+        var s = 0;
+        (list || []).forEach(function (r) { s += num(r[key]); });
+        return s;
+    }
+
+    function chkEq(a, b) {
+        if (a == null || b == null) return null;
+        var x = Number(a), y = Number(b);
+        return isFinite(x) && isFinite(y) ? Math.abs(x - y) < 0.5 : null;
+    }
+
+    function chkLe(a, b) {
+        if (a == null || b == null) return null;
+        var x = Number(a), y = Number(b);
+        return isFinite(x) && isFinite(y) ? x <= y : null;
+    }
+
+    function chkEarlyAccounts(e) {
+        return e ? chkLe(e.earlyAccounts, e.finalizedAccounts) : null;
+    }
+
+    function chkFinalizedAmount(e, o) {
+        return e && o ? chkEq(e.finalizedAmount, o.inflowTotal) : null;
+    }
+
+    function chkCauseAmount(e) {
+        return e && e.byCause ? chkEq(chkSum(e.byCause, "amount"), e.earlyWithdrawnAmount) : null;
+    }
+
+    function chkMaturityRemaining(m) {
+        return m && m.months && m.lockedAmount != null && m.maturedRemainingAmount != null
+            ? chkEq(chkSum(m.months, "remainingAmount"), num(m.lockedAmount) + num(m.maturedRemainingAmount)) : null;
+    }
+
+    function chkMaturityPaid(m, o) {
+        return m && m.months && o && m.excludedClosedPaidAmount != null
+            ? chkEq(chkSum(m.months, "paidAmount") + num(m.excludedClosedPaidAmount), o.inflowTotal) : null;
+    }
+    /* CHK-END */
+
+    function markChk(id, ok) {
+        $("#" + id).text(ok == null ? "-" : ok ? "✓ 일치" : "✗ 불일치");
+    }
+
+    function clearChecks(api) {
+        $('[data-chk~="' + api + '"]').text("-");
+    }
+
+    INTERP.subChecks = function () {
+        markChk("ffChk1", chkEarlyAccounts(state.earlyWithdrawal));
+        markChk("ffChk2", chkFinalizedAmount(state.earlyWithdrawal, state.overviewAll));
+        markChk("ffChk3", chkCauseAmount(state.earlyWithdrawal));
+        markChk("ffChk4", chkMaturityRemaining(state.maturity));
+        markChk("ffChk5", chkMaturityPaid(state.maturity, state.overviewAll));
+    };
+
     var INTERP_OF = {
         monthly: ["sankey", "monthly", "bridge"],
         monthlyAll: ["subProcess"],
-        overviewAll: ["subResult"],
-        earlyWithdrawal: ["subResult"],
-        maturity: ["subOutlook"],
+        overviewAll: ["subResult", "subChecks"],
+        earlyWithdrawal: ["subResult", "subChecks"],
+        maturity: ["subOutlook", "subChecks"],
         funnel: ["funnel"],
         leakage: ["leakage", "subProcess"],
         relief: ["relief", "subResult"],
@@ -1876,6 +1936,7 @@ $(function () {
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
         clearConcl(api);
+        clearChecks(api);
         if (api === "maturity") clearMaturity();
         if (api === "overviewAll") clearCover();
         if (api === "earlyWithdrawal") clearEarly();
@@ -1927,6 +1988,7 @@ $(function () {
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
             clearConcl(api);
+            clearChecks(api);
             if (api === "maturity") clearMaturity();
             if (api === "overviewAll") clearCover();
             if (api === "earlyWithdrawal") clearEarly();
