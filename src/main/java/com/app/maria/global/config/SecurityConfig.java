@@ -76,11 +76,7 @@ public class SecurityConfig {
     @Bean
     @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
-        http.sessionManagement(
-                        s ->
-                                s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                                        .sessionAuthenticationStrategy(
-                                                new NullAuthenticatedSessionStrategy()))
+        http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
