@@ -1286,7 +1286,7 @@
 .fund-flow [data-ff-view="submit"] #ffMatChartBox,
 .fund-flow [data-ff-view="submit"] #ffRetBox,
 .fund-flow [data-ff-view="submit"] #ffWdBox {
-    height: 180px;
+    height: 190px;
     margin: 4px 0 8px;
     overflow: hidden;
     contain: paint;
@@ -1298,4 +1298,128 @@
     position: relative;
     z-index: 1;
     background: var(--adm-panel);
+}
+
+/* 제출용 차트 높이: 월별 묶음 막대 · 월별 인출 · 만기 막대는 고정 높이 + 아래 여백 */
+.fund-flow [data-ff-view="submit"] #ffSubPanelMonthly .ff-chart-canvas {
+    height: 210px;
+    margin-bottom: 8px;
+}
+
+.fund-flow [data-ff-view="submit"] #ffWdBox {
+    height: 110px;
+}
+
+/* 혜택 누수: 100% 가로 누적 막대 + 직접 라벨 */
+.fund-flow [data-ff-view="submit"] .fs-leak {
+    margin: 4px 0 8px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar {
+    display: flex;
+    height: 22px;
+    border: 1px solid var(--adm-bd2);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar > span {
+    display: block;
+    height: 100%;
+    border-right: 1px solid var(--adm-panel);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar > span:last-child {
+    border-right: 0;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-labels {
+    position: relative;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    background: var(--adm-bd2);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    white-space: nowrap;
+    background: var(--adm-panel);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab em {
+    font-style: normal;
+    color: var(--adm-sub);
+}
+
+/* 남는 금액(가정): 혜택 유지 잔액 전체를 회색 바탕으로 50% · 70% · 90% 지점 표시 */
+.fund-flow [data-ff-view="submit"] .fs-scen-track {
+    position: relative;
+    height: 14px;
+    margin: 26px 12px 40px 0;
+    background: var(--adm-chart-gray);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--adm-chart-bar);
+    opacity: 0.28;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-tick {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-lab {
+    position: absolute;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-50%);
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-lab b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-lab em {
+    font-style: normal;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-end {
+    position: absolute;
+    right: 0;
+    bottom: 18px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--adm-sub);
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi .ff-badge {
+    font-size: 12px;
 }
