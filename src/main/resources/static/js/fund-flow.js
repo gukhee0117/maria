@@ -2258,9 +2258,13 @@ $(function () {
         var n = num(c.accounts);
         var body = fsRow(["감면 대상 계좌", n < 5 ? "5건 미만" : KRW.format(n) + "계좌", "감면액 > 0"]);
         if (lorenzOk()) {
-            var v50 = lorenzAt(c.lorenz, 0.5);
             if (c.gini != null) body += fsRow(["지니계수", Number(c.gini).toFixed(2), "0 균등 ~ 1 한 계좌 독점"]);
-            if (v50 != null) body += fsRow(["하위 50% 계좌 감면액 비중", pctS(v50), "감면액 적은 순 " + KRW.format(Math.round(n / 2)) + "계좌"]);
+            [[0.25, "하위 25%"], [0.5, "하위 50%"], [0.75, "하위 75%"]].forEach(function (q) {
+                var v = lorenzAt(c.lorenz, q[0]);
+                if (v != null) body += fsRow([q[1] + " 계좌 감면액 비중", pctS(v), "감면액 적은 순 " + KRW.format(Math.round(n * q[0])) + "계좌"]);
+            });
+            if (c.reliefTotal != null) body += fsRow(["감면액 합계", eok(c.reliefTotal), "감면 대상 " + KRW.format(n) + "계좌"]);
+            if (c.reliefTotal != null && n > 0) body += fsRow(["계좌당 평균 감면액", eok(num(c.reliefTotal) / n) + "원", eok(c.reliefTotal) + " / " + KRW.format(n) + "계좌"]);
             if (c.top10Share != null) body += fsRow(["상위 10% 점유율", pctS(Number(c.top10Share)), KRW.format(n) + "계좌 중 상위 10%"]);
         } else {
             body += fsRow(["지니계수 · 점유율", "미표시", "50계좌 미만"]);
@@ -2277,6 +2281,10 @@ $(function () {
         var body = "";
         if (d.lockedAmount != null && isFinite(locked)) body += fsRow(["1년 유지 중인 잔액", eok(locked), "혜택 유지 계좌 · 확정 후 1년 미경과"]);
         if (d.firstMaturityMonth) body += fsRow(["첫 만기월", esc(String(d.firstMaturityMonth).slice(0, 7)), ""]);
+        if (matGroups.length) {
+            body += fsGroup("만기월별 잔액", 3);
+            matGroups.forEach(function (g) { body += fsRow([esc(g.label), eok(g.amount), isFinite(locked) && locked > 0 ? pctS(g.amount / locked) + " (유지 잔액 대비)" : ""]); });
+        }
         if (d.lockedAmount != null && isFinite(locked) && locked > 0) {
             body += fsGroup("만기 후 계좌에 남는 금액(가정)", 3);
             [50, 70, 90].forEach(function (p) {

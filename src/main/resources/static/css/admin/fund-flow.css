@@ -1527,3 +1527,8 @@
         margin: 6px 0 2px;
     }
 }
+
+/* 만기월별 값 표는 오른쪽 근거 표(만기월별 잔액)로 옮겨 본문에서는 숨긴다 */
+.fund-flow [data-ff-view="submit"] #ffMatTableBox {
+    display: none;
+}
