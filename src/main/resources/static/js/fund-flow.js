@@ -1957,7 +1957,8 @@ $(function () {
         var doc = w.document;
 
         // 인쇄용 내용: 제출용 화면(표지·과정·결과·전망·부록)을 복제한다. 주석 노드는 인쇄물에 남기지 않는다
-        var $root = $('<div></div>').append($("#ffSubBody").clone());
+        // 복제본의 id 는 뗀다: 화면용 스크롤 규칙(#ffSubBody)이 인쇄 창의 복제본에 걸려 스크롤 상자가 끼어들지 않게 한다
+        var $root = $('<div></div>').append($("#ffSubBody").clone().removeAttr("id"));
         $root.find("*").addBack().contents().filter(function () { return this.nodeType === 8; }).remove();
         $root.find("[data-ff-retry]").removeAttr("data-ff-retry");
         $root.find("[title]").removeAttr("title");
