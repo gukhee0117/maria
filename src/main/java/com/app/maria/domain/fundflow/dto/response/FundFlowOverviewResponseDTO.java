@@ -16,10 +16,13 @@ import lombok.ToString;
 @ToString
 public class FundFlowOverviewResponseDTO {
 
-    private static final String BASIS = "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입";
+    private static final String BASIS =
+            "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입."
+                    + " 첫 계좌 개설일 = 개설된 계좌(opened_at이 있고 업무시계 날짜 미만) 중 가장 이른 개설일, 기간과 무관";
 
     private LocalDate asOfDate;
     private Long openedAccounts;
+    private LocalDate firstOpenedDate;
     private BigDecimal inflowTotal;
     private BigDecimal domesticBuyTotal;
     private BigDecimal reinvestRatio;
@@ -29,6 +32,8 @@ public class FundFlowOverviewResponseDTO {
     public FundFlowOverviewResponseDTO(FundFlowOverviewDTO vo) {
         this.asOfDate = vo.getAsOfDate();
         this.openedAccounts = vo.getOpenedAccounts();
+        this.firstOpenedDate =
+                vo.getFirstOpenedAt() == null ? null : vo.getFirstOpenedAt().toLocalDate();
         this.inflowTotal = vo.getInflowTotal();
         this.domesticBuyTotal = vo.getDomesticBuyTotal();
         this.reinvestRatio = vo.getReinvestRatio();

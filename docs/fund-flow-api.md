@@ -51,6 +51,7 @@
 ### 2-1. `GET /api/admin/fund-flow/overview` — 상단 핵심 지표
 
 쿼리: `period`. 개설 계좌 수는 기간과 무관한 누적(해지 포함)이고, 확정 유입·국내 매수·매도 합계만 기간으로 거른다.
+`firstOpenedDate`(첫 계좌 개설일)는 `MIN(account.opened_at)`의 날짜로, `opened_at`이 있고 업무시계 날짜(`clockDate`) 미만인 계좌만 대상이며 기간과 무관하다(`openedAccounts`와 같은 조건). 개설된 계좌가 없으면 `null`.
 
 ```json
 {
@@ -58,6 +59,7 @@
   "data": {
     "asOfDate": "2026-11-17",
     "openedAccounts": 75046,
+    "firstOpenedDate": "2026-03-23",
     "inflowTotal": 0,
     "domesticBuyTotal": 0,
     "reinvestRatio": 0.7069,

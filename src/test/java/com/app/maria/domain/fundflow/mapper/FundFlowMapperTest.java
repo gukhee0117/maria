@@ -15,6 +15,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -191,9 +192,78 @@ class FundFlowMapperTest {
         var result = fundFlowMapper.selectOverview(filter());
 
         assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 4, 2, 10, 0, 0));
         assertThat(result.getInflowTotal()).isEqualByComparingTo("1000000");
         assertThat(result.getDomesticBuyTotal()).isEqualByComparingTo("300000");
         assertThat(result.getDomesticSellTotal()).isEqualByComparingTo("100000");
+    }
+
+    @Test
+    @DisplayName("개요: 첫 계좌 개설일은 개설된 계좌 중 가장 이른 opened_at이고, 신청 중(opened_at 없음)과 업무일 이후 개설은 제외한다")
+    void selectOverviewReturnsEarliestOpenedAt() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-03-23 09:30:00");
+        insertCustomer(3L);
+        insertAccount(3L, 3L, "2026-03-01 10:00:00", null);
+        insertCustomer(4L);
+        insertAccount(4L, 4L, "2026-03-01 10:00:00", "2026-11-19 09:00:00");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 3, 23, 9, 30, 0));
+        assertThat(result.getOpenedAccounts()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("개요: 첫 계좌 개설일은 기간 필터(periodFrom)와 무관하다")
+    void selectOverviewFirstOpenedAtIgnoresPeriod() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-23 09:30:00");
+
+        var result =
+                fundFlowMapper.selectOverview(
+                        filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 3, 23, 9, 30, 0));
+    }
+
+    @Test
+    @DisplayName("개요: 개설 시각이 업무일 0시(같은 날 0시 포함) 이후이면 첫 계좌 개설일에서 제외한다")
+    void selectOverviewFirstOpenedAtExcludesClockDate() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-11-18 00:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-11-18 10:00:00");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isNull();
+        assertThat(result.getOpenedAccounts()).isZero();
+    }
+
+    @Test
+    @DisplayName("개요: 업무일 전날 23:59:59에 개설된 계좌는 포함하고 같은 날 개설은 제외한다")
+    void selectOverviewFirstOpenedAtIncludesPreviousDayEnd() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-11-18 00:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-11-17 23:59:59");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 11, 17, 23, 59, 59));
+        assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("개요: 개설된 계좌가 없으면 첫 계좌 개설일은 null이다")
+    void selectOverviewFirstOpenedAtIsNullWithoutAccounts() {
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isNull();
+        assertThat(result.getOpenedAccounts()).isZero();
     }
 
     @Test
@@ -214,6 +284,7 @@ class FundFlowMapperTest {
                         filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
 
         assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 4, 2, 10, 0, 0));
         assertThat(result.getInflowTotal()).isEqualByComparingTo("400000");
         assertThat(result.getDomesticBuyTotal()).isEqualByComparingTo("200000");
         assertThat(result.getDomesticSellTotal()).isEqualByComparingTo("50000");

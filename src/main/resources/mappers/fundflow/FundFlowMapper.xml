@@ -129,6 +129,8 @@
         SELECT
         (SELECT COUNT(*) FROM account
         WHERE opened_at IS NOT NULL AND opened_at &lt; #{clockDate}) AS openedAccounts,
+        (SELECT MIN(opened_at) FROM account
+        WHERE opened_at IS NOT NULL AND opened_at &lt; #{clockDate}) AS firstOpenedAt,
         COALESCE((SELECT SUM(final_amount) FROM krw_exchange
         WHERE settlement_status = 'FINALIZED' AND final_at &lt; #{clockDate}
         <if test="periodFrom != null">AND final_at &gt;= #{periodFrom}</if>), 0) AS inflowTotal,

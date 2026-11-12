@@ -2,6 +2,7 @@ package com.app.maria.domain.fundflow.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,6 +19,7 @@ import lombok.ToString;
 public class FundFlowOverviewDTO {
     private LocalDate asOfDate;
     private Long openedAccounts;
+    private LocalDateTime firstOpenedAt;
     private BigDecimal inflowTotal;
     private BigDecimal domesticBuyTotal;
     private BigDecimal domesticSellTotal;

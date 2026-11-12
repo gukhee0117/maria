@@ -66,6 +66,7 @@ class AdminFundFlowAnalyticsServiceTest {
                 .thenReturn(
                         FundFlowOverviewDTO.builder()
                                 .openedAccounts(75046L)
+                                .firstOpenedAt(LocalDateTime.of(2026, 3, 23, 9, 30, 0))
                                 .inflowTotal(new BigDecimal("6000"))
                                 .domesticBuyTotal(new BigDecimal("4260"))
                                 .domesticSellTotal(new BigDecimal("460"))
@@ -74,6 +75,7 @@ class AdminFundFlowAnalyticsServiceTest {
         FundFlowOverviewResponseDTO result = service.getOverview(new FundFlowPeriodRequestDTO());
 
         assertThat(result.getAsOfDate()).isEqualTo(LocalDate.of(2026, 11, 17));
+        assertThat(result.getFirstOpenedDate()).isEqualTo(LocalDate.of(2026, 3, 23));
         assertThat(result.getReinvestRatio()).isEqualByComparingTo("0.7100");
         assertThat(result.getNetInvestRatio()).isEqualByComparingTo("0.6333");
         assertThat(result.getBasis()).isNotBlank();
@@ -95,6 +97,7 @@ class AdminFundFlowAnalyticsServiceTest {
 
         assertThat(result.getReinvestRatio()).isNull();
         assertThat(result.getNetInvestRatio()).isNull();
+        assertThat(result.getFirstOpenedDate()).isNull();
     }
 
     @Test
