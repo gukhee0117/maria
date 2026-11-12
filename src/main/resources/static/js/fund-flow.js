@@ -204,40 +204,6 @@ $(function () {
         renderPeriodRange();
     }
 
-    // 제출용 3칸: state.overviewAll(period=ALL 고정)만 사용한다. 기간 토글의 state.overview 는 쓰지 않는다
-    function renderSubmitSummary() {
-        var d = state.overviewAll;
-        summarySet("ffSubOpened", d.openedAccounts == null ? "-" : KRW.format(d.openedAccounts));
-        summarySet("ffSubInflow", krwShort(d.inflowTotal));
-        summarySet("ffSubNet", d.netInvestRatio == null ? "-" : (d.netInvestRatio * 100).toFixed(1));
-        $("#ffSubCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
-    }
-
-    // 제출용 조기 인출 결과: 원인별은 계좌 수만 보이고, 5 미만이면 "5건 미만". 금액은 전체만 한 줄 설명에 쓴다
-    // 로딩 시작과 실패 때 이전 값이 남지 않게 큰 숫자 외의 부분을 비운다
-    function clearEarly() {
-        $("#ffEarlyDesc").text("");
-        $("#ffEarlyCause tbody").empty();
-        $("#ffEarlyCause, #ffEarlyCauseNote").prop("hidden", true);
-        $("#ffEarlyCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
-    }
-
-    function renderEarlyWithdrawal() {
-        var d = state.earlyWithdrawal;
-        summarySet("ffEarlyAcct", d.accountShare == null ? "-" : (d.accountShare * 100).toFixed(1));
-        summarySet("ffEarlyAmt", d.amountShare == null ? "-" : (d.amountShare * 100).toFixed(1));
-        $("#ffEarlyDesc").text("확정 환전 " + KRW.format(d.finalizedAccounts || 0) + "계좌 · " + krwShort(d.finalizedAmount) + "원 중, 1년이 지나기 전 원금이 인출된 계좌 " + KRW.format(d.earlyAccounts || 0) + "개 · " + krwShort(d.earlyWithdrawnAmount) + "원");
-        var $tb = $("#ffEarlyCause tbody").empty();
-        (d.byCause || []).forEach(function (c) {
-            var cnt = c.accounts == null ? "-" : (c.accounts < 5 ? "5건 미만" : KRW.format(c.accounts));
-            $tb.append($("<tr>").append($("<td>").css("padding", "4px 12px 4px 0").text(c.label || ""), $("<td>").css({ "text-align": "right", padding: "4px 0" }).text(cnt)));
-        });
-        var has = (d.byCause || []).length > 0;
-        $("#ffEarlyCause").prop("hidden", !has);
-        $("#ffEarlyCauseNote").prop("hidden", !has);
-        $("#ffEarlyCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
-    }
-
     // 제출용 만기 도래: 월별 accounts 가 5 미만인 월은 인접 월과 합쳐 보인다(앞에서부터 합치고, 마지막이 모자라면 앞 묶음에 합친다).
     // 한계: 월별 accounts 는 월 간에 같은 계좌가 겹칠 수 있어 합친 값이 실제 계좌 수보다 클 수 있다(5 이상 판정이 보수적이지 않다).
     function groupMonths(months) {
@@ -275,9 +241,6 @@ $(function () {
         $("#ffMatTable tbody").empty();
         $("#ffMatNote").text("");
         $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
-        $("#ffMatScen").prop("hidden", true);
-        [50, 70, 90].forEach(function (p) { $("#ffScen" + p + " [data-ff-value]").text("-"); });
-        $("#ffScenCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
     }
 
     // 막대 차트: 제출용이 보일 때만 그린다(숨겨진 동안은 크기가 0)
@@ -310,8 +273,6 @@ $(function () {
 
     function renderMaturity() {
         var d = state.maturity;
-        summarySet("ffMatLocked", krwShort(d.lockedAmount));
-        summarySet("ffMatFirst", d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "-");
         $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         matGroups = groupMonths(d.months || []);
         var has = matGroups.length > 0;
@@ -329,16 +290,6 @@ $(function () {
         } else {
             var amountText = num(d.canceledAccounts) < 5 ? "" : " " + krwShort(canceled) + "원";
             $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + " 위 차트에서 제외").prop("hidden", false);
-        }
-        // 만기 후 계좌에 남는 금액(가정): lockedAmount 만 쓴다(groupMonths · months · maturedRemainingAmount 는 쓰지 않는다). 0이거나 없으면 숨긴다
-        var locked = Number(d.lockedAmount);
-        var showScen = d.lockedAmount != null && isFinite(locked) && locked > 0;
-        $("#ffMatScen").prop("hidden", !showScen);
-        if (showScen) {
-            [50, 70, 90].forEach(function (p) {
-                summarySet("ffScen" + p, krwShort(Math.round(locked * p / 100)));
-            });
-            $("#ffScenCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         }
         if (view === "submit") drawMatChart();
     }
@@ -401,40 +352,6 @@ $(function () {
         setPanel($card, "ready");
     }
 
-    // 제출용 결과 막: 감면 성과(잠정)와 상위 10% 점유율. 감면 1원당 운용액은 쓰지 않는다
-    function clearSubRelief() {
-        $("#ffSubReliefDesc").text("");
-        $("#ffSubReliefCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
-    }
-
-    function renderSubRelief() {
-        var d = state.relief || {};
-        summarySet("ffSubRelAmt", krwShort(d.reliefTotal));
-        summarySet("ffSubRelRate", num(d.generalTaxTotal) > 0 && d.reliefTotal != null ? (num(d.reliefTotal) / num(d.generalTaxTotal) * 100).toFixed(1) : "-");
-        $("#ffSubReliefDesc").text("일반 과세 세액 합계 " + krwShort(d.generalTaxTotal) + "원 · 최종 세액 합계 " + krwShort(d.finalTaxTotal) + "원 · 감면액 합계 " + krwShort(d.reliefTotal) + "원 (" + (d.definitionVersion || "잠정") + " 정의, 예상값)");
-        $("#ffSubReliefCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
-    }
-
-    function clearSubTop10() {
-        $("#ffSubTop10Desc").text("");
-        $("#ffSubTop10Caption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
-    }
-
-    // 감면이 양수인 계좌가 50 미만이면 상위 10%가 5계좌 미만이 되므로 표시하지 않는다
-    function renderSubTop10() {
-        var d = state.concentration || {};
-        var tip = null;
-        if (num(d.accounts) < 50 || d.top10Share == null) {
-            summarySet("ffSubTop10", "-", tip);
-            $("#ffSubTop10Desc").text("감면 대상 계좌가 적어 미표시").closest("ul").removeClass("ff-fold");
-        } else {
-            summarySet("ffSubTop10", (Number(d.top10Share) * 100).toFixed(1), tip);
-            $("#ffSubTop10Desc").closest("ul").addClass("ff-fold");
-            $("#ffSubTop10Desc").text("감면액이 있는 " + KRW.format(num(d.accounts)) + "계좌 중 감면액 상위 10% 계좌가 감면액 합계 " + krwShort(d.reliefTotal) + "원에서 차지하는 비중");
-        }
-        $("#ffSubTop10Caption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
-    }
-
     // 제출용: 확정 후 경과일별 원금 유지 비율(retentionAll, 출시 이후 고정). 위험집합(atRisk, 건)이 5 미만인 구간은 그리지 않는다
     var retChart = null;
     var retPoints = [];
@@ -483,8 +400,6 @@ $(function () {
 
     function renderSubRetention() {
         var d = state.retentionAll || {};
-        summarySet("ffRetLots", d.lots == null ? "-" : KRW.format(num(d.lots)));
-        summarySet("ffRetEvents", d.events == null ? "-" : (num(d.events) < 5 ? "5건 미만" : KRW.format(num(d.events))));
         retPoints = retVisiblePoints(d);
         var has = retPoints.length >= 2;
         $("#ffRetBox").prop("hidden", !has);
@@ -502,7 +417,6 @@ $(function () {
         if (wdChart) { wdChart.destroy(); wdChart = null; }
         wdMonths = [];
         $("#ffWdBox").prop("hidden", true);
-        $("#ffWdFacts").prop("hidden", true).text("");
         $("#ffWdChart").attr("aria-label", "");
     }
 
@@ -544,8 +458,6 @@ $(function () {
         var has = wdMonths.length > 0;
         $("#ffWdBox").prop("hidden", !has);
         $("#ffWdChart").attr("aria-label", has ? "월별 인출액: " + wdMonths.map(function (m) { return wdLabel(m) + " " + krwShort(m.withdrawalAmount) + "원"; }).join(", ") : "");
-        var total = wdMonths.reduce(function (sum, m) { return sum + num(m.withdrawalAmount); }, 0);
-        $("#ffWdFacts").text(has ? "출시 이후 인출액 합계 " + krwShort(total) + "원 · 진행 중인 달은 집계 기준일까지" : "").prop("hidden", !has);
         if (view === "submit") drawSubWithdraw();
     }
 
@@ -1851,10 +1763,151 @@ $(function () {
         }
     }
 
+    /* ---------- 제출용 근거 표(오른쪽 1/3): 항목 · 값 · 근거(분자/분모) ---------- */
+    // 모든 값은 응답으로 계산한다. 계좌·건 수가 5 미만이면 "5건 미만"으로 둔다.
+    function fsRow(cells, cls) {
+        return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' + cells.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>";
+    }
+
+    function fsGroup(title, cols) {
+        return '<tr class="fs-grp"><th colspan="' + cols + '">' + esc(title) + "</th></tr>";
+    }
+
+    function fsNote(text, cols) {
+        return '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(text) + "</td></tr>";
+    }
+
+    function fsAsOf(d) {
+        return fsNote("리턴증권 고객 기준 · 누적 · 집계 기준일 " + ((d && d.asOfDate) || "-"), 3);
+    }
+
+    // 아직 불러오는 중이거나 실패한 API 는 한 줄로 알린다(실패는 다시 시도 버튼)
+    function fsWait(api, label, cols) {
+        if (loadState[api] === "fail") {
+            return '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(label) + ' 불러오지 못함 · <button type="button" class="fs-link" data-ff-retry="' + api + '">다시 시도</button></td></tr>';
+        }
+        return loadState[api] === "ok" ? "" : '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(label) + " 불러오는 중</td></tr>";
+    }
+
+    function fsPut(id, head, body) {
+        $("#" + id).html((head ? "<thead>" + head + "</thead>" : "") + "<tbody>" + body + "</tbody>");
+    }
+
+    function renderTblFlow() {
+        var m = state.monthlyAll;
+        var head = "<tr><th>자금 흐름</th><th>값</th><th>근거</th></tr>";
+        if (!m || !(m.months || []).length) { fsPut("ffTblFlow", head, fsWait("monthlyAll", "월별 자금 흐름", 3)); return; }
+        var t = totals(m.months);
+        var rest = t.krw + t.dsell - t.buy - t.wd;
+        function ratio(v, base) { return base > 0 ? pctS(v / base) : "-"; }
+        var body = fsRow(["해외 매도", eok(t.sell), ""]) +
+            fsRow(["확정 원화 유입", eok(t.krw), ratio(t.krw, t.sell) + " (해외 매도 대비)"]) +
+            fsRow(["국내 매수", eok(t.buy), ratio(t.buy, t.krw) + " (확정 원화 대비)"]) +
+            fsRow(["국내 매도 회수", eok(t.dsell), ratio(t.dsell, t.krw)]) +
+            fsRow(["인출", eok(t.wd), ratio(t.wd, t.krw)]) +
+            fsRow(["예수금(계좌에 남는 금액)", eok(rest), ratio(rest, t.krw)]) +
+            fsNote("예수금 = 확정 원화 + 국내 매도 회수 − 국내 매수 − 인출. 해외 매도와 확정 원화 유입의 차이 " + eok(Math.abs(t.sell - t.krw)) + "(집계 기준이 다름). 진행 중인 달은 집계 기준일까지", 3);
+        fsPut("ffTblFlow", head, body);
+    }
+
+    function renderTblMonthly() {
+        var m = state.monthlyAll;
+        var head = "<tr><th>월</th><th>유입</th><th>매수</th><th>재투자율</th><th>인출</th></tr>";
+        if (!m || !(m.months || []).length) { fsPut("ffTblMonthly", head, ""); return; }
+        function e1(v) { return (num(v) / 1e8).toFixed(1); }
+        var body = m.months.map(function (x) {
+            var key = monthKey(x);
+            var rate = num(x.krwInflowAmount) > 0 ? pctS(num(x.domesticBuyAmount) / num(x.krwInflowAmount)) : "-";
+            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), e1(x.krwInflowAmount), e1(x.domesticBuyAmount), rate, (num(x.withdrawalAmount) / 1e8).toFixed(2)]);
+        }).join("") + fsNote("단위: 억 원. 재투자율 = 국내 매수 ÷ 확정 원화 유입(월별)", 5);
+        fsPut("ffTblMonthly", head, body);
+    }
+
+    function renderTblResult() {
+        var o = state.overviewAll, m = state.monthlyAll, e = state.earlyWithdrawal, r = state.relief, c = state.concentration, ret = state.retentionAll;
+        var head = "<tr><th>결과 지표</th><th>값</th><th>근거</th></tr>";
+        var t = m && (m.months || []).length ? totals(m.months) : null;
+        var body = "";
+        if (o) {
+            body += fsGroup("규모", 3);
+            if (o.openedAccounts != null) body += fsRow(["개설 계좌", KRW.format(num(o.openedAccounts)) + "계좌", "해지 포함"]);
+            if (o.inflowTotal != null) body += fsRow(["확정 복귀 금액", eok(o.inflowTotal), ""]);
+            if (o.netInvestRatio != null) body += fsRow(["순투자율", pctS(Number(o.netInvestRatio)), t && t.krw > 0 ? eok(t.buy - t.dsell) + " / " + eok(t.krw) : ""]);
+        } else {
+            body += fsWait("overviewAll", "핵심 지표", 3);
+        }
+        body += fsGroup("1년 전 원금 인출", 3);
+        if (e) {
+            var few = num(e.earlyAccounts) < 5;
+            body += fsRow(["계좌 기준", few ? "5건 미만" : pctS(Number(e.accountShare)), few ? KRW.format(num(e.finalizedAccounts)) + "계좌 중" : KRW.format(num(e.earlyAccounts)) + " / " + KRW.format(num(e.finalizedAccounts)) + "계좌"]);
+            body += fsRow(["금액 기준", few ? "5건 미만" : pctS(Number(e.amountShare)), few ? "" : eok(e.earlyWithdrawnAmount) + " / " + eok(e.finalizedAmount)]);
+            (e.byCause || []).forEach(function (cz) {
+                body += fsRow(["원인: " + esc(cz.label || ""), cz.accounts == null ? "-" : (num(cz.accounts) < 5 ? "5건 미만" : KRW.format(num(cz.accounts)) + "계좌"), ""]);
+            });
+        } else {
+            body += fsWait("earlyWithdrawal", "조기 인출", 3);
+        }
+        body += fsGroup("원금 유지", 3);
+        if (ret) {
+            var pts = retVisiblePoints(ret);
+            var last = pts[pts.length - 1];
+            if (last && last.lower != null && last.upper != null) {
+                body += fsRow(["확정 후 " + last.day + "일", (Number(last.lower) * 100).toFixed(1) + "~" + pctS(Number(last.upper)), "95% 구간"]);
+            }
+            body += fsRow(["관찰한 확정 환전 건", ret.lots == null ? "-" : KRW.format(num(ret.lots)) + "건", ret.events == null ? "" : "1년 전 원금 인출 " + (num(ret.events) < 5 ? "5건 미만" : KRW.format(num(ret.events)) + "건")]);
+        } else {
+            body += fsWait("retentionAll", "원금 유지", 3);
+        }
+        body += fsGroup("감면(잠정)", 3);
+        if (r) {
+            var v = reliefVs(o, r);
+            body += fsRow(["예상 감면액", eok(r.reliefTotal), "잠정 정의의 예상값"]);
+            if (num(r.generalTaxTotal) > 0) body += fsRow(["감면 비율", pctS(num(r.reliefTotal) / num(r.generalTaxTotal)), eok(r.reliefTotal) + " / " + eok(r.generalTaxTotal)]);
+            if (v) body += fsRow(["복귀 확정액 대비", pctS(v.ratio), eok(v.relief) + " / " + eok(v.inflow)]);
+            body += fsAsOf(r);
+        } else {
+            body += fsWait("relief", "감면 지표", 3);
+        }
+        if (c) {
+            var enough = num(c.accounts) >= 50 && c.top10Share != null;
+            body += fsRow(["상위 10% 점유율", enough ? pctS(Number(c.top10Share)) : "미표시", enough ? KRW.format(num(c.accounts)) + "계좌 중" : "감면 대상 계좌 적음"]);
+            body += fsAsOf(c);
+        } else {
+            body += fsWait("concentration", "혜택 집중도", 3);
+        }
+        fsPut("ffTblResult", head, body);
+    }
+
+    function renderTblOutlook() {
+        var d = state.maturity;
+        var head = "<tr><th>전망 지표</th><th>값</th><th>근거</th></tr>";
+        if (!d) { fsPut("ffTblOutlook", head, fsWait("maturity", "만기 도래", 3)); return; }
+        var locked = Number(d.lockedAmount);
+        var body = "";
+        if (d.lockedAmount != null && isFinite(locked)) body += fsRow(["1년 유지 중인 잔액", eok(locked), "혜택 유지 계좌 · 확정 후 1년 미경과"]);
+        if (d.firstMaturityMonth) body += fsRow(["첫 만기월", esc(String(d.firstMaturityMonth).slice(0, 7)), ""]);
+        if (d.lockedAmount != null && isFinite(locked) && locked > 0) {
+            body += fsGroup("만기 후 계좌에 남는 금액(가정)", 3);
+            [50, 70, 90].forEach(function (p) {
+                body += fsRow([p + "% 남는 경우", eok(Math.round(locked * p / 100)), eok(locked) + " × " + p + "%"]);
+            });
+            body += fsNote("가정으로 계산한 값이며 예측이 아님", 3);
+        }
+        fsPut("ffTblOutlook", head, body);
+    }
+
+    function renderSubTables() {
+        renderTblFlow();
+        renderTblMonthly();
+        renderTblResult();
+        renderTblOutlook();
+    }
+
     // 제출용 화면 전체(핵심 지표 · 막 제목)를 state 로 다시 만든다. API 하나가 끝나거나 실패할 때마다 부른다
     function renderSubmitAll() {
         try {
             renderSubKpis();
+            renderSubTables();
             setConcl("ffTitleProcess", titleProcess(state.monthlyAll));
             setConcl("ffTitleResult", titleResult(state.earlyWithdrawal, state.retentionAll));
             setConcl("ffTitleOutlook", titleOutlook(state.maturity));
@@ -2199,12 +2252,7 @@ $(function () {
     };
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
-        overviewAll: ["ffSubOpened", "ffSubInflow", "ffSubNet"],
-        earlyWithdrawal: ["ffEarlyAcct", "ffEarlyAmt"],
-        maturity: ["ffMatLocked", "ffMatFirst"],
-        retentionAll: ["ffRetLots", "ffRetEvents"],
-        relief: ["ffSumRelief", "ffSumPerRelief", "ffSubRelAmt", "ffSubRelRate"],
-        concentration: ["ffSubTop10"],
+        relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
     var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", retentionAll: "경과일별 원금 유지", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
@@ -2236,9 +2284,6 @@ $(function () {
         clearChecks(api);
         if (api === "maturity") clearMaturity();
         if (api === "overviewAll") clearCover();
-        if (api === "earlyWithdrawal") clearEarly();
-        if (api === "relief") clearSubRelief();
-        if (api === "concentration") clearSubTop10();
         if (api === "retentionAll") clearRetention();
         if (api === "monthlyAll") clearWithdraw();
 
@@ -2250,17 +2295,13 @@ $(function () {
                 renderOverviewSummary();
                 if (state.monthly) sankeyOverviewNote($("#ffSankeyNotes"), totals(monthsOf()));
             } else if (api === "overviewAll") {
-                renderSubmitSummary();
                 renderCover();
-            } else if (api === "earlyWithdrawal") {
-                renderEarlyWithdrawal();
             } else if (api === "maturity") {
                 renderMaturity();
             } else if (api === "monthlyAll") {
                 renderSubProcess();
             } else if (api === "relief") {
                 renderReliefSummary();
-                renderSubRelief();
                 renderRelief();
             } else if (api === "leakage") {
                 renderLeakageSummary();
@@ -2278,7 +2319,6 @@ $(function () {
                 renderRetention();
             } else if (api === "concentration") {
                 renderConcentration();
-                renderSubTop10();
             } else if (api === "retentionAll") {
                 renderSubRetention();
             }
@@ -2295,9 +2335,6 @@ $(function () {
             clearChecks(api);
             if (api === "maturity") clearMaturity();
             if (api === "overviewAll") clearCover();
-            if (api === "earlyWithdrawal") clearEarly();
-            if (api === "relief") clearSubRelief();
-            if (api === "concentration") clearSubTop10();
             if (api === "retentionAll") clearRetention();
             if (api === "monthlyAll") clearWithdraw();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });

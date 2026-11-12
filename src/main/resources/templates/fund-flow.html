@@ -101,186 +101,95 @@
             <div class="fs-kpi" id="ffKpi4"><span class="fs-kpi-label">감면 예상액 <span class="ff-badge ff-badge-warn">잠정</span></span><span class="fs-kpi-value" data-ff-value>-</span><span class="fs-kpi-basis" id="ffKpi4Basis"></span></div>
         </div>
         <h3 class="fs-act-title" id="ffActProcess"><span class="fs-act-kicker">과정</span><span class="fs-act-concl" id="ffTitleProcess" data-concl="monthlyAll"></span></h3>
-        <!-- 과정: 자금 흐름 경로 · 월별(monthlyAll, 출시 이후 고정) · 혜택 누수 축약판(leakage 응답 재사용) -->
-        <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
-            <div class="adm-card-head">
-                <span class="adm-card-title">자금 흐름 경로 <span class="adm-card-sub">해외 매도 → 확정 원화 → 국내 매수 · 예수금 · 인출</span></span>
+        <!-- 막마다 2단: 왼쪽 차트(2/3), 오른쪽 근거 표(1/3). 1366px 미만이면 1단 -->
+        <div class="fs-grid">
+            <div class="fs-main">
+                <section class="adm-card ff-card" id="ffSubPanelFlow" data-state="loading">
+                    <div class="adm-card-head">
+                        <span class="adm-card-title">자금 흐름 경로 <span class="adm-card-sub">해외 매도 → 확정 원화 → 국내 매수 · 예수금 · 인출</span></span>
+                    </div>
+                    <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                    <div class="ff-state ff-state-error"></div>
+                    <div class="ff-state ff-state-empty"></div>
+                    <div class="ff-body">
+                        <div class="ff-chart" id="ffSubSankey"></div>
+                        <div class="ff-bar-item" id="ffSubFlowCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+                    </div>
+                </section>
+                <section class="adm-card ff-card" id="ffSubPanelMonthly" data-state="loading">
+                    <div class="adm-card-head">
+                        <span class="adm-card-title">월별 유입 · 국내 매수와 재투자율</span>
+                    </div>
+                    <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
+                    <div class="ff-state ff-state-error"></div>
+                    <div class="ff-state ff-state-empty"></div>
+                    <div class="ff-body">
+                        <div class="ff-chart ff-chart-canvas"><canvas id="ffSubMonthlyChart" aria-label="월별 확정 원화 유입, 국내 매수, 재투자율"></canvas></div>
+                        <div class="ff-bar-item" id="ffSubMonthlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+                    </div>
+                </section>
+                <!-- 월별 인출액(monthlyAll 응답의 months[].withdrawalAmount). 금액만 쓰고 계좌 수는 쓰지 않는다 -->
+                <div id="ffSubWithdraw">
+                    <div class="ff-sub-title">월별 인출액</div>
+                    <div class="ff-chart ff-chart-canvas" id="ffWdBox" hidden><canvas id="ffWdChart" role="img" aria-label=""></canvas></div>
+                </div>
+                <section class="adm-card ff-card" id="ffSubPanelLeak" data-state="loading">
+                    <div class="adm-card-head">
+                        <span class="adm-card-title">혜택 누수 <span class="adm-card-sub">5분류 · 전체 계좌 기준</span></span>
+                    </div>
+                    <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
+                    <div class="ff-state ff-state-error"></div>
+                    <div class="ff-state ff-state-empty"></div>
+                    <div class="ff-body">
+                        <div class="ff-leak" id="ffSubLeakRows"></div>
+                        <div class="ff-bar-item" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+                    </div>
+                </section>
             </div>
-            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
-            <div class="ff-state ff-state-error"></div>
-            <div class="ff-state ff-state-empty"></div>
-            <div class="ff-body">
-                <div class="ff-chart" id="ffSubSankey"></div>
-                <div class="ff-bar-item" id="ffSubFlowCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            </div>
-        </section>
-        <section class="adm-card ff-card" id="ffSubPanelMonthly" data-state="loading">
-            <div class="adm-card-head">
-                <span class="adm-card-title">월별 유입 · 국내 매수와 재투자율</span>
-            </div>
-            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:230px"></div></div>
-            <div class="ff-state ff-state-error"></div>
-            <div class="ff-state ff-state-empty"></div>
-            <div class="ff-body">
-                <div class="ff-chart ff-chart-canvas"><canvas id="ffSubMonthlyChart" aria-label="월별 확정 원화 유입, 국내 매수, 재투자율"></canvas></div>
-                <div class="ff-bar-item" id="ffSubMonthlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            </div>
-        </section>
-        <!-- 과정: 월별 인출액(monthlyAll 응답의 months[].withdrawalAmount). 금액만 쓰고 계좌 수는 쓰지 않는다 -->
-        <div id="ffSubWithdraw">
-            <div class="ff-sub-title">월별 인출액</div>
-            <div class="ff-chart ff-chart-canvas" id="ffWdBox" hidden><canvas id="ffWdChart" role="img" aria-label=""></canvas></div>
-            <ul class="ff-notes ff-fold"><li id="ffWdFacts" hidden></li></ul>
+            <aside class="fs-side">
+                <table class="fs-table" id="ffTblFlow"></table>
+                <table class="fs-table" id="ffTblMonthly"></table>
+            </aside>
         </div>
-        <section class="adm-card ff-card" id="ffSubPanelLeak" data-state="loading">
-            <div class="adm-card-head">
-                <span class="adm-card-title">혜택 누수 <span class="adm-card-sub">5분류 · 전체 계좌 기준</span></span>
-            </div>
-            <div class="ff-state ff-state-loading"><div class="ff-skel" style="height:190px"></div></div>
-            <div class="ff-state ff-state-error"></div>
-            <div class="ff-state ff-state-empty"></div>
-            <div class="ff-body">
-                <div class="ff-leak" id="ffSubLeakRows"></div>
-                <div class="ff-bar-item" id="ffSubLeakCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            </div>
-        </section>
         <h3 class="fs-act-title" id="ffActResult"><span class="fs-act-kicker">결과</span><span class="fs-act-concl" id="ffTitleResult" data-concl="earlyWithdrawal retentionAll"></span></h3>
-        <div class="adm-summary" id="ffSubSummary">
-            <div class="adm-summary-item" id="ffSubOpened">
-                <span class="adm-summary-label">개설 계좌</span>
-                <span class="adm-summary-value" data-ff-value>-</span>
-                <span class="adm-summary-unit">계좌 · 해지 포함</span>
-            </div>
-            <div class="adm-summary-item" id="ffSubInflow">
-                <span class="adm-summary-label">확정 복귀 금액</span>
-                <span class="adm-summary-value" data-ff-value>-</span>
-                <span class="adm-summary-unit">원</span>
-            </div>
-            <div class="adm-summary-item" id="ffSubNet">
-                <span class="adm-summary-label">순투자율</span>
-                <span class="adm-summary-value" data-ff-value>-</span>
-                <span class="adm-summary-unit">%</span>
-            </div>
-        </div>
-        <div class="ff-bar-item ff-cap-dup" id="ffSubCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-        <!-- 결과: 조기 인출(early-withdrawal 응답, 기간과 무관한 누적). 원인별은 계좌 수만, 5 미만은 "5건 미만" -->
-        <div id="ffSubEarly">
-            <div class="adm-summary" id="ffEarlySummary">
-                <div class="adm-summary-item" id="ffEarlyAcct">
-                    <span class="adm-summary-label">조기 인출 비율(계좌 기준)</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">%</span>
-                </div>
-                <div class="adm-summary-item" id="ffEarlyAmt">
-                    <span class="adm-summary-label">조기 인출 비율(금액 기준)</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">%</span>
+        <div class="fs-grid">
+            <div class="fs-main">
+                <!-- 확정 후 경과일별 원금 유지 비율(retention 응답, 출시 이후 고정). 위험집합이 5건 미만인 구간은 그리지 않는다 -->
+                <div id="ffSubRetention">
+                    <div class="ff-sub-title">확정 후 경과일별 원금 유지 비율</div>
+                    <div class="ff-chart ff-chart-canvas" id="ffRetBox" hidden><canvas id="ffRetChart" role="img" aria-label=""></canvas></div>
+                    <ul class="ff-notes"><li id="ffRetFacts" hidden></li></ul>
+                    <div class="ff-bar-item ff-cap-dup" id="ffRetCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
                 </div>
             </div>
-            <ul class="ff-notes"><li id="ffEarlyDesc"></li></ul>
-            <table id="ffEarlyCause" style="margin:8px 0;border-collapse:collapse;font-size:13px" hidden>
-                <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">원인</th><th style="text-align:right;padding:4px 0">계좌 수</th></tr></thead>
-                <tbody></tbody>
-            </table>
-            <ul class="ff-notes ff-fold"><li id="ffEarlyCauseNote" hidden>한 계좌가 두 원인에 걸칠 수 있어 원인별 합계는 전체와 다를 수 있음. 5건 미만은 개별 값 미표시</li></ul>
-            <div class="ff-bar-item ff-cap-dup" id="ffEarlyCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-        </div>
-        <!-- 결과: 감면 성과(relief 응답, 잠정)와 상위 10% 점유율(concentration 응답). 감면 1원당 운용액과 로렌츠 곡선은 운영 상세에만 둔다 -->
-        <div id="ffSubRelief">
-            <div class="adm-summary" id="ffSubReliefSummary">
-                <div class="adm-summary-item" id="ffSubRelAmt">
-                    <span class="adm-summary-label">예상 감면액(조세지출)</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">원</span>
-                    <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
-                </div>
-                <div class="adm-summary-item" id="ffSubRelRate">
-                    <span class="adm-summary-label">감면 비율</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">%</span>
-                    <span class="ff-badge ff-badge-warn" title="감면 지표는 잠정 정의(draft-1)로 계산한 예상값이에요">잠정</span>
-                </div>
-                <div class="adm-summary-item" id="ffSubTop10">
-                    <span class="adm-summary-label">상위 10% 점유율</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">%</span>
-                </div>
-            </div>
-            <ul class="ff-notes ff-fold"><li id="ffSubReliefDesc"></li></ul>
-            <div class="ff-bar-item" id="ffSubReliefCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            <ul class="ff-notes ff-fold"><li id="ffSubTop10Desc"></li></ul>
-            <div class="ff-bar-item" id="ffSubTop10Caption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-        </div>
-        <!-- 결과: 확정 후 경과일별 원금 유지 비율(retention 응답, 출시 이후 고정). 위험집합이 5건 미만인 구간은 그리지 않는다 -->
-        <div id="ffSubRetention">
-            <div class="ff-sub-title">확정 후 경과일별 원금 유지 비율</div>
-            <div class="adm-summary ff-kpi" id="ffRetSummary">
-                <div class="adm-summary-item" id="ffRetLots">
-                    <span class="adm-summary-label">관찰한 확정 환전 건</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">건</span>
-                </div>
-                <div class="adm-summary-item" id="ffRetEvents">
-                    <span class="adm-summary-label">1년이 지나기 전 원금 인출이 있었던 건</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">건</span>
-                </div>
-            </div>
-            <div class="ff-chart ff-chart-canvas" id="ffRetBox" hidden><canvas id="ffRetChart" role="img" aria-label=""></canvas></div>
-            <ul class="ff-notes"><li id="ffRetFacts" hidden></li></ul>
-            <div class="ff-bar-item ff-cap-dup" id="ffRetCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
+            <aside class="fs-side">
+                <table class="fs-table" id="ffTblResult"></table>
+            </aside>
         </div>
         <h3 class="fs-act-title" id="ffActOutlook"><span class="fs-act-kicker">전망</span><span class="fs-act-concl" id="ffTitleOutlook" data-concl="maturity"></span></h3>
-        <!-- 전망: 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
-        <div id="ffSubMaturity">
-            <div class="adm-summary ff-kpi" id="ffMatSummary">
-                <div class="adm-summary-item" id="ffMatLocked">
-                    <span class="adm-summary-label">1년 유지 중인 잔액</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
-                    <span class="adm-summary-unit">원</span>
-                </div>
-                <div class="adm-summary-item" id="ffMatFirst">
-                    <span class="adm-summary-label">첫 만기월</span>
-                    <span class="adm-summary-value" data-ff-value>-</span>
+        <div class="fs-grid">
+            <div class="fs-main">
+                <!-- 만기 도래(maturity 응답, 기간과 무관한 누적). 막대는 월별 잔액이고 계좌 수는 화면에 쓰지 않는다 -->
+                <div id="ffSubMaturity">
+                    <div class="ff-bar-item" id="ffMatChartTitle" hidden>만기월별 잔액(혜택이 유지 중인 계좌)</div>
+                    <div class="ff-chart ff-chart-canvas" id="ffMatChartBox" hidden><canvas id="ffMatChart" role="img" aria-label=""></canvas></div>
+                    <div class="ff-bar-item" id="ffMatEmpty" hidden>만기 예정 잔액 없음</div>
+                    <details id="ffMatTableBox" hidden>
+                        <summary>값 표로 보기</summary>
+                        <table id="ffMatTable" style="margin:8px 0;border-collapse:collapse;font-size:13px">
+                            <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">만기월</th><th style="text-align:right;padding:4px 0">잔액(원)</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </details>
+                    <ul class="ff-notes ff-fold"><li id="ffMatNote" hidden></li></ul>
+                    <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
                 </div>
             </div>
-            <div class="ff-bar-item" id="ffMatChartTitle" hidden>만기월별 잔액(혜택이 유지 중인 계좌)</div>
-            <div class="ff-chart ff-chart-canvas" id="ffMatChartBox" hidden><canvas id="ffMatChart" role="img" aria-label=""></canvas></div>
-            <div class="ff-bar-item" id="ffMatEmpty" hidden>만기 예정 잔액 없음</div>
-            <details id="ffMatTableBox" hidden>
-                <summary>값 표로 보기</summary>
-                <table id="ffMatTable" style="margin:8px 0;border-collapse:collapse;font-size:13px">
-                    <thead><tr><th style="text-align:left;padding:4px 12px 4px 0">만기월</th><th style="text-align:right;padding:4px 0">잔액(원)</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </details>
-            <ul class="ff-notes ff-fold"><li id="ffMatNote" hidden></li></ul>
-            <!-- 만기 후 계좌에 남는 금액(가정): 1년 유지 중인 잔액(lockedAmount) × 50/70/90%. 차트 없이 숫자 3칸. lockedAmount 가 0이거나 없으면 블록 전체를 숨긴다 -->
-            <div id="ffMatScen" hidden>
-                <div class="ff-sub-title">만기 후 계좌에 남는 금액(가정)</div>
-                <div class="adm-summary ff-kpi" id="ffScenSummary">
-                    <div class="adm-summary-item" id="ffScen50">
-                        <span class="adm-summary-label">50% 남는 경우</span>
-                        <span class="adm-summary-value" data-ff-value>-</span>
-                        <span class="adm-summary-unit">원</span>
-                    </div>
-                    <div class="adm-summary-item" id="ffScen70">
-                        <span class="adm-summary-label">70% 남는 경우</span>
-                        <span class="adm-summary-value" data-ff-value>-</span>
-                        <span class="adm-summary-unit">원</span>
-                    </div>
-                    <div class="adm-summary-item" id="ffScen90">
-                        <span class="adm-summary-label">90% 남는 경우</span>
-                        <span class="adm-summary-value" data-ff-value>-</span>
-                        <span class="adm-summary-unit">원</span>
-                    </div>
-                </div>
-                <ul class="ff-notes ff-fold"><li id="ffScenDesc">1년 유지 중인 잔액의 제한이 풀린 뒤 그중 50%, 70%, 90%가 계좌에 남는다고 가정해 계산한 금액이며 예측값이 아님</li></ul>
-                <div class="ff-bar-item ff-cap-dup" id="ffScenCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            </div>
-            <div class="ff-bar-item" id="ffMatCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
-            <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
+            <aside class="fs-side">
+                <table class="fs-table" id="ffTblOutlook"></table>
+            </aside>
         </div>
+        <div class="ff-bar-item" id="ffMatNotice">시연용 가상 데이터, 실제 시장 통계가 아님</div>
         <!-- 부록: 지표 정의 · 한계 · 검산. 정의와 한계는 정적 문장이고, 검산은 응답 값으로 계산해 ✓/✗만 보인다(숫자 없음) -->
         <h3 class="fs-act-title" id="ffActAppendix"><span class="fs-act-kicker">부록</span></h3>
         <details id="ffSubAppendixBox">

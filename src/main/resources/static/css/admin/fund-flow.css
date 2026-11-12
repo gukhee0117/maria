@@ -1113,6 +1113,95 @@
     }
 }
 
+/* 막마다 2단: 왼쪽 차트(2/3), 오른쪽 근거 표(1/3). 1366px 미만이면 1단 */
+.fund-flow [data-ff-view="submit"] .fs-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 12px 16px;
+    align-items: start;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-main,
+.fund-flow [data-ff-view="submit"] .fs-side {
+    min-width: 0;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-main > .adm-card {
+    margin-bottom: 8px;
+}
+
+@media (max-width: 1365px) {
+    .fund-flow [data-ff-view="submit"] .fs-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 근거 표: 항목 · 값 · 근거(분자/분모). 1px 가로선만 */
+.fund-flow [data-ff-view="submit"] .fs-table {
+    width: 100%;
+    margin: 0 0 12px;
+    border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table th,
+.fund-flow [data-ff-view="submit"] .fs-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--adm-bd2);
+    text-align: left;
+    vertical-align: top;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table thead th {
+    border-bottom: 1px solid var(--adm-line);
+    font-weight: 700;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table tbody tr:not(.fs-grp):not(.fs-foot) td:nth-child(2),
+.fund-flow [data-ff-view="submit"] .fs-table thead th:nth-child(2) {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table tbody tr:not(.fs-grp):not(.fs-foot) td:nth-child(2) {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table tbody tr:not(.fs-grp):not(.fs-foot) td:nth-child(n + 3) {
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] #ffTblMonthly td:not(:first-child),
+.fund-flow [data-ff-view="submit"] #ffTblMonthly th:not(:first-child) {
+    text-align: right;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table .fs-grp th {
+    padding-top: 8px;
+    border-bottom: 1px solid var(--adm-line);
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table .fs-foot td {
+    border-bottom: 0;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--adm-navy-fg, var(--adm-text));
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 /* 제출용 본문은 운영 상세의 .ff-scroll 처럼 남은 높이 안에서 스크롤한다(main 이 overflow: hidden 이라 없으면 아래가 잘린다) */
 .fund-flow [data-ff-view="submit"] #ffSubBody {
     flex: 1 1 0;
