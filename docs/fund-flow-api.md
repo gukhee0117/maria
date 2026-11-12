@@ -115,7 +115,7 @@
 | code | label | 조건 |
 |---|---|---|
 | `NO_SELL` | 매도 없음 | `weighted_sell = 0` |
-| `BENEFIT_CANCELED` | 혜택 취소(해지 등) | `account.benefit = 'IMPOSSIBLE'` |
+| `BENEFIT_CANCELED` | 혜택 취소(조기 인출) | `account.benefit = 'IMPOSSIBLE'` |
 | `NO_IMPACT` | 영향 없음 | `adjust_ratio = 1` |
 | `PARTIAL_REDUCED` | 부분 축소 | `0 < adjust_ratio < 1` |
 | `EXTERNAL_BUY_OFFSET` | 타 계좌 순매수로 소멸 | `adjust_ratio = 0` |
