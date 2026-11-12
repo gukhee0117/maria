@@ -1492,3 +1492,38 @@
         height: auto;
     }
 }
+
+/* 제출용 인쇄: 표 · 막대 · 부록 간격을 줄여 한 쪽에 최대한 담는다 */
+@media print {
+    .fund-flow [data-ff-view="submit"] .fs-table th,
+    .fund-flow [data-ff-view="submit"] .fs-table td {
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-hrow {
+        margin: 3px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix {
+        font-size: 9.5px;
+        line-height: 1.3;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-defs-row {
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-notes {
+        margin: 2px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-notes li {
+        margin: 1px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-sub-title {
+        margin: 6px 0 2px;
+    }
+}
