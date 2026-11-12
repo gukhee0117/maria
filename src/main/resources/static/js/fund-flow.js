@@ -25,6 +25,7 @@ $(function () {
 
     var API = {
         overview: { url: "/api/admin/fund-flow/overview", period: true },
+        overviewAll: { url: "/api/admin/fund-flow/overview?period=ALL" },       // 제출용 3칸: 기간 토글과 무관하게 출시 이후 누적
         funnel: { url: "/api/admin/fund-flow/funnel", period: true },
         monthly: { url: "/api/admin/fund-flow/monthly", period: true },
         leakage: { url: "/api/admin/fund-flow/leakage" },       // 세액 스냅샷: 기간과 무관
@@ -196,6 +197,15 @@ $(function () {
         summarySet("ffSumReinvest", d.reinvestRatio == null ? "-" : (d.reinvestRatio * 100).toFixed(1), "재투자율 = 국내 매수 체결금액 합계 ÷ 확정 원화 유입 합계 (합계 비율)");
         $("#ffAsOf").text("집계 기준일 " + (d.asOfDate || "-"));
         renderPeriodRange();
+    }
+
+    // 제출용 3칸: state.overviewAll(period=ALL 고정)만 사용한다. 기간 토글의 state.overview 는 쓰지 않는다
+    function renderSubmitSummary() {
+        var d = state.overviewAll;
+        summarySet("ffSubOpened", d.openedAccounts == null ? "-" : KRW.format(d.openedAccounts), "계좌 개설이 승인된 계좌 수예요. 이후 해지(해지 신청 포함)된 계좌도 포함하고, 신청 중·반려 계좌는 제외해요.");
+        summarySet("ffSubInflow", krwShort(d.inflowTotal), "확정된 원화 유입 합계 (가정산 제외)");
+        summarySet("ffSubNet", d.netInvestRatio == null ? "-" : (d.netInvestRatio * 100).toFixed(1), "순투자율 = (국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 원화 유입 합계");
+        $("#ffSubCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
     }
 
     function renderReliefSummary() {
@@ -1508,10 +1518,11 @@ $(function () {
     };
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
+        overviewAll: ["ffSubOpened", "ffSubInflow", "ffSubNet"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1542,6 +1553,8 @@ $(function () {
             if (api === "overview") {
                 renderOverviewSummary();
                 if (state.monthly) sankeyOverviewNote($("#ffSankeyNotes"), totals(monthsOf()));
+            } else if (api === "overviewAll") {
+                renderSubmitSummary();
             } else if (api === "relief") {
                 renderReliefSummary();
                 renderRelief();

@@ -80,8 +80,26 @@
         <button type="button" class="adm-btn adm-btn-primary adm-btn-md" id="ffPdfBtn" title="표지와 ①~⑪를 A4 세로로 인쇄해요(개인 식별 정보 없음)">PDF로 저장</button>
     </section>
 
-    <!-- 제출용 보기 영역: 아직 비어 있다(준비 중). 기본은 숨김 -->
+    <!-- 제출용 보기 영역: 핵심 3칸은 기간 토글과 무관하게 출시 이후 누적(overviewAll). 나머지는 준비 중. 기본은 숨김 -->
     <div class="ff-view" data-ff-view="submit" hidden>
+        <div class="adm-summary" id="ffSubSummary">
+            <div class="adm-summary-item" id="ffSubOpened">
+                <span class="adm-summary-label">개설 계좌</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">계좌 · 해지 포함</span>
+            </div>
+            <div class="adm-summary-item" id="ffSubInflow">
+                <span class="adm-summary-label">확정 복귀 금액</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">원</span>
+            </div>
+            <div class="adm-summary-item" id="ffSubNet">
+                <span class="adm-summary-label">순투자율</span>
+                <span class="adm-summary-value" data-ff-value>-</span>
+                <span class="adm-summary-unit">%</span>
+            </div>
+        </div>
+        <div class="ff-bar-item" id="ffSubCaption">리턴증권 고객 기준 · 누적 · 집계 기준일 -</div>
         <div class="ff-submit-soon" id="ffSubmit">준비 중</div>
     </div>
 
