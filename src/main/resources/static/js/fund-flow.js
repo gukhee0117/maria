@@ -207,9 +207,9 @@ $(function () {
     // 제출용 3칸: state.overviewAll(period=ALL 고정)만 사용한다. 기간 토글의 state.overview 는 쓰지 않는다
     function renderSubmitSummary() {
         var d = state.overviewAll;
-        summarySet("ffSubOpened", d.openedAccounts == null ? "-" : KRW.format(d.openedAccounts), "계좌 개설이 승인된 계좌 수예요. 이후 해지(해지 신청 포함)된 계좌도 포함하고, 신청 중·반려 계좌는 제외해요.");
-        summarySet("ffSubInflow", krwShort(d.inflowTotal), "확정된 원화 유입 합계 (가정산 제외)");
-        summarySet("ffSubNet", d.netInvestRatio == null ? "-" : (d.netInvestRatio * 100).toFixed(1), "순투자율 = (국내 매수 − 국내 매도) 체결금액 합계 ÷ 확정 원화 유입 합계");
+        summarySet("ffSubOpened", d.openedAccounts == null ? "-" : KRW.format(d.openedAccounts));
+        summarySet("ffSubInflow", krwShort(d.inflowTotal));
+        summarySet("ffSubNet", d.netInvestRatio == null ? "-" : (d.netInvestRatio * 100).toFixed(1));
         $("#ffSubCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
     }
 
@@ -224,8 +224,8 @@ $(function () {
 
     function renderEarlyWithdrawal() {
         var d = state.earlyWithdrawal;
-        summarySet("ffEarlyAcct", d.accountShare == null ? "-" : (d.accountShare * 100).toFixed(1), "분모는 확정된 환전이 있는 계좌 수(해지 포함), 분자는 그중 1년이 지나기 전 원금이 인출된 계좌 수예요.");
-        summarySet("ffEarlyAmt", d.amountShare == null ? "-" : (d.amountShare * 100).toFixed(1), "분모는 확정 원금 합계, 분자는 1년이 지나기 전에 인출된 원금 합계예요.");
+        summarySet("ffEarlyAcct", d.accountShare == null ? "-" : (d.accountShare * 100).toFixed(1));
+        summarySet("ffEarlyAmt", d.amountShare == null ? "-" : (d.amountShare * 100).toFixed(1));
         $("#ffEarlyDesc").text("확정 환전 " + KRW.format(d.finalizedAccounts || 0) + "계좌 · " + krwShort(d.finalizedAmount) + "원 중, 1년이 지나기 전 원금이 인출된 계좌 " + KRW.format(d.earlyAccounts || 0) + "개 · " + krwShort(d.earlyWithdrawnAmount) + "원");
         var $tb = $("#ffEarlyCause tbody").empty();
         (d.byCause || []).forEach(function (c) {
@@ -310,7 +310,7 @@ $(function () {
 
     function renderMaturity() {
         var d = state.maturity;
-        summarySet("ffMatLocked", krwShort(d.lockedAmount), "혜택이 유지 중인 계좌 중, 확정 후 1년이 지나지 않은 잔액 합계예요.");
+        summarySet("ffMatLocked", krwShort(d.lockedAmount));
         summarySet("ffMatFirst", d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "-");
         $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         matGroups = groupMonths(d.months || []);
@@ -328,7 +328,7 @@ $(function () {
             $("#ffMatNote").prop("hidden", true).text("");
         } else {
             var amountText = num(d.canceledAccounts) < 5 ? "" : " " + krwShort(canceled) + "원";
-            $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + "은 위 차트에 포함하지 않았어요.").prop("hidden", false);
+            $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + " 위 차트에서 제외").prop("hidden", false);
         }
         // 만기 후 계좌에 남는 금액(가정): lockedAmount 만 쓴다(groupMonths · months · maturedRemainingAmount 는 쓰지 않는다). 0이거나 없으면 숨긴다
         var locked = Number(d.lockedAmount);
@@ -336,7 +336,7 @@ $(function () {
         $("#ffMatScen").prop("hidden", !showScen);
         if (showScen) {
             [50, 70, 90].forEach(function (p) {
-                summarySet("ffScen" + p, krwShort(Math.round(locked * p / 100)), "1년 유지 중인 잔액 합계 × " + p + "%(가정)예요.");
+                summarySet("ffScen" + p, krwShort(Math.round(locked * p / 100)));
             });
             $("#ffScenCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         }
@@ -345,12 +345,12 @@ $(function () {
 
     // 제출용 표지의 기간: overviewAll 응답의 첫 계좌 개설일 ~ 집계 기준일
     function clearCover() {
-        $("#ffCoverPeriod").text("첫 계좌 개설일 - ~ 집계 기준일 -");
+        $("#ffCoverPeriod").text("기간 - ~ -");
     }
 
     function renderCover() {
         var d = state.overviewAll || {};
-        $("#ffCoverPeriod").text("첫 계좌 개설일 " + (d.firstOpenedDate || "-") + " ~ 집계 기준일 " + (d.asOfDate || "-"));
+        $("#ffCoverPeriod").text("기간 " + (d.firstOpenedDate || "-") + "~" + (d.asOfDate || "-"));
     }
 
     // 제출용 과정 막: 자금 흐름 경로 · 월별 차트는 monthlyAll(출시 이후 고정)만 쓴다. 기간 토글의 state.monthly 는 쓰지 않는다
@@ -409,8 +409,8 @@ $(function () {
 
     function renderSubRelief() {
         var d = state.relief || {};
-        summarySet("ffSubRelAmt", krwShort(d.reliefTotal), "일반 과세 세액 − 최종 세액의 합계예요(예상값, 잠정 정의).");
-        summarySet("ffSubRelRate", num(d.generalTaxTotal) > 0 && d.reliefTotal != null ? (num(d.reliefTotal) / num(d.generalTaxTotal) * 100).toFixed(1) : "-", "감면 비율은 감면액 합계 ÷ 일반 과세 세액 합계예요(예상값, 잠정 정의).");
+        summarySet("ffSubRelAmt", krwShort(d.reliefTotal));
+        summarySet("ffSubRelRate", num(d.generalTaxTotal) > 0 && d.reliefTotal != null ? (num(d.reliefTotal) / num(d.generalTaxTotal) * 100).toFixed(1) : "-");
         $("#ffSubReliefDesc").text("일반 과세 세액 합계 " + krwShort(d.generalTaxTotal) + "원 · 최종 세액 합계 " + krwShort(d.finalTaxTotal) + "원 · 감면액 합계 " + krwShort(d.reliefTotal) + "원 (" + (d.definitionVersion || "잠정") + " 정의, 예상값)");
         $("#ffSubReliefCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
     }
@@ -423,10 +423,10 @@ $(function () {
     // 감면이 양수인 계좌가 50 미만이면 상위 10%가 5계좌 미만이 되므로 표시하지 않는다
     function renderSubTop10() {
         var d = state.concentration || {};
-        var tip = "분모는 감면액 합계, 분자는 감면액이 큰 상위 10% 계좌의 감면액 합이에요(감면액이 있는 계좌만 대상).";
+        var tip = null;
         if (num(d.accounts) < 50 || d.top10Share == null) {
             summarySet("ffSubTop10", "-", tip);
-            $("#ffSubTop10Desc").text("감면 대상 계좌가 적어 표시하지 않아요").closest("ul").removeClass("ff-fold");
+            $("#ffSubTop10Desc").text("감면 대상 계좌가 적어 미표시").closest("ul").removeClass("ff-fold");
         } else {
             summarySet("ffSubTop10", (Number(d.top10Share) * 100).toFixed(1), tip);
             $("#ffSubTop10Desc").closest("ul").addClass("ff-fold");
@@ -483,13 +483,13 @@ $(function () {
 
     function renderSubRetention() {
         var d = state.retentionAll || {};
-        summarySet("ffRetLots", d.lots == null ? "-" : KRW.format(num(d.lots)), "출시 이후 확정된 환전 건 수예요(해지 계좌 포함).");
-        summarySet("ffRetEvents", d.events == null ? "-" : (num(d.events) < 5 ? "5건 미만" : KRW.format(num(d.events))), "확정 후 1년이 지나기 전에 원금 인출이 완료된 환전 건 수예요.");
+        summarySet("ffRetLots", d.lots == null ? "-" : KRW.format(num(d.lots)));
+        summarySet("ffRetEvents", d.events == null ? "-" : (num(d.events) < 5 ? "5건 미만" : KRW.format(num(d.events))));
         retPoints = retVisiblePoints(d);
         var has = retPoints.length >= 2;
         $("#ffRetBox").prop("hidden", !has);
         $("#ffRetChart").attr("aria-label", has ? "확정 후 경과일별 원금 유지 비율: " + retPoints.map(function (p) { return p.day + "일 " + pct1(num(p.survival)); }).join(", ") : "");
-        $("#ffRetFacts").text(has ? "실선은 유지 비율, 점선은 95% 구간이에요." : "").prop("hidden", !has);
+        $("#ffRetFacts").text(has ? "실선 유지 비율, 점선 95% 구간" : "").prop("hidden", !has);
         $("#ffRetCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         if (view === "submit") drawSubRetention();
     }
@@ -545,7 +545,7 @@ $(function () {
         $("#ffWdBox").prop("hidden", !has);
         $("#ffWdChart").attr("aria-label", has ? "월별 인출액: " + wdMonths.map(function (m) { return wdLabel(m) + " " + krwShort(m.withdrawalAmount) + "원"; }).join(", ") : "");
         var total = wdMonths.reduce(function (sum, m) { return sum + num(m.withdrawalAmount); }, 0);
-        $("#ffWdFacts").text(has ? "출시 이후 인출액 합계는 " + krwShort(total) + "원이에요. 진행 중인 달은 집계 기준일까지예요." : "").prop("hidden", !has);
+        $("#ffWdFacts").text(has ? "출시 이후 인출액 합계 " + krwShort(total) + "원 · 진행 중인 달은 집계 기준일까지" : "").prop("hidden", !has);
         if (view === "submit") drawSubWithdraw();
     }
 
@@ -1732,38 +1732,26 @@ $(function () {
         }
     };
 
-    /* ---------- 제출용 막별 요약 문장 ---------- */
-    // 숫자는 모두 응답 값이다. 인과 표현은 쓰지 않고, 전망은 서술만 한다. 계좌 수가 5 미만인 값은 문장에 넣지 않는다.
-    // 문장 하나는 API 하나의 데이터만 쓰고(span[data-concl]), 로딩 시작과 실패 때 그 API 의 문장을 비운다.
+    /* ---------- 제출용 핵심 지표 4칸 · 막 제목(결론 문장) ---------- */
+    // 숫자는 모두 응답 값으로 계산한다. 인과 표현·점추정은 쓰지 않고, 계좌·건 수가 5 미만인 값은 "5건 미만"으로 둔다.
+    // 제목 하나가 여러 API 를 쓰므로 로딩 시작과 실패 때 비우고, 어느 API 가 끝나도 state 전체로 다시 만든다.
     /* CONCL-BEGIN */
-    // 막마다 요약은 2문장 이내, 한 문장은 한 줄 · 핵심 사실 하나. 칸·차트에 이미 있는 숫자를 풀어 쓰지 않고 정의·가림 규칙·한계는 부록에 둔다
-    function conclFlow(d) {
-        var months = (d && d.months) || [];
-        if (!months.length) return "";
-        var t = totals(months);
-        // 해외 매도(체결일·기준가 기준)와 확정 원화 유입(확정일·확정 금액 기준)은 집계 기준이 달라 "X 중 Y"로 잇지 않는다
-        return "해외 매도 " + krwShort(t.sell) + "원, 확정 원화 유입 " + krwShort(t.krw) + "원이에요.";
+    // 억 원 표기: 1억 미만은 만 단위, 10억 미만은 소수 2자리, 그 이상은 소수 1자리
+    function eok(value) {
+        var n = num(value);
+        var a = Math.abs(n);
+        if (a < 1e8) return (n < 0 ? "-" : "") + KRW.format(Math.round(a / 1e4)) + "만";
+        var d = a < 1e9 ? 2 : 1;
+        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d }) + "억";
     }
 
-    // 1년 유지 잔액은 칸에 있으므로 문장에는 만기월 범위만 쓴다
-    function conclLocked(d) {
-        if (!d || !(Number(d.lockedAmount) > 0)) return "";
-        var months = (d.months || []).filter(function (m) { return num(m.remainingAmount) > 0; });
-        var first = d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "";
-        var last = months.length ? String(months[months.length - 1].maturityMonth || "").slice(0, 7) : "";
-        return first && last ? "만기월은 " + first + "부터 " + last + "까지 이어져요." : "";
+    function pctS(ratio) {
+        return ratio == null || !isFinite(ratio) ? "-" : (ratio * 100).toFixed(1) + "%";
     }
 
     // 위험집합(건)이 5 미만인 구간은 쓰지 않는다
     function retVisiblePoints(d) {
         return ((d && d.points) || []).filter(function (p) { return num(p.atRisk) >= 5; });
-    }
-
-    function conclRetention(d) {
-        var pts = retVisiblePoints(d);
-        var last = pts[pts.length - 1];
-        if (!last || last.lower == null || last.upper == null) return "";
-        return "확정 후 " + last.day + "일까지 원금 유지 비율은 " + pct1(Number(last.lower)) + "~" + pct1(Number(last.upper)) + "(95% 구간)예요.";
     }
 
     // 복귀 확정액(overviewAll)과 감면 예상액(relief)을 나란히 두고 비율만 쓴다. 효율·인과를 말하지 않는다
@@ -1772,38 +1760,36 @@ $(function () {
         return { inflow: num(o.inflowTotal), relief: num(r.reliefTotal), ratio: num(r.reliefTotal) / num(o.inflowTotal) };
     }
 
-    function conclReliefVs(o, r) {
-        var v = reliefVs(o, r);
-        if (!v) return "";
-        return "감면 예상액(잠정 정의)은 복귀 확정액의 " + pct1(v.ratio) + "예요.";
-    }
-
-    function lineReliefVs(o, r) {
-        var v = reliefVs(o, r);
-        if (!v) return "";
-        return "복귀 확정액 " + krwShort(v.inflow) + "원 · 감면 예상액 " + krwShort(v.relief) + "원(잠정) · 감면 예상액 ÷ 복귀 확정액 = " + pct1(v.ratio);
-    }
-
-    // 월별 인출액: 출시 이후 합계 한 가지(금액만, 계좌 수는 쓰지 않는다)
-    function conclWithdraw(d) {
-        var months = (d && d.months) || [];
+    function titleProcess(m) {
+        var months = (m && m.months) || [];
         if (!months.length) return "";
-        var total = months.reduce(function (sum, m) { return sum + num(m.withdrawalAmount); }, 0);
-        return "출시 이후 인출 합계는 " + krwShort(total) + "원이에요.";
+        var t = totals(months);
+        if (!(t.krw > 0)) return "";
+        return "확정 원화 " + eok(t.krw) + " 원 중 " + pctS(t.buy / t.krw) + " 국내 주식 매수, " + pctS(t.wd / t.krw) + " 인출";
     }
 
-    function conclScen(d) {
+    function titleResult(e, ret) {
+        var parts = [];
+        if (e && e.accountShare != null) {
+            parts.push(num(e.earlyAccounts) < 5 ? "1년 전 원금 인출 5건 미만"
+                : "1년 전 원금 인출 " + pctS(Number(e.accountShare)) + "(" + KRW.format(num(e.earlyAccounts)) + "/" + KRW.format(num(e.finalizedAccounts)) + "계좌)");
+        }
+        var pts = retVisiblePoints(ret);
+        var last = pts[pts.length - 1];
+        if (last && last.lower != null && last.upper != null) {
+            parts.push("확정 후 " + last.day + "일 원금 유지 " + (Number(last.lower) * 100).toFixed(1) + "~" + pctS(Number(last.upper)));
+        }
+        return parts.join(", ");
+    }
+
+    function titleOutlook(d) {
         if (!d || !(Number(d.lockedAmount) > 0)) return "";
-        return "만기 후 계좌에 남는 금액은 가정으로 계산한 값이며 예측이 아니에요.";
+        var months = (d.months || []).filter(function (m) { return num(m.remainingAmount) > 0; });
+        var first = d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "";
+        var last = months.length ? String(months[months.length - 1].maturityMonth || "").slice(0, 7) : "";
+        return "혜택 유지 잔액 " + eok(d.lockedAmount) + " 원" + (first && last ? ", " + first + "~" + last + " 만기 도래" : "");
     }
     /* CONCL-END */
-
-    function updateConclBoxes() {
-        $(".ff-concl").each(function () {
-            var any = $(this).find("[data-concl]").filter(function () { return $(this).text() !== ""; }).length > 0;
-            $(this).prop("hidden", !any);
-        });
-    }
 
     function setConcl(id, text) {
         $("#" + id).text(text || "");
@@ -1811,25 +1797,71 @@ $(function () {
 
     function clearConcl(api) {
         $('[data-concl~="' + api + '"]').text("");
-        updateConclBoxes();
     }
 
-    INTERP.subProcess = function () {
-        setConcl("ffConclFlow", conclFlow(state.monthlyAll));
-        setConcl("ffConclWithdraw", conclWithdraw(state.monthlyAll));
-        updateConclBoxes();
-    };
-    INTERP.subResult = function () {
-        setConcl("ffConclReliefVs", conclReliefVs(state.overviewAll, state.relief));
-        setConcl("ffReliefVs", lineReliefVs(state.overviewAll, state.relief));
-        setConcl("ffConclRetention", conclRetention(state.retentionAll));
-        updateConclBoxes();
-    };
-    INTERP.subOutlook = function () {
-        setConcl("ffConclLocked", conclLocked(state.maturity));
-        setConcl("ffConclScen", conclScen(state.maturity));
-        updateConclBoxes();
-    };
+    function kpiSet(id, valueHtml, basis, api) {
+        var $k = $("#" + id);
+        $k.find("[data-ff-value]").html(valueHtml);
+        $("#" + id + "Basis").text(basis || "");
+        if (api && loadState[api] === "fail") {
+            $k.addClass("is-error").attr({ "data-ff-retry": api, title: "불러오지 못함. 눌러서 다시 시도" }).css("cursor", "pointer");
+        } else {
+            $k.removeClass("is-error").removeAttr("data-ff-retry").removeAttr("title").css("cursor", "");
+        }
+    }
+
+    function kpiUnit(text, unit) {
+        return esc(text) + '<span class="fs-kpi-unit">' + esc(unit) + "</span>";
+    }
+
+    function renderSubKpis() {
+        var o = state.overviewAll, m = state.monthlyAll, e = state.earlyWithdrawal, r = state.relief, c = state.concentration;
+        var t = m && (m.months || []).length ? totals(m.months) : null;
+        if (o && o.inflowTotal != null) {
+            var b1 = [];
+            if (o.openedAccounts != null) b1.push(KRW.format(num(o.openedAccounts)) + "계좌");
+            if (t && t.sell > 0) b1.push("해외 매도 대비 " + pctS(num(o.inflowTotal) / t.sell));
+            kpiSet("ffKpi1", kpiUnit(eok(o.inflowTotal), "원"), b1.join(" · "), "overviewAll");
+        } else {
+            kpiSet("ffKpi1", "-", "", "overviewAll");
+        }
+        if (t && t.krw > 0) {
+            kpiSet("ffKpi2", kpiUnit((t.buy / t.krw * 100).toFixed(1), "%"), eok(t.buy) + " / 확정 원화 " + eok(t.krw), "monthlyAll");
+        } else {
+            kpiSet("ffKpi2", "-", "", "monthlyAll");
+        }
+        if (e && e.accountShare != null) {
+            if (num(e.earlyAccounts) < 5) {
+                kpiSet("ffKpi3", "5건 미만", KRW.format(num(e.finalizedAccounts)) + "계좌 중", "earlyWithdrawal");
+            } else {
+                kpiSet("ffKpi3", kpiUnit((Number(e.accountShare) * 100).toFixed(1), "%"),
+                    KRW.format(num(e.earlyAccounts)) + " / " + KRW.format(num(e.finalizedAccounts)) + "계좌" + (e.amountShare != null ? " · 금액 기준 " + pctS(Number(e.amountShare)) : ""), "earlyWithdrawal");
+            }
+        } else {
+            kpiSet("ffKpi3", "-", "", "earlyWithdrawal");
+        }
+        if (r && r.reliefTotal != null) {
+            var v = reliefVs(o, r);
+            var b4 = [];
+            if (v) b4.push("복귀 확정액의 " + pctS(v.ratio));
+            if (c && num(c.accounts) >= 5) b4.push("감면 대상 " + KRW.format(num(c.accounts)) + "계좌");
+            kpiSet("ffKpi4", kpiUnit(eok(r.reliefTotal), "원"), b4.join(" · "), "relief");
+        } else {
+            kpiSet("ffKpi4", "-", "", "relief");
+        }
+    }
+
+    // 제출용 화면 전체(핵심 지표 · 막 제목)를 state 로 다시 만든다. API 하나가 끝나거나 실패할 때마다 부른다
+    function renderSubmitAll() {
+        try {
+            renderSubKpis();
+            setConcl("ffTitleProcess", titleProcess(state.monthlyAll));
+            setConcl("ffTitleResult", titleResult(state.earlyWithdrawal, state.retentionAll));
+            setConcl("ffTitleOutlook", titleOutlook(state.maturity));
+        } catch (err) {
+            if (window.console) console.warn("제출용 요약을 만들지 못함", err);
+        }
+    }
 
     /* ---------- 제출용 부록: 검산(✓/✗, 숫자 없음) ---------- */
     // 매퍼 테스트로 항상 성립함이 확인된 관계만 쓴다(docs/fund-flow-api.md §2-10, §2-11). 응답이 없으면 null(표시는 "-")
@@ -1893,23 +1925,21 @@ $(function () {
 
     var INTERP_OF = {
         monthly: ["sankey", "monthly", "bridge"],
-        monthlyAll: ["subProcess"],
-        overviewAll: ["subResult", "subChecks"],
-        earlyWithdrawal: ["subResult", "subChecks"],
-        maturity: ["subOutlook", "subChecks"],
+        overviewAll: ["subChecks"],
+        earlyWithdrawal: ["subChecks"],
+        maturity: ["subChecks"],
         funnel: ["funnel"],
-        leakage: ["leakage", "subProcess"],
-        relief: ["relief", "subResult"],
+        leakage: ["leakage"],
+        relief: ["relief"],
         allocation: ["allocation"],
         segments: ["segments"],
         retention: ["retention"],
-        concentration: ["concentration", "subResult"],
-        retentionAll: ["subResult"]
+        concentration: ["concentration"]
     };
 
     function refreshInterp(api) {
         (INTERP_OF[api] || []).forEach(function (name) {
-            try { INTERP[name](); } catch (e) { if (window.console) console.warn("해석 문장을 만들지 못했어요", name, e); }
+            try { INTERP[name](); } catch (e) { if (window.console) console.warn("해석 문장을 만들지 못함", name, e); }
         });
     }
 
@@ -2063,13 +2093,13 @@ $(function () {
 
     function savePdfSubmit() {
         if (!submitDataReady()) {
-            var notReady = "제출용 데이터를 모두 불러온 뒤 저장할 수 있어요.";
+            var notReady = "제출용 데이터를 모두 불러온 뒤 저장 가능";
             if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError(notReady); else window.alert(notReady);
             return;
         }
         var w = window.open("", "_blank");
         if (!w) {
-            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError("팝업이 막혀서 PDF 창을 열지 못했어요. 팝업을 허용해 주세요.");
+            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError("팝업 차단으로 PDF 창을 열지 못함. 팝업 허용 필요");
             return;
         }
         var origin = location.origin;
@@ -2130,7 +2160,7 @@ $(function () {
             ".ff-print .ff-chart svg{width:100%;height:auto}" +
             ".ff-print .ff-print-chart{width:100%;height:auto;display:block}" +
             ".ff-print .ff-defs-row{break-inside:avoid;min-width:0;font-size:10px}" + ".ff-print .ff-defs{overflow:visible}" +
-            ".ff-print .ff-act-title{break-after:avoid}" +
+            ".ff-print .fs-act-title{break-after:avoid}" +
             ".ff-print #ffActResult,.ff-print #ffActOutlook,.ff-print #ffActAppendix{break-before:page}";
         doc.open();
         doc.write('<!DOCTYPE html><html lang="ko" data-theme="light"><head><meta charset="utf-8"><title>RIA 자금 환류 현황</title>' + css + '<style>' + printCss + '</style></head><body></body></html>');
@@ -2255,6 +2285,7 @@ $(function () {
             refreshInterp(api);
             renderDefs();
             loadState[api] = "ok";
+            renderSubmitAll();
         }).fail(function () {
             if (seq !== loadSeq[api]) return;
             loadState[api] = "fail";
@@ -2271,6 +2302,7 @@ $(function () {
             if (api === "monthlyAll") clearWithdraw();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
+            renderSubmitAll();
         });
     }
 
