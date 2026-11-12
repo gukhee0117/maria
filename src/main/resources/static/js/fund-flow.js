@@ -665,6 +665,13 @@ $(function () {
         }).join("") + '<div class="fs-scen-basis">바탕 전체 = 혜택 유지 잔액 ' + eok(locked) + "</div>");
     }
 
+    // 캔버스를 그리기 전에 상자 높이가 정해졌는지 확인한다(숨김 · 높이 0 이면 그리지 않는다. 상자 높이는 CSS 로 고정)
+    function chartBoxReady(id) {
+        var el = document.getElementById(id);
+        var box = el && el.tagName === "CANVAS" ? el.parentElement : el;
+        return !!box && box.clientHeight > 0 && box.clientWidth > 0;
+    }
+
     // 제출용 만기 도래: 월별 accounts 가 5 미만인 월은 인접 월과 합쳐 보인다(앞에서부터 합치고, 마지막이 모자라면 앞 묶음에 합친다).
     // 한계: 월별 accounts 는 월 간에 같은 계좌가 겹칠 수 있어 합친 값이 실제 계좌 수보다 클 수 있다(5 이상 판정이 보수적이지 않다).
     function groupMonths(months) {
@@ -707,7 +714,7 @@ $(function () {
     // 막대 차트: 제출용이 보일 때만 그린다(숨겨진 동안은 크기가 0)
     function drawMatChart() {
         if (matChart) { matChart.destroy(); matChart = null; }
-        if (!window.Chart || !matGroups.length) return;
+        if (!window.Chart || !matGroups.length || !chartBoxReady("ffMatChartBox")) return;
         matChart = buildMatBars(document.getElementById("ffMatChart"), cssVar, true, matGroups);
     }
 
@@ -765,7 +772,7 @@ $(function () {
         var months = (state.monthlyAll && state.monthlyAll.months) || [];
         if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
         if (!buildSankeyFs($("#ffSubSankey"), undefined, months)) showPanelEmpty($("#ffSubPanelFlow"));
-        if (window.Chart) subMonthlyChart = buildMonthlyBars(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
+        if (window.Chart && chartBoxReady("ffSubMonthlyChart")) subMonthlyChart = buildMonthlyBars(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
     }
 
     // 제출용 혜택 누수: 100% 누적 막대(직접 라벨). 계좌 수가 5 미만이면 "5건 미만"
@@ -798,7 +805,7 @@ $(function () {
 
     function drawSubRetention() {
         if (retChart) { retChart.destroy(); retChart = null; }
-        if (!window.Chart || retPoints.length < 2) return;
+        if (!window.Chart || retPoints.length < 2 || !chartBoxReady("ffRetBox")) return;
         retChart = buildRetentionChart(document.getElementById("ffRetChart"), cssVar, retPoints, true);
     }
 
@@ -2001,8 +2008,16 @@ $(function () {
     // 숫자는 모두 응답 값으로 계산한다. 인과 표현·점추정은 쓰지 않고, 계좌·건 수가 5 미만인 값은 "5건 미만"으로 둔다.
     // 제목 하나가 여러 API 를 쓰므로 로딩 시작과 실패 때 비우고, 어느 API 가 끝나도 state 전체로 다시 만든다.
     /* CONCL-BEGIN */
-    // 억 원 표기: 1억 미만은 만 단위, 10억 미만은 소수 2자리, 그 이상은 소수 1자리
+    // 억 원 표기: 소수 1자리(0.1억 미만은 "<0.1억"). 감면 금액처럼 10억 미만에서 자릿수가 필요한 값은 eokR 을 쓴다
     function eok(value) {
+        var n = num(value);
+        var a = Math.abs(n);
+        if (a > 0 && a < 5e6) return "<0.1억";
+        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "억";
+    }
+
+    // 감면 금액(핵심 지표 1.75억, 감면 2.11억 등): 1억 미만은 만 단위, 10억 미만은 소수 2자리, 그 이상은 소수 1자리
+    function eokR(value) {
         var n = num(value);
         var a = Math.abs(n);
         if (a < 1e8) return (n < 0 ? "-" : "") + KRW.format(Math.round(a / 1e4)) + "만";
@@ -2111,7 +2126,7 @@ $(function () {
             var b4 = [];
             if (v) b4.push("복귀 확정액의 " + pctS(v.ratio));
             if (c && num(c.accounts) >= 5) b4.push("감면 대상 " + KRW.format(num(c.accounts)) + "계좌");
-            kpiSet("ffKpi4", kpiUnit(eok(r.reliefTotal), "원"), b4.join(" · "), "relief");
+            kpiSet("ffKpi4", kpiUnit(eokR(r.reliefTotal), "원"), b4.join(" · "), "relief");
         } else {
             kpiSet("ffKpi4", "-", "", "relief");
         }
@@ -2152,11 +2167,11 @@ $(function () {
         var m = state.monthlyAll;
         var head = "<tr><th>월</th><th>유입</th><th>매수</th><th>재투자율</th><th>인출</th></tr>";
         if (!m || !(m.months || []).length) { fsPut("ffTblMonthly", head, fsWait("monthlyAll", "월별 자금 흐름", 5)); return; }
-        function e1(v) { return (num(v) / 1e8).toFixed(1); }
+        function e1(v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : (num(v) / 1e8).toFixed(1); }
         var body = m.months.map(function (x) {
             var key = monthKey(x);
             var rate = num(x.krwInflowAmount) > 0 ? pctS(num(x.domesticBuyAmount) / num(x.krwInflowAmount)) : "-";
-            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), e1(x.krwInflowAmount), e1(x.domesticBuyAmount), rate, (num(x.withdrawalAmount) / 1e8).toFixed(2)]);
+            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), e1(x.krwInflowAmount), e1(x.domesticBuyAmount), rate, e1(x.withdrawalAmount)]);
         }).join("") + fsNote("주: 재투자율은 해당 월 국내 매수 ÷ 해당 월 확정 원화 유입이며, 이전 월에 계좌에 남은 금액으로 매수한 경우 100%를 넘을 수 있음. 진행 중인 달은 집계 기준일까지", 5);
         fsPut("ffTblMonthly", head, body);
     }
@@ -2166,12 +2181,13 @@ $(function () {
         var e = state.earlyWithdrawal;
         var head = "<tr><th>구분</th><th>계좌 수</th><th>인출액</th></tr>";
         if (!e) { fsPut("ffTblCause", head, fsWait("earlyWithdrawal", "조기 인출", 3)); return; }
+        function e1c(v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : (num(v) / 1e8).toFixed(1); }
         var body = (e.byCause || []).map(function (cz) {
             var few = cz.accounts == null || num(cz.accounts) < 5;
-            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : fsCnt(num(cz.accounts)), few ? "5건 미만" : (num(cz.amount) / 1e8).toFixed(2)]);
+            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : fsCnt(num(cz.accounts)), few ? "5건 미만" : e1c(cz.amount)]);
         }).join("");
         var all = num(e.earlyAccounts) < 5;
-        body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : (num(e.earlyWithdrawnAmount) / 1e8).toFixed(2)], "fs-total");
+        body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : e1c(e.earlyWithdrawnAmount)], "fs-total");
         body += fsNote("주: 한 계좌가 두 원인에 걸칠 수 있어 원인별 계좌 수의 합이 전체와 다를 수 있음. 분모는 확정 환전 " + KRW.format(num(e.finalizedAccounts)) + "계좌, 확정 원금 " + eok(e.finalizedAmount), 3);
         fsPut("ffTblCause", head, body);
     }
@@ -2194,7 +2210,7 @@ $(function () {
         body += fsRow(["전체(감면액이 0보다 큰 계좌)", KRW.format(n), "100.0%"], "fs-total");
         var notes = [];
         if (c.gini != null) notes.push("지니계수 " + Number(c.gini).toFixed(2) + "(0 균등 ~ 1 한 계좌 독점)");
-        if (c.reliefTotal != null) notes.push("감면액 합계 " + eok(c.reliefTotal) + " 원, 계좌당 평균 " + eok(num(c.reliefTotal) / n) + " 원");
+        if (c.reliefTotal != null) notes.push("감면액 합계 " + eokR(c.reliefTotal) + " 원, 계좌당 평균 " + eokR(num(c.reliefTotal) / n) + " 원");
         body += fsNote("주: " + notes.join(". ") + ". 계좌 수는 비율로 환산한 값(반올림), 감면액은 잠정 정의의 예상값", 3);
         fsPut("ffTblConc", head, body);
     }
@@ -2266,9 +2282,9 @@ $(function () {
         var o = state.overviewAll, r = state.relief, c = state.concentration;
         var v = reliefVs(o, r);
         if (!r || r.reliefTotal == null) return "";
-        var lead = "감면 예상액 " + eok(r.reliefTotal) + " 원(잠정)" + (v ? ", 복귀 확정액 " + eok(v.inflow) + " 원의 " + pctS(v.ratio) : "");
+        var lead = "감면 예상액 " + eokR(r.reliefTotal) + " 원(잠정)" + (v ? ", 복귀 확정액 " + eok(v.inflow) + " 원의 " + pctS(v.ratio) : "");
         var b = [];
-        if (num(r.generalTaxTotal) > 0) b.push("감면 비율 " + pctS(num(r.reliefTotal) / num(r.generalTaxTotal)) + "(" + eok(r.reliefTotal) + " / " + eok(r.generalTaxTotal) + " 원, 일반 과세 세액 대비)");
+        if (num(r.generalTaxTotal) > 0) b.push("감면 비율 " + pctS(num(r.reliefTotal) / num(r.generalTaxTotal)) + "(" + eokR(r.reliefTotal) + " / " + eokR(r.generalTaxTotal) + " 원, 일반 과세 세액 대비)");
         if (c) {
             var n = num(c.accounts);
             if (lorenzOk()) {
@@ -2302,6 +2318,12 @@ $(function () {
         });
     }
 
+    function renderAllocNote() {
+        var m = state.monthlyAll;
+        var t = m && (m.months || []).length ? totals(m.months) : null;
+        $("#ffSubAllocNote").text(t ? "주: 현재 보유 종목 매입금액 기준으로, 매수 후 매도한 금액이 빠져 국내 매수 누계(" + eok(t.buy) + " 원)와 다름" : "");
+    }
+
     function renderFlowNote() {
         var m = state.monthlyAll;
         if (!m || !(m.months || []).length) { $("#ffSubFlowNote").text(""); return; }
@@ -2316,6 +2338,7 @@ $(function () {
             renderSubTables();
             renderScenBar();
             renderFlowNote();
+            renderAllocNote();
             $("#ffSum1").html(chapProcess());
             $("#ffSum2").html(chapResult());
             $("#ffSum3").html(chapRelief());

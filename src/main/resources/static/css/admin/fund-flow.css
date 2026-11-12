@@ -1296,8 +1296,6 @@
     height: 190px;
     margin: 4px 0 8px;
     overflow: hidden;
-    contain: paint;
-    isolation: isolate;
 }
 
 /* 숫자 칸은 차트보다 위에 그린다(차트 캔버스가 상자를 넘쳐도 칸을 덮지 않게) */
@@ -1529,4 +1527,24 @@
 
 .fund-flow [data-ff-view="submit"] #ffSubSankey {
     padding-top: 8px;
+}
+
+/* 그림 상자는 높이를 CSS 로 고정하고 캔버스는 상자 안에서만 그린다. □○ 요약은 항상 그림보다 위에 그린다 */
+.fund-flow [data-ff-view="submit"] .fs-fig .ff-chart-canvas,
+.fund-flow [data-ff-view="submit"] #ffMatChartBox,
+.fund-flow [data-ff-view="submit"] #ffRetBox {
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-chart-canvas canvas {
+    display: block;
+    max-width: 100%;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-sum {
+    position: relative;
+    z-index: 1;
+    background: var(--adm-panel);
 }
