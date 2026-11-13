@@ -3,6 +3,7 @@ package com.app.maria.domain.stockpackage.service;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.stockpackage.dto.response.StockOrderResultDTO;
+import com.app.maria.domain.stockpackage.dto.response.StockPackageAllHoldingsResponseDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockPackageHoldingResponseDTO;
 import com.app.maria.domain.stockpackage.mapper.StockOrderMapper;
 import com.app.maria.domain.stockpackage.mapper.StockPackageMapper;
@@ -53,10 +54,12 @@ public class StockPackageHoldingServiceImpl implements StockPackageHoldingServic
     }
 
     @Override
-    public List<StockPackageHoldingResponseDTO> getAllHoldings(Long customerId) {
+    public StockPackageAllHoldingsResponseDTO getAllHoldings(Long customerId) {
+        AccountFigures account = accountFigures(customerId);
         List<StockPackageVO> packages = stockPackageMapper.selectSummariesByCustomerId(customerId);
         if (packages.isEmpty()) {
-            return List.of();
+            return new StockPackageAllHoldingsResponseDTO(
+                    account.amount(), account.buyingPower(), List.of());
         }
         Map<Long, List<StockOrderVO>> ordersByPackage = new HashMap<>();
         for (StockOrderVO o : stockOrderMapper.selectExecutedByCustomerAsc(customerId)) {
@@ -76,17 +79,19 @@ public class StockPackageHoldingServiceImpl implements StockPackageHoldingServic
             allTickers.addAll(tickers(items, positions));
         }
         Map<String, StockQuoteVO> quotes = quotesFor(allTickers);
-        AccountFigures account = accountFigures(customerId);
-        return packages.stream()
-                .map(
-                        p ->
-                                assemble(
-                                        p.getStockPackageId(),
-                                        itemsByPackage.get(p.getStockPackageId()),
-                                        positionsByPackage.get(p.getStockPackageId()),
-                                        quotes,
-                                        account))
-                .toList();
+        List<StockPackageHoldingResponseDTO> holdings =
+                packages.stream()
+                        .map(
+                                p ->
+                                        assemble(
+                                                p.getStockPackageId(),
+                                                itemsByPackage.get(p.getStockPackageId()),
+                                                positionsByPackage.get(p.getStockPackageId()),
+                                                quotes,
+                                                account))
+                        .toList();
+        return new StockPackageAllHoldingsResponseDTO(
+                account.amount(), account.buyingPower(), holdings);
     }
 
     @Override
