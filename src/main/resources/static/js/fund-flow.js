@@ -215,10 +215,6 @@ $(function () {
         return { acc: varFn("--adm-chart-bar"), gray: varFn("--adm-chart-gray"), sub: varFn("--adm-sub"), text: varFn("--adm-text"), grid: varFn("--adm-line"), bd: varFn("--adm-bd2") };
     }
 
-    function fsEok1(v) {
-        return (num(v) / 1e8).toFixed(1);
-    }
-
     function fsRgba(hex, alpha) {
         var m = /^#([0-9a-f]{6})$/i.exec(String(hex).trim());
         if (!m) return hex;
@@ -271,7 +267,7 @@ $(function () {
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + " " + krwShort(ctx.parsed.y) + "원"; } } },
-                    fsValues: { fmt: cfg.fmt || fsEok1, names: cfg.names, text: C.text, sub: C.sub, font: font }
+                    fsValues: { fmt: cfg.fmt || eokNum, names: cfg.names, text: C.text, sub: C.sub, font: font }
                 },
                 scales: {
                     x: { grid: { display: false }, border: { color: C.grid }, ticks: { color: C.sub, font: { size: 12, family: font }, maxRotation: 0 } },
@@ -432,7 +428,7 @@ $(function () {
         function label(x, y, anchor, n) {
             var share = n.value && K > 0 && n.key !== "A" && n.key !== "K" ? " · " + pctS(n.value / K) : "";
             svgText(svg, x, y, anchor, "ff-t-strong ff-label", 12, n.name, halo + ";font-weight:700");
-            svgText(svg, x, y + 14, anchor, "ff-t-sub ff-label", 12, krwCompact(n.value) + share, halo);
+            svgText(svg, x, y + 14, anchor, "ff-t-sub ff-label", 12, eok(n.value) + share, halo);
         }
         cols.forEach(function (keys, c) {
             var lastBottom = -Infinity;
@@ -603,7 +599,7 @@ $(function () {
         setPanel($card, "ready");
         var max = Math.max.apply(null, g.groups.map(function (x) { return x.value; })) || 1;
         $("#ffSubAlloc").html(g.groups.map(function (x, i) {
-            return hbarRow(x.name, x.value / max, i === 0, "<b>" + fsEok1(x.value) + "억</b><em>" + pctS(x.value / g.total) + "</em>");
+            return hbarRow(x.name, x.value / max, i === 0, "<b>" + eokNum(x.value) + "억</b><em>" + pctS(x.value / g.total) + "</em>");
         }).join(""));
     }
 
@@ -793,15 +789,21 @@ $(function () {
         $("#ffSubFlowCaption, #ffSubMonthlyCaption").text(cap);
         setPanel($("#ffSubPanelFlow"), "ready");
         setPanel($("#ffSubPanelMonthly"), "ready");
+        subSankeyEmpty = false;
         if (view === "submit") drawSubProcess();
     }
 
     // 제출용이 보일 때만 그린다(숨겨진 동안은 크기 0)
+    var subSankeyEmpty = false;
+
     function drawSubProcess() {
         if (subMonthlyChart) { subMonthlyChart.destroy(); subMonthlyChart = null; }
         var months = (state.monthlyAll && state.monthlyAll.months) || [];
         if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
-        if (!buildSankeyFs($("#ffSubSankey"), undefined, months)) showPanelEmpty($("#ffSubPanelFlow"));
+        var $flow = $("#ffSubPanelFlow");
+        // 못 그려서 비워 둔 패널은 본문이 숨겨져 폭이 0 이므로, 다시 그리기 전에 ready 로 되돌린다
+        if (subSankeyEmpty) { setPanel($flow, "ready"); subSankeyEmpty = false; }
+        if (!buildSankeyFs($("#ffSubSankey"), undefined, months)) { subSankeyEmpty = true; showPanelEmpty($flow); }
         if (window.Chart && chartBoxReady("ffSubMonthlyChart")) subMonthlyChart = buildMonthlyBars(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
     }
 
@@ -2038,12 +2040,17 @@ $(function () {
     // 숫자는 모두 응답 값으로 계산한다. 인과 표현·점추정은 쓰지 않고, 계좌·건 수가 5 미만인 값은 "5건 미만"으로 둔다.
     // 제목 하나가 여러 API 를 쓰므로 로딩 시작과 실패 때 비우고, 어느 API 가 끝나도 state 전체로 다시 만든다.
     /* CONCL-BEGIN */
-    // 억 원 표기: 소수 1자리(0.1억 미만은 "<0.1억"). 감면 금액처럼 10억 미만에서 자릿수가 필요한 값은 eokR 을 쓴다
-    function eok(value) {
+    // 억 원 표기 한 곳: 숫자만(소수 1자리, 0 초과 0.1 미만은 "<0.1", 0은 "0.0"). 그림 · 표 · □○ 문장이 모두 이 함수를 쓴다.
+    // 감면 금액처럼 10억 미만에서 자릿수가 필요한 값만 eokR 을 쓴다.
+    function eokNum(value) {
         var n = num(value);
         var a = Math.abs(n);
-        if (a > 0 && a < 5e6) return "<0.1억";
-        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "억";
+        if (a > 0 && a < 5e6) return "<0.1";
+        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+
+    function eok(value) {
+        return eokNum(value) + "억";
     }
 
     // 감면 금액(핵심 지표 1.75억, 감면 2.11억 등): 1억 미만은 만 단위, 10억 미만은 소수 2자리, 그 이상은 소수 1자리
@@ -2197,11 +2204,10 @@ $(function () {
         var m = state.monthlyAll;
         var head = "<tr><th>월</th><th>유입</th><th>매수</th><th>재투자율</th><th>인출</th></tr>";
         if (!m || !(m.months || []).length) { fsPut("ffTblMonthly", head, fsWait("monthlyAll", "월별 자금 흐름", 5)); return; }
-        function e1(v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : (num(v) / 1e8).toFixed(1); }
         var body = m.months.map(function (x) {
             var key = monthKey(x);
             var rate = num(x.krwInflowAmount) > 0 ? pctS(num(x.domesticBuyAmount) / num(x.krwInflowAmount)) : "-";
-            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), e1(x.krwInflowAmount), e1(x.domesticBuyAmount), rate, e1(x.withdrawalAmount)]);
+            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), eokNum(x.krwInflowAmount), eokNum(x.domesticBuyAmount), rate, eokNum(x.withdrawalAmount)]);
         }).join("") + fsNote("주: 재투자율은 해당 월 국내 매수 ÷ 해당 월 확정 원화 유입이며, 이전 월에 계좌에 남은 금액으로 매수한 경우 100%를 넘을 수 있음. 진행 중인 달은 집계 기준일까지", 5);
         fsPut("ffTblMonthly", head, body);
     }
@@ -2211,15 +2217,14 @@ $(function () {
         var e = state.earlyWithdrawal;
         var head = "<tr><th>구분</th><th>계좌 수</th><th>인출액</th></tr>";
         if (!e) { fsPut("ffTblCause", head, fsWait("earlyWithdrawal", "조기 인출", 3)); return; }
-        function e1c(v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : (num(v) / 1e8).toFixed(1); }
         var causes = e.byCause || [];
         var mask = maskSmall(causes.map(function (cz) { return cz.accounts == null ? null : num(cz.accounts); }));
         var body = causes.map(function (cz, i) {
             if (mask[i] > 0) return fsRow([esc(cz.label || ""), maskText(mask[i]), maskText(mask[i])]);
-            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : KRW.format(num(cz.accounts)), e1c(cz.amount)]);
+            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : KRW.format(num(cz.accounts)), eokNum(cz.amount)]);
         }).join("");
         var all = num(e.earlyAccounts) < 5;
-        body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : e1c(e.earlyWithdrawnAmount)], "fs-total");
+        body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : eokNum(e.earlyWithdrawnAmount)], "fs-total");
         var allHidden = causes.length > 0 && mask.every(function (m) { return m > 0; });
         body += fsNote("주: 한 계좌가 두 원인에 걸칠 수 있어 원인별 계좌 수의 합이 전체와 다를 수 있음. 분모는 확정 환전 " + KRW.format(num(e.finalizedAccounts)) + "계좌, 확정 원금 " + eok(e.finalizedAmount), 3);
         if (allHidden) body += fsNote("5건 미만 칸이 있어 원인별 값은 표시하지 않음", 3);
@@ -2565,7 +2570,7 @@ $(function () {
     // 운영 상세 PDF(savePdf)와 따로 만든다. savePdf 는 바꾸지 않는다.
     var SUBMIT_APIS = ["overviewAll", "monthlyAll", "earlyWithdrawal", "maturity", "leakage", "relief", "concentration", "retentionAll", "funnelAll", "allocationAll"];
 
-    // 제출용이 쓰는 10개 API 가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
+    // 제출용이 쓰는 SUBMIT_APIS 전부가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
     function submitDataReady() {
         return SUBMIT_APIS.every(function (api) { return loadState[api] === "ok" && state[api]; });
     }
@@ -2715,7 +2720,7 @@ $(function () {
     }
 
     var loadSeq = {}; // API 별 요청 번호: 기간을 연달아 바꿀 때 늦게 온 옛 응답이 새 응답을 덮지 않게 한다
-    var loadState = {}; // API 별 상태: loading · ok · fail (제출용 PDF 는 7개가 모두 ok 일 때만 저장한다)
+    var loadState = {}; // API 별 상태: loading · ok · fail (제출용 PDF 는 SUBMIT_APIS 전부가 ok 일 때만 저장한다)
 
     function load(api) {
         var seq = (loadSeq[api] = (loadSeq[api] || 0) + 1);
@@ -2783,7 +2788,7 @@ $(function () {
             if (api === "maturity") clearMaturity();
             if (api === "overviewAll") clearCover();
             if (api === "retentionAll") clearRetention();
-                panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
+            panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
             renderSubmitAll();
         });
@@ -2879,7 +2884,7 @@ $(function () {
 
     renderDefs();
     MARIA.auth.requireAuth().done(function () {
-        // 7개를 동시에 부른다 (한쪽이 느리거나 실패해도 나머지는 먼저 그려진다)
+        // API 전부를 동시에 부른다 (한쪽이 느리거나 실패해도 나머지는 먼저 그려진다)
         Object.keys(API).forEach(function (api) { load(api); });
     });
 });
