@@ -25,17 +25,28 @@ public class NewsCustomerContextService {
 
     private final NewsInventoryMapper newsInventory;
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    // 성향 조회(InvestorAssessmentService)가 JPA 트랜잭션이라 같은 매니저로 연다. 기본(MyBatis) 매니저로 열면 두 매니저가
+    // 같은 DB 연결을 잡으려다 실패한다. JPA 매니저도 MyBatis 조회에 같은 연결을 넘겨서 보유 종목과 성향을 한 시점으로 읽는다
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            readOnly = true,
+            isolation = Isolation.REPEATABLE_READ)
     public Context load(Long customerId) {
         return read(customerId, false, true);
     }
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            readOnly = true,
+            isolation = Isolation.REPEATABLE_READ)
     public Context loadForSelection(Long customerId) {
         return read(customerId, true, true);
     }
 
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    @Transactional(
+            transactionManager = "jpaTransactionManager",
+            readOnly = true,
+            isolation = Isolation.REPEATABLE_READ)
     public Context loadHoldings(Long customerId) {
         return read(customerId, false, false);
     }
