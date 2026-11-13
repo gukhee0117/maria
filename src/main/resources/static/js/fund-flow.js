@@ -484,7 +484,7 @@ $(function () {
     }
 
     // 혜택 누수: 100% 가로 누적 막대 한 개 + 구간별 직접 라벨(분류명, 계좌 수 · 비중). 5건 미만은 "5건 미만"
-    var LEAK_FILL = { NO_SELL: "var(--adm-line)", NO_IMPACT: "var(--adm-chart-gray)", PARTIAL_REDUCED: "var(--adm-sub)", BENEFIT_CANCELED: "var(--adm-chart-bar)", EXTERNAL_BUY_OFFSET: "var(--adm-chart-bar)" };
+    var LEAK_FILL = { NO_SELL: "var(--adm-line)", NO_IMPACT: "var(--adm-chart-gray)", PARTIAL_REDUCED: "var(--adm-sub)", BENEFIT_CANCELED: "var(--adm-chart-bar)", EXTERNAL_BUY_OFFSET: "var(--adm-chart-3)" }; // 이웃한 5칸이 모두 다른 색(라이트: 연회색 → 회색 → 진회색 → 진남색 → 중간 파랑)
 
     function leakCats() {
         var d = state.leakage || {};
