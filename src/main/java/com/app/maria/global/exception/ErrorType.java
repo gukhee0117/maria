@@ -41,8 +41,6 @@ public enum ErrorType {
     NEWS_VERSION_CHANGED(HttpStatus.CONFLICT, "기사가 변경되었습니다. 다시 선택해 주세요.", LogLevel.WARN),
     NEWS_AI_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "뉴스 AI 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
-    NEWS_SEARCH_UNAVAILABLE(
-            HttpStatus.SERVICE_UNAVAILABLE, "뉴스 검색을 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", LogLevel.WARN),
     RISK_TIMEZONE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "위험등급 DB 연결 시간대를 확인할 수 없습니다.", LogLevel.WARN),
     RISK_CALENDAR_UNAVAILABLE(

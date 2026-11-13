@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.app.maria.domain.customer.CustomerAuthTestBeans;
 import com.app.maria.domain.customer.entity.InvestorType;
-import com.app.maria.domain.news.client.NaverNewsSearchClient;
 import com.app.maria.domain.news.dto.NewsContract.*;
 import com.app.maria.domain.news.service.NewsBriefingOperations;
 import com.app.maria.global.config.CustomerSecurityConfig;
@@ -25,13 +24,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@WebMvcTest({CustomerNewsApi.class, CustomerNewsSearchApi.class})
+@WebMvcTest(CustomerNewsApi.class)
 @Import({CustomerSecurityConfig.class, CustomerAuthTestBeans.class})
 class CustomerNewsApiTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean NewsBriefingOperations service;
-    @MockitoBean NaverNewsSearchClient naver;
 
     RequestPostProcessor customer(long id) {
         return authentication(
@@ -44,15 +42,13 @@ class CustomerNewsApiTest {
     @Test
     void unauthenticatedAndCsrfLessRequestsAreRejected() throws Exception {
         mvc.perform(get("/api/customer/news/briefing")).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/customer/news/search").param("query", "주식"))
-                .andExpect(status().isUnauthorized());
         mvc.perform(
                         post("/api/customer/news/articles/a/summary")
                                 .with(customer(1))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"articleVersion\":\"v1\"}"))
                 .andExpect(status().isForbidden());
-        verifyNoInteractions(service, naver);
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -104,19 +100,6 @@ class CustomerNewsApiTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"articleVersion\":\"\"}"))
                 .andExpect(status().isBadRequest());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void searchReturnsOriginalOrderWithoutAnyAiRouteCall() throws Exception {
-        var raw = mapper.readTree("{\"items\":[{\"title\":\"Z\"},{\"title\":\"A\"}]}");
-        when(naver.search("삼성전자")).thenReturn(raw);
-        mvc.perform(get("/api/customer/news/search").with(customer(7)).param("query", "삼성전자"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].title").value("Z"))
-                .andExpect(jsonPath("$.items[1].title").value("A"))
-                .andExpect(jsonPath("$.items[0].link").value(""))
-                .andExpect(header().string("Cache-Control", "no-store"));
         verifyNoInteractions(service);
     }
 }

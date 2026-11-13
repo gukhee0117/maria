@@ -7,7 +7,6 @@ import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.mapper.DomesticStockBalanceMapper;
 import com.app.maria.domain.investorassessment.service.InvestorAssessmentService;
 import com.app.maria.domain.news.cache.NewsSummaryCache;
-import com.app.maria.domain.news.client.NaverNewsSearchClient;
 import com.app.maria.domain.news.mapper.NewsInventoryMapper;
 import com.app.maria.domain.news.mapper.NewsSourceUsageMapper;
 import com.app.maria.domain.news.provider.*;
@@ -34,7 +33,6 @@ class NewsConfigurationTest {
         NewsAiService.class,
         NewsBriefingService.class,
         NewsSummaryCache.class,
-        NaverNewsSearchClient.class,
         com.app.maria.domain.news.client.FreeNewsClient.class,
         FreeNewsProvider.class
     })
@@ -62,21 +60,17 @@ class NewsConfigurationTest {
                 .withBean(
                         InvestorAssessmentService.class,
                         () -> mock(InvestorAssessmentService.class))
-                .withPropertyValues(
-                        "news.provider=free",
-                        "news.naver-client-id=id",
-                        "news.naver-client-secret=secret")
+                .withPropertyValues("news.provider=free", "news.free-news-api-key=test-key")
                 .run(
                         context -> {
                             assertThat(context)
                                     .hasNotFailed()
                                     .hasSingleBean(NewsBriefingService.class)
-                                    .hasSingleBean(NaverNewsSearchClient.class)
                                     .hasSingleBean(NewsProvider.class);
                             assertThat(context.getBean("newsChatClient"))
                                     .isNotSameAs(context.getBean("kkiruChatClient"));
-                            assertThat(context.getBean(NewsProperties.class).getNaverClientId())
-                                    .isEqualTo("id");
+                            assertThat(context.getBean(NewsProperties.class).getFreeNewsApiKey())
+                                    .isEqualTo("test-key");
                         });
     }
 }

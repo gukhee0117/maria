@@ -57,7 +57,7 @@ class NewsAiServiceTest {
         assertThat(prompt.getSystemMessage().getText()).contains("뉴스 전용", "중요한 사실과 위험");
         assertThat(prompt.getUserMessage().getText())
                 .contains("이 기사 질문", "위험은?", "사실 위험", "STABLE")
-                .doesNotContain("customerId", "accountId", "naverapihub", "kkiru/system-prompt");
+                .doesNotContain("customerId", "accountId", "kkiru/system-prompt");
         assertThat(prompt.getOptions().getModel()).isEqualTo("gpt-4o-mini");
     }
 

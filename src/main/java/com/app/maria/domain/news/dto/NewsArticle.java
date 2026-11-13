@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Only licensed or self-authored full-text articles enter the AI path. Never Naver results. */
+/** Only licensed or self-authored full-text articles enter the AI path. */
 public record NewsArticle(
         String id,
         String version,

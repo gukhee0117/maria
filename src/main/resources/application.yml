@@ -160,8 +160,6 @@ news:
   live-questions: ${NEWS_LIVE_QUESTIONS:true}
   question-max-requests-per-minute: ${NEWS_QUESTION_MAX_REQUESTS_PER_MINUTE:20}
   model: ${NEWS_MODEL:gpt-4o-mini}
-  naver-client-id: ${NEWS_NAVER_CLIENT_ID:}
-  naver-client-secret: ${NEWS_NAVER_CLIENT_SECRET:}
   summary-cache-ttl: ${NEWS_SUMMARY_CACHE_TTL:PT24H}
   summary-cache-max-entries: ${NEWS_SUMMARY_CACHE_MAX_ENTRIES:1024}
   source-cache-ttl: ${NEWS_SOURCE_CACHE_TTL:PT2H}
