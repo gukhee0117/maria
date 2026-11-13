@@ -129,6 +129,8 @@
         SELECT
         (SELECT COUNT(*) FROM account
         WHERE opened_at IS NOT NULL AND opened_at &lt; #{clockDate}) AS openedAccounts,
+        (SELECT MIN(opened_at) FROM account
+        WHERE opened_at IS NOT NULL AND opened_at &lt; #{clockDate}) AS firstOpenedAt,
         COALESCE((SELECT SUM(final_amount) FROM krw_exchange
         WHERE settlement_status = 'FINALIZED' AND final_at &lt; #{clockDate}
         <if test="periodFrom != null">AND final_at &gt;= #{periodFrom}</if>), 0) AS inflowTotal,
@@ -303,6 +305,7 @@
         LEFT JOIN (
         SELECT l.exchange_id, MIN(a.withdrawal_at) AS event_at
         FROM withdrawal_allocation a
+        JOIN withdrawal w ON w.withdrawal_id = a.withdrawal_id AND w.status = 'COMPLETED'
         JOIN left_amount l ON l.left_amount_id = a.left_amount_id
         WHERE a.type = 'IMMATURE_PRINCIPAL_INCLUDED' AND a.withdrawal_at &lt; #{clockDate}
         GROUP BY l.exchange_id
@@ -310,6 +313,115 @@
         WHERE k.settlement_status = 'FINALIZED' AND k.final_at &lt; #{clockDate}
         <if test="periodFrom != null">AND k.final_at &gt;= #{periodFrom}</if>
         ORDER BY k.account_id, k.exchange_id
+    </select>
+
+    <!-- 만기 집계 대상: FINALIZED 환전 중 확정일이 업무시계 날짜(clockDate) 이전인 건. 해지(CLOSED) 계좌 제외.
+         left_amount 는 LEFT JOIN: 정상 흐름에서는 확정산과 함께 생기지만, 없는 건이 있어도 확정 원금이 빠지지 않게 한다
+         (남은 원금은 0으로 센다. 개수는 lotsWithoutLeftAmount).
+         DATE_ADD 를 쓰지 않는다(운영·H2 가 같은 SQL 을 쓰도록): 만기월은 YEAR+1·MONTH, 묶임 경계는 서비스가 넘긴다.
+         혜택 취소 계좌(benefit = 'IMPOSSIBLE')는 1년 유지 조건과 무관해 남은 원금을 따로 센다. benefit 이 NULL 이면 취소가 아니다 -->
+    <sql id="maturityTargetLots">
+        FROM krw_exchange k
+        LEFT JOIN left_amount la ON la.exchange_id = k.exchange_id
+        JOIN account a ON a.account_id = k.account_id
+        WHERE k.settlement_status = 'FINALIZED'
+        AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}
+        AND a.status &lt;&gt; 'CLOSED'
+    </sql>
+
+    <!-- 만기월별 집계. 전량 인출된 건(cur_amount = 0)도 건수·확정 원금에 포함한다.
+         paidAmount 는 전체, remainingAmount 는 혜택이 취소되지 않은 계좌만, canceledRemainingAmount 는 혜택 취소 계좌만 -->
+    <select id="selectMaturityMonths" resultType="FundFlowMaturityMonthRowDTO">
+        SELECT
+        YEAR(k.final_at) + 1 AS maturityYear,
+        MONTH(k.final_at) AS maturityMonth,
+        COUNT(*) AS lots,
+        COUNT(DISTINCT k.account_id) AS accounts,
+        COALESCE(SUM(k.final_amount), 0) AS paidAmount,
+        COALESCE(SUM(CASE WHEN a.benefit = 'IMPOSSIBLE' THEN 0 ELSE COALESCE(la.cur_amount, 0) END), 0)
+        AS remainingAmount,
+        COALESCE(SUM(CASE WHEN a.benefit = 'IMPOSSIBLE' THEN COALESCE(la.cur_amount, 0) ELSE 0 END), 0)
+        AS canceledRemainingAmount
+        <include refid="maturityTargetLots"/>
+        GROUP BY YEAR(k.final_at) + 1, MONTH(k.final_at)
+        ORDER BY YEAR(k.final_at) + 1, MONTH(k.final_at)
+    </select>
+
+    <!-- 묶임: 확정일 > lockBoundary(= 업무시각 - 1년), 만기: 확정일 <= lockBoundary.
+         기존 plusYears(1).isAfter(now) 판정과 같다(2/29 확정분만 하루 어긋날 수 있다).
+         혜택 취소 계좌의 잔액은 묶임·만기와 상관없이 전부 canceled 쪽으로 세고, 묶임·만기에서는 뺀다 -->
+    <select id="selectMaturitySummary" resultType="FundFlowMaturitySummaryRowDTO">
+        SELECT
+        COALESCE(SUM(CASE WHEN a.benefit = 'IMPOSSIBLE' THEN 0
+        WHEN k.final_at &gt; #{lockBoundary} THEN COALESCE(la.cur_amount, 0) ELSE 0 END), 0) AS lockedAmount,
+        COUNT(DISTINCT CASE WHEN a.benefit = 'IMPOSSIBLE' THEN NULL
+        WHEN k.final_at &gt; #{lockBoundary} AND la.cur_amount &gt; 0 THEN k.account_id END) AS lockedAccounts,
+        COALESCE(SUM(CASE WHEN a.benefit = 'IMPOSSIBLE' THEN 0
+        WHEN k.final_at &lt;= #{lockBoundary} THEN COALESCE(la.cur_amount, 0) ELSE 0 END), 0)
+        AS maturedRemainingAmount,
+        COALESCE(SUM(CASE WHEN a.benefit = 'IMPOSSIBLE' THEN COALESCE(la.cur_amount, 0) ELSE 0 END), 0)
+        AS canceledRemainingAmount,
+        COUNT(DISTINCT CASE WHEN a.benefit = 'IMPOSSIBLE' AND la.cur_amount &gt; 0
+        THEN k.account_id END) AS canceledAccounts,
+        COALESCE(SUM(CASE WHEN la.exchange_id IS NULL THEN 1 ELSE 0 END), 0) AS lotsWithoutLeftAmount
+        <include refid="maturityTargetLots"/>
+    </select>
+
+    <!-- 만기 집계에서 뺀 해지 계좌의 확정 원금. left_amount 조인 없이 krw_exchange 기준이라 overview 의 확정 유입과 맞출 수 있다 -->
+    <select id="selectClosedPaidAmount" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(k.final_amount), 0)
+        FROM krw_exchange k
+        JOIN account a ON a.account_id = k.account_id
+        WHERE k.settlement_status = 'FINALIZED'
+        AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}
+        AND a.status = 'CLOSED'
+    </select>
+
+    <!-- 1년 미경과 원금 인출 분자: 완료(COMPLETED) 인출의 IMMATURE_PRINCIPAL_INCLUDED 배분.
+         조인은 retention 과 같은 경로(allocation → left_amount → krw_exchange)이고, 분모 대상 환전(FINALIZED,
+         확정일 < clockDate)에서 나온 것만 센다. 해지 계좌도 포함한다 -->
+    <sql id="earlyWithdrawalAllocations">
+        FROM withdrawal_allocation wa
+        JOIN withdrawal w ON w.withdrawal_id = wa.withdrawal_id AND w.status = 'COMPLETED'
+        JOIN left_amount la ON la.left_amount_id = wa.left_amount_id
+        JOIN krw_exchange k ON k.exchange_id = la.exchange_id
+        WHERE wa.type = 'IMMATURE_PRINCIPAL_INCLUDED'
+        AND wa.withdrawal_at &lt; #{clockDate}
+        AND k.settlement_status = 'FINALIZED'
+        AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}
+    </sql>
+
+    <!-- 분모는 overview 의 확정 유입과 같은 조건(FINALIZED, 확정일 < clockDate, 계좌·left_amount 조인 없음) -->
+    <select id="selectEarlyWithdrawalSummary" resultType="FundFlowEarlyWithdrawalSummaryRowDTO">
+        SELECT
+        (SELECT COUNT(DISTINCT k.account_id) FROM krw_exchange k
+        WHERE k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}) AS finalizedAccounts,
+        COALESCE((SELECT SUM(k.final_amount) FROM krw_exchange k
+        WHERE k.settlement_status = 'FINALIZED' AND k.final_at IS NOT NULL
+        AND k.final_at &lt; #{clockDate}), 0) AS finalizedAmount,
+        (SELECT COUNT(DISTINCT k.account_id) <include refid="earlyWithdrawalAllocations"/>) AS earlyAccounts,
+        COALESCE((SELECT SUM(wa.allocated_amount) <include refid="earlyWithdrawalAllocations"/>), 0)
+        AS earlyWithdrawnAmount
+    </select>
+
+    <!-- 원인: 그 인출이 완료된 해지 요청에 연결돼 있으면 CLOSURE_FORCED, 아니면 OTHER.
+         EXISTS 라서 해지 요청이 중복돼도 금액이 두 번 세어지지 않는다. EarlyWithdrawalCause 이름과 같아야 한다 -->
+    <select id="selectEarlyWithdrawalByCause" resultType="FundFlowEarlyWithdrawalCauseDTO">
+        SELECT t.cause AS cause, COUNT(DISTINCT t.account_id) AS accounts, SUM(t.amount) AS amount
+        FROM (
+        SELECT
+        CASE WHEN EXISTS (SELECT 1 FROM account_closure_request c
+        WHERE c.withdrawal_id = w.withdrawal_id AND c.status = 'COMPLETED')
+        THEN 'CLOSURE_FORCED' ELSE 'OTHER' END AS cause,
+        k.account_id AS account_id,
+        wa.allocated_amount AS amount
+        <include refid="earlyWithdrawalAllocations"/>
+        ) t
+        GROUP BY t.cause
     </select>
 
     <!-- 매입금액 = 보유수량 × 평균 매입가 (현재가 평가액 아님) -->

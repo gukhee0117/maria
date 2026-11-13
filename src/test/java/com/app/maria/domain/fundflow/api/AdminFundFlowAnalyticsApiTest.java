@@ -37,6 +37,7 @@ import com.app.maria.global.config.SecurityConfig;
 import com.app.maria.global.jwt.JwtTokenProvider;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -71,6 +72,7 @@ class AdminFundFlowAnalyticsApiTest {
                                 FundFlowOverviewDTO.builder()
                                         .asOfDate(AS_OF_DATE)
                                         .openedAccounts(75046L)
+                                        .firstOpenedAt(LocalDateTime.of(2026, 3, 23, 9, 30, 0))
                                         .inflowTotal(new BigDecimal("602660000000"))
                                         .domesticBuyTotal(new BigDecimal("426020000000"))
                                         .reinvestRatio(new BigDecimal("0.7069"))
@@ -81,6 +83,7 @@ class AdminFundFlowAnalyticsApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("자금 환류 개요 조회 성공"))
                 .andExpect(jsonPath("$.data.openedAccounts").value(75046))
+                .andExpect(jsonPath("$.data.firstOpenedDate").value("2026-03-23"))
                 .andExpect(jsonPath("$.data.reinvestRatio").value(0.7069))
                 .andExpect(jsonPath("$.data.basis").isNotEmpty());
     }

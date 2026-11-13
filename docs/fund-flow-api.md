@@ -32,17 +32,15 @@
 
 ### 1-2. DB 선행 조건 (중요)
 
-분석에 쓴 컬럼 일부는 `maria/db/01_ria_ddl.sql`에 아직 없고 **생성기의 확장 DDL**(`data-generator/src/main/resources/ddl-ext/maria_ext.sql`)로 추가된다. 이 API는 다음 확장에 의존한다.
+분석에 쓰는 컬럼은 모두 `maria/db/01_ria_ddl.sql`에 정의되어 있다. 다른 DB에서 이 API를 쓰려면 이 DDL로 만든 스키마인지 확인한다.
 
-| 확장 | 용도 |
-|---|---|
-| `domestic_order.fee_amount`, `tax_amount` | 매수·매도 체결금액 계산 |
-| `domestic_product.sector_name` | 운용처 업종 집중도 |
-| `fund_flow_monthly.cash_balance_begin`, `cash_balance_end` | 월초·월말 예수금 |
-| `customer_consent.consent_type = 'MYDATA_PROVISION'` | 퍼널 2단계 |
-| `tax_rule.rule_type IN ('BASIC_DEDUCTION','TAX_RATE')` | 감면액 계산 |
-
-→ 시연 DB가 시드 생성기로 채워진 DB인지 확인이 필요하다. 아니면 위 컬럼을 `maria` DDL에 반영해야 한다(또는 이 API 일부가 동작하지 않는다).
+| 컬럼 | 용도 | DDL 위치(`01_ria_ddl.sql`) |
+|---|---|---|
+| `domestic_order.fee_amount`, `tax_amount` | 매수·매도 체결금액 계산 | 557, 558행 |
+| `domestic_product.sector_name` | 운용처 업종 집중도 | 210행 |
+| `fund_flow_monthly.cash_balance_begin`, `cash_balance_end` | 월초·월말 예수금 | 885, 886행 |
+| `customer_consent.consent_type = 'MYDATA_PROVISION'` | 퍼널 2단계 | 815~822행(CHECK 목록) |
+| `tax_rule.rule_type IN ('BASIC_DEDUCTION','TAX_RATE')` | 감면액 계산 | 428, 435행. 기본값 행은 `db/customer_seed.sql`(189~190행) |
 
 ---
 
@@ -51,22 +49,24 @@
 ### 2-1. `GET /api/admin/fund-flow/overview` — 상단 핵심 지표
 
 쿼리: `period`. 개설 계좌 수는 기간과 무관한 누적(해지 포함)이고, 확정 유입·국내 매수·매도 합계만 기간으로 거른다.
+`firstOpenedDate`(첫 계좌 개설일)는 `MIN(account.opened_at)`의 날짜로, `opened_at`이 있고 업무시계 날짜(`clockDate`) 미만인 계좌만 대상이며 기간과 무관하다(`openedAccounts`와 같은 조건). 개설된 계좌가 없으면 `null`.
 
 ```json
 {
   "message": "자금 환류 개요 조회 성공",
   "data": {
-    "asOfDate": "2026-11-17",
-    "openedAccounts": 75046,
-    "inflowTotal": 0,
-    "domesticBuyTotal": 0,
-    "reinvestRatio": 0.7069,
-    "netInvestRatio": 0.6333,
-    "basis": "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입"
+    "asOfDate": "2026-11-01",
+    "openedAccounts": 798,
+    "firstOpenedDate": "2026-03-23",
+    "inflowTotal": 5941559992,
+    "domesticBuyTotal": 3981126657,
+    "reinvestRatio": 0.6700,
+    "netInvestRatio": 0.5975,
+    "basis": "분모: 계좌 개설자 Σ확정 유입. 재투자율 = Σ국내 매수 체결금액 ÷ Σ확정 유입. 첫 계좌 개설일 = 개설된 계좌(opened_at이 있고 업무시계 날짜 미만) 중 가장 이른 개설일, 기간과 무관"
   }
 }
 ```
-검증 기준값(seed-mariadb에서 MariaDB 쿼리로 재현 확인): 개설 75,046, 재투자율 0.7069(매수 4,260.2억 ÷ 유입 6,026.6억), 순투자율 0.6333. 테스트 기대값은 이 값으로 잡는다.
+검증 기준값(seed-mariadb, 업무시계 2026-11-02에서 MariaDB 쿼리로 확인): 개설 798계좌, 첫 계좌 개설일 2026-03-23, 확정 유입 5,941,559,992원, 재투자율 0.6700(매수 체결금액 3,981,126,657원 ÷ 유입), 순투자율 0.5975(매도 체결금액 431,333,284원 반영). 단위·서비스·API 테스트의 스텁 값은 이 값과 무관하다.
 
 ### 2-2. `GET /api/admin/fund-flow/funnel` — 가입→첫 매수 퍼널
 
@@ -115,7 +115,7 @@
 | code | label | 조건 |
 |---|---|---|
 | `NO_SELL` | 매도 없음 | `weighted_sell = 0` |
-| `BENEFIT_CANCELED` | 혜택 취소(해지 등) | `account.benefit = 'IMPOSSIBLE'` |
+| `BENEFIT_CANCELED` | 혜택 취소(조기 인출) | `account.benefit = 'IMPOSSIBLE'` |
 | `NO_IMPACT` | 영향 없음 | `adjust_ratio = 1` |
 | `PARTIAL_REDUCED` | 부분 축소 | `0 < adjust_ratio < 1` |
 | `EXTERNAL_BUY_OFFSET` | 타 계좌 순매수로 소멸 | `adjust_ratio = 0` |
@@ -216,7 +216,7 @@
 
 ### 2-9. `GET /api/admin/fund-flow/retention` — 원금 유지 (Kaplan–Meier)
 
-쿼리: `period`(기간 = 그 기간에 환전이 **확정된** 건의 코호트). 단위는 확정된 환전 건(`krw_exchange` FINALIZED), 시작 = `final_at`, 사건 = 그 건의 `IMMATURE_PRINCIPAL_INCLUDED` 인출, 사건이 없으면 업무시계 날짜에서 중도절단.
+쿼리: `period`(기간 = 그 기간에 환전이 **확정된** 건의 코호트). 단위는 확정된 환전 건(`krw_exchange` FINALIZED), 시작 = `final_at`, 사건 = 그 건의 `IMMATURE_PRINCIPAL_INCLUDED` 배분이 있는 **완료(`withdrawal.status = 'COMPLETED'`) 인출**(취소·실패·요청 중 인출의 배분은 사건으로 세지 않는다. `/early-withdrawal` 분자와 같은 기준), 사건이 없으면 업무시계 날짜에서 중도절단.
 
 ```json
 "data": {
@@ -231,6 +231,63 @@
 - 신뢰구간은 **계좌 단위 부트스트랩**(200회, 시드 고정 → 같은 입력이면 같은 값)의 2.5·97.5 백분위다. 같은 계좌의 건은 사건 시점을 공유하므로 건 단위 Greenwood는 쓰지 않는다.
 - 최대 관찰이 1년에 못 미치므로 **1년 유지율은 정의하지 않는다**. 분석 기준값은 210일 95.5% [95.2, 95.7], 금액 가중 97.6%.
 - 약 16만 건·7.5만 계좌 규모에서 계산 약 0.9초(요청마다 계산, 캐시 없음).
+
+### 2-10. `GET /api/admin/fund-flow/maturity` — 만기 도래 스케줄
+
+1년 묶임이 언제 풀리는지를 만기월별로 본다. 쿼리 파라미터는 없다(기간 선택 없음, 업무시계 기준 전체).
+
+```json
+"data": {
+  "asOfDate": "2026-11-17",
+  "firstMaturityMonth": "2027-03-01",
+  "lockedAmount": 0, "lockedAccounts": 0,
+  "maturedRemainingAmount": 0,
+  "canceledRemainingAmount": 0, "canceledAccounts": 0,
+  "lotsWithoutLeftAmount": 0,
+  "excludedClosedPaidAmount": 0,
+  "months": [
+    { "maturityMonth": "2027-03-01", "lots": 0, "accounts": 0, "paidAmount": 0, "remainingAmount": 0, "canceledRemainingAmount": 0 }
+  ],
+  "basis": "..."
+}
+```
+- **대상**: `krw_exchange.settlement_status = 'FINALIZED'`, `final_at`이 있고 **업무시계 날짜(`clockDate`) 미만**인 건. 다른 관리자 API와 같은 날짜 단위 상한이다. `left_amount`는 `LEFT JOIN`이라, 정상 흐름에서는 확정산 때 함께 생기지만 없는 건이 있어도 확정 원금이 빠지지 않는다(남은 원금은 0으로 센다. 개수는 `lotsWithoutLeftAmount`).
+- **해지 계좌 제외**: `account.status <> 'CLOSED'`. `CLOSURE_REQUESTED`(해지 신청 중)는 잔액이 아직 묶여 있어 포함한다. 제외한 계좌의 확정 원금 합은 `excludedClosedPaidAmount`로 따로 낸다.
+- **만기월** = `final_at` + 1년의 월(`YEAR(final_at) + 1`, `MONTH(final_at)`)의 1일. `months`는 만기월 오름차순이고 `firstMaturityMonth`는 첫 원소다(대상이 없으면 `null`, `months`는 `[]`).
+- **묶임·만기 분류**는 업무시각 기준이다. 서비스가 `lockBoundary = 업무시각 - 1년`을 넘기고, 묶임 = `final_at > lockBoundary`, 만기 = `final_at <= lockBoundary`이다. 기존 인출 판정(`final_at.plusYears(1).isAfter(now)`)과 같은 뜻이다. **2/29에 확정된 건만** 기준일 계산(다음 해 2/28 vs `minusYears(1)`)이 달라 하루 어긋날 수 있다.
+- **혜택이 취소된 계좌는 따로 센다**(`account.benefit = 'IMPOSSIBLE'`): 혜택이 취소된 계좌의 잔액은 1년 유지 조건과 무관해서 묶임·만기 집계에서 뺀다. `benefit`이 `NULL`이면 취소가 아닌 것으로 본다.
+  - `lockedAmount` = **혜택이 살아 있는** 계좌 중 묶인 건의 `left_amount.cur_amount` 합, `lockedAccounts` = 그런 계좌 중 묶인 잔액이 **남아 있는** 계좌 수, `maturedRemainingAmount` = 혜택이 살아 있는 계좌 중 이미 만기가 지났지만 아직 남은 잔액.
+  - `canceledRemainingAmount` = 혜택이 취소된 계좌의 남은 원금 합(**묶임·만기와 상관없이 전부**), `canceledAccounts` = 남은 원금이 있는 혜택 취소 계좌 수.
+- `lots`, `accounts`, `paidAmount`는 **전량 인출된 건(`cur_amount = 0`)과 혜택 취소 계좌의 건도 포함**한다. `paidAmount`는 `final_amount` 합(전체)이다. `remainingAmount`는 **혜택이 취소되지 않은** 계좌의 `cur_amount` 합, `canceledRemainingAmount`는 **혜택이 취소된** 계좌의 `cur_amount` 합이다.
+- `lotsWithoutLeftAmount` = `left_amount`가 없는 대상 건 수(해지 계좌의 건은 제외). 정상이면 0이다. 0이 아니면 데이터를 확인해야 한다.
+- 소규모 칸 마스킹(§1)은 적용하지 않는다. 월·건 단위 집계이고 개인 속성이 없으며, 마스킹하면 합계 검산이 깨진다.
+- **검산 관계** (매퍼 테스트로 확인): ① `months[].paidAmount` 합 = 대상 건의 `final_amount` 합, ② `lockedAmount + maturedRemainingAmount` = `months[].remainingAmount` 합, ③ `lockedAccounts` ≤ 대상 계좌 수, ④ `months[].paidAmount` 합 + `excludedClosedPaidAmount` = `/overview`의 `inflowTotal`(기간 `ALL`, `left_amount`가 없는 건이 있어도 성립), ⑤ `canceledRemainingAmount` = `months[].canceledRemainingAmount` 합, ⑥ `lockedAmount + maturedRemainingAmount + canceledRemainingAmount` = 대상 건의 `cur_amount` 합.
+- 1년은 기존 코드처럼 `plusYears(1)` 기준이며 `tax_rule.HOLDING_PERIOD`를 읽지 않는다.
+
+### 2-11. `GET /api/admin/fund-flow/early-withdrawal` — 1년 미경과 원금 인출 비율
+
+계좌가 1년이 되기 전에 원금을 인출한 정도를 분모(확정 원금)와 분자(인출액)로 본다. 쿼리 파라미터는 없다(기간 선택 없음, 업무시계 기준 전체).
+
+```json
+"data": {
+  "asOfDate": "2026-11-17",
+  "finalizedAccounts": 0, "finalizedAmount": 0,
+  "earlyAccounts": 0, "earlyWithdrawnAmount": 0,
+  "accountShare": 0.0000, "amountShare": 0.0000,
+  "byCause": [
+    { "cause": "CLOSURE_FORCED", "label": "해지 강제 인출", "accounts": 0, "amount": 0 },
+    { "cause": "OTHER", "label": "그 밖의 인출", "accounts": 0, "amount": 0 }
+  ],
+  "basis": "..."
+}
+```
+- **분모**: `krw_exchange.settlement_status = 'FINALIZED'`, `final_at`이 있고 업무시계 날짜(`clockDate`) 미만인 환전의 계좌 수(`finalizedAccounts`)와 `final_amount` 합(`finalizedAmount`). **해지(CLOSED) 계좌도 포함**한다(1년 미경과 인출은 해지 강제 인출이 주원인일 수 있어서). 계좌·`left_amount` 조인이 없으므로 `/overview`의 `inflowTotal`(기간 `ALL`)과 같은 조건이다.
+- **분자**: **분모 대상 환전에서 나온 인출만** 센다. `withdrawal_allocation.type = 'IMMATURE_PRINCIPAL_INCLUDED'`이고 인출이 완료(`withdrawal.status = 'COMPLETED'`)이며 `withdrawal_at < clockDate`인 배분이다. 조인은 retention과 같은 경로(`withdrawal_allocation` → `left_amount` → `krw_exchange`)이고, 그 환전이 분모 조건(FINALIZED, `final_at < clockDate`)을 만족해야 한다. 그래서 `earlyAccounts ≤ finalizedAccounts`가 항상 성립한다.
+- **분자는 인출액이고 분모는 확정 원금**이다. `amountShare`는 "확정 원금 중 1년 전에 인출된 비중"으로 읽는다(수익금 배분은 제외).
+- **비율**: `accountShare = earlyAccounts ÷ finalizedAccounts`, `amountShare = earlyWithdrawnAmount ÷ finalizedAmount`. 기존 비율 필드와 같은 규칙(소수 4자리 HALF_UP, 분모가 0이면 `null`)이다.
+- **원인(`byCause`)**: 그 인출이 **완료된 해지 요청**(`account_closure_request.status = 'COMPLETED'`, `withdrawal_id`가 그 인출)에 연결돼 있으면 `CLOSURE_FORCED`, 아니면 `OTHER`. 두 원인을 항상 이 순서로 내고 값이 없는 원인은 0으로 채운다. 한 계좌가 두 원인에 걸칠 수 있어서 **원인별 `accounts`의 합은 `earlyAccounts`보다 클 수 있고**, `amount`의 합은 `earlyWithdrawnAmount`와 같다.
+- 취소(`CANCELLED`)·실패(`FAILED`)·요청 중(`REQUESTED`) 인출은 센다고 하지 않는다. 현재 코드에서는 이 상태의 인출에 배분 행이 만들어지지 않지만(`WithdrawalProcessor`는 한 트랜잭션에서 배분 후 `COMPLETED`로 바꾸고, 실패는 인출 행만 남긴다), 쿼리에서 상태를 명시해 거른다. 기존 `/retention` 쿼리는 상태를 거르지 않는다.
+- **검산 관계** (매퍼 테스트로 확인): ① `finalizedAmount` = `/overview`의 `inflowTotal`, ② `byCause[].amount` 합 = `earlyWithdrawnAmount`이고 `byCause[].accounts` 합 ≥ `earlyAccounts`, ③ `earlyAccounts` ≤ `finalizedAccounts`.
 
 ---
 
@@ -403,6 +460,6 @@ resources/mappers/fundflow/FundFlowMapper.xml
 | `original_gain_amount` 범위 | 총 양도소득으로 가정, 잠정치로 표기 | 김민석 |
 | 자산 규모 구간 | 이번 버전에서 제외 | 팀 |
 | 정부 보고 형태 | 이번 버전에서 제외 (관리자 `overview`·`funnel`·`monthly`가 기초 자료) | 팀 |
-| 11월 `fund_flow_monthly` 행 | 없음(확인 완료). 원천 집계 + `partial=true` | 해결 |
-| 시연 DB의 확장 컬럼 | seed-mariadb(3307)에는 있음(확인 완료). 앱이 보는 DB가 시드 DB인지는 사용자 확인 | 사용자 |
+| 11월 `fund_flow_monthly` 행 | 시드에는 2026-11 이후 행(~2027-03)도 있다. API는 `flow_month < 업무일이 속한 달의 1일`인 행만 월별 합계에 쓰고, 진행 중인 달은 원천 집계 + `partial=true`(`selectMonthlyClosed`, `selectMonthlyPartial`) | 해결 |
+| 시연 DB의 확장 컬럼 | 모두 `maria/db/01_ria_ddl.sql`에 정의됨(§1-2 표)이고 seed-mariadb(3307)에도 있음(확인 완료). 앱이 보는 DB가 이 DDL로 만든 DB인지는 실행 환경에서 확인 | 사용자 |
 | 종가(allocation) | 매입금액 기준으로 대체, 종가 API는 팀 합의 후 | 팀 |

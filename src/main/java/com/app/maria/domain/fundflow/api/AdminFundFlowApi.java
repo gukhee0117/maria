@@ -5,8 +5,10 @@ import com.app.maria.domain.fundflow.dto.request.FundFlowPeriodRequestDTO;
 import com.app.maria.domain.fundflow.dto.request.FundFlowReliefRequestDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowAllocationResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowConcentrationResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowEarlyWithdrawalResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowFunnelResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowLeakageResponseDTO;
+import com.app.maria.domain.fundflow.dto.response.FundFlowMaturityResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowMonthlyResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowOverviewResponseDTO;
 import com.app.maria.domain.fundflow.dto.response.FundFlowReliefResponseDTO;
@@ -88,5 +90,17 @@ public class AdminFundFlowApi {
             FundFlowPeriodRequestDTO request) {
         return ResponseEntity.ok(
                 ApiResponseDTO.of("원금 유지 조회 성공", adminFundFlowService.getRetention(request)));
+    }
+
+    @GetMapping("/maturity")
+    public ResponseEntity<ApiResponseDTO<FundFlowMaturityResponseDTO>> getMaturity() {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("만기 도래 스케줄 조회 성공", adminFundFlowService.getMaturity()));
+    }
+
+    @GetMapping("/early-withdrawal")
+    public ResponseEntity<ApiResponseDTO<FundFlowEarlyWithdrawalResponseDTO>> getEarlyWithdrawal() {
+        return ResponseEntity.ok(
+                ApiResponseDTO.of("1년 미경과 원금 인출 조회 성공", adminFundFlowService.getEarlyWithdrawal()));
     }
 }

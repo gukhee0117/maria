@@ -976,3 +976,575 @@
 .fund-flow.ff-print .ff-detail summary {
     cursor: default;
 }
+
+/* ---- 제출용 / 운영 상세 보기 토글 (2단계 껍데기) ---- */
+/* 래퍼는 레이아웃에 끼지 않는다: .adm-page 의 flex 열 구조와 .ff-scroll 의 남은 높이 채우기를 그대로 둔다 */
+.fund-flow .ff-view {
+    display: contents;
+}
+
+/* display: contents 가 hidden 속성의 기본 숨김을 이기므로 명시한다 */
+.fund-flow .ff-view[hidden] {
+    display: none;
+}
+
+.fund-flow .ff-submit-soon {
+    padding: 24px 8px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--adm-sub);
+}
+
+/* ---- 제출용 보기: 표지 · 핵심 지표 · 막 제목 (운영 상세와 같은 밀도: 1px 테두리, 12~13px 본문, 그림자·그라데이션 없음) ---- */
+.fund-flow [data-ff-view="submit"] .fs-cover {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 16px;
+    min-height: 40px;
+    padding: 6px 0 8px;
+    border-bottom: 1px solid var(--adm-line);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-cover-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-cover-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--adm-sub);
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-cover-notice {
+    padding: 0 6px;
+    border: 1px solid var(--adm-bd2);
+    background: var(--adm-qbox);
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 8px 0 4px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--adm-bd);
+    background: var(--adm-panel);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi-label {
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--adm-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi-unit {
+    margin-left: 3px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi-basis {
+    min-height: 16px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--adm-sub);
+    font-variant-numeric: tabular-nums;
+}
+
+/* 문서 형식: 한 단(본문 최대 960px, 가운데). 장 제목 16px 굵게 + 1px 선, □ 14px, ○ 13px 들여쓰기 */
+.fund-flow [data-ff-view="submit"] .fs-page {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-chap-title {
+    margin: 22px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--adm-text);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-sum {
+    margin: 0 0 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-sum:empty {
+    display: none;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-sq {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-ci {
+    margin: 0 0 2px;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--adm-text);
+}
+
+/* 그림·표 제목은 13px 굵게, 아래 자료 줄은 12px 회색 */
+.fund-flow [data-ff-view="submit"] .fs-fig {
+    margin: 0 0 16px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-fig .ff-body {
+    padding: 0;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-fig-title {
+    margin: 10px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-src,
+.fund-flow [data-ff-view="submit"] .fs-note {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-tbl-block {
+    margin: 0 0 16px;
+}
+
+@media (max-width: 1100px) {
+    .fund-flow [data-ff-view="submit"] .fs-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* 표: 머리줄 연회색 배경, 상단 2px 선, 세로선 없음, 숫자는 오른쪽 정렬 */
+.fund-flow [data-ff-view="submit"] .fs-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    border-top: 2px solid var(--adm-text);
+    border-bottom: 1px solid var(--adm-text);
+    font-size: 12px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table th,
+.fund-flow [data-ff-view="submit"] .fs-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--adm-bd2);
+    text-align: right;
+    vertical-align: top;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table th:first-child,
+.fund-flow [data-ff-view="submit"] .fs-table td:first-child {
+    text-align: left;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table thead th {
+    background: var(--adm-line);
+    border-bottom: 1px solid var(--adm-bd2);
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table tr.fs-total td {
+    font-weight: 700;
+    border-top: 1px solid var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-table .fs-foot td {
+    border-bottom: 0;
+    text-align: left;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--adm-navy-fg, var(--adm-text));
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* 제출용 본문은 운영 상세의 .ff-scroll 처럼 남은 높이 안에서 스크롤한다(main 이 overflow: hidden 이라 없으면 아래가 잘린다) */
+.fund-flow [data-ff-view="submit"] #ffSubBody {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 16px;
+}
+
+/* 제출용: 막 안에서 반복되는 "리턴증권 고객 기준 · 누적 · 집계 기준일" 줄은 숨긴다(표지에 한 번 있다). 차트 아래와 세액 기준일 줄은 남긴다 */
+.fund-flow [data-ff-view="submit"] .ff-cap-dup {
+    display: none;
+}
+
+/* 제출용: 본문에서 접는 작은 주석(정의·가림 규칙·한계는 부록에 한 번만 둔다) */
+.fund-flow [data-ff-view="submit"] .ff-fold {
+    display: none;
+}
+
+/* 제출용 본문의 글자는 12px 이상으로 둔다(숫자 칸 단위·배지·차트 안 글자는 공용 규격이라 그대로) */
+.fund-flow [data-ff-view="submit"] .ff-notes,
+.fund-flow [data-ff-view="submit"] .adm-card-sub,
+.fund-flow [data-ff-view="submit"] .ff-leak-row.is-head {
+    font-size: 12px;
+}
+
+/* 제출용 부록: 접을 수 있는 상자(인쇄 복제본에서는 펼친다) */
+.fund-flow [data-ff-view="submit"] #ffSubAppendixBox > summary {
+    padding: 4px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--adm-text);
+    cursor: pointer;
+}
+
+/* 전망 막 숫자 칸: 운영 상세 패널 모양(1px 테두리, 작은 padding, 굵은 숫자) */
+.fund-flow [data-ff-view="submit"] .ff-kpi {
+    gap: 8px;
+    margin: 6px 0;
+    padding: 0;
+    align-items: stretch;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-item,
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-item:first-child {
+    flex: 1 1 0;
+    min-width: 140px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+        "lab lab"
+        "val unit";
+    align-items: baseline;
+    column-gap: 4px;
+    row-gap: 2px;
+    padding: 8px 10px;
+    border: 1px solid var(--adm-bd);
+    line-height: 1.3;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-label {
+    grid-area: lab;
+    font-size: 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-value {
+    grid-area: val;
+    font-size: 17px;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-kpi .adm-summary-unit {
+    grid-area: unit;
+    font-size: 11px;
+}
+
+/* 만기 막대 차트: 높이를 고정하고 위아래 여백을 두며, 넘치는 그림은 상자 안에서 자른다 */
+.fund-flow [data-ff-view="submit"] #ffMatChartTitle {
+    margin: 8px 0 0;
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] #ffMatChartBox,
+.fund-flow [data-ff-view="submit"] #ffRetBox {
+    height: 190px;
+    margin: 4px 0 8px;
+    overflow: hidden;
+}
+
+/* 숫자 칸은 차트보다 위에 그린다(차트 캔버스가 상자를 넘쳐도 칸을 덮지 않게) */
+.fund-flow [data-ff-view="submit"] .ff-kpi {
+    position: relative;
+    z-index: 1;
+    background: var(--adm-panel);
+}
+
+/* 제출용 차트 높이: 월별 묶음 막대 · 월별 인출 · 만기 막대는 고정 높이 + 아래 여백 */
+.fund-flow [data-ff-view="submit"] #ffSubPanelMonthly .ff-chart-canvas {
+    height: 210px;
+    margin-bottom: 8px;
+}
+
+/* 혜택 누수: 100% 가로 누적 막대 + 직접 라벨 */
+.fund-flow [data-ff-view="submit"] .fs-leak {
+    margin: 4px 0 8px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar {
+    display: flex;
+    height: 22px;
+    border: 1px solid var(--adm-bd2);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar > span {
+    display: block;
+    height: 100%;
+    border-right: 1px solid var(--adm-panel);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-bar > span:last-child {
+    border-right: 0;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-labels {
+    position: relative;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    background: var(--adm-bd2);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+    white-space: nowrap;
+    background: var(--adm-panel);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-leak-lab em {
+    font-style: normal;
+    color: var(--adm-sub);
+}
+
+/* 남는 금액(가정): 3줄 가로 막대. 바탕은 혜택 유지 잔액 전체, 강조색은 해당 금액, 끝에 금액 라벨 */
+.fund-flow [data-ff-view="submit"] .fs-scen-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-name {
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-track {
+    position: relative;
+    height: 16px;
+    margin-right: 64px;
+    background: var(--adm-line);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-val {
+    position: absolute;
+    top: 0;
+    line-height: 16px;
+    margin-left: 6px;
+    font-weight: 700;
+    color: var(--adm-text);
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-scen-basis {
+    margin: 4px 0 8px;
+    font-size: 12px;
+    color: var(--adm-sub);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-kpi .ff-badge {
+    font-size: 12px;
+}
+
+/* 이용 단계 · 운용처: 가로 막대(이름 · 막대 · 직접 라벨). 강조 1색 + 회색 */
+.fund-flow [data-ff-view="submit"] .fs-hbars {
+    margin: 4px 0 8px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hrow {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) 156px;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hname {
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-htrack {
+    height: 18px;
+    background: var(--adm-line);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hfill {
+    display: block;
+    height: 100%;
+    background: var(--adm-chart-gray);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hfill.is-acc {
+    background: var(--adm-chart-bar);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval {
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval b {
+    font-weight: 700;
+    color: var(--adm-text);
+}
+
+.fund-flow [data-ff-view="submit"] .fs-hval em {
+    font-style: normal;
+    color: var(--adm-sub);
+}
+
+/* 제출용 인쇄(PDF 복제본): 화면과 같은 한 단 구조. 장마다 새 쪽은 쓰지 않고, 그림 · 표 · □○ 묶음은 쪽 중간에서 자르지 않는다 */
+@media print {
+    .fund-flow [data-ff-view="submit"] .fs-page {
+        max-width: none;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-fig,
+    .fund-flow [data-ff-view="submit"] .fs-tbl-block,
+    .fund-flow [data-ff-view="submit"] .fs-sum,
+    .fund-flow [data-ff-view="submit"] .fs-kpis,
+    .fund-flow [data-ff-view="submit"] .fs-cover,
+    .fund-flow [data-ff-view="submit"] #ffSubRetention,
+    .fund-flow [data-ff-view="submit"] #ffSubMaturity > *,
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-defs:last-child {
+        break-inside: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-chap-title,
+    .fund-flow [data-ff-view="submit"] .fs-fig-title {
+        break-after: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-sub-title {
+        break-after: avoid;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendixBox > summary {
+        display: none;
+    }
+
+    .fund-flow [data-ff-view="submit"] .ff-print-chart,
+    .fund-flow [data-ff-view="submit"] .ff-chart svg {
+        width: 100%;
+        height: auto;
+    }
+
+    .fund-flow [data-ff-view="submit"] .fs-hrow {
+        margin: 3px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix {
+        font-size: 9.5px;
+        line-height: 1.3;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-defs-row {
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-notes {
+        margin: 2px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-notes li {
+        margin: 1px 0;
+    }
+
+    .fund-flow [data-ff-view="submit"] #ffSubAppendix .ff-sub-title {
+        margin: 6px 0 2px;
+    }
+}
+
+.fund-flow [data-ff-view="submit"] #ffSubSankey {
+    padding-top: 8px;
+}
+
+/* 그림 상자는 높이를 CSS 로 고정하고 캔버스는 상자 안에서만 그린다. □○ 요약은 항상 그림보다 위에 그린다 */
+.fund-flow [data-ff-view="submit"] .fs-fig .ff-chart-canvas,
+.fund-flow [data-ff-view="submit"] #ffMatChartBox,
+.fund-flow [data-ff-view="submit"] #ffRetBox {
+    position: relative;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.fund-flow [data-ff-view="submit"] .ff-chart-canvas canvas {
+    display: block;
+    max-width: 100%;
+}
+
+.fund-flow [data-ff-view="submit"] .fs-sum {
+    position: relative;
+    z-index: 1;
+    background: var(--adm-panel);
+}

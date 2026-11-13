@@ -15,6 +15,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -191,9 +192,78 @@ class FundFlowMapperTest {
         var result = fundFlowMapper.selectOverview(filter());
 
         assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 4, 2, 10, 0, 0));
         assertThat(result.getInflowTotal()).isEqualByComparingTo("1000000");
         assertThat(result.getDomesticBuyTotal()).isEqualByComparingTo("300000");
         assertThat(result.getDomesticSellTotal()).isEqualByComparingTo("100000");
+    }
+
+    @Test
+    @DisplayName("개요: 첫 계좌 개설일은 개설된 계좌 중 가장 이른 opened_at이고, 신청 중(opened_at 없음)과 업무일 이후 개설은 제외한다")
+    void selectOverviewReturnsEarliestOpenedAt() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-04-02 10:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-03-23 09:30:00");
+        insertCustomer(3L);
+        insertAccount(3L, 3L, "2026-03-01 10:00:00", null);
+        insertCustomer(4L);
+        insertAccount(4L, 4L, "2026-03-01 10:00:00", "2026-11-19 09:00:00");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 3, 23, 9, 30, 0));
+        assertThat(result.getOpenedAccounts()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("개요: 첫 계좌 개설일은 기간 필터(periodFrom)와 무관하다")
+    void selectOverviewFirstOpenedAtIgnoresPeriod() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-23 09:30:00");
+
+        var result =
+                fundFlowMapper.selectOverview(
+                        filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 3, 23, 9, 30, 0));
+    }
+
+    @Test
+    @DisplayName("개요: 개설 시각이 업무일 0시(같은 날 0시 포함) 이후이면 첫 계좌 개설일에서 제외한다")
+    void selectOverviewFirstOpenedAtExcludesClockDate() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-11-18 00:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-11-18 10:00:00");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isNull();
+        assertThat(result.getOpenedAccounts()).isZero();
+    }
+
+    @Test
+    @DisplayName("개요: 업무일 전날 23:59:59에 개설된 계좌는 포함하고 같은 날 개설은 제외한다")
+    void selectOverviewFirstOpenedAtIncludesPreviousDayEnd() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-11-18 00:00:00");
+        insertCustomer(2L);
+        insertAccount(2L, 2L, "2026-03-01 10:00:00", "2026-11-17 23:59:59");
+
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 11, 17, 23, 59, 59));
+        assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("개요: 개설된 계좌가 없으면 첫 계좌 개설일은 null이다")
+    void selectOverviewFirstOpenedAtIsNullWithoutAccounts() {
+        var result = fundFlowMapper.selectOverview(filter());
+
+        assertThat(result.getFirstOpenedAt()).isNull();
+        assertThat(result.getOpenedAccounts()).isZero();
     }
 
     @Test
@@ -214,6 +284,7 @@ class FundFlowMapperTest {
                         filter().toBuilder().periodFrom(LocalDate.of(2026, 10, 1)).build());
 
         assertThat(result.getOpenedAccounts()).isEqualTo(1L);
+        assertThat(result.getFirstOpenedAt()).isEqualTo(LocalDateTime.of(2026, 4, 2, 10, 0, 0));
         assertThat(result.getInflowTotal()).isEqualByComparingTo("400000");
         assertThat(result.getDomesticBuyTotal()).isEqualByComparingTo("200000");
         assertThat(result.getDomesticSellTotal()).isEqualByComparingTo("50000");
@@ -291,6 +362,9 @@ class FundFlowMapperTest {
                         + " (1, 'FINALIZED', 700000, '2026-11-18 00:00:00')");
         execute("INSERT INTO left_amount (exchange_id, cur_amount) VALUES (1, 0), (2, 2000000)");
         execute(
+                "INSERT INTO withdrawal (withdrawal_id, account_id, requested_amount, status, processed_at)"
+                        + " VALUES (1, 1, 1000005, 'COMPLETED', '2026-10-11 09:00:00')");
+        execute(
                 "INSERT INTO withdrawal_allocation (withdrawal_id, left_amount_id, allocated_amount,"
                         + " withdrawal_at, type) VALUES"
                         + " (1, 1, 1000000, '2026-10-11 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED'),"
@@ -307,6 +381,40 @@ class FundFlowMapperTest {
                                         + ":"
                                         + r.getEvent())
                 .containsExactly("1000000:10:true", "2000000:29:false");
+    }
+
+    @Test
+    @DisplayName("원금 유지 원천: 완료(COMPLETED)가 아닌 인출(취소·실패·요청 중)의 배분은 사건으로 세지 않는다")
+    void selectRetentionLotsCountsOnlyCompletedWithdrawals() throws SQLException {
+        insertCustomer(1L);
+        insertAccount(1L, 1L, "2026-03-01 10:00:00", "2026-03-02 10:00:00");
+        execute(
+                "INSERT INTO krw_exchange (account_id, settlement_status, final_amount, final_at) VALUES"
+                        + " (1, 'FINALIZED', 1000000, '2026-10-01 00:00:00'),"
+                        + " (1, 'FINALIZED', 2000000, '2026-10-02 00:00:00'),"
+                        + " (1, 'FINALIZED', 3000000, '2026-10-03 00:00:00'),"
+                        + " (1, 'FINALIZED', 4000000, '2026-10-04 00:00:00')");
+        execute(
+                "INSERT INTO left_amount (exchange_id, cur_amount) VALUES (1, 0), (2, 0), (3, 0), (4, 0)");
+        execute(
+                "INSERT INTO withdrawal (withdrawal_id, account_id, requested_amount, status, processed_at) VALUES"
+                        + " (1, 1, 1, 'CANCELLED', '2026-10-11 09:00:00'),"
+                        + " (2, 1, 1, 'FAILED', '2026-10-12 09:00:00'),"
+                        + " (3, 1, 1, 'REQUESTED', '2026-10-13 09:00:00'),"
+                        + " (4, 1, 1, 'COMPLETED', '2026-10-14 09:00:00')");
+        execute(
+                "INSERT INTO withdrawal_allocation (withdrawal_id, left_amount_id, allocated_amount,"
+                        + " withdrawal_at, type) VALUES"
+                        + " (1, 1, 1000000, '2026-10-11 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED'),"
+                        + " (2, 2, 2000000, '2026-10-12 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED'),"
+                        + " (3, 3, 3000000, '2026-10-13 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED'),"
+                        + " (4, 4, 4000000, '2026-10-14 09:00:00', 'IMMATURE_PRINCIPAL_INCLUDED')");
+
+        var result = fundFlowMapper.selectRetentionLots(filter());
+
+        assertThat(result)
+                .extracting(r -> r.getFinalAmount().toBigInteger() + ":" + r.getEvent())
+                .containsExactly("1000000:false", "2000000:false", "3000000:false", "4000000:true");
     }
 
     @Test

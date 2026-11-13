@@ -8,8 +8,12 @@ $(function () {
     var KRW = new Intl.NumberFormat("ko-KR");
     var state = {};          // API 이름 → 응답 data
     var chart = null;        // ③ Chart.js 인스턴스
+    var matChart = null;     // 제출용 만기 도래 막대 Chart.js 인스턴스
+    var subMonthlyChart = null; // 제출용 월별 차트 Chart.js 인스턴스
+    var matGroups = [];      // 제출용 만기 도래 막대 데이터(5 미만 월을 합친 결과)
     var segMetric = "reinvestRatio";
     var period = "ALL";      // 조회 기간: MONTH(이번 달) · QUARTER(분기) · ALL(출시 이후 누적)
+    var view = "ops";        // 보기: ops(운영 상세, 기본) · submit(제출용, 아직 준비 중). 저장하지 않는다
     var BOUNDARIES = ["05", "07"]; // 공제율 구간 경계: 5/31 · 7/31
     var LEAK_ORDER = ["NO_SELL", "NO_IMPACT", "PARTIAL_REDUCED", "BENEFIT_CANCELED", "EXTERNAL_BUY_OFFSET"];
     var LEAK_COLOR = {
@@ -24,6 +28,11 @@ $(function () {
 
     var API = {
         overview: { url: "/api/admin/fund-flow/overview", period: true },
+        monthlyAll: { url: "/api/admin/fund-flow/monthly?period=ALL" },
+        retentionAll: { url: "/api/admin/fund-flow/retention?period=ALL" },     // 제출용 결과 막: 출시 이후 누적, 기간 토글과 무관         // 제출용 과정 막: 기간 토글과 무관하게 출시 이후 누적
+        overviewAll: { url: "/api/admin/fund-flow/overview?period=ALL" },       // 제출용 3칸: 기간 토글과 무관하게 출시 이후 누적
+        funnelAll: { url: "/api/admin/fund-flow/funnel?period=ALL" },           // 제출용 이용 단계: 기간 토글과 무관하게 출시 이후 누적
+        allocationAll: { url: "/api/admin/fund-flow/allocation?period=ALL" },   // 제출용 운용처: 기간 토글과 무관
         funnel: { url: "/api/admin/fund-flow/funnel", period: true },
         monthly: { url: "/api/admin/fund-flow/monthly", period: true },
         leakage: { url: "/api/admin/fund-flow/leakage" },       // 세액 스냅샷: 기간과 무관
@@ -31,7 +40,9 @@ $(function () {
         relief: { url: "/api/admin/fund-flow/relief" },         // 세액 스냅샷: 기간과 무관
         allocation: { url: "/api/admin/fund-flow/allocation", period: true }, // 구성은 현재 보유(무관), 순매수 Top 10 만 기간 적용
         retention: { url: "/api/admin/fund-flow/retention", period: true },     // 기간 = 그 기간에 환전이 확정된 건의 코호트
-        concentration: { url: "/api/admin/fund-flow/concentration" }           // 세액 스냅샷: 기간과 무관
+        concentration: { url: "/api/admin/fund-flow/concentration" },          // 세액 스냅샷: 기간과 무관
+        maturity: { url: "/api/admin/fund-flow/maturity" },                     // 업무시계 기준 전체: 기간과 무관(제출용 만기 도래 전망)
+        earlyWithdrawal: { url: "/api/admin/fund-flow/early-withdrawal" }       // 업무시계 기준 전체: 기간과 무관(제출용 조기 인출 결과)
     };
 
     /* ---------- 표기 ---------- */
@@ -137,10 +148,11 @@ $(function () {
 
     function showPanelError($card, label, api) {
         setPanel($card, "error");
+        var sub = $card.closest('[data-ff-view="submit"]').length > 0; // 제출용 패널은 개조식 문구
         $card.children(".ff-state-error").html(
             '<div class="adm-state-error">' +
-            '<div class="adm-state-error-text"><div class="adm-state-error-title">' + esc(label) + '을 불러오지 못했어요</div>' +
-            '<div class="adm-state-error-desc">잠시 후 다시 시도해 주세요.</div></div>' +
+            '<div class="adm-state-error-text"><div class="adm-state-error-title">' + esc(label) + (sub ? " 불러오지 못함" : "을 불러오지 못했어요") + '</div>' +
+            '<div class="adm-state-error-desc">' + (sub ? "잠시 후 다시 시도" : "잠시 후 다시 시도해 주세요.") + '</div></div>' +
             '<button type="button" class="adm-btn" data-ff-retry="' + api + '">다시 시도</button></div>');
     }
 
@@ -148,6 +160,7 @@ $(function () {
         setPanel($card, "empty");
         var tpl = document.getElementById("ffEmptyTpl");
         $card.children(".ff-state-empty").empty().append(tpl.content.cloneNode(true));
+        if ($card.closest('[data-ff-view="submit"]').length) $card.find(".ff-state-empty .adm-card-empty span").text("데이터 없음");
     }
 
     function setAsOf(api) {
@@ -193,6 +206,651 @@ $(function () {
         summarySet("ffSumReinvest", d.reinvestRatio == null ? "-" : (d.reinvestRatio * 100).toFixed(1), "재투자율 = 국내 매수 체결금액 합계 ÷ 확정 원화 유입 합계 (합계 비율)");
         $("#ffAsOf").text("집계 기준일 " + (d.asOfDate || "-"));
         renderPeriodRange();
+    }
+
+    /* ---------- 제출용 차트(제출용 전용 빌더. 운영 상세 빌더는 쓰지 않는다) ----------
+       색은 강조 1색(--adm-chart-bar) + 회색 계열만 쓴다. 격자는 가로선만 아주 연하게, 범례 상자 없이 막대·선 위에 이름과 값을 직접 쓴다.
+       varFn 으로 색을 읽으므로 화면(현재 테마)과 PDF(라이트)가 같은 함수를 쓴다. 값은 억 원 단위 소수 1자리. */
+    function fsColors(varFn) {
+        return { acc: varFn("--adm-chart-bar"), gray: varFn("--adm-chart-gray"), sub: varFn("--adm-sub"), text: varFn("--adm-text"), grid: varFn("--adm-line"), bd: varFn("--adm-bd2") };
+    }
+
+    function fsRgba(hex, alpha) {
+        var m = /^#([0-9a-f]{6})$/i.exec(String(hex).trim());
+        if (!m) return hex;
+        var n = parseInt(m[1], 16);
+        return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + alpha + ")";
+    }
+
+    // 막대 위 값 라벨 + 계열별 최대 막대 위의 이름 라벨
+    var fsValuePlugin = {
+        id: "fsValues",
+        afterDatasetsDraw: function (c, args, o) {
+            var ctx = c.ctx;
+            ctx.save();
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            c.data.datasets.forEach(function (ds, i) {
+                var maxIdx = -1, maxV = -Infinity;
+                ds.data.forEach(function (v, j) { if (num(v) > maxV) { maxV = num(v); maxIdx = j; } });
+                c.getDatasetMeta(i).data.forEach(function (bar, j) {
+                    ctx.font = "12px " + o.font;
+                    ctx.fillStyle = o.text;
+                    ctx.fillText(o.fmt(ds.data[j]), bar.x, bar.y - 3);
+                    if (o.names && o.names[i] && j === maxIdx) {
+                        ctx.font = "700 12px " + o.font;
+                        ctx.fillStyle = o.sub;
+                        ctx.fillText(o.names[i], bar.x, bar.y - 18);
+                    }
+                });
+            });
+            ctx.restore();
+        }
+    };
+
+    function fsBar(canvas, varFn, responsive, cfg) {
+        var C = fsColors(varFn);
+        var font = getComputedStyle(document.body).fontFamily;
+        return new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: cfg.labels,
+                datasets: cfg.series.map(function (s) {
+                    return { label: s.name, data: s.data, backgroundColor: s.color, borderWidth: 0, maxBarThickness: cfg.thick || 26, categoryPercentage: 0.8, barPercentage: 0.92 };
+                })
+            },
+            options: {
+                responsive: !!responsive,
+                maintainAspectRatio: false,
+                animation: false,
+                layout: { padding: { top: cfg.padTop || 30 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + " " + krwShort(ctx.parsed.y) + "원"; } } },
+                    fsValues: { fmt: cfg.fmt || eokNum, names: cfg.names, text: C.text, sub: C.sub, font: font }
+                },
+                scales: {
+                    x: { grid: { display: false }, border: { color: C.grid }, ticks: { color: C.sub, font: { size: 12, family: font }, maxRotation: 0 } },
+                    y: {
+                        display: cfg.showY !== false,
+                        beginAtZero: true,
+                        grid: { color: C.grid },
+                        border: { display: false },
+                        ticks: { color: C.sub, font: { size: 12, family: font }, maxTicksLimit: 5, callback: function (v) { return (v / 1e8).toFixed(0) + "억"; } }
+                    }
+                }
+            },
+            plugins: [fsValuePlugin]
+        });
+    }
+
+    // 월별 확정 원화 유입(회색) vs 국내 매수(강조색) 묶음 막대. 재투자율 선은 그리지 않고 근거 표에 월별 값으로 둔다
+    function buildMonthlyBars(canvas, varFn, responsive, allMonths) {
+        var C = fsColors(varFn);
+        var months = allMonths.filter(function (m) { return !m.partial; }); // 진행 중인 달은 막대에서 제외(표에는 "진행 중"으로 둔다)
+        return fsBar(canvas, varFn, responsive, {
+            labels: monthLabels(months),
+            series: [
+                { name: "확정 원화 유입", data: months.map(function (m) { return num(m.krwInflowAmount); }), color: C.gray },
+                { name: "국내 매수", data: months.map(function (m) { return num(m.domesticBuyAmount); }), color: C.acc }
+            ],
+            names: ["유입", "매수"]
+        });
+    }
+
+    // 만기월별 잔액: 최대 월만 강조색, 나머지는 회색
+    function buildMatBars(canvas, varFn, responsive, groups) {
+        var C = fsColors(varFn);
+        var vals = groups.map(function (g) { return g.amount; });
+        var max = Math.max.apply(null, vals);
+        return fsBar(canvas, varFn, responsive, {
+            labels: groups.map(function (g) { return g.label; }),
+            series: [{ name: "잔액", data: vals, color: vals.map(function (v) { return v === max ? C.acc : C.gray; }) }],
+            padTop: 22
+        });
+    }
+
+    // 원금 유지 곡선: 95% 구간은 연한 면, 유지 비율은 실선. 선 끝에 마지막 값, 면에 이름을 쓴다
+    function buildRetentionChart(canvas, varFn, pts, responsive) {
+        var C = fsColors(varFn);
+        var font = getComputedStyle(document.body).fontFamily;
+        var lows = pts.map(function (p) { return num(p.lower); });
+        var yMin = Math.floor(Math.min.apply(null, lows) * 20) / 20;
+        var last = pts[pts.length - 1];
+        function data(key) { return pts.map(function (p) { return num(p[key]) * 100; }); }
+        var endPlugin = {
+            id: "fsRetEnd",
+            afterDatasetsDraw: function (c) {
+                var ctx = c.ctx, area = c.chartArea, y = c.scales.y;
+                ctx.save();
+                ctx.font = "700 12px " + font;
+                ctx.fillStyle = C.text;
+                ctx.textAlign = "right";
+                ctx.textBaseline = "bottom";
+                ctx.fillText("유지 비율 " + (num(last.survival) * 100).toFixed(1) + "%", area.right, y.getPixelForValue(num(last.survival) * 100) - 5);
+                ctx.font = "12px " + font;
+                ctx.fillStyle = C.sub;
+                ctx.textAlign = "right";
+                ctx.textBaseline = "top";
+                ctx.fillText("95% 구간 " + (num(last.lower) * 100).toFixed(1) + "~" + (num(last.upper) * 100).toFixed(1) + "%", area.right, y.getPixelForValue(num(last.lower) * 100) + 5);
+                ctx.restore();
+            }
+        };
+        return new Chart(canvas, {
+            type: "line",
+            data: {
+                labels: pts.map(function (p) { return p.day + "일"; }),
+                datasets: [
+                    { data: data("lower"), borderWidth: 0, pointRadius: 0, fill: false },
+                    { data: data("upper"), borderWidth: 0, pointRadius: 0, fill: "-1", backgroundColor: fsRgba(C.acc, 0.16) },
+                    { data: data("survival"), borderColor: C.acc, borderWidth: 2, pointRadius: 0, fill: false, tension: 0 }
+                ]
+            },
+            options: {
+                responsive: !!responsive,
+                maintainAspectRatio: false,
+                animation: false,
+                layout: { padding: { top: 6, right: 4 } },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return c.parsed.y.toFixed(1) + "%"; } } } },
+                scales: {
+                    x: { grid: { display: false }, border: { color: C.grid }, ticks: { color: C.sub, font: { size: 12, family: font }, maxTicksLimit: 8 } },
+                    y: { min: yMin * 100, max: 100, grid: { color: C.grid }, border: { display: false }, ticks: { color: C.sub, font: { size: 12, family: font }, maxTicksLimit: 5, callback: function (v) { return v + "%"; } } }
+                }
+            },
+            plugins: [endPlugin]
+        });
+    }
+
+    // 자금 흐름 경로(Sankey, 제출용): 라벨은 노드 바깥(이름 굵게 + 값 두 줄), 강조색은 국내 매수 한 줄기, 나머지는 회색
+    function buildSankeyFs($host, width, months) {
+        $host.empty();
+        var t = totals(months);
+        var S = t.sell, K = t.krw, B = t.buy, D = t.dsell, W = t.wd;
+        var R = Math.max(0, K + D - B - W);
+        width = Math.max(320, Math.floor(width || $host.width()));
+        var narrow = width < 560;
+        var padL = narrow ? 88 : 116, padR = narrow ? 112 : 140;
+        var NW = 10, GAP = 14, TOP = 32, BOT = 8, H = 236;
+        var nodes = {
+            A: { name: "해외 매도", value: S, col: 0 },
+            K: { name: "확정 원화", value: K, col: 1 },
+            D: { name: "국내 매도 회수", value: D, col: 1 },
+            B: { name: "국내 매수", value: B, col: 2, acc: true },
+            R: { name: "예수금", value: R, col: 2 },
+            W: { name: "인출", value: W, col: 2 }
+        };
+        var cols = [["A"], ["K", "D"], ["B", "R", "W"]].map(function (keys) {
+            return keys.filter(function (k) { return nodes[k].value > 0; });
+        });
+        if (!cols[0].length && !cols[1].length && !cols[2].length) return false;
+        var scale = Infinity;
+        cols.forEach(function (keys) {
+            var sum = keys.reduce(function (s, k) { return s + nodes[k].value; }, 0);
+            if (sum > 0) scale = Math.min(scale, (H - TOP - BOT - GAP * Math.max(0, keys.length - 1)) / sum);
+        });
+        var xs = [padL, 0, width - padR - NW];
+        xs[1] = Math.round((xs[0] + xs[2]) / 2);
+        cols.forEach(function (keys, c) {
+            var y = TOP;
+            keys.forEach(function (k) {
+                var n = nodes[k];
+                n.x = xs[c]; n.y = y; n.h = n.value * scale; n.out = 0; n.in = 0;
+                y += n.h + GAP;
+            });
+        });
+        // 출처 배분: 인출 → 국내 매수 → 남는 금액 순으로 확정 원화를 채우고, 모자란 국내 매수는 국내 매도 회수가 채운다(표시용 배치)
+        var kw = Math.min(K, W);
+        var kb = Math.min(K - kw, B);
+        var kr = K - kw - kb;
+        var db = Math.min(D, B - kb);
+        var dr = D - db;
+        var links = [
+            { s: "A", t: "K", v: Math.min(S, K) },
+            { s: "K", t: "B", v: kb, acc: true },
+            { s: "K", t: "R", v: kr },
+            { s: "K", t: "W", v: kw },
+            { s: "D", t: "B", v: db, acc: true },
+            { s: "D", t: "R", v: dr }
+        ].filter(function (l) { return l.v > 0 && nodes[l.s].value > 0 && nodes[l.t].value > 0; });
+
+        var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + H, height: H, role: "img", "aria-label": "해외 매도에서 확정 원화를 거쳐 국내 매수, 예수금, 인출로 가는 자금 흐름" });
+        var gLinks = svgEl("g", {}, svg);
+        links.forEach(function (l) {
+            var s = nodes[l.s], tn = nodes[l.t];
+            var h = l.v * scale;
+            var p = svgEl("path", { d: ribbon(s.x + NW, s.y + s.out, h, tn.x, tn.y + tn.in, h) }, gLinks);
+            p.setAttribute("style", l.acc ? "fill:var(--adm-chart-bar);fill-opacity:.28" : "fill:var(--adm-chart-gray);fill-opacity:.85");
+            p.setAttribute("data-tip", s.name + " → " + tn.name + "\n" + krwShort(l.v) + "원");
+            s.out += h;
+            tn.in += h;
+        });
+        var halo = ";paint-order:stroke;stroke:var(--adm-panel);stroke-width:3px;stroke-linejoin:round";
+        function label(x, y, anchor, n) {
+            var share = n.value && K > 0 && n.key !== "A" && n.key !== "K" ? " · " + pctS(n.value / K) : "";
+            svgText(svg, x, y, anchor, "ff-t-strong ff-label", 12, n.name, halo + ";font-weight:700");
+            svgText(svg, x, y + 14, anchor, "ff-t-sub ff-label", 12, eok(n.value) + share, halo);
+        }
+        cols.forEach(function (keys, c) {
+            var lastBottom = -Infinity;
+            keys.forEach(function (k) {
+                var n = nodes[k];
+                n.key = k;
+                var rect = svgEl("rect", { x: n.x, y: n.y, width: NW, height: Math.max(1.5, n.h) }, svg);
+                rect.setAttribute("style", "fill:" + (n.acc ? "var(--adm-chart-bar)" : "var(--adm-sub)"));
+                rect.setAttribute("data-tip", n.name + "\n" + krwShort(n.value) + "원");
+                var cy = n.y + n.h / 2;
+                if (c === 0) {
+                    label(n.x - 8, Math.max(cy - 12, 2) + 12, "end", n);
+                } else if (k === "K") {
+                    label(n.x, n.y - 30, "start", n);
+                } else if (k === "D") {
+                    label(n.x - 8, cy - 2, "end", n);
+                } else {
+                    var ty = Math.max(cy - 12, lastBottom + 4, 2);
+                    lastBottom = ty + 30;
+                    label(n.x + NW + 8, ty + 12, "start", n);
+                }
+            });
+        });
+        $host.get(0).appendChild(svg);
+        return true;
+    }
+
+    // 5건 미만 2차 가림: 합계가 함께 보이는 한 묶음의 칸 수(counts)를 받아 칸마다 가림 단계를 돌려준다.
+    //   0 = 그대로 표시, 1 = 5건 미만(1차), 2 = 5건 미만 포함 합산 가림(2차).
+    // 1차로 가린 칸이 정확히 1개면 합계에서 빼서 그 값을 알아내지 못하도록 남은 칸 중 가장 작은 칸도 함께 가린다.
+    var MASK_SMALL_TEXT = "5건 미만";
+    var MASK_MERGED_TEXT = "5건 미만 포함 합산 가림";
+
+    function maskSmall(counts) {
+        var mask = counts.map(function (n) { return n != null && isFinite(Number(n)) && Number(n) < 5 ? 1 : 0; });
+        var hidden = mask.filter(function (m) { return m === 1; }).length;
+        if (hidden === 1) {
+            var best = -1;
+            counts.forEach(function (n, i) {
+                if (mask[i] === 0 && n != null && isFinite(Number(n)) && (best < 0 || Number(n) < Number(counts[best]))) best = i;
+            });
+            if (best >= 0) mask[best] = 2;
+        }
+        return mask;
+    }
+
+    function maskText(m) {
+        return m === 1 ? MASK_SMALL_TEXT : m === 2 ? MASK_MERGED_TEXT : "";
+    }
+
+    // 혜택 누수: 100% 가로 누적 막대 한 개 + 구간별 직접 라벨(분류명, 계좌 수 · 비중). 5건 미만은 "5건 미만"
+    var LEAK_FILL = { NO_SELL: "var(--adm-line)", NO_IMPACT: "var(--adm-chart-gray)", PARTIAL_REDUCED: "var(--adm-sub)", BENEFIT_CANCELED: "var(--adm-chart-bar)", EXTERNAL_BUY_OFFSET: "var(--adm-chart-3)" }; // 이웃한 5칸이 모두 다른 색(라이트: 연회색 → 회색 → 진회색 → 진남색 → 중간 파랑)
+
+    function leakCats() {
+        var d = state.leakage || {};
+        var cats = LEAK_ORDER.map(function (code) {
+            return (d.categories || []).filter(function (c) { return c.code === code; })[0];
+        }).filter(Boolean);
+        var total = cats.reduce(function (s, c) { return s + num(c.accounts); }, 0);
+        var mask = maskSmall(cats.map(function (c) { return num(c.accounts); }));
+        cats = cats.map(function (c, i) { return $.extend({}, c, { mask: mask[i] }); });
+        return { cats: cats, total: total };
+    }
+
+    function buildLeakBar($host, width) {
+        $host.empty();
+        var L = leakCats();
+        if (!L.cats.length || !L.total) return false;
+        width = Math.max(320, Math.floor(width || $host.width()));
+        var font = getComputedStyle(document.body).fontFamily;
+        var probe = document.createElement("canvas").getContext("2d");
+        // 5건 미만 구간은 크기를 드러내지 않도록 폭을 고정한다(나머지가 남은 폭을 나눠 가진다)
+        var fixed = 0, rest = 0;
+        L.cats.forEach(function (c) { if (c.mask > 0) fixed += 0.01; else rest += num(c.accounts); });
+        var segs = L.cats.map(function (c) {
+            var small = c.mask > 0;
+            var name = c.label || MARIA.status.leakageLabel(c.code);
+            var line2 = small ? maskText(c.mask) : KRW.format(num(c.accounts)) + "계좌 · " + pctS(c.share == null ? num(c.accounts) / L.total : Number(c.share));
+            probe.font = "700 12px " + font;
+            var w1 = probe.measureText(name).width;
+            probe.font = "12px " + font;
+            var w = Math.ceil(Math.max(w1, probe.measureText(line2).width)) + 4;
+            return { code: c.code, name: name, line2: line2, frac: small ? 0.01 : (1 - fixed) * num(c.accounts) / rest, w: w };
+        });
+        var x = 0;
+        segs.forEach(function (s) { s.x = x * width; s.cx = (x + s.frac / 2) * width; x += s.frac; });
+        // 라벨 배치: 겹치면 아래 줄로 내린다(최대 3줄)
+        var tiers = [[], [], []];
+        segs.forEach(function (s) {
+            s.left = Math.min(Math.max(s.cx - s.w / 2, 0), width - s.w);
+            var placed = 0;
+            for (var t = 0; t < 3; t++) {
+                var clash = tiers[t].some(function (o) { return s.left < o.left + o.w + 8 && o.left < s.left + s.w + 8; });
+                if (!clash) { placed = t; break; }
+                placed = t;
+            }
+            s.tier = placed;
+            tiers[placed].push(s);
+        });
+        var usedTiers = Math.max.apply(null, segs.map(function (s) { return s.tier; })) + 1;
+        var html = '<div class="fs-leak-bar">' + segs.map(function (s) {
+            return '<span style="width:' + (s.frac * 100).toFixed(3) + '%;background:' + LEAK_FILL[s.code] + '" data-tip="' + esc(s.name + "\n" + s.line2) + '"></span>';
+        }).join("") + "</div>";
+        html += '<div class="fs-leak-labels" style="height:' + (usedTiers * 34 + 6) + 'px">' + segs.map(function (s) {
+            var top = s.tier * 34;
+            return '<i class="fs-leak-tick" style="left:' + s.cx.toFixed(1) + 'px;height:' + (top + 4) + 'px"></i>' +
+                '<span class="fs-leak-lab" style="left:' + s.left.toFixed(1) + 'px;top:' + (top + 4) + 'px;width:' + s.w + 'px"><b>' + esc(s.name) + "</b><em>" + esc(s.line2) + "</em></span>";
+        }).join("") + "</div>";
+        $host.html(html);
+        return true;
+    }
+
+    // 이용 단계(퍼널): 개설 → 해외 매도 있음 → 국내 매수 있음. 응답 stages 의 개설 · 첫 매도 · 첫 국내 매수 단계만 쓴다(원화 확정 단계는 응답에 없음)
+    var FUN_STAGES = [["개설", "개설"], ["첫 매도", "해외 매도 있음"], ["첫 국내 매수", "국내 매수 있음"]];
+
+    function funnelSteps() {
+        var st = (state.funnelAll && state.funnelAll.stages) || [];
+        return FUN_STAGES.map(function (p) {
+            var x = st.filter(function (q) { return q.stage === p[0]; })[0];
+            return x ? { name: p[1], n: num(x.customers) } : null;
+        }).filter(Boolean);
+    }
+
+    // 가로 막대 한 줄: 이름 · 막대 · 직접 라벨. 폭은 가장 큰 값 대비, 5건 미만은 폭을 고정한다
+    function hbarRow(name, frac, accent, valueHtml) {
+        return '<div class="fs-hrow"><span class="fs-hname">' + esc(name) + '</span><div class="fs-htrack"><span class="fs-hfill' + (accent ? " is-acc" : "") +
+            '" style="width:' + (Math.max(0, Math.min(1, frac)) * 100).toFixed(2) + '%"></span></div><span class="fs-hval">' + valueHtml + "</span></div>";
+    }
+
+    function renderSubFunnel() {
+        var $card = $("#ffSubPanelFunnel");
+        var steps = funnelSteps();
+        if (steps.length < 2) { $("#ffSubFunnel").empty(); showPanelEmpty($card); return; }
+        $("#ffSubFunnelCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (state.funnelAll.asOfDate || "-"));
+        setPanel($card, "ready");
+        var max = steps[0].n || 1;
+        $("#ffSubFunnel").html(steps.map(function (st, i) {
+            var small = st.n < 5;
+            var prev = i ? steps[i - 1].n : 0;
+            var sub = i ? "직전 대비 " + (small || prev < 5 ? "-" : pctS(st.n / prev)) : "기준";
+            return hbarRow(st.name, small ? 0.01 : st.n / max, i === steps.length - 1,
+                "<b>" + (small ? "5건 미만" : KRW.format(st.n) + "계좌") + "</b><em>" + sub + "</em>");
+        }).join(""));
+    }
+
+    // 운용처: 응답 buckets(업종별 + ETF·펀드)를 업종 상위 5 + ETF·펀드 + 기타(나머지 업종)로 묶는다. 금액은 현재 보유 종목 매입금액
+    function allocGroups() {
+        var d = state.allocationAll || {};
+        var buckets = d.buckets || [];
+        var ETF = "ETF·펀드";
+        var total = buckets.reduce(function (sum, x) { return sum + num(x.value); }, 0);
+        if (!buckets.length || !(total > 0)) return null;
+        var sectors = buckets.filter(function (x) { return x.label !== ETF; }).sort(function (x, y) { return num(y.value) - num(x.value); });
+        var etf = buckets.filter(function (x) { return x.label === ETF; })[0];
+        var groups = sectors.slice(0, 5).map(function (x) { return { name: x.label, value: num(x.value) }; });
+        if (etf) groups.push({ name: ETF, value: num(etf.value) });
+        groups.sort(function (x, y) { return y.value - x.value; });
+        var rest = sectors.slice(5);
+        if (rest.length) groups.push({ name: "기타(" + rest.length + "개 업종)", value: rest.reduce(function (sum, x) { return sum + num(x.value); }, 0) });
+        return { groups: groups, total: total, restCount: rest.length };
+    }
+
+    function renderSubAlloc() {
+        var $card = $("#ffSubPanelAlloc");
+        var g = allocGroups();
+        if (!g) { $("#ffSubAlloc").empty(); showPanelEmpty($card); return; }
+        $("#ffSubAllocCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (state.allocationAll.asOfDate || "-"));
+        setPanel($card, "ready");
+        var max = Math.max.apply(null, g.groups.map(function (x) { return x.value; })) || 1;
+        $("#ffSubAlloc").html(g.groups.map(function (x, i) {
+            return hbarRow(x.name, x.value / max, i === 0, "<b>" + eokNum(x.value) + "억</b><em>" + pctS(x.value / g.total) + "</em>");
+        }).join(""));
+    }
+
+    // 혜택 집중도(로렌츠 곡선): 계좌 누적 비율(감면액 적은 순) 대비 감면액 누적 비율 + 균등 대각선. 감면 대상이 50계좌 미만이면 그리지 않는다
+    function lorenzOk() {
+        var d = state.concentration;
+        return !!d && num(d.accounts) >= 50 && (d.lorenz || []).length > 1;
+    }
+
+    function lorenzAt(pts, x) {
+        var p = pts.filter(function (q) { return Math.abs(num(q.populationShare) - x) < 1e-6; })[0];
+        return p ? num(p.valueShare) : null;
+    }
+
+    function buildLorenzFs($host, width) {
+        $host.empty();
+        if (!lorenzOk()) return false;
+        var d = state.concentration, pts = d.lorenz;
+        width = Math.max(320, Math.floor(width || $host.width() || 480));
+        var H = 250, L = 40, R = 16, T = 22, B = 36;
+        var w = width - L - R, hh = H - T - B;
+        function X(v) { return L + v * w; }
+        function Y(v) { return T + (1 - v) * hh; }
+        var halo = ";paint-order:stroke;stroke:var(--adm-panel);stroke-width:3px;stroke-linejoin:round";
+        var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + H, width: width, height: H, role: "img", "aria-label": "감면액 로렌츠 곡선: 계좌 누적 비율 대비 감면액 누적 비율" });
+        [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+            svgEl("line", { x1: L, x2: width - R, y1: Y(v), y2: Y(v), style: "stroke:var(--adm-line);stroke-width:1" }, svg);
+            svgText(svg, L - 6, Y(v) + 4, "end", "ff-t-sub", 12, Math.round(v * 100) + "%", "");
+        });
+        [0, 0.5, 1].forEach(function (v) {
+            svgText(svg, X(v), H - B + 16, v === 0 ? "start" : v === 1 ? "end" : "middle", "ff-t-sub", 12, Math.round(v * 100) + "%", "");
+        });
+        svgText(svg, (L + width - R) / 2, H - 4, "middle", "ff-t-sub", 12, "계좌 누적 비율(감면액 적은 순)", "");
+        svgText(svg, L, T - 8, "start", "ff-t-sub", 12, "감면액 누적 비율", "");
+        var curve = pts.map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.valueShare)).toFixed(1); });
+        var back = pts.slice().reverse().map(function (p) { return X(num(p.populationShare)).toFixed(1) + "," + Y(num(p.populationShare)).toFixed(1); });
+        svgEl("polygon", { points: curve.concat(back).join(" "), style: "fill:var(--adm-chart-bar);fill-opacity:.12;stroke:none" }, svg);
+        svgEl("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), style: "stroke:var(--adm-sub);stroke-width:1;stroke-dasharray:4 3" }, svg);
+        svgEl("polyline", { points: curve.join(" "), style: "fill:none;stroke:var(--adm-chart-bar);stroke-width:2;stroke-linejoin:round" }, svg);
+        svgText(svg, X(0.46), Y(0.46) - 8, "end", "ff-t-sub", 12, "균등선", halo);
+        svgText(svg, X(0.84), Y(0.2), "middle", "ff-t-strong", 12, "감면액 누적(로렌츠 곡선)", halo + ";font-weight:700");
+        var v50 = lorenzAt(pts, 0.5);
+        if (v50 != null) {
+            svgEl("circle", { cx: X(0.5), cy: Y(v50), r: 3.5, style: "fill:var(--adm-chart-bar)" }, svg);
+            svgText(svg, X(0.5) + 8, Y(v50) + 16, "start", "ff-t-strong", 12, "하위 50% 계좌: 감면액의 " + pctS(v50), halo);
+        }
+        var v90 = lorenzAt(pts, 0.9);
+        if (v90 != null) {
+            svgEl("circle", { cx: X(0.9), cy: Y(v90), r: 3.5, style: "fill:var(--adm-chart-bar)" }, svg);
+            svgText(svg, X(0.9) - 8, Y(v90) - 8, "end", "ff-t-strong", 12, "상위 10% 계좌: 감면액의 " + pctS(1 - v90), halo);
+        }
+        $host.get(0).appendChild(svg);
+        return true;
+    }
+
+    function drawSubConc() {
+        if (!state.concentration || $("#ffSubPanelConc").attr("data-state") !== "ready") return;
+        if (lorenzOk()) buildLorenzFs($("#ffSubLorenz"));
+    }
+
+    function renderSubConc() {
+        var d = state.concentration || {};
+        var $card = $("#ffSubPanelConc");
+        $("#ffSubConcCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        setPanel($card, "ready");
+        if (!lorenzOk()) {
+            $("#ffSubLorenz").html('<div class="ff-bar-item">50계좌 미만이라 표시하지 않음</div>');
+            return;
+        }
+        if (view === "submit") drawSubConc();
+    }
+
+    // 남는 금액(가정): 줄마다 혜택 유지 잔액 전체 길이의 연회색 바탕 + 해당 금액만큼 강조색 + 끝에 금액 라벨
+    function renderScenBar() {
+        var d = state.maturity;
+        var locked = d ? Number(d.lockedAmount) : 0;
+        var show = d && d.lockedAmount != null && isFinite(locked) && locked > 0 && (d.lockedAccounts == null || num(d.lockedAccounts) >= 5);
+        $("#ffSubScen").prop("hidden", !show);
+        if (!show) { $("#ffScenBar").empty(); return; }
+        $("#ffScenBar").html([50, 70, 90].map(function (p) {
+            return '<div class="fs-scen-row"><span class="fs-scen-name">' + p + '% 남는 경우</span>' +
+                '<div class="fs-scen-track"><span class="fs-scen-fill" style="width:' + p + '%"></span>' +
+                '<b class="fs-scen-val" style="left:' + p + '%">' + eok(Math.round(locked * p / 100)) + "</b></div></div>";
+        }).join("") + '<div class="fs-scen-basis">바탕 전체 = 혜택 유지 잔액 ' + eok(locked) + "</div>");
+    }
+
+    // 캔버스를 그리기 전에 상자 높이가 정해졌는지 확인한다(숨김 · 높이 0 이면 그리지 않는다. 상자 높이는 CSS 로 고정)
+    function chartBoxReady(id) {
+        var el = document.getElementById(id);
+        var box = el && el.tagName === "CANVAS" ? el.parentElement : el;
+        return !!box && box.clientHeight > 0 && box.clientWidth > 0;
+    }
+
+    // 제출용 만기 도래: 월별 accounts 가 5 미만인 월은 인접 월과 합쳐 보인다(앞에서부터 합치고, 마지막이 모자라면 앞 묶음에 합친다).
+    // 한계: 월별 accounts 는 월 간에 같은 계좌가 겹칠 수 있어 합친 값이 실제 계좌 수보다 클 수 있다(5 이상 판정이 보수적이지 않다).
+    function groupMonths(months) {
+        var groups = [];
+        var cur = null;
+        function ym(m) { return String(m.maturityMonth || "").slice(0, 7); }
+        months.forEach(function (m) {
+            if (!cur) cur = { from: ym(m), to: ym(m), accounts: 0, amount: 0 };
+            cur.to = ym(m);
+            cur.accounts += num(m.accounts);
+            cur.amount += num(m.remainingAmount);
+            if (cur.accounts >= 5) { groups.push(cur); cur = null; }
+        });
+        if (cur) {
+            if (groups.length) {
+                var last = groups[groups.length - 1];
+                last.to = cur.to;
+                last.accounts += cur.accounts;
+                last.amount += cur.amount;
+            } else {
+                groups.push(cur);
+            }
+        }
+        // 합친 뒤에도 계좌가 5 미만인 묶음(전체 만기 계좌가 5 미만인 경우)은 그리지 않는다. 금액도 계좌 수 기준 가림을 따른다
+        var visible = groups.filter(function (g) { return g.accounts >= 5; });
+        var out = visible.map(function (g) {
+            var label = g.from === g.to ? g.from : g.from + "~" + (g.from.slice(0, 4) === g.to.slice(0, 4) ? g.to.slice(5) : g.to);
+            return { label: label, amount: g.amount };
+        });
+        out.hiddenGroups = groups.length - visible.length;
+        return out;
+    }
+
+    function clearMaturity() {
+        if (matChart) { matChart.destroy(); matChart = null; }
+        matGroups = [];
+        $("#ffMatChart").attr("aria-label", "");
+        $("#ffMatChartBox, #ffMatChartTitle, #ffMatEmpty, #ffMatTableBox, #ffMatNote").prop("hidden", true);
+        $("#ffMatTable tbody").empty();
+        $("#ffMatNote").text("");
+        $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
+    // 막대 차트: 제출용이 보일 때만 그린다(숨겨진 동안은 크기가 0)
+    function drawMatChart() {
+        if (matChart) { matChart.destroy(); matChart = null; }
+        if (!window.Chart || !matGroups.length || !chartBoxReady("ffMatChartBox")) return;
+        matChart = buildMatBars(document.getElementById("ffMatChart"), cssVar, true, matGroups);
+    }
+
+    function renderMaturity() {
+        var d = state.maturity;
+        $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        matGroups = groupMonths(d.months || []);
+        var has = matGroups.length > 0;
+        var masked = matGroups.hiddenGroups > 0;
+        $("#ffMatEmpty").text(masked ? "5계좌 미만이라 표시하지 않음" : "만기 예정 잔액 없음").prop("hidden", has);
+        $("#ffMatChartTitle, #ffMatChartBox, #ffMatTableBox").prop("hidden", !has);
+        var $tb = $("#ffMatTable tbody").empty();
+        matGroups.forEach(function (g) {
+            $tb.append($("<tr>").append($("<td>").css("padding", "4px 12px 4px 0").text(g.label), $("<td>").css({ "text-align": "right", padding: "4px 0" }).text(KRW.format(Math.round(g.amount)))));
+        });
+        $("#ffMatChart").attr("aria-label", has ? "만기월별 잔액: " + matGroups.map(function (g) { return g.label + " " + krwShort(g.amount) + "원"; }).join(", ") : "");
+        // 혜택 취소 잔액: 차트에 넣지 않고 각주로만. 계좌 수는 화면에 쓰지 않고 5 미만 판정에만 쓴다
+        var canceled = num(d.canceledRemainingAmount);
+        if (!canceled) {
+            $("#ffMatNote").prop("hidden", true).text("");
+        } else {
+            var amountText = num(d.canceledAccounts) < 5 ? "" : " " + krwShort(canceled) + "원";
+            $("#ffMatNote").text("혜택이 취소된 계좌의 잔액" + amountText + " 위 차트에서 제외").prop("hidden", false);
+        }
+        if (view === "submit") drawMatChart();
+    }
+
+    // 제출용 표지의 기간: overviewAll 응답의 첫 계좌 개설일 ~ 집계 기준일
+    function clearCover() {
+        $("#ffCoverPeriod").text("기간 - ~ -");
+    }
+
+    function renderCover() {
+        var d = state.overviewAll || {};
+        $("#ffCoverPeriod").text("기간 " + (d.firstOpenedDate || "-") + "~" + (d.asOfDate || "-"));
+    }
+
+    // 제출용 과정 막: 자금 흐름 경로 · 월별 차트는 monthlyAll(출시 이후 고정)만 쓴다. 기간 토글의 state.monthly 는 쓰지 않는다
+    function renderSubProcess() {
+        var d = state.monthlyAll || {};
+        if (!(d.months || []).length) {
+            showPanelEmpty($("#ffSubPanelFlow"));
+            showPanelEmpty($("#ffSubPanelMonthly"));
+            return;
+        }
+        var cap = "리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-");
+        $("#ffSubFlowCaption, #ffSubMonthlyCaption").text(cap);
+        setPanel($("#ffSubPanelFlow"), "ready");
+        setPanel($("#ffSubPanelMonthly"), "ready");
+        subSankeyEmpty = false;
+        if (view === "submit") drawSubProcess();
+    }
+
+    // 제출용이 보일 때만 그린다(숨겨진 동안은 크기 0)
+    var subSankeyEmpty = false;
+
+    function drawSubProcess() {
+        if (subMonthlyChart) { subMonthlyChart.destroy(); subMonthlyChart = null; }
+        var months = (state.monthlyAll && state.monthlyAll.months) || [];
+        if (!months.length || $("#ffSubPanelMonthly").attr("data-state") !== "ready") return;
+        var $flow = $("#ffSubPanelFlow");
+        // 못 그려서 비워 둔 패널은 본문이 숨겨져 폭이 0 이므로, 다시 그리기 전에 ready 로 되돌린다
+        if (subSankeyEmpty) { setPanel($flow, "ready"); subSankeyEmpty = false; }
+        if (!buildSankeyFs($("#ffSubSankey"), undefined, months)) { subSankeyEmpty = true; showPanelEmpty($flow); }
+        if (window.Chart && chartBoxReady("ffSubMonthlyChart")) subMonthlyChart = buildMonthlyBars(document.getElementById("ffSubMonthlyChart"), cssVar, true, months);
+    }
+
+    // 제출용 혜택 누수: 100% 누적 막대(직접 라벨). 계좌 수가 5 미만이면 "5건 미만"
+    function drawSubLeak() {
+        if (state.leakage && $("#ffSubPanelLeak").attr("data-state") === "ready") buildLeakBar($("#ffSubLeakBar"));
+    }
+
+    function renderSubLeakage() {
+        var d = state.leakage || {};
+        var $card = $("#ffSubPanelLeak");
+        var L = leakCats();
+        if (!L.cats.length || !L.total) { $("#ffSubLeakBar").empty(); showPanelEmpty($card); return; }
+        $("#ffSubLeakCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        setPanel($card, "ready");
+        if (view === "submit") drawSubLeak();
+    }
+
+    // 제출용: 확정 후 경과일별 원금 유지 비율(retentionAll, 출시 이후 고정). 위험집합(atRisk, 건)이 5 미만인 구간은 그리지 않는다
+    var retChart = null;
+    var retPoints = [];
+
+    function clearRetention() {
+        if (retChart) { retChart.destroy(); retChart = null; }
+        retPoints = [];
+        $("#ffRetBox").prop("hidden", true);
+        $("#ffRetFacts").prop("hidden", true).text("");
+        $("#ffRetChart").attr("aria-label", "");
+        $("#ffRetCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 -");
+    }
+
+    function drawSubRetention() {
+        if (retChart) { retChart.destroy(); retChart = null; }
+        if (!window.Chart || retPoints.length < 2 || !chartBoxReady("ffRetBox")) return;
+        retChart = buildRetentionChart(document.getElementById("ffRetChart"), cssVar, retPoints, true);
+    }
+
+    function renderSubRetention() {
+        var d = state.retentionAll || {};
+        retPoints = retVisiblePoints(d);
+        var has = retPoints.length >= 2;
+        $("#ffRetBox").prop("hidden", !has);
+        $("#ffRetChart").attr("aria-label", has ? "확정 후 경과일별 원금 유지 비율: " + retPoints.map(function (p) { return p.day + "일 " + pct1(num(p.survival)); }).join(", ") : "");
+        var yMin = has ? Math.floor(Math.min.apply(null, retPoints.map(function (p) { return num(p.lower); })) * 20) / 20 : 0;
+        $("#ffRetFacts").text(has ? "실선 유지 비율, 연한 면 95% 구간 · 세로축 " + Math.round(yMin * 100) + "~100% 구간 표시" : "").prop("hidden", !has);
+        $("#ffRetCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
+        if (view === "submit") drawSubRetention();
     }
 
     function renderReliefSummary() {
@@ -301,8 +959,8 @@ $(function () {
 
     /* ---------- ② 자금 흐름 경로 (Sankey) ---------- */
     // host 안에 그린다. width 를 주면 그 폭으로(PDF), 없으면 host 의 실제 폭으로 그린다. 그릴 게 없으면 false.
-    function buildSankey($host, $notes, width) {
-        var months = monthsOf();
+    function buildSankey($host, $notes, width, months) {
+        months = months || monthsOf(); // 제출용은 monthlyAll 의 months 를 넘긴다. 기존 호출은 3개 인자라 기본값(monthsOf)을 쓴다
         $host.empty();
         $notes.empty();
         var t = totals(months);
@@ -498,8 +1156,8 @@ $(function () {
     };
 
     // varFn: 색 변수를 읽는 함수(화면 = 현재 테마, PDF = 라이트). responsive 를 끄면 canvas 크기 그대로 한 번만 그린다.
-    function buildMonthlyChart(canvas, varFn, responsive) {
-        var months = monthsOf();
+    function buildMonthlyChart(canvas, varFn, responsive, months) {
+        months = months || monthsOf(); // 제출용은 monthlyAll 의 months 를 넘긴다. 기존 호출은 3개 인자라 기본값(monthsOf)을 쓴다
         var font = getComputedStyle(document.body).fontFamily;
         var sub = varFn("--adm-sub");
         var cInflow = varFn("--adm-chart-bar");
@@ -1378,8 +2036,424 @@ $(function () {
         }
     };
 
+    /* ---------- 제출용 핵심 지표 4칸 · 막 제목(결론 문장) ---------- */
+    // 숫자는 모두 응답 값으로 계산한다. 인과 표현·점추정은 쓰지 않고, 계좌·건 수가 5 미만인 값은 "5건 미만"으로 둔다.
+    // 제목 하나가 여러 API 를 쓰므로 로딩 시작과 실패 때 비우고, 어느 API 가 끝나도 state 전체로 다시 만든다.
+    /* CONCL-BEGIN */
+    // 억 원 표기 한 곳: 숫자만(소수 1자리, 0 초과 0.1 미만은 "<0.1", 0은 "0.0"). 그림 · 표 · □○ 문장이 모두 이 함수를 쓴다.
+    // 감면 금액처럼 10억 미만에서 자릿수가 필요한 값만 eokR 을 쓴다.
+    function eokNum(value) {
+        var n = num(value);
+        var a = Math.abs(n);
+        if (a > 0 && a < 5e6) return "<0.1";
+        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+
+    function eok(value) {
+        return eokNum(value) + "억";
+    }
+
+    // 감면 금액(핵심 지표 1.75억, 감면 2.11억 등): 1억 미만은 만 단위, 10억 미만은 소수 2자리, 그 이상은 소수 1자리
+    function eokR(value) {
+        var n = num(value);
+        var a = Math.abs(n);
+        if (a < 1e8) return (n < 0 ? "-" : "") + KRW.format(Math.round(a / 1e4)) + "만";
+        var d = a < 1e9 ? 2 : 1;
+        return (n < 0 ? "-" : "") + (a / 1e8).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d }) + "억";
+    }
+
+    function pctS(ratio) {
+        return ratio == null || !isFinite(ratio) ? "-" : (ratio * 100).toFixed(1) + "%";
+    }
+
+    // 위험집합(건)이 5 미만인 구간은 쓰지 않는다
+    function retVisiblePoints(d) {
+        return ((d && d.points) || []).filter(function (p) { return num(p.atRisk) >= 5; });
+    }
+
+    // 복귀 확정액(overviewAll)과 감면 예상액(relief)을 나란히 두고 비율만 쓴다. 효율·인과를 말하지 않는다
+    function reliefVs(o, r) {
+        if (!o || !r || o.inflowTotal == null || r.reliefTotal == null || !(num(o.inflowTotal) > 0)) return null;
+        return { inflow: num(o.inflowTotal), relief: num(r.reliefTotal), ratio: num(r.reliefTotal) / num(o.inflowTotal) };
+    }
+
+    function titleProcess(m, f) {
+        var months = (m && m.months) || [];
+        if (!months.length) return "";
+        var t = totals(months);
+        if (!(t.krw > 0)) return "";
+        var steps = funnelSteps();
+        if (steps.length === 3 && f) {
+            var buyAcc = steps[2].n < 5 ? "5건 미만" : KRW.format(steps[2].n) + "계좌";
+            return "개설 " + KRW.format(steps[0].n) + "계좌 중 " + buyAcc + " 국내 매수, 확정 원화 " + eok(t.krw) + " 원 중 " + pctS(t.buy / t.krw) + " 국내 주식 매수";
+        }
+        return "확정 원화 " + eok(t.krw) + " 원 중 " + pctS(t.buy / t.krw) + " 국내 주식 매수, " + pctS(t.wd / t.krw) + " 인출";
+    }
+
+    function titleResult(e, ret) {
+        var parts = [];
+        if (e && e.accountShare != null) {
+            parts.push(num(e.earlyAccounts) < 5 ? "1년 전 원금 인출 5건 미만"
+                : "1년 전 원금 인출 " + pctS(Number(e.accountShare)) + "(" + KRW.format(num(e.earlyAccounts)) + "/" + KRW.format(num(e.finalizedAccounts)) + "계좌)");
+        }
+        var pts = retVisiblePoints(ret);
+        var last = pts[pts.length - 1];
+        if (last && last.lower != null && last.upper != null) {
+            parts.push("확정 후 " + last.day + "일 원금 유지 " + (Number(last.lower) * 100).toFixed(1) + "~" + pctS(Number(last.upper)));
+        }
+        return parts.join(", ");
+    }
+
+    function titleOutlook(d) {
+        if (!d || !(Number(d.lockedAmount) > 0)) return "";
+        var months = (d.months || []).filter(function (m) { return num(m.remainingAmount) > 0; });
+        var first = d.firstMaturityMonth ? String(d.firstMaturityMonth).slice(0, 7) : "";
+        var last = months.length ? String(months[months.length - 1].maturityMonth || "").slice(0, 7) : "";
+        return "혜택 유지 잔액 " + eok(d.lockedAmount) + " 원" + (first && last ? ", " + first + "~" + last + " 만기 도래" : "");
+    }
+    /* CONCL-END */
+
+    function clearConcl(api) {
+        $('[data-concl~="' + api + '"]').text("");
+    }
+
+    function kpiSet(id, valueHtml, basis, api) {
+        var $k = $("#" + id);
+        $k.find("[data-ff-value]").html(valueHtml);
+        $("#" + id + "Basis").text(basis || "");
+        if (api && loadState[api] === "fail") {
+            $k.addClass("is-error").attr({ "data-ff-retry": api, title: "불러오지 못함. 눌러서 다시 시도" }).css("cursor", "pointer");
+        } else {
+            $k.removeClass("is-error").removeAttr("data-ff-retry").removeAttr("title").css("cursor", "");
+        }
+    }
+
+    function kpiUnit(text, unit) {
+        return esc(text) + '<span class="fs-kpi-unit">' + esc(unit) + "</span>";
+    }
+
+    function renderSubKpis() {
+        var o = state.overviewAll, m = state.monthlyAll, e = state.earlyWithdrawal, r = state.relief, c = state.concentration;
+        var t = m && (m.months || []).length ? totals(m.months) : null;
+        if (o && o.inflowTotal != null) {
+            var b1 = [];
+            if (o.openedAccounts != null) b1.push(KRW.format(num(o.openedAccounts)) + "계좌");
+            if (t && t.sell > 0) b1.push("해외 매도 대비 " + pctS(num(o.inflowTotal) / t.sell));
+            kpiSet("ffKpi1", kpiUnit(eok(o.inflowTotal), "원"), b1.join(" · "), "overviewAll");
+        } else {
+            kpiSet("ffKpi1", "-", "", "overviewAll");
+        }
+        if (t && t.krw > 0) {
+            kpiSet("ffKpi2", kpiUnit((t.buy / t.krw * 100).toFixed(1), "%"), eok(t.buy) + " / 확정 원화 " + eok(t.krw), "monthlyAll");
+        } else {
+            kpiSet("ffKpi2", "-", "", "monthlyAll");
+        }
+        if (e && e.accountShare != null) {
+            if (num(e.earlyAccounts) < 5) {
+                kpiSet("ffKpi3", "5건 미만", KRW.format(num(e.finalizedAccounts)) + "계좌 중", "earlyWithdrawal");
+            } else {
+                kpiSet("ffKpi3", kpiUnit((Number(e.accountShare) * 100).toFixed(1), "%"),
+                    KRW.format(num(e.earlyAccounts)) + " / " + KRW.format(num(e.finalizedAccounts)) + "계좌" + (e.amountShare != null ? " · 금액 기준 " + pctS(Number(e.amountShare)) : ""), "earlyWithdrawal");
+            }
+        } else {
+            kpiSet("ffKpi3", "-", "", "earlyWithdrawal");
+        }
+        if (r && r.reliefTotal != null) {
+            var v = reliefVs(o, r);
+            var b4 = [];
+            if (v) b4.push("복귀 확정액의 " + pctS(v.ratio));
+            if (c && num(c.accounts) >= 5) b4.push("감면 대상 " + KRW.format(num(c.accounts)) + "계좌");
+            kpiSet("ffKpi4", kpiUnit(eokR(r.reliefTotal), "원"), b4.join(" · "), "relief");
+        } else {
+            kpiSet("ffKpi4", "-", "", "relief");
+        }
+    }
+
+    /* ---------- 제출용 근거 표(오른쪽 1/3): 항목 · 값 · 근거(분자/분모) ---------- */
+    // 모든 값은 응답으로 계산한다. 계좌·건 수가 5 미만이면 "5건 미만"으로 둔다.
+    function fsRow(cells, cls) {
+        return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>' + cells.map(function (c) { return "<td>" + c + "</td>"; }).join("") + "</tr>";
+    }
+
+    function fsGroup(title, cols) {
+        return '<tr class="fs-grp"><th colspan="' + cols + '">' + esc(title) + "</th></tr>";
+    }
+
+    function fsNote(text, cols) {
+        return '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(text) + "</td></tr>";
+    }
+
+    // 아직 불러오는 중이거나 실패한 API 는 한 줄로 알린다(실패는 다시 시도 버튼)
+    function fsWait(api, label, cols) {
+        if (loadState[api] === "fail") {
+            return '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(label) + ' 불러오지 못함 · <button type="button" class="fs-link" data-ff-retry="' + api + '">다시 시도</button></td></tr>';
+        }
+        return loadState[api] === "ok" ? "" : '<tr class="fs-foot"><td colspan="' + cols + '">' + esc(label) + " 불러오는 중</td></tr>";
+    }
+
+    function fsPut(id, head, body) {
+        $("#" + id).html((head ? "<thead>" + head + "</thead>" : "") + "<tbody>" + body + "</tbody>");
+    }
+
+    function fsCnt(n) {
+        return n < 5 ? "5건 미만" : KRW.format(n);
+    }
+
+    // <표 1> 월별 유입 · 매수 · 재투자율 · 인출
+    function renderTblMonthly() {
+        var m = state.monthlyAll;
+        var head = "<tr><th>월</th><th>유입</th><th>매수</th><th>재투자율</th><th>인출</th></tr>";
+        if (!m || !(m.months || []).length) { fsPut("ffTblMonthly", head, fsWait("monthlyAll", "월별 자금 흐름", 5)); return; }
+        var body = m.months.map(function (x) {
+            var key = monthKey(x);
+            var rate = num(x.krwInflowAmount) > 0 ? pctS(num(x.domesticBuyAmount) / num(x.krwInflowAmount)) : "-";
+            return fsRow([Number(key.slice(5, 7)) + "월" + (x.partial ? "(진행 중)" : ""), eokNum(x.krwInflowAmount), eokNum(x.domesticBuyAmount), rate, eokNum(x.withdrawalAmount)]);
+        }).join("") + fsNote("주: 재투자율은 해당 월 국내 매수 ÷ 해당 월 확정 원화 유입이며, 이전 월에 계좌에 남은 금액으로 매수한 경우 100%를 넘을 수 있음. 진행 중인 달은 집계 기준일까지", 5);
+        fsPut("ffTblMonthly", head, body);
+    }
+
+    // <표 2> 1년 전 원금 인출 원인별(계좌 수 5 미만은 "5건 미만", 가린 칸이 1개뿐이면 다음으로 작은 칸도 함께 가린다)
+    function renderTblCause() {
+        var e = state.earlyWithdrawal;
+        var head = "<tr><th>구분</th><th>계좌 수</th><th>인출액</th></tr>";
+        if (!e) { fsPut("ffTblCause", head, fsWait("earlyWithdrawal", "조기 인출", 3)); return; }
+        var causes = e.byCause || [];
+        var mask = maskSmall(causes.map(function (cz) { return cz.accounts == null ? null : num(cz.accounts); }));
+        var body = causes.map(function (cz, i) {
+            if (mask[i] > 0) return fsRow([esc(cz.label || ""), maskText(mask[i]), maskText(mask[i])]);
+            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : KRW.format(num(cz.accounts)), eokNum(cz.amount)]);
+        }).join("");
+        var all = num(e.earlyAccounts) < 5;
+        body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : eokNum(e.earlyWithdrawnAmount)], "fs-total");
+        var allHidden = causes.length > 0 && mask.every(function (m) { return m > 0; });
+        body += fsNote("주: 한 계좌가 두 원인에 걸칠 수 있어 원인별 계좌 수의 합이 전체와 다를 수 있음. 분모는 확정 환전 " + KRW.format(num(e.finalizedAccounts)) + "계좌, 확정 원금 " + eok(e.finalizedAmount), 3);
+        if (allHidden) body += fsNote("5건 미만 칸이 있어 원인별 값은 표시하지 않음", 3);
+        fsPut("ffTblCause", head, body);
+    }
+
+    // <표 3> 혜택 배분(감면액 적은 계좌 순 누적). 감면 대상이 50계좌 미만이면 표시하지 않는다
+    function renderTblConc() {
+        var c = state.concentration;
+        var head = "<tr><th>구분</th><th>계좌 수</th><th>감면액 비중</th></tr>";
+        if (!c) { fsPut("ffTblConc", head, fsWait("concentration", "혜택 집중도", 3)); return; }
+        var n = num(c.accounts);
+        if (!lorenzOk()) {
+            fsPut("ffTblConc", head, fsRow(["감면 대상 계좌", fsCnt(n), "미표시"]) + fsNote("주: 50계좌 미만이라 표시하지 않음", 3));
+            return;
+        }
+        var body = [[0.25, "하위 25%"], [0.5, "하위 50%"], [0.75, "하위 75%"]].map(function (q) {
+            var v = lorenzAt(c.lorenz, q[0]);
+            return v == null ? "" : fsRow([q[1], KRW.format(Math.round(n * q[0])), pctS(v)]);
+        }).join("");
+        if (c.top10Share != null) body += fsRow(["상위 10%", KRW.format(Math.round(n * 0.1)), pctS(Number(c.top10Share))]);
+        body += fsRow(["전체(감면액이 0보다 큰 계좌)", KRW.format(n), "100.0%"], "fs-total");
+        var notes = [];
+        if (c.gini != null) notes.push("지니계수 " + Number(c.gini).toFixed(2) + "(0 균등 ~ 1 한 계좌 독점)");
+        if (c.reliefTotal != null) notes.push("감면액 합계 " + eokR(c.reliefTotal) + " 원, 계좌당 평균 " + eokR(num(c.reliefTotal) / n) + " 원");
+        body += fsNote("주: " + notes.join(". ") + ". 계좌 수는 비율로 환산한 값(반올림), 감면액은 잠정 정의의 예상값", 3);
+        fsPut("ffTblConc", head, body);
+    }
+
+    function renderSubTables() {
+        renderTblMonthly();
+        renderTblCause();
+        renderTblConc();
+    }
+
+    /* ---------- 제출용 장 요약(□ 결론 · ○ 근거) · 자료 출처 줄 ---------- */
+    function sumHtml(lead, bullets) {
+        if (!lead) return "";
+        return '<p class="fs-sq">□ ' + esc(lead) + "</p>" + bullets.filter(Boolean).map(function (t) { return '<p class="fs-ci">○ ' + esc(t) + "</p>"; }).join("");
+    }
+
+    function cntU(n) {
+        return n < 5 ? "5건 미만" : KRW.format(n) + "계좌";
+    }
+
+    function chapProcess() {
+        var m = state.monthlyAll, f = state.funnelAll;
+        var lead = titleProcess(m, f);
+        var b = [];
+        var steps = funnelSteps();
+        if (steps.length === 3) {
+            var s1 = steps[1], s2 = steps[2];
+            b.push("이용 단계: 개설 " + cntU(steps[0].n) + " → 해외 매도 있음 " + cntU(s1.n) + (s1.n >= 5 && steps[0].n >= 5 ? "(" + pctS(s1.n / steps[0].n) + ")" : "") +
+                " → 국내 매수 있음 " + cntU(s2.n) + (s2.n >= 5 && s1.n >= 5 ? "(직전 단계 대비 " + pctS(s2.n / s1.n) + ")" : ""));
+        }
+        var months = (m && m.months) || [];
+        if (months.length) {
+            var t = totals(months);
+            if (t.krw > 0 && t.sell > 0) {
+                var rest = t.krw + t.dsell - t.buy - t.wd;
+                b.push("자금 흐름: 해외 매도 " + eok(t.sell) + " 원 → 확정 원화 " + eok(t.krw) + " 원(해외 매도 대비 " + pctS(t.krw / t.sell) + ") → 국내 매수 " + eok(t.buy) + " 원(" + pctS(t.buy / t.krw) +
+                    "), 인출 " + eok(t.wd) + " 원(" + pctS(t.wd / t.krw) + "), 계좌에 남는 금액 " + eok(rest) + " 원(" + pctS(rest / t.krw) + ")");
+            }
+        }
+        var g = allocGroups();
+        if (g && g.groups.length > 1) {
+            b.push("운용처: 현재 보유 종목 매입금액 기준 " + g.groups[0].name + " " + pctS(g.groups[0].value / g.total) + ", " + g.groups[1].name + " " + pctS(g.groups[1].value / g.total));
+        }
+        return sumHtml(lead, b);
+    }
+
+    function chapResult() {
+        var e = state.earlyWithdrawal, ret = state.retentionAll;
+        var lead = titleResult(e, ret);
+        var b = [];
+        if (e && e.accountShare != null && num(e.earlyAccounts) >= 5) {
+            b.push("1년 전 원금 인출 금액 " + eok(e.earlyWithdrawnAmount) + " 원 / 확정 원금 " + eok(e.finalizedAmount) + " 원(" + pctS(Number(e.amountShare)) + ")");
+        }
+        if (ret && ret.lots != null) {
+            b.push("원금 유지 곡선: 관찰한 확정 환전 " + KRW.format(num(ret.lots)) + "건 중 1년 전 원금 인출 " + (ret.events == null ? "-" : num(ret.events) < 5 ? "5건 미만" : KRW.format(num(ret.events)) + "건"));
+        }
+        if (state.leakage) {
+            var L = leakCats();
+            if (L.cats.length && L.total) {
+                b.push("혜택 누수 5분류(전체 " + KRW.format(L.total) + "계좌): " + L.cats.map(function (cat) {
+                    return (cat.label || MARIA.status.leakageLabel(cat.code)) + " " + (cat.mask > 0 ? maskText(cat.mask) : pctS(cat.share == null ? num(cat.accounts) / L.total : Number(cat.share)));
+                }).join(", "));
+            }
+        }
+        return sumHtml(lead, b);
+    }
+
+    function chapRelief() {
+        var o = state.overviewAll, r = state.relief, c = state.concentration;
+        var v = reliefVs(o, r);
+        if (!r || r.reliefTotal == null) return "";
+        var lead = "감면 예상액 " + eokR(r.reliefTotal) + " 원(잠정)" + (v ? ", 복귀 확정액 " + eok(v.inflow) + " 원의 " + pctS(v.ratio) : "");
+        var b = [];
+        if (num(r.generalTaxTotal) > 0) b.push("감면 비율 " + pctS(num(r.reliefTotal) / num(r.generalTaxTotal)) + "(" + eokR(r.reliefTotal) + " / " + eokR(r.generalTaxTotal) + " 원, 일반 과세 세액 대비)");
+        if (c) {
+            var n = num(c.accounts);
+            if (lorenzOk()) {
+                b.push("감면 대상 " + KRW.format(n) + "계좌" + (c.top10Share != null ? ", 상위 10% 계좌가 감면액의 " + pctS(Number(c.top10Share)) : "") + (c.gini != null ? ", 지니계수 " + Number(c.gini).toFixed(2) : ""));
+            } else {
+                b.push("감면 대상 " + fsCnt(n) + (n < 5 ? "" : "계좌") + ", 50계좌 미만이라 혜택 집중도 미표시");
+            }
+        }
+        return sumHtml(lead, b);
+    }
+
+    function chapOutlook() {
+        var d = state.maturity;
+        var lead = titleOutlook(d);
+        if (!lead) return "";
+        if (d.lockedAccounts != null && num(d.lockedAccounts) < 5) return sumHtml("만기 도래 전망: 5건 미만", []);
+        var locked = Number(d.lockedAmount);
+        var b = [];
+        b.push("혜택 유지 잔액 " + eok(locked) + " 원(확정 후 1년 미경과)" + (d.firstMaturityMonth ? ", 첫 만기월 " + String(d.firstMaturityMonth).slice(0, 7) : ""));
+        b.push("남는 금액 가정: 유지 잔액의 50% " + eok(Math.round(locked * 0.5)) + " 원, 70% " + eok(Math.round(locked * 0.7)) + " 원, 90% " + eok(Math.round(locked * 0.9)) + " 원(가정으로 계산한 값, 예측 아님)");
+        return sumHtml(lead, b);
+    }
+
+    // 그림·표 아래 자료 줄: "자료: 리턴증권 계좌 집계(기준일), 단위: …". 세액 스냅샷 기준은 그 기준일을 쓴다
+    function renderSources() {
+        $(".fs-src").each(function () {
+            var $e = $(this);
+            var d = state[$e.attr("data-src")] || (state.overviewAll);
+            var date = d && d.asOfDate ? d.asOfDate : "";
+            var unit = $e.attr("data-unit");
+            $e.text("자료: 리턴증권 " + ($e.attr("data-kind") === "tax" ? "세액 스냅샷 집계" : "계좌 집계") + (date ? "(" + date + " 기준)" : "") + (unit ? ", 단위: " + unit : ""));
+        });
+    }
+
+    function renderAllocNote() {
+        var m = state.monthlyAll;
+        var t = m && (m.months || []).length ? totals(m.months) : null;
+        $("#ffSubAllocNote").text(t ? "주: 현재 보유 종목 매입금액 기준으로, 매수 후 매도한 금액이 빠져 국내 매수 누계(" + eok(t.buy) + " 원)와 다름" : "");
+    }
+
+    function renderFlowNote() {
+        var m = state.monthlyAll;
+        if (!m || !(m.months || []).length) { $("#ffSubFlowNote").text(""); return; }
+        var t = totals(m.months);
+        $("#ffSubFlowNote").text("주: 예수금(계좌에 남는 금액) = 확정 원화 + 국내 매도 회수 − 국내 매수 − 인출. 해외 매도와 확정 원화 유입의 차이 " + eok(Math.abs(t.sell - t.krw)) + "(집계 기준이 다름). 진행 중인 달은 집계 기준일까지");
+    }
+
+    // 제출용 화면 전체(핵심 지표 · 막 제목)를 state 로 다시 만든다. API 하나가 끝나거나 실패할 때마다 부른다
+    function renderSubmitAll() {
+        try {
+            renderSubKpis();
+            renderSubTables();
+            renderScenBar();
+            renderFlowNote();
+            renderAllocNote();
+            $("#ffSum1").html(chapProcess());
+            $("#ffSum2").html(chapResult());
+            $("#ffSum3").html(chapRelief());
+            $("#ffSum4").html(chapOutlook());
+            renderSources();
+        } catch (err) {
+            if (window.console) console.warn("제출용 요약을 만들지 못함", err);
+        }
+    }
+
+    /* ---------- 제출용 부록: 검산(✓/✗, 숫자 없음) ---------- */
+    // 매퍼 테스트로 항상 성립함이 확인된 관계만 쓴다(docs/fund-flow-api.md §2-10, §2-11). 응답이 없으면 null(표시는 "-")
+    /* CHK-BEGIN */
+    function chkSum(list, key) {
+        var s = 0;
+        (list || []).forEach(function (r) { s += num(r[key]); });
+        return s;
+    }
+
+    function chkEq(a, b) {
+        if (a == null || b == null) return null;
+        var x = Number(a), y = Number(b);
+        return isFinite(x) && isFinite(y) ? Math.abs(x - y) < 0.5 : null;
+    }
+
+    function chkLe(a, b) {
+        if (a == null || b == null) return null;
+        var x = Number(a), y = Number(b);
+        return isFinite(x) && isFinite(y) ? x <= y : null;
+    }
+
+    function chkEarlyAccounts(e) {
+        return e ? chkLe(e.earlyAccounts, e.finalizedAccounts) : null;
+    }
+
+    function chkFinalizedAmount(e, o) {
+        return e && o ? chkEq(e.finalizedAmount, o.inflowTotal) : null;
+    }
+
+    function chkCauseAmount(e) {
+        return e && e.byCause ? chkEq(chkSum(e.byCause, "amount"), e.earlyWithdrawnAmount) : null;
+    }
+
+    function chkMaturityRemaining(m) {
+        return m && m.months && m.lockedAmount != null && m.maturedRemainingAmount != null
+            ? chkEq(chkSum(m.months, "remainingAmount"), num(m.lockedAmount) + num(m.maturedRemainingAmount)) : null;
+    }
+
+    function chkMaturityPaid(m, o) {
+        return m && m.months && o && m.excludedClosedPaidAmount != null
+            ? chkEq(chkSum(m.months, "paidAmount") + num(m.excludedClosedPaidAmount), o.inflowTotal) : null;
+    }
+    /* CHK-END */
+
+    function markChk(id, ok) {
+        $("#" + id).text(ok == null ? "-" : ok ? "✓ 일치" : "✗ 불일치");
+    }
+
+    function clearChecks(api) {
+        $('[data-chk~="' + api + '"]').text("-");
+    }
+
+    INTERP.subChecks = function () {
+        markChk("ffChk1", chkEarlyAccounts(state.earlyWithdrawal));
+        markChk("ffChk2", chkFinalizedAmount(state.earlyWithdrawal, state.overviewAll));
+        markChk("ffChk3", chkCauseAmount(state.earlyWithdrawal));
+        markChk("ffChk4", chkMaturityRemaining(state.maturity));
+        markChk("ffChk5", chkMaturityPaid(state.maturity, state.overviewAll));
+    };
+
     var INTERP_OF = {
         monthly: ["sankey", "monthly", "bridge"],
+        overviewAll: ["subChecks"],
+        earlyWithdrawal: ["subChecks"],
+        maturity: ["subChecks"],
         funnel: ["funnel"],
         leakage: ["leakage"],
         relief: ["relief"],
@@ -1391,7 +2465,7 @@ $(function () {
 
     function refreshInterp(api) {
         (INTERP_OF[api] || []).forEach(function (name) {
-            try { INTERP[name](); } catch (e) { if (window.console) console.warn("해석 문장을 만들지 못했어요", name, e); }
+            try { INTERP[name](); } catch (e) { if (window.console) console.warn("해석 문장을 만들지 못함", name, e); }
         });
     }
 
@@ -1492,23 +2566,144 @@ $(function () {
         window.__ffPdfWindow = w;
     }
 
+    /* ---------- 제출용 PDF 로 저장 (새 창 A4 세로 인쇄) ---------- */
+    // 운영 상세 PDF(savePdf)와 따로 만든다. savePdf 는 바꾸지 않는다.
+    var SUBMIT_APIS = ["overviewAll", "monthlyAll", "earlyWithdrawal", "maturity", "leakage", "relief", "concentration", "retentionAll", "funnelAll", "allocationAll"];
+
+    // 제출용이 쓰는 SUBMIT_APIS 전부가 모두 불러와진 상태일 때만 저장한다(로딩 중이거나 실패한 것이 하나라도 있으면 저장하지 않는다)
+    function submitDataReady() {
+        return SUBMIT_APIS.every(function (api) { return loadState[api] === "ok" && state[api]; });
+    }
+
+    // 화면 밖 캔버스(660×250)에 차트를 그려 PNG 데이터 주소로 돌려준다. Chart.js 가 없으면 빈 문자열
+    function chartImageUrl(make, height) {
+        if (!window.Chart) return "";
+        var hpx = height || 250;
+        var off = document.createElement("canvas");
+        off.width = 660;
+        off.height = hpx;
+        var holder = document.createElement("div");
+        holder.style.cssText = "position:fixed;left:-9999px;top:0;width:660px;height:" + hpx + "px";
+        holder.appendChild(off);
+        document.body.appendChild(holder);
+        var url = "";
+        try {
+            var c = make(off);
+            url = c.toBase64Image("image/png", 1);
+            c.destroy();
+        } finally {
+            document.body.removeChild(holder);
+        }
+        return url;
+    }
+
+    function savePdfSubmit() {
+        if (!submitDataReady()) {
+            var notReady = "제출용 데이터를 모두 불러온 뒤 저장 가능";
+            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError(notReady); else window.alert(notReady);
+            return;
+        }
+        var w = window.open("", "_blank");
+        if (!w) {
+            if (MARIA.ui && MARIA.ui.showError) MARIA.ui.showError("팝업 차단으로 PDF 창을 열지 못함. 팝업 허용 필요");
+            return;
+        }
+        var origin = location.origin;
+        var doc = w.document;
+
+        // 인쇄용 내용: 제출용 화면(표지·과정·결과·전망·부록)을 복제한다. 주석 노드는 인쇄물에 남기지 않는다
+        // 복제본의 id 는 뗀다: 화면용 스크롤 규칙(#ffSubBody)이 인쇄 창의 복제본에 걸려 스크롤 상자가 끼어들지 않게 한다
+        var $root = $('<div></div>').append($("#ffSubBody").clone().removeAttr("id"));
+        $root.find("*").addBack().contents().filter(function () { return this.nodeType === 8; }).remove();
+        $root.find("[data-ff-retry]").removeAttr("data-ff-retry");
+        $root.find("[title]").removeAttr("title");
+        $root.find("[data-tip]").removeAttr("data-tip");
+        $root.find("details").attr("open", "open");
+
+        // 차트: 라이트 색으로 인쇄 폭(660px)에 다시 그린다. Sankey 는 SVG 로, 월별·만기 막대(Chart.js)는 이미지로 바꾼다
+        var PW = 660;
+        var subMonths = (state.monthlyAll && state.monthlyAll.months) || [];
+        if (subMonths.length) {
+            buildSankeyFs($root.find("#ffSubSankey"), PW, subMonths);
+            var monthlyUrl = chartImageUrl(function (canvas) { return buildMonthlyBars(canvas, lightVar, false, subMonths); });
+            if (monthlyUrl) {
+                $root.find("#ffSubMonthlyChart").closest(".ff-chart-canvas").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart" alt="월별 확정 원화 유입, 국내 매수, 월 재투자율">').attr("src", monthlyUrl));
+            }
+        }
+        if (matGroups.length) {
+            var matUrl = chartImageUrl(function (canvas) { return buildMatBars(canvas, lightVar, false, matGroups); });
+            if (matUrl) {
+                $root.find("#ffMatChartBox").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart">').attr({ src: matUrl, alt: $("#ffMatChart").attr("aria-label") || "만기월별 잔액" }));
+            }
+        }
+        if (state.leakage && leakCats().cats.length) buildLeakBar($root.find("#ffSubLeakBar"), PW);
+        if (lorenzOk()) buildLorenzFs($root.find("#ffSubLorenz"), PW);
+        if (retPoints.length >= 2) {
+            var retUrl = chartImageUrl(function (canvas) { return buildRetentionChart(canvas, lightVar, retPoints, false); });
+            if (retUrl) {
+                $root.find("#ffRetBox").empty().css("height", "auto")
+                    .append($('<img class="ff-print-chart">').attr({ src: retUrl, alt: $("#ffRetChart").attr("aria-label") || "확정 후 경과일별 원금 유지 비율" }));
+            }
+        }
+        $root.find("canvas").remove();
+
+        var css = ["tokens", "components", "fund-flow"].map(function (n) {
+            return '<link rel="stylesheet" href="' + origin + '/css/admin/' + n + '.css">';
+        }).join("");
+        var printCss = "@page{size:A4 portrait;margin:14mm}" +
+            "html,body{margin:0;background:var(--adm-panel);color:var(--adm-text);-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+            ".ff-print{display:block;height:auto;max-width:182mm;margin:0 auto;font-size:11px}" +
+            ".ff-print .ff-card{break-inside:avoid;margin:0 0 8px;overflow:visible;display:block}" +
+            ".ff-print .adm-summary{flex-wrap:wrap;row-gap:4px;padding:4px}" +
+            ".ff-print .ff-bar-item{white-space:normal}" +
+            ".ff-print .ff-chart svg{width:100%;height:auto}" +
+            ".ff-print .ff-print-chart{width:100%;height:auto;display:block}" +
+            ".ff-print .ff-defs-row{break-inside:avoid;min-width:0;font-size:10px}" + ".ff-print .ff-defs{overflow:visible}";
+        doc.open();
+        doc.write('<!DOCTYPE html><html lang="ko" data-theme="light"><head><meta charset="utf-8"><title>RIA 자금 환류 현황</title>' + css + '<style>' + printCss + '</style></head><body></body></html>');
+        doc.close();
+        var page = doc.createElement("div");
+        page.className = "adm-page fund-flow ff-print";
+        doc.body.appendChild(page);
+        // 제출용 한정 스타일(표지·막 제목)이 인쇄 창에서도 적용되도록 같은 속성으로 감싼다
+        var wrap = doc.createElement("div");
+        wrap.setAttribute("data-ff-view", "submit");
+        page.appendChild(wrap);
+        $root.children().each(function () { wrap.appendChild(doc.importNode(this, true)); });
+        var printed = false;
+        function doPrint() {
+            if (printed) return;
+            printed = true;
+            w.focus();
+            w.print();
+        }
+        w.addEventListener("load", function () { setTimeout(doPrint, 500); });
+        setTimeout(doPrint, 1800);
+        window.__ffPdfWindow = w;
+    }
+
     /* ---------- 불러오기 ---------- */
     var PANELS_OF = {
         monthly: ["#ffPanelSankey", "#ffPanelMonthly", "#ffPanelBridge"],
         funnel: ["#ffPanelFunnel"],
-        leakage: ["#ffPanelLeakage"],
+        monthlyAll: ["#ffSubPanelFlow", "#ffSubPanelMonthly"],
+        leakage: ["#ffPanelLeakage", "#ffSubPanelLeak"],
         relief: ["#ffPanelRelief"],
         allocation: ["#ffPanelAllocation"],
         segments: ["#ffPanelSegments"],
         retention: ["#ffPanelRetention"],
-        concentration: ["#ffPanelConc"]
+        concentration: ["#ffPanelConc", "#ffSubPanelConc"],
+        funnelAll: ["#ffSubPanelFunnel"],
+        allocationAll: ["#ffSubPanelAlloc"]
     };
     var SUMMARY_OF = {
         overview: ["ffSumOpened", "ffSumInflow", "ffSumReinvest"],
         relief: ["ffSumRelief", "ffSumPerRelief"],
         leakage: ["ffSumBenefit"]
     };
-    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도" };
+    var LABEL_OF = { monthly: "월별 자금 흐름", overview: "핵심 지표", overviewAll: "핵심 지표(전체)", monthlyAll: "월별 자금 흐름(전체)", earlyWithdrawal: "조기 인출", maturity: "만기 도래", retentionAll: "경과일별 원금 유지", relief: "감면 지표", leakage: "혜택 누수", funnel: "퍼널", allocation: "국내 운용처", segments: "연령대 × 투자성향", retention: "원금 유지", concentration: "혜택 집중도", funnelAll: "이용 단계", allocationAll: "운용처" };
 
     function renderMonthlyPanels() {
         var months = monthsOf();
@@ -1525,12 +2720,19 @@ $(function () {
     }
 
     var loadSeq = {}; // API 별 요청 번호: 기간을 연달아 바꿀 때 늦게 온 옛 응답이 새 응답을 덮지 않게 한다
+    var loadState = {}; // API 별 상태: loading · ok · fail (제출용 PDF 는 SUBMIT_APIS 전부가 ok 일 때만 저장한다)
 
     function load(api) {
         var seq = (loadSeq[api] = (loadSeq[api] || 0) + 1);
         var panels = PANELS_OF[api] || [];
+        loadState[api] = "loading";
         panels.forEach(function (sel) { setPanel($(sel), "loading"); });
         if (SUMMARY_OF[api]) summaryLoading(SUMMARY_OF[api]);
+        clearConcl(api);
+        clearChecks(api);
+        if (api === "maturity") clearMaturity();
+        if (api === "overviewAll") clearCover();
+        if (api === "retentionAll") clearRetention();
 
         return MARIA.auth.ajax({ url: API[api].url, method: "GET", data: API[api].period ? { period: period } : undefined }).done(function (res) {
             if (seq !== loadSeq[api]) return;
@@ -1539,12 +2741,19 @@ $(function () {
             if (api === "overview") {
                 renderOverviewSummary();
                 if (state.monthly) sankeyOverviewNote($("#ffSankeyNotes"), totals(monthsOf()));
+            } else if (api === "overviewAll") {
+                renderCover();
+            } else if (api === "maturity") {
+                renderMaturity();
+            } else if (api === "monthlyAll") {
+                renderSubProcess();
             } else if (api === "relief") {
                 renderReliefSummary();
                 renderRelief();
             } else if (api === "leakage") {
                 renderLeakageSummary();
                 renderLeakage();
+                renderSubLeakage();
             } else if (api === "monthly") {
                 renderMonthlyPanels();
             } else if (api === "funnel") {
@@ -1557,15 +2766,31 @@ $(function () {
                 renderRetention();
             } else if (api === "concentration") {
                 renderConcentration();
+                renderSubConc();
+            } else if (api === "funnelAll") {
+                renderSubFunnel();
+            } else if (api === "allocationAll") {
+                renderSubAlloc();
+            } else if (api === "retentionAll") {
+                renderSubRetention();
             }
             refreshInterp(api);
             renderDefs();
+            loadState[api] = "ok";
+            renderSubmitAll();
         }).fail(function () {
             if (seq !== loadSeq[api]) return;
+            loadState[api] = "fail";
             delete state[api];
             if (SUMMARY_OF[api]) summaryFail(SUMMARY_OF[api], api);
+            clearConcl(api);
+            clearChecks(api);
+            if (api === "maturity") clearMaturity();
+            if (api === "overviewAll") clearCover();
+            if (api === "retentionAll") clearRetention();
             panels.forEach(function (sel) { showPanelError($(sel), LABEL_OF[api] || "데이터", api); });
             renderDefs();
+            renderSubmitAll();
         });
     }
 
@@ -1584,6 +2809,26 @@ $(function () {
         Object.keys(API).forEach(function (api) { if (API[api].period) load(api); });
     });
 
+    // 제출용 / 운영 상세 보기 전환: 영역 숨김만 바꾼다. 운영 상세로 돌아오면 숨겨 두는 동안 못 그린 차트를 다시 그린다
+    // 제출용 보기에서는 기간 버튼 그룹과 "출시 이후 누적 · 집계 기준일" 문구를 숨긴다(hidden 토글만 한다. 기간 토글 로직은 그대로)
+    function applyViewBar() {
+        $("#ffPeriodItem, #ffPeriodRange, #ffAsOf").prop("hidden", view === "submit");
+    }
+
+    $("#ffView").on("click", "button", function () {
+        var next = $(this).attr("data-view");
+        if (next === view) return;
+        view = next;
+        $("#ffView button").removeClass("is-on");
+        $(this).addClass("is-on");
+        $("[data-ff-view]").each(function () {
+            $(this).prop("hidden", $(this).attr("data-ff-view") !== view);
+        });
+        applyViewBar();
+        redraw();
+    });
+    applyViewBar(); // 첫 로드의 보기에 맞춘다
+
     $("#ffBridgeMonth").on("change", function () {
         renderBridge();
         refreshInterp("monthly");
@@ -1597,13 +2842,25 @@ $(function () {
             refreshInterp("segments");
         }
     });
-    $("#ffPdfBtn").on("click", savePdf);
+    $("#ffPdfBtn").on("click", function () {
+        if (view === "submit") savePdfSubmit(); else savePdf();
+    });
 
     // 크기 · 테마가 바뀌면 SVG 와 차트를 다시 그린다
     var redrawTimer = null;
     function redraw() {
         clearTimeout(redrawTimer);
         redrawTimer = setTimeout(function () {
+            // 보기별로 보이는 쪽만 다시 그린다(숨겨진 동안은 크기 0)
+            if (view === "submit") {
+                if (state.maturity && matGroups.length) drawMatChart();
+                drawSubProcess();
+                drawSubRetention();
+                drawSubLeak();
+                drawSubConc();
+                return;
+            }
+            if (view !== "ops") return;
             if (state.monthly && monthsOf().length && $("#ffPanelMonthly").attr("data-state") === "ready") {
                 renderSankey();
                 renderMonthly();
@@ -1615,6 +2872,9 @@ $(function () {
     $(window).on("resize", redraw);
     if (window.ResizeObserver) {
         new ResizeObserver(redraw).observe(document.querySelector(".ff-scroll"));
+        // 제출용: 전체 래퍼 하나에만 한 번 연결한다(보기 전환 때 해제·재연결하지 않아 중복이 생기지 않는다). display: contents 인 ff-view 는 크기가 없어 안쪽 래퍼를 본다
+        var subBody = document.getElementById("ffSubBody");
+        if (subBody) new ResizeObserver(redraw).observe(subBody);
     }
     if (window.MutationObserver) {
         new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -1624,7 +2884,7 @@ $(function () {
 
     renderDefs();
     MARIA.auth.requireAuth().done(function () {
-        // 7개를 동시에 부른다 (한쪽이 느리거나 실패해도 나머지는 먼저 그려진다)
+        // API 전부를 동시에 부른다 (한쪽이 느리거나 실패해도 나머지는 먼저 그려진다)
         Object.keys(API).forEach(function (api) { load(api); });
     });
 });

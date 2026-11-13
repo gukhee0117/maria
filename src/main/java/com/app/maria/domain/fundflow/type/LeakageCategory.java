@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum LeakageCategory {
     NO_SELL("매도 없음", "아직 RIA 계좌에서 해외주식을 팔지 않아 계산할 혜택이 없어요"),
-    BENEFIT_CANCELED("혜택 취소(해지 등)", "계좌 해지 등으로 세금 혜택이 취소됐어요"),
+    BENEFIT_CANCELED("혜택 취소(조기 인출)", "1년이 지나기 전에 원금을 인출해 세금 혜택이 취소됐어요"),
     NO_IMPACT("영향 없음", "세금 혜택이 그대로 유지되고 있어요"),
     PARTIAL_REDUCED("부분 축소", "다른 계좌의 해외주식 매수로 혜택이 일부 줄었어요"),
     EXTERNAL_BUY_OFFSET("타 계좌 순매수로 소멸", "다른 계좌의 해외주식 매수로 혜택이 모두 사라졌어요");
