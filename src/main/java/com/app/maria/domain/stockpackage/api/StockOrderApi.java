@@ -4,6 +4,7 @@ import com.app.maria.domain.stockpackage.dto.request.StockOrderRequestDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockOrderFeeResponseDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockOrderResponseDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockOrderResultDTO;
+import com.app.maria.domain.stockpackage.dto.response.StockPackageAllHoldingsResponseDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockPackageHoldingResponseDTO;
 import com.app.maria.domain.stockpackage.service.StockOrderService;
 import com.app.maria.domain.stockpackage.service.StockPackageHoldingService;
@@ -46,8 +47,9 @@ public class StockOrderApi {
 
     @GetMapping("/holdings")
     @Operation(
-            summary = "내 모든 패키지의 보유 현황 (최근 만든 순). 담은 종목은 안 샀어도 수량 0으로 나온다. 현재가는 종목 합집합으로 한 번에 조회한다")
-    public ApiResponseDTO<List<StockPackageHoldingResponseDTO>> allHoldings(
+            summary =
+                    "내 모든 패키지의 보유 현황 (최근 만든 순). 담은 종목은 안 샀어도 수량 0으로 나온다. 현재가는 종목 합집합으로 한 번에 조회한다. 예수금·주문 가능 금액은 패키지가 없어도 온다")
+    public ApiResponseDTO<StockPackageAllHoldingsResponseDTO> allHoldings(
             @AuthenticationPrincipal(errorOnInvalidType = true) CustomerPrincipal principal) {
         return ApiResponseDTO.of(
                 "보유 현황 조회 성공", stockPackageHoldingService.getAllHoldings(principal.customerId()));

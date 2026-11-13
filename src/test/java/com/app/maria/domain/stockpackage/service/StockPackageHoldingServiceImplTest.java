@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.app.maria.domain.account.dto.AccountDTO;
 import com.app.maria.domain.account.mapper.AccountMapper;
 import com.app.maria.domain.domestic.type.DomesticOrderSide;
+import com.app.maria.domain.stockpackage.dto.response.StockPackageAllHoldingsResponseDTO;
 import com.app.maria.domain.stockpackage.dto.response.StockPackageHoldingResponseDTO;
 import com.app.maria.domain.stockpackage.mapper.StockOrderMapper;
 import com.app.maria.domain.stockpackage.mapper.StockPackageMapper;
@@ -228,8 +229,10 @@ class StockPackageHoldingServiceImplTest {
         when(quoteService.findQuotes(List.of("005930", "000660")))
                 .thenReturn(List.of(quote("005930", "110000"), quote("000660", "380000")));
 
-        List<StockPackageHoldingResponseDTO> all = service.getAllHoldings(CUSTOMER);
+        StockPackageAllHoldingsResponseDTO result = service.getAllHoldings(CUSTOMER);
+        List<StockPackageHoldingResponseDTO> all = result.packages();
 
+        assertThat(result.buyingPower()).isEqualByComparingTo("1000");
         assertThat(all)
                 .extracting(StockPackageHoldingResponseDTO::stockPackageId)
                 .containsExactly(5L, 6L);
@@ -242,10 +245,27 @@ class StockPackageHoldingServiceImplTest {
     }
 
     @Test
-    void 패키지가_없으면_빈_목록이고_현재가를_조회하지_않는다() {
+    void 패키지가_없어도_예수금과_주문_가능_금액은_오고_현재가를_조회하지_않는다() {
         when(packageMapper.selectSummariesByCustomerId(CUSTOMER)).thenReturn(List.of());
+        account("15000000", "1000000");
 
-        assertThat(service.getAllHoldings(CUSTOMER)).isEmpty();
+        StockPackageAllHoldingsResponseDTO result = service.getAllHoldings(CUSTOMER);
+
+        assertThat(result.packages()).isEmpty();
+        assertThat(result.accountAmount()).isEqualByComparingTo("15000000");
+        assertThat(result.buyingPower()).isEqualByComparingTo("14000000");
         verify(quoteService, never()).findQuotes(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void 계좌가_없으면_예수금과_주문_가능_금액이_null이다() {
+        when(packageMapper.selectSummariesByCustomerId(CUSTOMER)).thenReturn(List.of());
+        when(accountMapper.selectByCustomerId(CUSTOMER)).thenReturn(Optional.empty());
+
+        StockPackageAllHoldingsResponseDTO result = service.getAllHoldings(CUSTOMER);
+
+        assertThat(result.packages()).isEmpty();
+        assertThat(result.accountAmount()).isNull();
+        assertThat(result.buyingPower()).isNull();
     }
 }
