@@ -460,6 +460,29 @@ $(function () {
         return true;
     }
 
+    // 5건 미만 2차 가림: 합계가 함께 보이는 한 묶음의 칸 수(counts)를 받아 칸마다 가림 단계를 돌려준다.
+    //   0 = 그대로 표시, 1 = 5건 미만(1차), 2 = 5건 미만 포함 합산 가림(2차).
+    // 1차로 가린 칸이 정확히 1개면 합계에서 빼서 그 값을 알아내지 못하도록 남은 칸 중 가장 작은 칸도 함께 가린다.
+    var MASK_SMALL_TEXT = "5건 미만";
+    var MASK_MERGED_TEXT = "5건 미만 포함 합산 가림";
+
+    function maskSmall(counts) {
+        var mask = counts.map(function (n) { return n != null && isFinite(Number(n)) && Number(n) < 5 ? 1 : 0; });
+        var hidden = mask.filter(function (m) { return m === 1; }).length;
+        if (hidden === 1) {
+            var best = -1;
+            counts.forEach(function (n, i) {
+                if (mask[i] === 0 && n != null && isFinite(Number(n)) && (best < 0 || Number(n) < Number(counts[best]))) best = i;
+            });
+            if (best >= 0) mask[best] = 2;
+        }
+        return mask;
+    }
+
+    function maskText(m) {
+        return m === 1 ? MASK_SMALL_TEXT : m === 2 ? MASK_MERGED_TEXT : "";
+    }
+
     // 혜택 누수: 100% 가로 누적 막대 한 개 + 구간별 직접 라벨(분류명, 계좌 수 · 비중). 5건 미만은 "5건 미만"
     var LEAK_FILL = { NO_SELL: "var(--adm-line)", NO_IMPACT: "var(--adm-chart-gray)", PARTIAL_REDUCED: "var(--adm-sub)", BENEFIT_CANCELED: "var(--adm-chart-bar)", EXTERNAL_BUY_OFFSET: "var(--adm-chart-bar)" };
 
@@ -469,6 +492,8 @@ $(function () {
             return (d.categories || []).filter(function (c) { return c.code === code; })[0];
         }).filter(Boolean);
         var total = cats.reduce(function (s, c) { return s + num(c.accounts); }, 0);
+        var mask = maskSmall(cats.map(function (c) { return num(c.accounts); }));
+        cats = cats.map(function (c, i) { return $.extend({}, c, { mask: mask[i] }); });
         return { cats: cats, total: total };
     }
 
@@ -481,11 +506,11 @@ $(function () {
         var probe = document.createElement("canvas").getContext("2d");
         // 5건 미만 구간은 크기를 드러내지 않도록 폭을 고정한다(나머지가 남은 폭을 나눠 가진다)
         var fixed = 0, rest = 0;
-        L.cats.forEach(function (c) { if (num(c.accounts) < 5) fixed += 0.01; else rest += num(c.accounts); });
+        L.cats.forEach(function (c) { if (c.mask > 0) fixed += 0.01; else rest += num(c.accounts); });
         var segs = L.cats.map(function (c) {
-            var small = num(c.accounts) < 5;
+            var small = c.mask > 0;
             var name = c.label || MARIA.status.leakageLabel(c.code);
-            var line2 = small ? "5건 미만" : KRW.format(num(c.accounts)) + "계좌 · " + pctS(c.share == null ? num(c.accounts) / L.total : Number(c.share));
+            var line2 = small ? maskText(c.mask) : KRW.format(num(c.accounts)) + "계좌 · " + pctS(c.share == null ? num(c.accounts) / L.total : Number(c.share));
             probe.font = "700 12px " + font;
             var w1 = probe.measureText(name).width;
             probe.font = "12px " + font;
@@ -655,7 +680,7 @@ $(function () {
     function renderScenBar() {
         var d = state.maturity;
         var locked = d ? Number(d.lockedAmount) : 0;
-        var show = d && d.lockedAmount != null && isFinite(locked) && locked > 0;
+        var show = d && d.lockedAmount != null && isFinite(locked) && locked > 0 && (d.lockedAccounts == null || num(d.lockedAccounts) >= 5);
         $("#ffSubScen").prop("hidden", !show);
         if (!show) { $("#ffScenBar").empty(); return; }
         $("#ffScenBar").html([50, 70, 90].map(function (p) {
@@ -695,10 +720,14 @@ $(function () {
                 groups.push(cur);
             }
         }
-        return groups.map(function (g) {
+        // 합친 뒤에도 계좌가 5 미만인 묶음(전체 만기 계좌가 5 미만인 경우)은 그리지 않는다. 금액도 계좌 수 기준 가림을 따른다
+        var visible = groups.filter(function (g) { return g.accounts >= 5; });
+        var out = visible.map(function (g) {
             var label = g.from === g.to ? g.from : g.from + "~" + (g.from.slice(0, 4) === g.to.slice(0, 4) ? g.to.slice(5) : g.to);
             return { label: label, amount: g.amount };
         });
+        out.hiddenGroups = groups.length - visible.length;
+        return out;
     }
 
     function clearMaturity() {
@@ -723,7 +752,8 @@ $(function () {
         $("#ffMatCaption").text("리턴증권 고객 기준 · 누적 · 집계 기준일 " + (d.asOfDate || "-"));
         matGroups = groupMonths(d.months || []);
         var has = matGroups.length > 0;
-        $("#ffMatEmpty").prop("hidden", has);
+        var masked = matGroups.hiddenGroups > 0;
+        $("#ffMatEmpty").text(masked ? "5계좌 미만이라 표시하지 않음" : "만기 예정 잔액 없음").prop("hidden", has);
         $("#ffMatChartTitle, #ffMatChartBox, #ffMatTableBox").prop("hidden", !has);
         var $tb = $("#ffMatTable tbody").empty();
         matGroups.forEach(function (g) {
@@ -2176,19 +2206,23 @@ $(function () {
         fsPut("ffTblMonthly", head, body);
     }
 
-    // <표 2> 1년 전 원금 인출 원인별(계좌 수 5 미만은 "5건 미만")
+    // <표 2> 1년 전 원금 인출 원인별(계좌 수 5 미만은 "5건 미만", 가린 칸이 1개뿐이면 다음으로 작은 칸도 함께 가린다)
     function renderTblCause() {
         var e = state.earlyWithdrawal;
         var head = "<tr><th>구분</th><th>계좌 수</th><th>인출액</th></tr>";
         if (!e) { fsPut("ffTblCause", head, fsWait("earlyWithdrawal", "조기 인출", 3)); return; }
         function e1c(v) { return num(v) > 0 && num(v) < 5e6 ? "<0.1" : (num(v) / 1e8).toFixed(1); }
-        var body = (e.byCause || []).map(function (cz) {
-            var few = cz.accounts == null || num(cz.accounts) < 5;
-            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : fsCnt(num(cz.accounts)), few ? "5건 미만" : e1c(cz.amount)]);
+        var causes = e.byCause || [];
+        var mask = maskSmall(causes.map(function (cz) { return cz.accounts == null ? null : num(cz.accounts); }));
+        var body = causes.map(function (cz, i) {
+            if (mask[i] > 0) return fsRow([esc(cz.label || ""), maskText(mask[i]), maskText(mask[i])]);
+            return fsRow([esc(cz.label || ""), cz.accounts == null ? "-" : KRW.format(num(cz.accounts)), e1c(cz.amount)]);
         }).join("");
         var all = num(e.earlyAccounts) < 5;
         body += fsRow(["1년 전 원금 인출 전체", fsCnt(num(e.earlyAccounts)), all ? "5건 미만" : e1c(e.earlyWithdrawnAmount)], "fs-total");
+        var allHidden = causes.length > 0 && mask.every(function (m) { return m > 0; });
         body += fsNote("주: 한 계좌가 두 원인에 걸칠 수 있어 원인별 계좌 수의 합이 전체와 다를 수 있음. 분모는 확정 환전 " + KRW.format(num(e.finalizedAccounts)) + "계좌, 확정 원금 " + eok(e.finalizedAmount), 3);
+        if (allHidden) body += fsNote("5건 미만 칸이 있어 원인별 값은 표시하지 않음", 3);
         fsPut("ffTblCause", head, body);
     }
 
@@ -2271,7 +2305,7 @@ $(function () {
             var L = leakCats();
             if (L.cats.length && L.total) {
                 b.push("혜택 누수 5분류(전체 " + KRW.format(L.total) + "계좌): " + L.cats.map(function (cat) {
-                    return (cat.label || MARIA.status.leakageLabel(cat.code)) + " " + (num(cat.accounts) < 5 ? "5건 미만" : pctS(cat.share == null ? num(cat.accounts) / L.total : Number(cat.share)));
+                    return (cat.label || MARIA.status.leakageLabel(cat.code)) + " " + (cat.mask > 0 ? maskText(cat.mask) : pctS(cat.share == null ? num(cat.accounts) / L.total : Number(cat.share)));
                 }).join(", "));
             }
         }
@@ -2300,6 +2334,7 @@ $(function () {
         var d = state.maturity;
         var lead = titleOutlook(d);
         if (!lead) return "";
+        if (d.lockedAccounts != null && num(d.lockedAccounts) < 5) return sumHtml("만기 도래 전망: 5건 미만", []);
         var locked = Number(d.lockedAmount);
         var b = [];
         b.push("혜택 유지 잔액 " + eok(locked) + " 원(확정 후 1년 미경과)" + (d.firstMaturityMonth ? ", 첫 만기월 " + String(d.firstMaturityMonth).slice(0, 7) : ""));
