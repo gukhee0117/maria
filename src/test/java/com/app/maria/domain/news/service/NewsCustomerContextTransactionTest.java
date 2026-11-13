@@ -58,30 +58,46 @@ class NewsCustomerContextTransactionTest {
                     answers_json VARCHAR(2000) NOT NULL, assessed_at TIMESTAMP NOT NULL
                 )
                 """);
+        // 보유·테마·주문 쿼리(MyBatis)가 실제로 도는 데 필요한 컬럼만 둔다
         jdbc.execute(
-                """
-                CREATE TABLE IF NOT EXISTS account (
-                    account_id BIGINT PRIMARY KEY, customer_id BIGINT NOT NULL UNIQUE, status VARCHAR(20) NOT NULL,
-                    opened_at TIMESTAMP, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    account_no VARCHAR(10), limit_amount DECIMAL(15, 0) NOT NULL,
-                    amount DECIMAL(15, 2) NOT NULL DEFAULT 0, benefit VARCHAR(20) NOT NULL DEFAULT 'POSSIBLE'
-                )
-                """);
+                "CREATE TABLE IF NOT EXISTS account (account_id BIGINT PRIMARY KEY, customer_id BIGINT NOT NULL)");
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS domestic_product (domestic_product_id BIGINT PRIMARY KEY, ticker VARCHAR(20) NOT NULL, name VARCHAR(100) NOT NULL, type VARCHAR(15) NOT NULL, sector_name VARCHAR(50), domestic_stock_ratio DECIMAL(5, 2), inception_date DATE)");
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS domestic_stock_balance (account_id BIGINT NOT NULL, domestic_product_id BIGINT NOT NULL, qty DECIMAL(15, 4) NOT NULL, status VARCHAR(20) NOT NULL, last_purchase_date DATE, avg_purchase_price DECIMAL(15, 2))");
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS stock_theme (stock_theme_id BIGINT PRIMARY KEY, name VARCHAR(30) NOT NULL)");
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS domestic_product_theme (domestic_product_id BIGINT NOT NULL, stock_theme_id BIGINT NOT NULL)");
+        jdbc.execute(
+                "CREATE TABLE IF NOT EXISTS domestic_order (domestic_order_id BIGINT PRIMARY KEY, account_id BIGINT, domestic_product_id BIGINT, side VARCHAR(4), qty DECIMAL(15, 4), status VARCHAR(10), processed_at TIMESTAMP)");
         jdbc.update(
                 "INSERT INTO customer (customer_id, name, birth_date, investor_type, ci_hash) VALUES (?, '뉴스', DATE '1990-01-01', 'NEUTRAL', 'news-context-tx-ci')",
                 CUSTOMER_ID);
         jdbc.update(
                 "INSERT INTO investor_assessment (customer_id, total_score, investor_type, answers_json, assessed_at) VALUES (?, 50, 'NEUTRAL', '[]', TIMESTAMP '2026-11-01 09:00:00')",
                 CUSTOMER_ID);
+        jdbc.update("INSERT INTO account VALUES (1, ?)", CUSTOMER_ID);
+        jdbc.execute(
+                "INSERT INTO domestic_product VALUES (1, '005930', '삼성전자', 'STOCK', '반도체', NULL, NULL)");
+        jdbc.execute(
+                "INSERT INTO domestic_stock_balance VALUES (1, 1, 10, 'HOLDING', DATE '2026-11-02', 70000)");
+        jdbc.execute("INSERT INTO stock_theme VALUES (1, '반도체')");
+        jdbc.execute("INSERT INTO domestic_product_theme VALUES (1, 1)");
+        jdbc.execute(
+                "INSERT INTO domestic_order VALUES (77, 1, 1, 'BUY', 10, 'EXECUTED', TIMESTAMP '2026-11-02 09:00:00')");
     }
 
     @Test
-    void 보유와_성향을_한_트랜잭션에서_읽어도_트랜잭션_매니저가_충돌하지_않는다() {
+    void 브리핑_경로에서_보유와_성향을_한_트랜잭션으로_읽는다() {
         Mockito.when(businessClockService.now()).thenReturn(LocalDateTime.of(2026, 11, 13, 9, 0));
 
-        Context context = service.loadHoldings(CUSTOMER_ID);
+        // 브리핑(GET /api/customer/news/briefing)이 쓰는 경로: 보유·테마 우선순위·최근 주문(MyBatis) + 성향(JPA)
+        Context context = service.loadForSelection(CUSTOMER_ID);
 
         assertThat(context.personalizationStatus()).isEqualTo(PersonalizationStatus.ACTIVE);
-        assertThat(context.tickers()).isEmpty();
+        assertThat(context.tickers()).containsExactly("005930");
+        assertThat(context.themePriorities()).containsKey("반도체");
+        assertThat(context.orderRevision()).isEqualTo(77L);
     }
 }
