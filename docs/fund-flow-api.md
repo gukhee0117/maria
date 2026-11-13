@@ -173,7 +173,7 @@
 ```
 - 세율·기본공제는 `tax_rule`의 `TAX_RATE`, `BASIC_DEDUCTION`을 **기준일 시점 유효 행**으로 읽는다.
 - `investPerRelief` = 감면 1원당 투자액 = Σ(국내 순투자) ÷ Σ감면액. 기준값은 `ALL` 21.0, `POSITIVE` 15.1이다.
-- `original_gain_amount` = RIA 계좌 확정 매도분 이익(해당 세액 연도)이다(`TaxCalculator.aggregateRiaSell`이 RIA 매도 lot의 이익을 합산). 감면 지표는 이 값으로 계산한 잠정(draft-1) 정의의 예상값이다.
+- `original_gain_amount`가 RIA 매도분만인지 총 양도소득인지 **미확인**이라 이 지표는 잠정치다.
 
 ### 2-7. `GET /api/admin/fund-flow/allocation` — 국내 운용처 (구현 순서 맨 뒤)
 
@@ -457,7 +457,7 @@ resources/mappers/fundflow/FundFlowMapper.xml
 | 항목 | 현재 가정 | 확인 대상 |
 |---|---|---|
 | 감면 1원당 분모 | `scope`로 둘 다 제공 (기본 `ALL`) | 팀 |
-| `original_gain_amount` 범위 | RIA 계좌 확정 매도분 이익(해당 세액 연도)으로 확인(`TaxCalculator`). 감면 지표는 잠정(draft-1) 표기 | 해결 |
+| `original_gain_amount` 범위 | 총 양도소득으로 가정, 잠정치로 표기 | 김민석 |
 | 자산 규모 구간 | 이번 버전에서 제외 | 팀 |
 | 정부 보고 형태 | 이번 버전에서 제외 (관리자 `overview`·`funnel`·`monthly`가 기초 자료) | 팀 |
 | 11월 `fund_flow_monthly` 행 | 시드에는 2026-11 이후 행(~2027-03)도 있다. API는 `flow_month < 업무일이 속한 달의 1일`인 행만 월별 합계에 쓰고, 진행 중인 달은 원천 집계 + `partial=true`(`selectMonthlyClosed`, `selectMonthlyPartial`) | 해결 |
